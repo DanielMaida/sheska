@@ -41,7 +41,7 @@ public class QueryMaker {
 	
 	private static TopDocs searchInContent(String textToFind, IndexSearcher searcher, Analyzer analyzer) throws Exception
     {
-        QueryParser qp = new QueryParser("contents", new StandardAnalyzer());
+        QueryParser qp = new QueryParser("contents", analyzer);
         Query query = qp.parse(textToFind);
          
         TopDocs hits = searcher.search(query, 204);
