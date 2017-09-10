@@ -44,7 +44,7 @@ public class QueryMaker {
         QueryParser qp = new QueryParser("contents", analyzer);
         Query query = qp.parse(textToFind);
          
-        TopDocs hits = searcher.search(query, 204);
+        TopDocs hits = searcher.search(query, 205);
         return hits;
     }
  

@@ -33,6 +33,7 @@ public class Indexer {
 	
 	public Indexer(String indexDirectoryPath, Analyzer analyzer ) throws IOException{
 		Directory indexDirectory = FSDirectory.open(new File(indexDirectoryPath).toPath());
+		//Directory indexDirectory = FSDirectory.open(Paths.get(Indexer.class.getResource(indexDirectoryPath).getPath()));
 		IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
 		iwc.setOpenMode(OpenMode.CREATE_OR_APPEND);
 		writer = new IndexWriter(indexDirectory, iwc);
