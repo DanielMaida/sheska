@@ -1,0 +1,620 @@
+Statistical Selection of CNN-Based Audiovisual Features for Instantaneous
+Estimation of Human Emotional States
+Ramesh Basnet?, Mohammad Tariqul Islam?, Tamanna Howlader†
+S. M. Mahbubur Rahman‡, and Dimitrios Hatzinakos §
+?Department of EEE, Bangladesh University of Engineering and Technology, Dhaka 1205, Bangladesh
+†Institute of Statistical Research and Training, University of Dhaka, Dhaka 1000, Bangladesh
+‡Department of EEE, University of Liberal Arts Bangladesh, Dhaka 1209, Bangladesh
+§ Department of ECE, University of Toronto, Toronto, ON, Canada, M5S 2E4
+Email: rbasnet198@gmail.com, tariqul@eee.buet.ac.bd, tamanna@isrt.ac.bd
+mahbubur.rahman@ulab.edu.bd, dimitris@comm.utoronto.ca
+Abstract—Automatic prediction of continuous-level emotional
+state requires selection of suitable affective features to develop
+a regression system based on supervised machine learning.
+This paper investigates the performance of features statisti-
+cally learned using convolutional neural networks for instan-
+taneously predicting the continuous dimensions of emotional
+states. Features with minimum redundancy and maximum
+relevancy are chosen by using the mutual information-based
+selection process. The performance of frame-by-frame predic-
+tion of emotional state using the moderate length features
+as proposed in this paper is evaluated on spontaneous and
+naturalistic human-human conversation of RECOLA database.
+Experimental results show that the proposed model can be
+used for instantaneous prediction of emotional state with an
+accuracy higher than traditional audio or video features that
+are used for affective computation.
+1. Introduction
+Automatic prediction of instantaneous affective state is
+becoming increasingly important in the recent years. Analy-
+sis of affective content is an interdisciplinary field involving
+research areas that includes computer vision, speech analy-
+sis, and psychology. To relate between measurable low-level
+features with corresponding affective state, certain models
+of emotion are required. Psychologists have used two major
+approaches, viz., categorical and dimensional to quantify
+the emotional states [1]. According to the categorical ap-
+proach, the model of emotion was defined by Ekman, who
+grouped emotional states into six basic categories including
+the happiness, sadness, anger, disgust, fear, and surprise
+(see [2]). However, categorical approach fall short in sit-
+uation where a small number of discrete categories may not
+reflect the complexity of human emotional states. In this
+context, continuous emotional model reflect more subtle and
+context specific emotions avoiding boundaries. As a result,
+research in area of affective computing is shifting from
+categorical approach to dimensional approach. In dimen-
+sional approach, Wundt [3] introduced 3D continuous space
+High Arousal
+B
+o
+re
+d
+E
+x
+c
+it
+e
+d
+S
+tr
+e
+s
+s
+e
+d
+R
+e
+la
+x
+e
+d
+Low Arousal
+N
+e
+g
+a
+ti
+v
+e
+ V
+a
+le
+n
+c
+e
+P
+o
+s
+it
+iv
+e
+ V
+a
+le
+n
+c
+e
+Figure 1. Typical emotional states and human faces in the valence-arousal
+plane.
+- valence, arousal, and dominance to represent emotional
+states of humans. Valence represents the degree of plea-
+sure ranging from pleasant to unpleasant feelings. Arousal
+illustrates the activation level ranging from global feeling of
+dynamism to lethargy of an individual. Dominance charac-
+terizes the range of emotion from controlling sentiment to
+the controlled or submissive feelings. It is reported in [4]
+that the effect of the dominance dimension becomes visible
+only at points with distinctly high absolute valence values.
+In general, the valence and arousal account for most of the
+independent variance in emotional responses (see for exam-
+ple, [5]). Fig. 1 shows a few examples of facial appearances
+in the valance-arousal plane. It is seen from this figure that
+different emotional states such as stressed, excited, bored or
+relaxed feelings can be recognized independent of the sub-
+jects by the ratings of the dimensions valance and arousal.
+In general, the affective states of humans are estimated by
+ar
+X
+iv
+:1
+70
+8.
+07
+02
+1v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+3 
+A
+ug
+ 2
+01
+7
+extracting affective features from suitable sensors, and then
+relating between the low-level descriptors and high-level
+semantic meanings. Initial researches on affective content
+analysis confined in recognition of exaggerated expressions
+of prototypical emotions that are recorded in constrained
+environments [6]. Spontaneous expressions are also rec-
+ognized using the differentially expressive components of
+the facial images represented by orthogonal 2D Gaussian-
+Hermite moments [7]. Nevertheless, challenges appear to
+solve for the problem of recognizing continuous level natu-
+ralistic emotions instantaneously those are displayed in our
+day-to-day life.
+Prediction of continuous-level emotional states can be
+performed by extracting features from audio, visual or phys-
+iological signals. However, in practice, the former two-types
+of signals are preferred to the last-type of signal for feature
+extraction, because they are easily accessible and widely
+available. Finally, the instantaneous prediction of emotion
+requires that the nature of the features be dynamic instead
+of static. For example, in [8], the Gabor energy texture
+descriptors of neighboring frames are used as features of
+emotion. To remove redundant and irrelevant information
+in the regression process, suitable selection techniques such
+as those employ the correlation coefficients [9] and mutual
+information [10] are applied to certain features. Sudipta
+et al. [11] employed selected set of audiovisual features
+from the mel frequency cepstral coefficients (MFCC) and
+local binary patterns on three orthogonal planes (LBP-TOP)
+in minimum redundancy and maximum relevance (mRMR)
+pipeline to estimate continuous level emotional state in a
+multimodal framework. Recently, machine learning algo-
+rithms such as the hidden Markov model [12], the long
+short-term memory (LSTM) network [13], and the convo-
+lutional neural network (CNN) with LSTM [14] have been
+applied to predict the continuous-level emotional state.
+Traditional methods of continuous-level affective com-
+putation use a large number of hand-crafted features. In the
+literature, the use of deep learning algorithms in affective
+computation is relatively new. The most successful type
+of deep learning method is the CNN [15], which usually
+predict emotional states by using a large set of affective
+features learned from the training data. To the best of our
+knowledge, the outcome of statistical selection of affective
+features learned by the CNN has not yet been investigated.
+Thus, there remains a scope of developing new deep learning
+algorithm using CNN such that the frame-by-frame emo-
+tional state can be estimated in real-time by the use of
+sufficiently low number of affective features chosen by a
+suitable statistical selection process. In this paper, we predict
+the continuous-level human emotional states instantaneously
+using a suitable selection of audiovisual features learned
+by the CNN. Specifically, the frame-by-frame instantaneous
+prediction of emotional states is performed by adopting
+mutual information-based selection process of the audiovi-
+sual features extracted from a suitable structure of CNN.
+We show that improvement of prediction result is obtained
+when only relevant features are taken care of and redundant
+features are eliminated.
+This paper is organized as follows. Features extracted
+from audio and visual signals using a two-stream deep
+CNN are presented in Section 2. The feature selection
+and regression processes are detailed in Sections 3 and 4,
+respectively. Section 5 provides the experimental setup and
+comparison of the results to evaluate the proposed method.
+Finally, concluding remarks are given in Section 6.
+2. Feature Extraction
+In order to extract relevant information from audio and
+video signals for emotion prediction, we train an end-to-end
+CNN which provides affective features. The proposed CNN
+architecture is a 3-stage filtering scheme that employs the
+convolutional or fully connected layers as shown in the stick
+diagram of Figure 2. In this network, each of the convolution
+layers in the stages are followed by a ReLU and a max-pool
+layer. In the stick diagram of Figure 2, the layers convolu-
+tion, ReLU, max-pool and LRN are shown using a rectangle,
+a solid line, a converging trapezoid and a striped rectangle,
+respectively. The first stage of the proposed CNN model uses
+the convolutional filtering with ReLU activation and max-
+pool downsampling along with local response normalization
+(LRN). The overall output for the input frame X0 in the first
+stage is represented as
+X1 = LRN(MP (max(0,X0 ?W1 + b1))) (1)
+where ? is the convolution operation, max(0, ·) is the ReLU
+operation, MP (·) is the max-pool operation and LRN(·)
+is the local response normalization operation. Second stage
+uses the convolutional filtering with ReLU activation and
+max-pool downsampling, which is given by
+X2 = MP (max(0,X1 ?W2 + b2)) (2)
+The final stage of the network is a fully connected layer
+given by
+X3 = W
+T
+3 X2 + b3 (3)
+Overall in three stages, the parameters W1, W2 are convo-
+lution filter sets with bias terms b1 and b2, respectively, and
+W3 is the weight matrix of the fully connected layer with
+corresponding bias b3. We consider the output of the third
+stage as the features learned by the network. The final part
+of the CNN outputs the prediction of the emotional state, a
+fully connected layer that results in only scalars given by
+y = Wr
+TX3 + br (4)
+where Wr is the weight matrix, br is the corresponding
+bias term of the regressor, and y is the predicted value of
+emotional dimension.
+In order to learn the end-to-end mapping function for
+predicting emotional state, the network parameters, i.e., the
+weights and bias terms are required to be estimated. The
+mean squared error (MSE) is easily differentiable and thus
+employed as the loss function for mini-batch optimization.
+The gradient-based momentum update algorithm [16] is
+employed to optimize the weights and bias terms. Moreover,
+Stage 1 Stage 2 Stage 3 RegressorInput Estimated Output
+Video
+or Audio
+Figure 2. Proposed CNN models for predicting the emotion states. The input to the stream can be either video or audio signal. Operations from left to right
+is considered the forward operation. Each operations and layers of the network is represented by its corresponding geometric shape. Convolution layer
+is given by a rectangle, ReLU layer by a solid line, max-pooling layer by a converging trapezoid, LRN layer by a striped rectangle, and fully connected
+layer by an emerald shape.
+the dropout mechanism [17] is employed after third stage
+of each of the networks for training purpose.
+We trained the proposed architecture of CNN for both
+the video and audio streams. We add a superscripts (v) for
+CNN trained on video stream and (a) for CNN trained on
+the audio stream. The feature sets obtained from the video
+and audio streams using the CNNs are denoted as X(v)3
+and X(a)3 , respectively. These two sets are concatenated to
+obtain the complete audiovisual feature set F of length L
+with elements as {fi} (i ? 1, 2, · · · , L).
+3. Feature Selection
+In order to select the relevant features and to eliminate
+the redundant features, the mRMR feature selection tech-
+nique is used [18]. The feature selection process also reduces
+the length of feature vectors and thus lowers the effective
+computational complexity. To calculate mRMR ranking of
+a dynamic feature fi(t) (i ? 1, 2, · · · , L), we employ the
+difference between the maximum relevance and minimum
+redundancy criteria expressed in terms of their dynamic
+random variables Fi(t) (i ? 1, 2, · · · , L) given by [18]
+?RF (t) = max
+Fi?F
+[
+1
+|F|
+?
+Fi?F
+M(R(t), Fi(t))?
+1
+|F|2
+?
+Fi,Fj?F
+M(Fi(t), Fj(t))
+]
+(5)
+where R(t) is the dynamic random variable of the ground
+truth of instantaneous emotional rating r(t), M(·) is the
+mutual information of two random variables Fi and Fj given
+by
+M(Fi, Fj) =
+? ?
+p(Fi, Fj) log
+p(Fi, Fj)
+p(Fi)p(Fj)
+dFidFj (6)
+where p(Fi), p(Fj) and p(Fi, Fj) are the probability density
+functions. Finally, the feature vector Fs consisting only the
+features {fsi} (i ? 1, 2, · · · , Ls) with high values of mRMR
+ranking are constructed to predict the emotional states.
+4. Prediction of Emotional Rating
+In the proposed method, a regression technique is
+required to map the features to continuous-level emo-
+tional dimension. We employ the support vector regression
+(SVR) [19] technique to predict the emotional states from
+the proposed audiovisual features by acknowledging that
+it is a well-established statistical learning theory applied
+successfully in many prediction tasks in computer vision.
+The kernel SVR implicitly maps the dynamic features into
+a higher dimensional feature space to find a linear hyper-
+plane, wherein the emotional state can be predicted with a
+predefined soft error margin.
+Given a training set of known emotional rating ?(t) ?
+{Fs(t), r(t)}, where Fs(t) ? RLs and ?1 ? r(t) ? 1, the
+emotional state is predicted using the test feature F?s(t) as
+a regression function given by
+r?(t) =
+Ls?
+i=1
+?i?
+(
+fsi(t), f?si(t)
+)
++ b (7)
+where ?i are the Lagrange multipliers of a dual optimization
+problem, ? (·) is a kernel function, fsi are the support
+vectors, and b is the weight of bias. In order to map the au-
+diovisual features into the higher dimensional feature space
+for prediction, the most frequently used kernel functions
+such as the linear, polynomial, and radial basis function
+(RBF) can be used. With a view to select the parameters of
+the SVR, a grid-search on the hyper-parameters is used by
+adopting a cross-validation scheme. The parameter settings
+that produce the best cross-validation accuracy are used for
+TABLE 1. COMPARISON OF PREDICTION PERFORMANCE OF
+EMOTIONAL DIMENSION VALANCE IN TERMS OF RMSE, CC AND CCC
+USING DIFFERENT FEATURES
+Features RMSE CC CCC
+Audio (MFCC) 0.0696 0.5582 0.0069
+Visual (LBP-TOP) 0.0472 0.8032 0.1137
+Visual [8] (Gabor Energy) 0.0481 0.8440 0.0431
+Audiovisual [11]
+0.0469 0.7998 0.2592(MFCC with ? and ??
++ LBP-TOP)
+Proposed Audiovisual 0.0364 0.8924 0.3668
+(CNN)
+predicting the emotional state from the proposed CNN-based
+features.
+5. Experimental Results
+Experiments are carried out to evaluate the performance
+of the prediction method using features selected from the
+extracted features of the proposed CNNs on a multimodal
+corpus of spontaneous interactions in French, called the RE-
+mote COLlaborative and Affective interactions (RECOLA),
+introduced in [20]. The RECOLA database includes 9.5
+hours of multimodal recordings such as the audio, video,
+electro-cardiogram and electrodermal activities that were
+continuously and synchronously recorded from 46 partic-
+ipants. Time- and value-continuous ratings of emotion were
+performed by six French-speaking assistants (three male,
+three female) for the first five minutes of all recorded
+sequences. Finally, the annotations of 10 male and 13 female
+participants were made publicly available. In the experi-
+ments, we used only the audio and video modalities from
+the database for predicting the continuous-level emotional
+scores. Among the subjects, videos of first 10 subjects have
+been chosen for training the CNN model and the videos
+of the remaining subjects have been chosen for testing
+purposes.
+The input of the CNN for video stream is considered to
+be 128× 128 pixels greyscale video frames. The number of
+filters in the weight vectors W(v)1 , W
+(v)
+2 , W
+(v)
+3 and W
+(v)
+r
+with corresponding bias terms b(v)1 , b
+(v)
+2 , b
+(v)
+3 and b
+(v)
+r , are
+set to 128, 256, 512 and 1, respectively. The kernel size of
+both of the convolutional weights W(v)1 and W
+(v)
+2 is set to
+5×5. The CNN for audio stream has been set up in a similar
+fashion. The input audio stream of each frame is taken to be
+of 60 ms in length, with a 20 ms overlap with audio stream
+of previous frame, sampled at 44.1 KHz. Thus, the number
+of filters in the weight vectors W(a)1 , W
+(a)
+2 , W
+(a)
+3 and W
+(a)
+r
+with corresponding bias terms b(a)1 , b
+(a)
+2 , b
+(a)
+3 and b
+(a)
+r are
+set to 32, 64, 512 and 1, respectively. The kernel size of
+both of convolutional weights W(a)1 and W
+(a)
+2 is chosen to
+be 20 with stride 2.
+The feature vector F with length 1024 is constructed
+by concatenating learned affective features X(v)3 and X
+(a)
+3 ,
+each with 512 dimensions. The effective features are se-
+lected from this feature vector using the mRMR pipeline
+as explained in Section 3. Approximately 25% frames of
+video clips are considered for selection of effective features
+and the rest of the frames for predicting the emotional
+dimensions. We have discretized the range of ratings in 10-
+levels uniformly. The sets of 50-neighboring frames that
+have variation less than 20% for each of the levels are
+chosen for the purpose of selection process. The parameters
+such as the length of RBF kernel, weights, and bias of the
+SVR are optimized in terms of the mean absolute error
+(MAE) with five fold cross validation. The optimized SVR
+is employed first to select effective length of features those
+are ranked by the criterion mRMR, and finally for prediction
+of emotional dimension on the testing frames of the video.
+The overall performance of prediction is compared with
+proposed learned audiovisual features from CNN, as well as
+audio features MFCC, visual features including LBP-TOP,
+the Gabor energy [8], and Paul’s ensemble of MFCC with
+? and ?? and LBP-TOP [11]. Table 1 shows the overall
+prediction performance of the testing clips in terms of root
+mean squared error (RMSE), Pearson’s correlation coeffi-
+cient (CC), and Lin’s concordance correlation coefficient
+(CCC). It is seen from the table that the proposed method
+of using audiovisual features learned by CNNs shows a
+28.8% improvement of RMSE from the nearest method that
+employs hand-crafted features. Moreover, proposed method
+shows a 5.4% improvement of CC and 29.3% improvement
+of CCC from the method showing closest performance.
+Figure 3 shows instantaneous prediction of the emotional
+dimension valence for subject 16 (male) and subject 23
+(female) of RECOLA database. The regions chosen for
+feature selection process are marked in the figures. It can
+be observed from the figures that the proposed method
+can closely follow the affective ratings of ground truth.
+Moreover, it can be observed that Paul’s method as well
+as the Gabor energy curves shows sudden changes in esti-
+mation, which is in the complete opposite direction of the
+trend of the ground truth. Such, a misleading trajectory is
+absent for the case of proposed CNN-based features, which
+ensures that the learned features of CNN are robust. Also, if
+there is a sudden change of a dimension, then the proposed
+prediction can follow the trend within few seconds as per
+the frame-rate. Thus, the proposed instantaneous emotion
+prediction technique can be effective in developing real-time
+sensitive artificial listener (SAL) agents.
+6. Conclusion
+Automatic prediction of emotional states is crucial for
+developing SAL that has many potential applications requir-
+ing interaction between machines and humans. The gener-
+alized approach of prediction of emotional state follows the
+steps of extraction of affective features, selection of features,
+and mapping of selected features using a regressor. This
+paper has investigated the performance of instantaneous pre-
+diction of commonly-referred emotional dimensions, such
+as valence, using the extracted audiovisual features learned
+100 150 200 250 300 350 400 450 500
+Sequence of Sampled Frames
+-0.10
+-0.05
+0
+0.05
+0.10
+0.15
+V
+a
+le
+n
+c
+e
+ R
+a
+ti
+n
+g
+Actual Rating
+CNN Features
+MFCC + LBP -TOP
+ 
+Gabor Energy
+Data for Feature 
+    Selection
+0 50 50 100 150 200 250 300 350 400 450 500
+Sequence of Sampled Frames
+-0.05
+0
+0.05
+0.10
+0.15
+0.20
+0.25
+0.30
+V
+a
+le
+n
+c
+e
+ R
+a
+ti
+n
+g
+Actual Rating
+CNN Features
+MFCC + LBP-TOP
+ 
+Gabor Energy
+Data for Feature
+     Selection
+0
+(a) (b)
+Figure 3. Prediction of valance dimension using the proposed method for subject number (a) 16 and (b) 23 of RECOLA database.
+by CNNs. Extracted features are then selected by using the
+mutual information-based mRMR ranking. These low-level
+features are mapped on the emotional dimensions using the
+SVR technique. Performance of the proposed audiovisual
+features is compared with existing audio and visual features
+for prediction of instantaneous rating of emotional dimen-
+sions. The RMSE, CC and CCC calculated using different
+types of features show that the prediction performance im-
+proves significantly, when top ranked features are considered
+for the regression. Experiments on instantaneous prediction
+reveal that a moderate length audiovisual features learned
+by the proposed CNN-based method presented in this paper
+can provide a few seconds of settling time even when an
+emotional dimension changes sharply.
+References
+[1] S. Wang and Q. Ji, “Video affective content analysis: a survey of
+state-of-the-art methods,” IEEE Trans. Affective Computing, vol. 6,
+no. 4, pp. 410–430, 2015.
+[2] P. Ekman, Emotional and conversational nonverbal signals. John
+Wiley & Sons, Ltd, 2005.
+[3] W. Wundt, Grundzu?ge der Physiologischen Psychologie. Wilhelm
+Engelmann, 1880.
+[4] R. Dietz and A. Lang, “Affective agents: Effects of agent affect
+on arousal, attention, liking and learning,” in Proc. Int. Cognitive
+Technology Conference, San Fransisco, 1999.
+[5] M. K. Greenwald, E. W. Cook, and P. J. Lang, “Affective judgement
+and psychophysiological response: Dimensional covariation in the
+evaluation of pictorial stimuli,” Journal of Psychophysiology, vol. 3,
+no. 1, pp. 51–64, 1989.
+[6] L. S. Chen and T. S. Huang, “Emotional expressions in audiovisual
+human computer interaction,” in Proc. IEEE Int. Conf. Multimedia
+and Expo, vol. 1. New York: IEEE, 2000, pp. 423–426.
+[7] S. M. Imran, S. M. M. Rahman, and D. Hatzinakos, “Differential
+components of discriminative 2D Gaussian-Hermite moments for
+recognition of facial expressions,” Pattern Recognition, vol. 56, pp.
+100–115, 2016.
+[8] M. Dahmane and J. Meunier, “Continuous emotion recognition using
+Gabor energy filters,” in Lecture Notes in Computer Science: Affective
+Computing and Intelligent Interaction. Springer, 2011, vol. 6975,
+pp. 351–358.
+[9] J. Nicolle, V. Rapp, K. Bailly, L. Prevost, and M. Chetouani, “Robust
+continuous prediction of human emotions using multiscale dynamic
+cues,” in Proc. ACM Int. Conf. Multimodal Interaction. Santa
+Monica, CA: ACM, 2012, pp. 501–508.
+[10] Y. Cui, S. Luo, Q. Tian, S. Zhang, Y. Peng, L. Jiang, and J. S.
+Jin, Mutual information-based emotion recognition. New York, NY:
+Springer, 2013.
+[11] S. Paul, N. Saoda, S. M. M. Rahman, and D. Hatzinakos, “Mutual
+information-based selection of audio visual affective features to pre-
+dict instantaneous emotional state,” in Proc. Int. Conf. Computer and
+Information Technology, Dhaka, Bangladesh, 2016, pp. 463–468.
+[12] H. Meng and N. Bianchi-Berthouze, “Naturalistic affective expression
+classification by a multi-stage approach based on hidden Markov
+models,” in Proc. Int. Conf. Affective Computing and Intelligent
+Interaction. Memphis, TN: Springer, 2011, pp. 378–387.
+[13] M. Wo?llmer, M. Kaiser, F. Eyben, B. Schuller, and G. Rigoll, “LSTM-
+modeling of continuous emotions in an audiovisual affect recognition
+framework,” Image and Vision Computing, vol. 31, no. 2, pp. 153–
+163, 2013.
+[14] P. Khorrami, T. Le Paine, K. Brady, C. Dagli, and T. S. Huang,
+“How deep neural networks can improve emotion recognition on
+video data,” in Proc. IEEE Int. Conf. on Image Processing. Phoenix,
+AZ: IEEE, 2016, pp. 619–623.
+[15] Y. LeCun, Y. Bengio, and G. Hinton, “Deep learning,” Nature, vol.
+521, no. 7553, pp. 436–444, 2015.
+[16] D. E. Rumelhart, G. E. Hinton, and R. J. Williams, “Learning rep-
+resentations by back-propagating errors,” Nature, vol. 323, no. 6088,
+pp. 533–538, 1986.
+[17] N. Srivastava, G. E. Hinton, A. Krizhevsky, I. Sutskever, and
+R. Salakhutdinov, “Dropout: a simple way to prevent neural networks
+from overfitting,” Journal of Machine Learning Research, vol. 15,
+no. 1, pp. 1929–1958, 2014.
+[18] H. Peng, F. Long, and C. Ding, “Feature selection based on mutual
+information criteria of max-dependency, max-relevance, and min-
+redundancy,” IEEE Trans. Pattern Analysis and Machine Intelligence,
+vol. 27, no. 8, pp. 1226–1238, 2005.
+[19] H. Drucker, C. J. C. Burges, L. Kaufman, A. J. Smola, and V. Vapnik,
+“Support vector regression machines,” in Proc. Advances in Neural
+Information Processing Systems, M. C. Mozer, M. I. Jordan, and
+T. Petsche, Eds. Denver, CO: MIT Press, 1997, pp. 155–161.
+[20] F. Ringeval, A. Sonderegger, J. Sauer, and D. Lalanne, “Introducing
+the RECOLA multimodal corpus of remote collaborative and affective
+interactions,” in Proc. IEEE Int. Conf. and Workshops on Automatic
+Face and Gesture Recognition. Shanghai, China: IEEE, 2013, pp.
+1–8.

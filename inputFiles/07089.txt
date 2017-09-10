@@ -1,0 +1,1272 @@
+Predicting Aesthetic Score Distribution
+through Cumulative Jensen-Shannon Divergence
+Xin Jin, Le Wu, Chenggen Song, Xiaodong Li, Geng Zhao, Siyu Chen
+Department of Computer Science and Technology
+Beijing Electronic Science and Technology Institute, Beijing, 100070, P.R. China
+www.jinxin.me
+Jingying Chi, Siwei Peng
+Beijing University of Chemical and Technology, Beijing 100029, P.R.China
+Shiming Ge*
+Institute of Information Engineering, Chinese Academy of Sciences, Beijing, 100093, P.R.China
+*corresponding author: geshiming@iie.ac.cn
+Abstract
+Aesthetic quality prediction is a challenging task in the
+computer vision community because of the complex inter-
+play with semantic contents and photographic technologies.
+Recent studies on the powerful deep learning based aes-
+thetic quality assessment usually use a binary high-low la-
+bel or a numerical score to represent the aesthetic quality.
+However the scalar representation cannot describe well the
+underlying varieties of the human perception of aesthetics.
+In this work, we propose to predict the aesthetic score distri-
+bution (i.e., a score distribution vector of the ordinal basic
+human ratings) using Deep Convolutional Neural Network
+(DCNN). Conventional DCNNs which aim to minimize the
+difference between the predicted scalar numbers or vectors
+and the ground truth cannot be directly used for the ordinal
+basic rating distribution. Thus, a novel CNN based on the
+Cumulative distribution with Jensen-Shannon divergence
+(CJS-CNN) is presented to predict the aesthetic score dis-
+tribution of human ratings, with a new reliability-sensitive
+learning method based on the kurtosis of the score distribu-
+tion. Experimental results on large scale aesthetic dataset
+demonstrate the effectiveness of our introduced CJS-CNN
+in this task. In addition, by recasting the predicted score
+histogram to a binary score using the mean value and a rel-
+ative small scale CNN, the proposed method outperforms
+the state-of-the-art methods on aesthetic image classifica-
+tion.
+4.942 5.023 5.024 5.047 5.094mean
+image
+score
+hist.
+var. 6.665 5.291 5.161 4.987 4.911
+median 4.850 5.012 4.783 5.003 5.076
+skew. 0.094 0.003 0.320 0.048 0.134
+kur. 1.890 2.368 2.305 2.414 2.613
+Figure 1. Images with similar mean scores (i.e., around 5). The
+rating distributions are approximated by the score histograms (1-
+10). The hist., var., skew. and kur. are short for histogram, vari-
+ance, skewness and kurtosis. The mean scores of the histogram
+are nearly the same. However, the histograms themselves with
+their statistics differ from each other. The human ratings are quite
+subjective. Images are from the AVA dataset. [35]
+1. Introduction
+Recently, the ability of recognizing the semantic mean-
+ing of the objects in an image by computers is greatly in-
+creasing through deep convolutional neural networks. How-
+ever, recognizing or assessing the aesthetic quality of an im-
+age by computers has not reached the practical precision
+people need.
+Subjective Image Aesthetic Quality Assessment (IAQA)
+is still challenging [33] since the large intra class differ-
+ence of images with high or low aesthetic quality, the large
+amount of low or high level aesthetic features, and the sub-
+jective evaluation of human rating. IAQA has been a hot
+1
+ar
+X
+iv
+:1
+70
+8.
+07
+08
+9v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+3 
+A
+ug
+ 2
+01
+7
+topic in the communities of Computer Vision (CV), Com-
+putational Aesthetics (CA) and Computational Photography
+(CP). In early work, various hand-crafted aesthetic features
+(i.e. aesthetic rule based features) are designed and con-
+nected with a machine classification or regression method
+[4, 23, 32, 26, 1, 12, 27, 15, 9, 3, 7, 17, 37, 31, 42, 47,
+24, 38]. Another line is to use generic image description
+features [43, 34, 40, 41]. After that, the powerful deep fea-
+ture representation learned from large amount of data has
+shown an ever-increased performance on this task, surpass-
+ing the capability of conventional hand-crafted features.
+[22, 28, 21, 29, 30, 8, 44, 20, 33, 18, 25, 45, 14] . Most
+recently, a survey on this topic has been released [6].
+The training data of aesthetic quality assessment are of-
+ten collected from the online photo sharing communities
+such as photo.net and dpchallenge.com, in which people
+rate an image by selecting one of the predefined ordinal ba-
+sic integer ratings (i.e., 1-7 or 1-10). Higher values indicate
+better rating [47]. Most of the above studies use the follow-
+ing strategies to encode the aesthetic quality, namely, 1D
+numerical encoding and binary encoding.
+• 1D numerical encoding: the 1-dimension numerical
+encoding use the weighted mean scores of human rat-
+ings. A regression model can be learned to predict the
+numerical aesthetic quality.
+• binary encoding: the binary encoding is used to clas-
+sify the images into high or low aesthetic quality,
+which is determined by a threshold of the weighted
+mean scores of human ratings. A classifier can be
+learned to predict the high-low classification results.
+However, although there exits consensus of the assess-
+ment of image aesthetic quality, it is still a subjective task
+in nature. The rated scores of multiple persons may dif-
+fer greatly from each other. People tend to assign inconsis-
+tent scores to the same image [48]. There is ambiguity in
+the image aesthetic quality assessment [23]. A scalar value
+is insufficient to capture the true nature of the subjectivity
+of image aesthetic quality [47]. The main limitation of the
+above representations is that they do not provide an indica-
+tor of the degree of consensus or diversity of opinion among
+annotators [35].
+Figure 1 shows some images from the AVA dataset [35].
+Images with nearly the same mean scores (i.e., around 5)
+are listed. However, the distributions (approximated by the
+score histogram) are not that similar. Other statistics such
+as the variance, the median, the skewness, and the kurtosis
+differ greatly from each other. The mean score is greatly
+influenced by the the low and high extremes of the rating
+scale, which makes it inappropriate to be a robust estima-
+tion of the whole distribution, especially when the distribu-
+tion is skewed. For skewed distributions, the median value
+appears to be more appropriate to describe the distributions
+than the mean value [47]. The Gaussian distribution is the
+best-performing model for only 62% of images in AVA [35].
+The others are the skewed ones and can be best fitted by the
+Gamma distribution [35].
+In this work, we learn from the large aesthetic dataset to
+predict the aesthetic score distribution of an image, which
+is represented as a score vector (histogram) using the deep
+convolutional neural network (DCNN), so as to better cap-
+ture the subjectivity of aesthetic quality assessment. Con-
+ventional CNN which aims to minimize the difference be-
+tween the predicted scalar numbers or 0-1 classification
+vectors and the ground truth cannot be directly used for the
+ordinal basic rating distribution. Inspired by recent work on
+non-parametric Jensen-Shannon Divergence by Nguyen et
+al. [36], a Cumulative distribution with Jensen-Shannon di-
+vergence based CNN (CJS-CNN) is presented to predict the
+aesthetic score distribution of human ratings. In addition, to
+alleviate the problem of unreliable human ratings, we pro-
+pose a new reliability-sensitive learning method based on
+the kurtosis of the score distribution. Experimental results
+on large scale aesthetic dataset demonstrate the effective-
+ness of our introduced CJS-CNN in this task. To the best of
+our knowledge, there exists only one similar work to ours
+[47], which propose a modified support vector regression
+algorithm to predict the score distribution in two small aes-
+thetic datasets, before the large scale AVA dataset released
+and the popularity of deep CNNs. However, the main dif-
+ferences between their work and ours and the main contri-
+butions of our work can be summarized as follows:
+• The first work that predicts a score distribution vector
+of the ordinal basic human ratings under the deep con-
+volutional neural network framework on the large scale
+AVA dataset, which is designed to capture the subjec-
+tiveness of the human aesthetic quality assessment.
+• A novel CNN called the CJS-CNN (Cumulative dis-
+tribution function with Jensen-Shannon Divergence)
+is introduced. Extensive comparisons with probabil-
+ity distribution function with Euclidean distance, cross
+entropy distance, Jensen-Shannon Divergence and cu-
+mulative distribution function with Euclidean distance
+are presented.
+• A new reliability-sensitive learning method is pro-
+posed based on the kurtosis of the score distribution.
+2. Related Work
+In Section 1, we briefly summarize the related work on
+the image aesthetic quality assessment using hand-crafted
+features [4, 23, 32, 26, 1, 12, 27, 15, 9, 3, 7, 17, 37, 31, 42,
+47, 24, 38, 43, 34, 40, 41] and using deep convolutional neu-
+ral networks [22, 28, 21, 29, 30, 8, 44, 20, 33, 18, 25, 45, 14]
+. Most of the above studies do not encode the aesthetic qual-
+ity as score distributions. Most recently, some methods are
+proposed to use modified or generated score distributions
+for binary classification and numerical assessment on aes-
+thetics [13, 46, 10].
+Jin et al. [13] use the weighted ?2 (chi-square) dis-
+tance as the loss function to predict the mean score and the
+standard deviation from the score distribution. Wang et al.
+[45, 46] explicitly modify the score distribution of the AVA
+dataset as Gaussian and jointly predict its mean and stan-
+dard deviation. They use the Kullback-Leibler (KL) diver-
+gence as the loss function for their DBN network. Hou et al.
+[10] generate score distribution by mapping the real number
+labels to 10 aesthetic bins of the AADB dataset [25]. They
+propose to use squared Earth mover’s distance (EMD) as
+the loss function, which can be equivalent to the Euclidean
+distance of the two cumulative distribution functions for the
+ordinal basic human ratings prediction. Thus, the loss func-
+tions of [10] and [47] are the same. Note that, all these
+methods use modified or generated score distributions for
+binary classification and numerical assessment on aesthet-
+ics. While our work is to directly predict the score distri-
+bution itself. We compare these loss functions designed for
+score distribution with our CJS loss and RS-CJS loss in the
+experiments.
+3. Subjectiveness Analysis of the AVA Dataset
+The assessment of image aesthetic quality is subjective
+in nature. The perception of aesthetics is affected by the na-
+tionality, ethnicity, era, age, education, emotion and many
+other factors of human beings. In this section we make
+a statistical analysis of subjectiveness or diversity of the
+opinion among annotators in a large-scale database for aes-
+thetic visual analysis (AVA) [35]. This dataset is specifically
+constructed for the purpose of learning more about image
+aesthetics. All those images are directly downloaded from
+dpchallenge.com. For each image in AVA, there is an asso-
+ciated distribution of scores (1-10) voted by different view-
+ers. The number of votes that per image gets is ranged in
+78-549, with an average of 210, which enables us to have a
+deeper understanding of such distributions and deduce more
+information from them.
+The Standard Deviation or Variance. As described
+above, a mean score or a binary high-low label reveals only
+part of the information deduced from a score distribution.
+We make a statistical analysis on the number of images ac-
+cording to mean and standard deviation of the human rat-
+ings. The standard deviation represents the degree of con-
+sensus or diversity of human ratings for the same image,
+with a higher value meaning higher diversity. The number
+of images located in each mean and standard deviation in-
+terval is shown as a 2D histogram in Figure 2. Most images’
+mean values are located in [4, 7]. Images in this interval are
+Figure 2. The histogram of numbers of images located in different
+intervals of the mean and standard deviation of the AVA dataset
+[35].
+2-3 3-4 4-5 5-6 6-7 7-8 8-9
+-2
+-1
+0
+1
+2
+mean
+2-3 3-4 4-5 5-6 6-7 7-8 8-9
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+mean
+Figure 3. Left: Distributions of skewness of score distributions,
+for images with different mean scores. The red crosses are the
+outliers. The skewness tends to decrease from positive to negative
+with the mean score increasing. Right: Distributions of kurtosis of
+score distributions, for images with different mean scores.
+not easy to be classified to a high-low label. Most images’
+standard deviation values are larger than 1.25, which shows
+the diversity of the human ratings for the same image. In
+addition, as described in [35], the variance or standard devi-
+ation tends to increase with the distance between the mean
+score and the mid-point of the rating scale.
+The Skewness. The skewness [16, 2] is a measure of the
+asymmetry of the probability distribution of a real-valued
+random variable about its mean. If the bulk of the data is
+at the left and the right tail is longer, we say that the dis-
+tribution is skewed right or positively skewed; if the peak
+is toward the right and the left tail is longer, we say that
+the distribution is skewed left or negatively skewed. Box-
+plots of the skewness of score distributions for images with
+mean scores within a specified range are shown in the left
+side of Figure 3. The skewness is a function of mean score
+in the AVA dataset. Images with mean score values from
+4 to 7 tend to have a low absolute value of the skewness
+and can be considered as those with symmetrical score dis-
+tributions. Images with mean score values lower than 4 and
+greater than 7 can be considered as those with positively and
+4 6 8 10
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+nu
+m
+be
+r
+-2 < skew. < -1
+4 6 8 10
+0
+2
+4
+6
+8
+10
+12
+nu
+m
+be
+r
+0 5 10
+0
+2000
+4000
+6000
+8000
+10000
+12000
+14000
+16000
+-1 < skew. < 0
+0 5 10
+0
+2000
+4000
+6000
+8000
+10000
+12000
+14000
+16000
+18000
+0 5 10
+0
+1
+2
+3
+4
+5
+6
+7
+x 10
+4
+mean
+0 < skew. < 1
+0 5 10
+0
+1
+2
+3
+4
+5
+6
+7
+x 104
+median
+0 5 10
+0
+100
+200
+300
+400
+500
+600
+1 < skew. < 2
+0 5 10
+0
+100
+200
+300
+400
+500
+600
+700
+800
+1.5 2 2.5 3
+0
+0.5
+1
+1.5
+2
+2.5
+3
+3.5
+4
+2 < skew. < 3
+1 1.5 2 2.5
+0
+1
+2
+3
+4
+5
+6
+7
+8
+Figure 4. Distributions of mean and median of score distributions,
+for images with different skewness scores. The divergences be-
+tween the mean and the median distributions tends to increase with
+the distance between the skewness values and 0, which is the skew-
+ness of the symmetrical normal distribution.
+negatively skewed score distributions, respectively. This is
+likely due to the non-Gaussian nature of score distributions
+at the extremes of the rating scale [35].
+Most representative distributions in the AVA dataset are
+slightly skewed or heavily skewed. For skewed distribu-
+tions, the median value appears to be more appropriate to
+describe the distributions than the mean value [47]. The
+mean and the median values of score distributions for im-
+ages with skewness within a specified range are shown in
+Figure 4. Images with low and high absolute values of the
+skewness can use the mean and the median to describe their
+score distributions, respectively.
+The Kurtosis. The other common measure of shape is
+called the kurtosis [16, 2]. As skewness is the third mo-
+ment of the distribution, kurtosis is the fourth moment. The
+kurtosis of a normal distribuation is 3. A distribution with
+kurtosis< 3 and kurtosis> 3 are called platykurtic and lep-
+tokurtic, receptively. Compared with a normal distribution,
+the platykurtic has shorter and thinner tails and its central
+peak is lower and broader and vice versa. Score distribu-
+tions with larger absolute values of the kurtosis (after nor-
+malized by minus 3, i.e., normalizing the kurtosis of the
+normal distribution to 0) have larger divergences from the
+normal distribution. Boxplots of the kurtosis of score dis-
+tributions for images with mean scores within a specified
+range are shown in the right side of Figure 3. Within each
+range of the mean scores, there exist some images with high
+absolute values of kurtosis values(after normalized by mi-
+nus 3), which are considered as those with unreliable score
+distributions.
+4. CJS based CNN for Score Hist. Prediction
+In this section, we introduce the proposed CJS-CNN
+(Cumulative distribution function with Jensen-Shannon di-
+vergence) and the reliability-sensitive learning method
+based on the kurtosis of the score distribution.
+4.1. The Score Distribution Representation
+With empirical data of the ordinal basic human ratings of
+an image from the AVA dataset, we use the score histogram
+to approximate the score distribution. We follow the defini-
+tion in Wu et al. [47].
+Assuming that there are Z ordinal basic ratings R =
+{R1, ...RZ}. In the AVA dataset, Z = 10, R =
+{R1, ...R10}. The human ratings for an image can be rep-
+resented as S = {S(1), ..., S(L)}, where S(i) ? R is given
+by the ith person and L is the number of persons who have
+rated this image. (In the AVA dataset, L ? [78, 549], with an
+average of 210). Then the score histogram or score vector
+of an image in the AVA dataset can be defined as:
+y = {h(1), ..., h(i), ..., h(Z)}
+h(i) =
+?L
+j ?(S(j) = Ri)
+L
+,
+(1)
+where ?() is the indication function. With this representa-
+tion, we can calculate the mean, median, variance, skew-
+ness, kurtosis using textbook methods.
+4.2. The CJS-CNN
+We use the first 1/3 part of the GoogLeNet (layers before
+the first softmax layer) as our DCNN for fast training and
+extensive comparisons. We replace the full connected layer
+before the first softmax layer of the GoogLeNet with a out-
+put layer of Z = 10 dimensions. After each element of the
+output layer, we add a sigmoid layer to normalize each ele-
+ment to [0, 1]. The layers after the first softmax layer of the
+GoogLeNet are removed for fast training and comparisons.
+The score vector defined by Eq. 1 can be considered as a
+vector. A straightforward way to calculate the loss is using
+the Euclidean distance. However, the score vector is an ap-
+proximate of the underline probability distribution function
+(pdf). In addition, the score vector is built on the pre-defined
+ordinal basic ratings. Thus, a divergence between two cu-
+mulative distribution functions (cdf) is more appropriate for
+the loss function. Recently, Nguyen et al. [36] propose
+a non-parametric Jensen-Shannon divergence, which per-
+forms well in detecting differences between distributions,
+outperforming the state-of-the-art methods in both statisti-
+cal power and efficiency for a wide range of tasks. As ver-
+ified by [36], the CJS is quite suit for non-parametric com-
+putation on empirical data without estimating the underline
+distribution, such as the ordinal basic rating data of the AVA
+dataset. They define the asymmetrical continuous cumu-
+lative Jensen-Shannon divergence (ACCJS(p(X)||q(X)))
+of two continuous probability distribution functions p(X)
+and q(X) as follows.
+?
+P (x)log
+P (x)
+1
+2
+P (x) + 1
+2
+Q(x)
+dx+
+1
+ln2
+?
+(Q(x)?P (x))dx (2)
+The cumulative distribution function Y of the probabil-
+ity distribution function y defined by Eq. 1 is defined as
+follows.
+Y (i) =
+i?
+j=1
+y(j) (3)
+CJS. Thus, we define the symmetrical discrete cu-
+mulative Jensen-Shannon divergence (CJS(y1||y2)) of
+two score histograms y1 and y2 defined by Eq. 1
+as follows, derived from (ACCJS(p(X)||q(X)) +
+ACCJS(q(X)||p(X))).
+1
+2
+[
+Z?
+i=1
+Y1(i)log
+Y1(i)
+1
+2
+Y1(i) +
+1
+2
+Y2(i)
++
+Z?
+i=1
+Y2(i)log
+Y2(i)
+1
+2
+Y1(i) +
+1
+2
+Y2(i)
+],
+(4)
+where Y1 and Y2 are defined by Eq. 3. After that, we define
+our CJS loss function for the CJS-CNN as:
+lCJS(y, y?) = CJS(y||y?), (5)
+where y is the ground truth score histogram, and y? is the
+predicted score histogram by our CJS-CNN.
+4.3. The Reliability-sensitive Learning
+In Eq. 1, the larger the rating number L is, the more re-
+liable the distribution is. Wu et al. [47] use the rating num-
+bers to model the reliability of the the score distribution. In
+the AVA dataset, the number of votes that per image gets is
+ranged in 78-549 with an average of 210, which limits the
+performance of the rating number based reliability learning.
+Besides, one cannot obtain the rating numbers from normal-
+ized score histograms. If another dataset has only normal-
+ized score histograms, one cannot use the rating number for
+the reliability learning.
+RS-CJS. We propose to use the kurtosis to measure the
+reliability of a score distribution y defined by Eq. 1. The
+kurtosis of a normal distribution is 3. Score distributions
+with kurtosis closer to 3 have smaller divergence from the
+normal distribution. Thus, inspired by Wu et al. [47], we
+define the reliability factor rkurtosis as follows.
+rkurtosis(y) = µ(T (y)), T (y) =
+1
+|kus(y)? 3|
+µ(T (y)) =
+{
+ln(T (y)+1)
+ln(T (y)+1)+1 , T (y) < Th
+1, otherwise
+,
+(6)
+where rkurtosis(y) equals to 1 if the kurtosis kus(y) is suf-
+ficiently close to 3 and tends to 0 if |kus(y) ? 3| is very
+large. In practice, we add a small number  to |kus(y)? 3|
+to avoid the division by zero.
+Thus, the reliability-sensitive CJS loss is defined as:
+lRS?CJS(y, y?) = rkurtosis(y)CJS(y, y?), (7)
+where y is the ground truth score histogram in the AVA
+dataset, and y? is the predicted score histogram by our CJS-
+CNN. The more reliable the training image is, the more
+penalty it should obtain when the prediction is not correct.
+5. Experiments
+In this section, we present the experimental results in the
+AVA dataset. We follow the standard partition method of the
+AVA dataset in previous work [35, 44, 45, 25, 30, 29, 33] .
+The training and test sets contain 235,599 and 19,930 im-
+ages respectively. In all the experiments, for fair compar-
+isons of various loss functions, we use the first 1/3 part of
+the GoogLeNet as the DCNN.
+5.1. Implementation Details
+We use the first 1/3 part of the GoogLeNet (layers be-
+fore the first softmax layer) as our DCNN for fast training
+and extensive comparisons. We fix the parameters of the
+layers before the first full connected layer of a pre-trained
+GoogLeNet model 1 on the ImageNet [5] and fine tune the 2
+full connected layers on the training set of the AVA dataset.
+We use the Caffe framework [11] to train and test our mod-
+els. The learning policy is set to step. Stochastic gradient
+descent is used to train our model with a mini-batch size
+of 48 images, a momentum of 0.9, a gamma of 0.5 and a
+weight decay of 0.0005. The max number of iterations is
+480000. The training time is about 3 days using GTX980-
+Ti GPU and about 2 days using Titan X Pascal GPU.
+5.2. Score Histogram Prediction and Comparisons
+5.2.1 Baseline Loss Functions
+Besides the CJS loss function we proposed, we also evalu-
+ate other distribution divergences based loss functions as the
+baseline methods for our score histogram prediction task.
+These divergences or distances are often used in computer
+1http://vision.princeton.edu/pvt/GoogLeNet/
+ImageNet/
+vision and pattern recognition tasks to compute the differ-
+ence between two distributions or feature vectors. All the
+probability or cumulative distribution functions in our paper
+refer to discrete histograms. The DCNN cooperated with
+each divergence or distance based loss function is the first
+1/3 part of the GoogLeNet (as described in Section 4.2) for
+fair comparisons.
+PED. The loss function using the Euclidean distance of
+the two probability distribution functions is defined as:
+lPED(y, y?) =
+Z?
+i=1
+(y(i)? y?(i))2 (8)
+PCE. The loss function using the cross entropy of the
+two probability distribution functions is defined as:
+lPCE(y, y?) = ?
+Z?
+i=1
+[(y(i)logy?(i)+(1?y(i))log(1?y?(i))]
+(9)
+This is the standard and widely used loss function for im-
+age classification problems and can be used as histogram
+difference for our task.
+PJS. The loss function using the symmetrical version of
+the Jensen-Shannon divergence of the two probability dis-
+tribution functions is defined as:
+lPJS(y, y?) =
+1
+2
+[
+Z?
+i=1
+y(i)log
+y(i)
+m(y, y?)
++
+Z?
+i=1
+y?(i)log
+y?(i)
+m(y, y?)
+],
+(10)
+where m(y, y?) = 12y(i) +
+1
+2 y?(i).
+PCS [13]. The loss function using the Chi-square dis-
+tance of the two probability distribution functions is defined
+as:
+lPCS(y, y?) =
+1
+2
+Z?
+i=1
+(y(i)? y?(i))2
+y(i) + y?(i)
+(11)
+This loss function is proposed by Jin et al. [13] to pre-
+dict the mean score and standard deviation from the score
+distribution.
+PKL[45, 46]. The loss function using the symmetrical
+version of the KullbackLeibler divergence of the two prob-
+ability distribution functions is defined as:
+lPKL(y, y?) =
+1
+2
+[
+Z?
+i=1
+y(i)log
+y(i)
+y?(i)
++
+Z?
+i=1
+y?(i)log
+y?(i)
+y(i)
+] (12)
+This loss function is used by Wang et al. [45, 46], who
+explicitly modify the score distribution of the AVA dataset
+as Gaussian and jointly predict its mean and standard devi-
+ation.
+CED [47, 10]. The loss function using the Euclidean dis-
+tance of the two cumulative distribution functions is defined
+as:
+lCED(y, y?) =
+Z?
+i=1
+(Y (i)? Y? (i))2, (13)
+where Y and Y? are the cumulative distribution functions
+of the original probability distribution functions y and y?, as
+defined in Eq. 3. This loss function is also used in Wu et
+al. [47] and can be derived from the squared Earth mover’s
+distance (EMD) by Hou et al. [10] for the ordinal basic
+human ratings prediction.
+In Figure 5, we show the predicted score histograms by
+our proposed CJS-CNN and other compared loss functions
+on the test set of AVA. Our CJS-CNN achieves the most
+similar results to the ground truth human rating distribu-
+tions.
+5.2.2 Numerical Evaluation Results
+In Table 1, we summarize the evaluation results of the loss
+functions over the divergences. We use the Mean Diver-
+gences (MD) to evaluate various divergences between the
+predicted score histogram and the ground truth on the test
+set of AVA. The MD is defined as:
+MD =
+1
+n
+n?
+i=1
+l(y, y?), (14)
+where l = {lPED, lPCE , lPJS , lPCS , lPKL, lCED, lCJS}
+defined in Section 5.2.1 and Section 4.2. n is size of the test
+set.
+The results in Table 1 reveal that, our proposed RS-
+CJS and CJS based CNN outperform other methods. All
+the mean divergences of our RS-CJS on the test sets are
+the smallest. Typically, in a learning setting, optimizing
+directly a certain criterion should lead to higher perfor-
+mance than optimizing a related one. However, although
+our methods are optimizing the CJS loss, the learned model
+can achieve best performance in other related loss. This is
+mainly because that, as verified by [36], the CJS is quite
+suitable for non-parametric computation on empirical data,
+such as the ordinal basic rating data of the AVA dataset. The
+performance of RS-CJS is better than that of CJS only. The
+reliability sensitive learning based on the kurtosis reduces
+the impacts of the unreliable training samples.
+5.2.3 The Ablation Study of the Reliability Factor
+Wu et al. [47] propose to use the number of ratings of
+each image for the reliability factor rratnum(y). The larger
+the rating number means the larger reliability of the rat-
+ing. To compare with our kurtosis based reliability factor
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+GT 5.358
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+RS-CJS 5.359
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+CJS 5.525
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+PED 6.092
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+PCE 5.289
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+PJS 5.412
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+CED 5.262
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+PCS 7.572
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+PKL 4.768
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+GT 5.406
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+RS-CJS 5.406
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+CJS 5.45
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+PED 6.65
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+PCE 5.289
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+PJS 5.653
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+CED 5.525
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+PCS 7.53
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+PKL 4.772
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+GT 5.527
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+RS-CJS 5.527
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+CJS 5.834
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+PED 7.046
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+PCE 5.289
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+PJS 6.267
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+CED 5.836
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+PCS 7.277
+12345678910
+0
+0.1
+0.2
+0.3
+0.4
+PKL 4.786
+Figure 5. Predicted score histograms by the above loss functions. The numbers above each histograms are their mean scores. The first
+column is the images. The 2nd column is the human rating distributions (GT: Ground Truth). The 3rd and the 4th columns are the results
+predicted by our proposed RS-CJS and CJS based CNN, respectively. The other columns are the predicted results of other loss functions.
+Our results are more similar to the ground truth of human ratings than others.
+Table 1. The mean divergences (MD, Eq. 14) between the predicted score histogram and the ground truth of various loss functions. The
+dataset is AVA. The DCNN is the first 1/3 part of the GoogLeNet (Section 4.2).
+PPPPPPPloss
+MD
+PED PCE PJS PCS PKL CED CJS
+PED 0.197 2.830 0.059 0.105 0.728 0.323 0.068
+PCE 0.167 2.773 0.041 0.075 0.442 0.279 0.049
+PJS 0.185 2.828 0.051 0.093 0.527 0.326 0.053
+PCS [13] 0.182 2.807 0.045 0.082 0.450 0.287 0.045
+PKL [45, 46] 0.163 2.779 0.039 0.073 0.389 0.270 0.044
+CED [47, 10] 0.182 2.799 0.047 0.085 0.502 0.294 0.049
+Our CJS 0.163 2.779 0.039 0.072 0.382 0.266 0.041
+Our RS-CJS 0.158 2.760 0.037 0.068 0.381 0.260 0.040
+rkurtosis(y) in Eq. 6 and Eq. 7, we use an balance factor ?
+as follow to make ablation study.
+r(y) = ?rkurtosis(y) + (1? ?)rratnum(y) (15)
+Table 2. The ablation study of ? in Eq. 15. The dataset is AVA. The DCNN is the first 1/3 part of the GoogLeNet (Section 4.2).
+PPPPPPPloss
+MD
+PED PCE PJS PCS PKL CED CJS
+? = 0 0.159 2.760 0.037 0.068 0.387 0.260 0.040
+? = 0.1 0.159 2.764 0.038 0.069 0.384 0.262 0.040
+? = 0.3 0.159 2.762 0.038 0.069 0.386 0.262 0.040
+? = 0.5 0.160 2.766 0.038 0.070 0.386 0.264 0.040
+? = 0.7 0.158 2.761 0.037 0.068 0.385 0.261 0.041
+? = 0.9 0.159 2.763 0.038 0.069 0.384 0.262 0.040
+Our RS-CJS (? = 1) 0.158 2.760 0.037 0.068 0.381 0.260 0.040
+For a fair comparison, we use r(y) on the CJS loss:
+r(y)CJS(y, y?)
+The comparison results are shown in Table 2. The re-
+sults reveal that the performance of rkurtosis(y) are slightly
+better than that of rratnum(y). The combination of these
+two reliability factors does not produce better performance.
+Note that, the kurtosis can be directly computed using the
+normalized score histogram. While the rating number is ad-
+ditional information of the normalized score histogram and
+is not always available in the training set.
+5.3. Recasting to Aesthetic Image Classification
+We recast our score distribution to produce a binary score
+using the mean value to compare with previous methods as-
+sessing aesthetic quality of images in a binary classifica-
+tion manner. The comparison results are shown in Table 3.
+The comparison indicates that, even using only the first 1/3
+part of the GoogLeNet (Section 4.2), the proposed methods
+outperform all the previous methods for binary classifica-
+tion, regardless of whether the CJS or the RS-CJS based
+methods. This demonstrates that the predicted score distri-
+bution can be well used in binary classification using the
+mean value.
+6. Conclusions and Discussions
+In this paper, we propose the CJS-CNN to predict the
+aesthetic score distribution of images. Unlike the object
+recognition, which definitely has right answers in most
+cases, the image aesthetic assessment is a subjective task in
+nature. Thus, only using a scalar to represent the aesthetics
+may not be the right direction.
+Instead of only predicting the binary high-low label or
+the numerical score, we can output the aesthetic score dis-
+tribution with rich statistics for various applications such
+as aesthetic image retrieval, aesthetic image enhancement.
+The overall aesthetic quality can be represented by the mean
+or median. The controversy or subjectiveness can be mea-
+sured by the variance. The popularity of an image can be
+measured by the rating number of human. However, the
+rating number cannot be derived from the predicted score
+histogram. As shown in the experiments, we can use the
+Table 3. The Classification Accuracy in AVA dataset using stan-
+dard partition method. The DCNN used for our CJS and RS-CJS
+loss functions is the first 1/3 part of the GoogLeNet (Section 4.2)
+Methods Accuracy
+MurrayCVPR2012 [35] 67.00%
+LuTMM2015 [30] 74.46%
+LuICCV2015 [29] 75.41%
+SchwarzArXiv2016 [39] 75.83%
+WangSP2016 [44] 76.94%
+MaiCVPR2016 [33] 77.10%
+KongECCV2016 [25] 77.33%
+WangIJCNN2017 [45, 46] 78.08%
+KaoTIP2017 [19] 79.08%
+JinWCSP2016 [14] 79.25%
+Our CJS 80.07%
+Our RS-CJS 80.08%
+kurtosis to approximate the popularity instead of the rating
+number.
+The Bias in AVA. If choosing the score of 5 as the
+boundary to divide the AVA dataset into high quality class
+and low quality class, there are 74,673 images in low qual-
+ity and 180,856 images in high quality, which is biased for
+aesthetic classification. In addition, 95.6% of images in the
+AVA dataset has the mean scores between 4 and 7. Thus,
+it is also biased for numerical regression and score distribu-
+tion prediction. Our predicted results are also good on the
+images with mean scores between 4 and 7, but contain some
+failure cases in the low and high extremes, as there are too
+little training samples in these areas compared with the ones
+in [4, 7].
+The aesthetic quality assessment is a subjective task in
+nature. It has been a long time that people focused on the
+scalar representation (1D numerical or binary coding) of
+aesthetics. Wu et al. [47] pointed out this problem and made
+an attempt to predict the score distribution. However, it was
+submerged in rich literatures which aim to rise the classi-
+fication or regression accuracy of the scalar representation.
+With the powerful deep representation learning technolo-
+gies, we think it is the right time to let the aesthetic quality
+assessment return to it’s subjective nature. This paper is a
+restart of this direction. We hope it can inspire more work
+in the future, such as (1) mapping more statistics to the sub-
+jective evaluation of vast amount of images, (2) designing
+new large scale aesthetic datasets with unbiased data and
+specially for subjective assessment of aesthetics, (3) using
+more powerful and larger DCNNs or other machine learn-
+ing technologies to make the assessment by computer better
+match that of human.
+References
+[1] S. Bhattacharya, R. Sukthankar, and M. Shah. A frame-
+work for photo-quality assessment and enhancement based
+on visual aesthetics. In Proceedings of the 18th International
+Conference on Multimedia 2010, Firenze, Italy, October 25-
+29, 2010, pages 271–280, 2010. 2
+[2] S. Brown. Measures of shape: Skewness and kurtosis.
+http://brownmath.com/stat/shape.htm. 3, 4
+[3] X. Chen, X. Jin, H. Wu, and Q. Zhao. Learning templates
+for artistic portrait lighting analysis. IEEE Trans. Image Pro-
+cessing, 24(2):608–618, 2015. 2
+[4] R. Datta, D. Joshi, J. Li, and J. Z. Wang. Studying aesthet-
+ics in photographic images using a computational approach.
+In Computer Vision - ECCV, 9th European Conference on
+Computer Vision, Graz, Austria, May 7-13, 2006, Proceed-
+ings, Part III, pages 288–301, 2006. 2
+[5] J. Deng, W. Dong, R. Socher, L. Li, K. Li, and F. Li. Im-
+agenet: A large-scale hierarchical image database. In IEEE
+Computer Society Conference on Computer Vision and Pat-
+tern Recognition (CVPR), 20-25 June 2009, Miami, Florida,
+USA, pages 248–255, 2009. 5
+[6] Y. Deng, C. Change Loy, and X. Tang. Image Aesthetic
+Assessment: An Experimental Survey. ArXiv e-prints, Oct.
+2016. 2
+[7] S. Dhar, V. Ordonez, and T. L. Berg. High level describ-
+able attributes for predicting aesthetics and interestingness.
+In The 24th IEEE Conference on Computer Vision and Pat-
+tern Recognition, CVPR 2011, Colorado Springs, CO, USA,
+20-25 June 2011, pages 1657–1664, 2011. 2
+[8] Z. Dong and X. Tian. Multi-level photo quality assessment
+with multi-view features. Neurocomputing, 168:308–319,
+2015. 2
+[9] D. Gray, K. Yu, W. Xu, and Y. Gong. Predicting facial beauty
+without landmarks. In Computer Vision - ECCV 2010 - 11th
+European Conference on Computer Vision, Heraklion, Crete,
+Greece, September 5-11, 2010, Proceedings, Part VI, pages
+434–447, 2010. 2
+[10] L. Hou, C. Yu, and D. Samaras. Squared earth mover’s
+distance-based loss for training deep neural networks. CoRR,
+abs/1611.05916, 2016. 3, 6, 7
+[11] Y. Jia, E. Shelhamer, J. Donahue, S. Karayev, J. Long, R. Gir-
+shick, S. Guadarrama, and T. Darrell. Caffe: Convolu-
+tional architecture for fast feature embedding. arXiv preprint
+arXiv:1408.5093, 2014. 5
+[12] W. Jiang, A. C. Loui, and C. D. Cerosaletti. Automatic aes-
+thetic value assessment in photographic images. In IEEE
+International Conference on Multimedia and Expo, ICME
+2010, 19-23 July 2010, Singapore, pages 920–925, 2010. 2
+[13] B. Jin, M. V. O. Segovia, and S. Su?sstrunk. Image aesthetic
+predictors based on weighted cnns. In 2016 IEEE Interna-
+tional Conference on Image Processing, ICIP 2016, Phoenix,
+AZ, USA, September 25-28, 2016, pages 2291–2295, 2016.
+3, 6, 7
+[14] X. Jin, J. Chi, S. Peng, Y. Tian, C. Ye, and X. Li. Deep Im-
+age Aesthetics Classification using Inception Modules and
+Fine-tuning Connected Layer. In The 8th International Con-
+ference on Wireless Communications and Signal Processing
+(WCSP), pages 1–6, 2016. 2, 8
+[15] X. Jin, M. Zhao, X. Chen, Q. Zhao, and S. C. Zhu. Learn-
+ing artistic lighting template from portrait photographs. In
+Computer Vision - ECCV 2010, 11th European Conference
+on Computer Vision, Heraklion, Crete, Greece, September
+5-11, 2010, Proceedings, Part IV, pages 101–114, 2010. 2
+[16] D. N. Joanes and C. A. Gill. Comparing measures of sample
+skewness and kurtosis. Journal of the Royal Statistical So-
+ciety: Series D (The Statistician), 47(1):183–189, 1998. 3,
+4
+[17] D. Joshi, R. Datta, E. A. Fedorovskaya, Q. Luong, J. Z.
+Wang, J. Li, and J. Luo. Aesthetics and emotions in images.
+IEEE Signal Process. Mag., 28(5):94–115, 2011. 2
+[18] Y. Kao, R. He, and K. Huang. Deep Aesthetic Quality As-
+sessment with Semantic Information. ArXiv e-prints, Apr.
+2016. 2
+[19] Y. Kao, R. He, and K. Huang. Deep aesthetic quality assess-
+ment with semantic information. IEEE Trans. Image Pro-
+cessing, 26(3):1482–1495, 2017. 8
+[20] Y. Kao, K. Huang, and S. J. Maybank. Hierarchical aes-
+thetic quality assessment using deep convolutional neural
+networks. Sig. Proc.: Image Comm., 47:500–510, 2016. 2
+[21] Y. Kao, C. Wang, and K. Huang. Visual aesthetic quality
+assessment with a regression model. In 2015 IEEE Inter-
+national Conference on Image Processing, ICIP 2015, Que-
+bec City, QC, Canada, September 27-30, 2015, pages 1583–
+1587, 2015. 2
+[22] S. Karayev, M. Trentacoste, H. Han, A. Agarwala, T. Darrell,
+A. Hertzmann, and H. Winnemoeller. Recognizing image
+style. In British Machine Vision Conference, BMVC 2014,
+Nottingham, UK, September 1-5, 2014, 2014. 2
+[23] Y. Ke, X. Tang, and F. Jing. The design of high-level fea-
+tures for photo quality assessment. In IEEE Computer Soci-
+ety Conference on Computer Vision and Pattern Recognition
+(CVPR), 17-22 June 2006, New York, NY, USA, pages 419–
+426, 2006. 2
+[24] S. S. Khan and D. Vogel. Evaluating visual aesthetics in
+photographic portraiture. In Computational Aesthetics 2012:
+Eurographics Workshop on Computational Aesthetics, An-
+necy, France, 4-6 June 2012. Proceedings, pages 55–62,
+2012. 2
+[25] S. Kong, X. Shen, Z. Lin, R. Mech, and C. Fowlkes.
+Photo aesthetics ranking network with attributes and con-
+tent adaptation. In European Conference on Computer Vision
+(ECCV), 2016. 2, 3, 5, 8
+[26] C. Li and T. Chen. Aesthetic visual quality assessment of
+paintings. J. Sel. Topics Signal Processing, 3(2):236–252,
+2009. 2
+[27] C. Li, A. C. Gallagher, A. C. Loui, and T. Chen. Aesthetic
+quality assessment of consumer photos with faces. In Pro-
+ceedings of the International Conference on Image Process-
+ing, ICIP 2010, September 26-29, Hong Kong, China, pages
+3221–3224, 2010. 2
+[28] X. Lu, Z. Lin, H. Jin, J. Yang, and J. Z. Wang. RAPID: rating
+pictorial aesthetics using deep learning. In Proceedings of
+the ACM International Conference on Multimedia, MM’14,
+Orlando, FL, USA, November 03 - 07, 2014, pages 457–466,
+2014. 2
+[29] X. Lu, Z. Lin, X. Shen, R. Mech, and J. Z. Wang. Deep multi-
+patch aggregation network for image style, aesthetics, and
+quality estimation. In 2015 IEEE International Conference
+on Computer Vision, ICCV 2015, Santiago, Chile, December
+7-13, 2015, pages 990–998, 2015. 2, 5, 8
+[30] X. Lu, Z. L. Lin, H. Jin, J. Yang, and J. Z. Wang. Rating im-
+age aesthetics using deep learning. IEEE Trans. Multimedia,
+17(11):2021–2034, 2015. 2, 5, 8
+[31] W. Luo, X. Wang, and X. Tang. Content-based photo quality
+assessment. In IEEE International Conference on Computer
+Vision, ICCV 2011, Barcelona, Spain, November 6-13, 2011,
+pages 2206–2213, 2011. 2
+[32] Y. Luo and X. Tang. Photo and video quality evaluation: Fo-
+cusing on the subject. In Computer Vision - ECCV, 10th Eu-
+ropean Conference on Computer Vision, Marseille, France,
+October 12-18, 2008, Proceedings, Part III, pages 386–399,
+2008. 2
+[33] L. Mai, H. Jin, and F. Liu. Composition-preserving deep
+photo aesthetics assessment. In The IEEE Conference on
+Computer Vision and Pattern Recognition (CVPR), June
+2016. 1, 2, 5, 8
+[34] L. Marchesotti, F. Perronnin, D. Larlus, and G. Csurka. As-
+sessing the aesthetic quality of photographs using generic
+image descriptors. In IEEE International Conference on
+Computer Vision, ICCV 2011, Barcelona, Spain, November
+6-13, 2011, pages 1784–1791, 2011. 2
+[35] N. Murray, L. Marchesotti, and F. Perronnin. AVA: A large-
+scale database for aesthetic visual analysis. In IEEE Con-
+ference on Computer Vision and Pattern Recognition, Provi-
+dence, RI, USA, June 16-21, 2012, pages 2408–2415, 2012.
+1, 2, 3, 4, 5, 8
+[36] H. V. Nguyen and J. Vreeken. Non-parametric jensen-
+shannon divergence. In Machine Learning and Knowl-
+edge Discovery in Databases - European Conference, ECML
+PKDD 2015, Porto, Portugal, September 7-11, 2015, Pro-
+ceedings, Part II, pages 173–189, 2015. 2, 4, 6
+[37] M. Nishiyama, T. Okabe, I. Sato, and Y. Sato. Aesthetic qual-
+ity classification of photographs based on color harmony. In
+The 24th IEEE Conference on Computer Vision and Pattern
+Recognition, CVPR 2011, Colorado Springs, CO, USA, 20-
+25 June 2011, pages 33–40, 2011. 2
+[38] Y. Niu and F. Liu. What makes a professional video? A com-
+putational aesthetics approach. IEEE Trans. Circuits Syst.
+Video Techn., 22(7):1037–1049, 2012. 2
+[39] K. Schwarz, P. Wieschollek, and H. P. A. Lensch. Will peo-
+ple like your image? corr, abs/1611.05203, 2016. 8
+[40] H. Su, T. Chen, C. Kao, W. H. Hsu, and S. Chien. Scenic
+photo quality assessment with bag of aesthetics-preserving
+features. In Proceedings of the 19th International Confer-
+ence on Multimedia 2011, Scottsdale, AZ, USA, November
+28 - December 1, 2011, pages 1213–1216, 2011. 2
+[41] H. Su, T. Chen, C. Kao, W. H. Hsu, and S. Chien. Preference-
+aware view recommendation system for scenic photos based
+on bag-of-aesthetics-preserving features. IEEE Trans. Mul-
+timedia, 14(3-2):833–843, 2012. 2
+[42] X. Tang, W. Luo, and X. Wang. Content-based photo qual-
+ity assessment. IEEE Trans. Multimedia, 15(8):1930–1943,
+2013. 2
+[43] H. Tong, M. Li, H. Zhang, J. He, and C. Zhang. Classifica-
+tion of digital photos taken by photographers or home users.
+In PCM, 5th Pacific Rim Conference on Multimedia, Tokyo,
+Japan, November 30 - December 3, 2004, Proceedings, Part
+I, pages 198–205, 2004. 2
+[44] W. Wang, M. Zhao, L. Wang, J. Huang, C. Cai, and X. Xu.
+A multi-scene deep learning model for image aesthetic eval-
+uation. Signal Processing: Image Communication, pages –,
+2016. 2, 5, 8
+[45] Z. Wang, S. Chang, F. Dolcos, D. Beck, D. Liu, and T. S.
+Huang. Brain-Inspired Deep Networks for Image Aesthetics
+Assessment. ArXiv e-prints, Jan. 2016. 2, 3, 5, 6, 7, 8
+[46] Z. Wang, D. Liu, S. Chang, F. Dolcos, D. Beck, and T. S.
+Huang. Image Aesthetics Assessment using Deep Chatter-
+jee’s Machine. In International Joint Conference on Neural
+Networks (IJCNN), 2017. 3, 6, 7, 8
+[47] O. Wu, W. Hu, and J. Gao. Learning to predict the perceived
+visual quality of photos. In IEEE International Conference
+on Computer Vision, ICCV 2011, Barcelona, Spain, Novem-
+ber 6-13, 2011, pages 225–232, 2011. 2, 3, 4, 5, 6, 7, 8
+[48] Y. Wu, C. Bauckhage, and C. Thurau. The good, the bad, and
+the ugly: Predicting aesthetic image labels. In 20th Interna-
+tional Conference on Pattern Recognition, ICPR 2010, Is-
+tanbul, Turkey, 23-26 August 2010, pages 1586–1589, 2010.
+2

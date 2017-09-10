@@ -1,0 +1,1198 @@
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 1
+Shapelet-based Sparse Representation for Landcover
+Classification of Hyperspectral Images
+Ribana Roscher, Member, IEEE, Bjo?rn Waske, Member, IEEE
+Abstract—This paper presents a sparse representation-based
+classification approach with a novel dictionary construction
+procedure. By using the constructed dictionary sophisticated
+prior knowledge about the spatial nature of the image can be
+integrated. The approach is based on the assumption that each
+image patch can be factorized into characteristic spatial patterns,
+also called shapelets, and patch-specific spectral information. A
+set of shapelets is learned in an unsupervised way and spectral
+information are embodied by training samples. A combination
+of shapelets and spectral information are represented in an un-
+dercomplete spatial-spectral dictionary for each individual patch,
+where the elements of the dictionary are linearly combined to a
+sparse representation of the patch. The patch-based classification
+is obtained by means of the representation error. Experiments
+are conducted on three well-known hyperspectral image datasets.
+They illustrate that our proposed approach shows superior results
+in comparison to sparse representation-based classifiers that use
+only limited spatial information and behaves competitively with
+or better than state-of-the-art classifiers utilizing spatial infor-
+mation and kernelized sparse representation-based classifiers.
+Index Terms—sparse coding, sparse representation, dictionary
+construction, shapelets, hyperspectral
+I. INTRODUCTION
+Land cover classification is one of the most common task for
+remote sensing applications and the development of adequate
+classification strategies is an ongoing research field. In this
+context, hyperspectral imagery is probably the most valu-
+able as well as challenging single data source. Hyperspectral
+sensors provide detailed and spectrally continuous spatial
+information, enabling the discrimination between spectrally
+similar land cover classes (e.g., [1], [2]). However, it is
+well known that data dimensionality and high redundancy
+between individual spectral bands cause challenges during data
+analysis, for example, the performance of standard supervised
+classifiers is often limited in terms of classification accuracy.
+Therefore alternative methods such as support vector machines
+(SVM, e.g., [3], [4]), ensemble-based learning (e.g., [5], [6])
+or classifiers based on multinomial logistic regression (e.g.,
+[7]–[9]) have been successfully used for hyperspectral image
+classification.
+Another successful development for classification of remote
+sensing data is the integration of spatial/contextual information
+(e.g., [1], [10], [11]). In this way, the spatial correlation be-
+tween adjacent pixels can be taken into account. For instance,
+Camps-Valls et al. [12] and Tuia et al. [13] introduced an SVM
+The authors are with the Institute of Geographical Sciences, Remote
+Sensing and Geoinformatics, Freie Universita?t Berlin, Malteserstr. 74–100,
+12249 Berlin, Germany.
+E-mail: ribana.roscher@fu-berlin.de, phone: (+49 30) 838-70350
+with additional spatial information by means of a composite
+kernel. This kernel is a combination of a spectral kernel
+derived from features extracted from the pixel itself and a
+contextual kernel comprising features from the surrounding
+area such as the mean or the standard deviation. An alternative
+approach was proposed in [14]–[16], which uses mathematical
+morphology in order to represent the spatial relationship
+between pixels. Both approaches are combined by Li et al. [17]
+to generalized composite kernels for multinomial logistic re-
+gression. Besides the aforementioned pixel-based classification
+strategies, classification can alternatively be performed on pre-
+defined regions obtained by image segmentation (e.g., [18]–
+[20]). Another common method to incorporate both spectral
+and spatial information is the usage of a Markov random field,
+which utilizes an additional spatial term in order to favour
+class smoothness for the final classification map (e.g., [10],
+[21], [22]).
+Besides the aforementioned classifiers, sparse
+representation-based classifiers have been recently introduced
+in the context of hyperspectral image classification,
+showing state-of-the-art classification performance. Sparse
+representation-based classifiers should not be confused with
+sparse classifiers such as SVM, since their underlying concept
+is different. A sparse representation-based classifier assumes
+that each pixel can be reconstructed by a sparsely weighted
+linear combination of a few basis vectors taken from a
+so-called dictionary. The dictionary is constructed from a
+set of representative samples, for instance the training data,
+and is either directly embodied by these samples (e.g., [23],
+[24]) or learned from them (e.g., [25]–[27]). In the context
+of supervised classification each dictionary element also
+provides a class label, which is used for the classification of
+the sparsely represented sample of interest.
+For sparse representation and classification of RGB- and
+gray-valued image data, generally, the dictionary elements are
+representative vectorized image patches, which are derived
+from the labeled training data (e.g., [28], [29]). In this way,
+spectral as well as spatial information are integrated in the
+dictionary. Commonly, these dictionaries are chosen to be
+overcomplete, i.e., the number of dictionary elements is larger
+than the dimension of elements, in order to have a high
+coding efficiency and a high approximation ability ([28],
+[30], [31]). Regarding to high dimensionality, overcomplete
+sparse representations for hyperspectral data are challenging
+due to the definition of representative dictionary elements,
+particularly, if patches are used rather than single pixels to
+integrate spatial information. Apart from this, generally, there
+is a lack of labeled image patches if a labeled dictionary is
+ar
+X
+iv
+:1
+70
+8.
+05
+97
+4v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+0 
+A
+ug
+ 2
+01
+7
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 2
+used for classification.
+Against this background, several sparse representation-
+based classifiers have been proposed which alternatively use
+pixel-based dictionaries and incorporate spectral and spatial
+information by using structured priors. Various approaches
+assume that remote sensing images are smooth, i.e., neigh-
+boring pixels tend to have similar spectral characteristics, and
+thus, exploit the spatial correlation within the sparse coding
+procedure. For example, Chen et al. [32] successfully applied
+a joint sparsity model for hyperspectral image classification.
+Here, neighboring pixels within an image patch are sparsely
+represented by a common set of dictionary elements. This is
+similar to the multiple measurement vector problem, which is
+widely considered in the field of compressive sensing (e.g.,
+[33], [34]). Chen et al. [32] realize the determination of the
+sparse weights via the greedy optimization procedure simulta-
+neous orthogonal matching pursuit (SOMP, [35]), which has
+also been used, for example, by Fu et al. [36] and Aravind
+et al. [37] for hyperspectral image analysis. This algorithm
+is an extension to orthogonal matching pursuit (OMP, [38]),
+which is a standard method for solving the sparse coding task.
+However, the mentioned approach is restrictive since it only
+assumes homogeneous regions with similar spectral informa-
+tion in each patch. Therefore, actual class transitions (i.e.,
+boundaries between classes within the image), and regions
+of the same class, which show different spectral properties,
+cannot be considered. In order to mitigate the influence of
+this problem, e.g., Yuan et al. [39] and Srinivas et al. [40]
+introduced sparse representation-based classifiers utilizing dif-
+ferent weights for all neighboring pixels depending on their
+similarity to the pixel of interest. Finally, Sun et al. [41]
+presented several structured priors, which exploit the spatial
+dependencies between neighboring pixels, but also the inherent
+structure of the dictionary.
+All the above mentioned approaches are based on the
+assumption that a pixel of interest can be approximated by
+a linear combination of representative training pixels. That
+means, the dictionary contains the actual training data and
+most of the works treat the dictionary elements independently
+from each other without any prior spatial assumptions. In a
+similar way, e.g., the approach in [42] and various works
+presented in [43] use spectral libraries with pure spectra
+as dictionary, which is often used for spectral unmixing.
+In contrast to the utilization of user-defined dictionaries,
+several authors consider a dictionary learning or dictionary
+construction task, i.e., finding the best dictionary to a dataset.
+As already stated in [44] and [45], the determination of the
+dictionary is challenging yet crucial for the success of the
+sparse representation. For example, Charles et al. [26] learn the
+dictionary elements by adapting randomly chosen pixels from
+the scene with regard to their sparse coding ability causing
+that the dictionary elements do not longer represent material
+spectra. This shows that pure spectra do not necessarily
+possess the best coding ability. The work was extended in
+[46] by incorporating additional spatial regularity, so that
+the sparse parameter vector of a pixel is influenced by the
+sparse weights of the neighbors, but without forcing on spatial
+homogeneity. In [23] the authors learn the dictionary elements
+using the same joint sparsity assumption as in [24] and so-
+called contextual groups, i.e., non-overlapping image patches.
+The estimated sparse parameter vectors are then utilized as
+features for a linear SVM classifier.
+Considering the same task, this paper presents a sparse
+representation-based approach including a novel dictionary
+construction approach for hyperspectral image classification
+that explicitly introduces prior knowledge about the spatial
+nature of the image. Both the spectral information and the
+spatial knowledge are combined to a patch-based dictio-
+nary containing representative vectorized image patches. The
+patches are specifically constructed for the image patch which
+is to be classified. It is more comprehensive than approaches
+that only assume a patch-based homogeneous neighborhood,
+since it also accounts for multiple homogeneous regions within
+a patch. The construction of the dictionary is based on a
+method which originally has been introduced for RGB images
+in [47] and is adapted and extended to meet the challenges of
+hyperspectral image analysis. It assumes that images generally
+contain repeated patterns, i.e., certain local arrangements of
+pixels with similar features. If the most representative patterns
+are known (in form of patches in our case), the image can be
+approximated based on the factorization into these patterns
+and adequate spectral information, which are chosen to be the
+training data. Shapelets and spectral information are combined
+to a patch-specific spatial-spectral dictionary. Please note that
+unlike many dictionary learning approaches, the dictionary
+estimation and the reconstruction step for classification are
+decoupled. Additionally, unlike many approaches, the con-
+structed dictionary turns out to be highly undercomplete,
+which means the number of dictionary elements is smaller
+than the dimension of the dictionary elements. As already
+stated by Mairal et al. [28], overcomplete dictionaries are often
+preferred for reconstructions tasks, but for classification tasks a
+perfect reconstruction is not necessarily required as long as the
+dictionary has enough discrimination power. Also Moody et al.
+[48] show that undercomplete dictionaries are suitable for a
+successful landcover classification. Our combined dictionary
+is used for a sparse coding procedure aiming at the sparse
+representation of the image patches. Hereby, it is assumed that
+each patch can be represented by a sparsely weighted linear
+combination of elements out of this patch-specific dictionary.
+The estimated sparse weights and their assigned dictionary
+elements are then used for classification of the patch.
+Overall, the objective of the paper is the presentation of
+a novel labeled patch-based dictionary construction approach
+exploiting spatial as well as spectral information used for a
+sparse representation-based classifier. In order to evaluate the
+potential of such a concept, we focus on the following research
+questions: (i) Is there a difference in accuracy compared to
+support vector machines with composite kernel and sparse
+representation-based classifiers with spatial information; (ii)
+What is the impact of the hyperparameters, namely number of
+shapelets and patchsize, on the accuracy and stability of our
+proposed method in terms of the classification result? In order
+to answer these research questions, the specific objective of
+our study is the classification of three widely-used different
+hyperspectral datasets.
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 3
+The following section describes the basic sparse coding pro-
+cedure and the shapelet-based sparse representation scheme.
+Moreover the patch-specific spatial-spectral dictionary con-
+struction is presented. Sec. III and Sec.IV demonstrate the
+experiments and discuss the results in order to show the
+performance of our proposed approach.
+II. METHODS
+Let I be an M -band hyperspectral image containing J
+overlapping patches Xj of size
+?
+Z ×
+?
+Z × M with Z
+being the number of pixels in the patch. The task is to
+assign a class label to each pixel by classifying all image
+patches and combine the results by a voting scheme. Each
+patch is represented via a sparsely weighted linear combination
+of dictionary elements and the sparse weighting vector is
+determined using a sparse coding procedure (see Sec. II-A).
+A spatial-spectral dictionary is constructed utilizing a set of
+learned shapelets and a spectral sample set (see Sec. II-C).
+The construction strategy is based on the assumption that
+each image patch can be factorized into shape and spectral
+information (see Sec. II-B).
+A. Sparse Coding
+In terms of basic sparse coding a (V × 1)-dimensional test
+sample x can be represented by a weighted linear combination
+of a few elements taken from a (V ×N)-dimensional dictio-
+nary D, so that x = D?+ with ??b being the reconstruction
+error and b specifing the norm for distance computation. The
+parameter vector comprising the weights is given by ?. The
+test sample x can be, for example, an (M × 1)-dimensional
+pixel from the image, so that V = M , or an ((M · Z)× 1)-
+dimensional vectorized image patch x = vec(X ) with Z
+being the number of pixels in the patch and V = M · Z.
+The reconstruction of an image patch is illustrated in Fig.
+1(a) and 1(b). While the pixel-based approach reconstructs
+all pixels in a patch independently, the patch-based approach
+takes spatial information into account by using the image patch
+in a vectorized way.
+The optimization problem for determination of optimal ??
+is given by
+?? = argmin ?D?? x?b subject to ???0 ?W, (1)
+where W is the number of nonzero elements. Assuming given
+label information for N dictionary elements (dn, yn), n =
+1, . . . , N , with class labels yn ? K = {1, . . . , k, . . . ,K}, the
+class-wise reconstruction error for x is given by
+rk = ?Dk?k ? x?b, (2)
+where Dk is a sub-dictionary containing all elements belong-
+ing to class k. The test sample x is assigned to the class
+yielding the lowest reconstruction error.
+As mentioned in the introduction, dictionaries are generally
+designed to be overcomplete, i.e., the number of dictionary el-
+ements is larger than the dimension of the dictionary elements.
+This is challenging for hyperspectral data due to its high
+dimensionality, particularly, if spatial information is integrated
+by using vectorized image patches rather than single pixels.
+Moreover, generally, patch-wise label information is limited
+or not available. In order to mitigate these challenges, Sec.
+II-C shows the construction of an undercomplete, yet powerful
+dictionary from image patches (see Fig. 1(c)).
+As shown in Section II-B, under the assumption that an
+image patch can be factorized into shape and spectral infor-
+mation, the required number of dictionary elements ensuring a
+successful sparse representation can be reduced significantly.
+B. Shapelet-based Image Factorization
+Fig. 2 illustrates the basic idea of the factorization of image
+patches into shapelets and spectral information, i.e., class-
+specific hyperspectral signatures. Dictionaries constructed
+from patches often conflates shape and spectral information
+and thus, an unnecessary high amount of dictionary elements
+are needed for a successful sparse representation [47]. Instead
+of comprising all relevant combinations of shape and spectral
+information in one global dictionary, the presented approach
+constructs a specific dictionary for each image patch. Thus,
+the dictionary is adequately representative while the number of
+needed dictionary elements can be significantly reduced, i.e.,
+generally it is not overcomplete. The basic strategy is to fill
+each shapelet region with suitable spectral information yield-
+ing a highly adaptive dictionary element. The set of shapelets
+is learned from each image using a superpixel segmentation
+approach (see Sec. II-C1) and spectral information are embod-
+ied by the training data (see Sec. II-C2). For the construction
+of a patch-specific spatial-spectral dictionary an optimization
+is performed to choose the best fitting factorization of spectral
+information and shapelets given a specific image patch (see
+Sec. II-C3). Each pixel in the patch is finally classified by a
+voting scheme explained in Sec. II-D.
+C. Dictionary Construction
+1) Shapelet Extraction: This step describes the extraction
+of shapelets from an image. The
+?
+Z ×
+?
+Z-dimensional
+shapelets Sn with n ? {1, . . . , N}, each containing Rn
+regions, are specifically learned for each image using a
+superpixel segmentation approach. They constitute the most
+representative repeated patterns, i.e., characteristic local ar-
+rangement of pixels with similar features. Here one region
+indicates an area of homogeneous features.
+Fig. II-C1 illustrates the extraction of image-specific
+shapelets. First, the simple linear iterative clustering (SLIC)
+superpixel segmentation approach [49] is applied to the z-
+normalized image using all image bands. It provides a seg-
+mentation of the image into compact segments each of them
+containing homogeneous spectral information. Given a binary
+segmentation mask for the image (illustrated as yellow lines in
+Fig. II-C1), overlapping image patches of size
+?
+Z ×
+?
+Z are
+extracted and converted to binary patches. In detail, for each
+region a binary patch is created with the region’s pixels set
+to 0 and the remaining pixel to 1. The most representative
+segmentation patterns are found by a k-medoids clustering
+[50], where the cluster centers are reshaped to
+?
+Z×
+?
+Z and
+constitute the shapelets (see Fig. 4). The characteristic of the
+dictionary is influenced by the number of cluster centers and
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 4
+M × Z M ×N
+N × Z
+X
+=
+D A
+. . .. . . . . .
+. . .
+...
+...
+(a) Pixel-based sparse representation
+(M · Z) (M · Z)×N
+N
+x
+=
+D ?
+. . .
+. . .
+...
+...
+... ...
+(b) Patch-based sparse representation
+(M · Z) (M · Z)×N
+N
+x
+=
+D ?
+. . .
+. . .
+...
+...
+... ...
+(c) Shapelet-based sparse representa-
+tion
+Fig. 1. Schematic illustration of sparse representation of an image patch. Colors in the dictionary are indicating the class membership. The pixel-based
+approach reconstructs all pixels in a patch independently, while the patch-based approach and the shapelet-based approach take spatial information into
+account by using the image patch in a vectorized way.
+Fig. 2. Shapelet-based image factorization illustrated by means of a hyper-
+spectral image. Image patches can be described by the composition of a set
+of learned shapelets with varying number of regions (denoted with numbers)
+and spectral information, i.e., hyperspectral signatures. In our approach the
+spectral information is embodied by the training data (different colors of the
+signatures indicate different classes).
+Fig. 3. Superpixel segmentation and by way of illustration one conversion
+from an image patch to binary patches in order to find representative shapelets
+by clustering. The binary cluster centers are indexed and constitute the
+shapelets.
+the approximate size and compactness of the segments yielded
+by the SLIC superpixel algorithm.
+2) Spectral Information Choice: In the presented approach
+the spectral information is assumed to be the training data.
+The training set consists of L labeled samples
+(
+Lxl,
+Lyl
+)
+with
+Fig. 4. Visualized shapelet sets with 100, 50 and 25 shapelets, where different
+colors indicate the shapelet regions.
+l ? {1, . . . , L} comprising M -dimensional spectral feature
+vectors Lxl ? IRM and class labels Ly =
+[
+Lyl
+]
+with
+Lyl ? {1, . . . , k, . . . ,K}. The feature vectors are collected in
+an (M ×L)-dimensional matrix LX =
+[
+Lx1, . . . ,
+LxL
+]
+, where
+the upper left index L refers to the term labeled data.
+3) Patch-Specific Spatial-Spectral Dictionary Construction:
+In this step shapelets and spectral information are combined to
+a ((Z ·M)×N)-dimensional patch-specific spatial-spectral
+dictionary Dj for each patch X j . A schematic overview and
+the algorithm is provided in Fig. 6. As illustrated in Fig. 5,
+a hierarchical Markov random field (MRF) is employed for
+the construction of the n-th element in the spatial-spectral
+dictionary dj,n. In this way, prior knowledge about the relation
+between pixels and shapelet regions is modeled, where the
+lower, pixel-wise layer contains pixel information and the
+upper layer contains shapelet region information. In order to
+keep the notation uncluttered, the indices (·)j and (·)n are
+omitted for further considerations in this paragraph, although
+the following procedure is repeated for all shapelets and all
+image patches. The MRF determines the indices Pb =
+[
+Pbz
+]
+,
+z = 1, . . . , Z, with Pbz ? {1, . . . , L}, and Sb =
+[
+Sbr
+]
+,
+r = 1, . . . , R, with Sbr ? {1, . . . , L}, of the best fitting
+spectral information for both pixel-based layer (indicated by
+upper left index P) and shapelet-based layer (indicated by
+upper left index S). More specifically, given an image patch the
+MRF is used to determine the indices of the training samples
+which are used to fill the shapelet.
+For this, an energy function is minimized utilizing message
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 5
+passing [51]:
+E(Pb, Sb) = ?
+?
+z
+corr
+(
+xz, x
+(Pbz))? ??
+r
+h
+(
+y
+(Sbr))+
+?
+?
+r
+?
+z?Sr
+?
+(
+y
+(Pbz) , y (Sbr)) , (3)
+where xz is the z-th pixel in the image patch and x (·), y (·),
+h (·) are operators which access elements at position (·) in
+LX , Ly and hr (see Eq. 4), respectively. Indices within the r-
+th region in shapelet S are denoted with z ? Sr, ? (·, ·) is the
+delta function, and ? and ? are weighting factors between both
+unary terms and the third, binary term. The second unary term
+uses the normalized histogram hr over a rough estimation of
+class labels y?r = [y?z], z ? Sr, calculated as
+hr = [h1, . . . , hk, . . . , hK ] =
+1
+|Sr|
+hist (y?r) , (4)
+y?z = y
+(
+argmaxl
+(
+corr
+(
+xz,
+Lxl
+)))
+, (5)
+with |Sr| being the number of elements in r-th region of a
+shapelet. Here, the estimated class labels are determined by
+a simple nearest neighbor classifier. The usage of this term
+supports the selection of spectral information belonging to the
+dominant class, i.e., the class that would be chosen by majority
+vote. However, also other kind of unary and binary terms can
+be chosen. The final dictionary element d consists of elements
+x
+(
+Pb
+)
+and the dictionary element labels are given by y
+(
+Pb
+)
+.
+D. Classification
+Given the spatial-spectral dictionary Dj , the classification
+of an image can be derived by performing the sparse coding
+procedure for each image patch X j with
+??j = argmin ?Dj?j ? xj?b subject to ??j?0 ?W.
+(6)
+The optimization is done via orthogonal matching pursuit.
+Since the image patches are fully overlapping, a voting
+scheme is introduced in order to derive the final label of each
+pixel by a weighted voting. The votes for class k of the z-
+th pixel in j-th patch xj,z can be obtained by vkj,z = 1/r
+k
+j,z ,
+where rkj,z is the reconstruction error given by
+rkj,z = ?xj,z ? D
+k
+j,z??
+k
+j,z? (7)
+with Dkj,z being a sub-matrix of the whole dictionary Dj .
+The rows of the sub-matrix are chosen according as they are
+necessary to reconstruct the z-th pixel and the columns are
+chosen according to the class membership. The parameters
+??kj,z are the ones who are assigned to the dictionary elements
+Dkj,z . All votes assigned to a test pixel are summed up and the
+class with the highest vote is chosen.
+III. EXPERIMENTAL SETUP AND DATASETS
+In this section the experimental setup is presented in order
+to evaluate our proposed sparse representation-based classifi-
+cation approach with spatial-spectral dictionary by means of
+the overall accuracy, average accuracy and ? coefficient.
+A. Datasets
+The considered datasets are three widely used hyperspectral
+images - INDIAN PINES, UNIVERSITY OF PAVIA and CENTER
+OF PAVIA - from study sites with different environmental set-
+ting. The INDIAN PINES dataset was acquired by the AVIRIS
+instrument in 1992. The study site lies in a predominately
+agricultural region in NW Indiana, USA. The dataset covers
+145 × 145 pixels, with a spatial resolution of 20 m per
+pixel. Some bands covering water absorption, i.e. [104? 108],
+[150? 163] and 220, were removed resulting in 200 spectral
+bands. The training data is randomly selected and comprises
+about 10% of the labeled data (see Fig. 10 and Tab. I). The
+UNIVERSITY OF PAVIA dataset was also acquired by ROSIS-3
+sensor with 610 × 340 pixels in size and 103 channels. The
+classification is aiming on nine land cover classes. Fig. 10
+and Tab. II show the training data. The CENTER OF PAVIA
+image was acquired by ROSIS-3 sensor in 2003 with a spatial
+resolution of 1.3 m per pixel. Some bands have been removed
+due to noise, and finally 102 channels have been used in the
+classification. The image strip, with 1096×492 pixels in size,
+lies around the center of Pavia. The classification is aiming on
+nine land cover classes. Fig. 10 and Tab. III show the training
+data, which covers about 9% of the whole data. All images
+are z-normalized.
+B. Experimental Setup
+Each image is sparsely represented using the methods pre-
+sented in Sec. II and classified using (7). Orthogonal matching
+pursuit is used to solve the sparse coding task in (6). In
+the experiments the number of shapelets, the number of used
+dictionary elements, the patchsize and the superpixel size are
+varied (see Fig. 7, Fig. 8 and Fig. 9). The best parameter
+setting is chosen in order to compare our proposed approach
+(shape-DC) to support vector machines with composite kernel
+(SVMCK, [12]), the joint sparsity model using simultaneous
+orthogonal matching pursuit (SOMP), simultaneous subspace
+pursuit (SSP), sparse coding approach with spectral-contextual
+dictionary learning (SCDL, [23]) and the three best performing
+kernelized sparse coding algorithms presented in [32]: kernel
+subspace pursuit with composite kernel (KSPCK), kernel
+simultaneous subspace pursuit (KSSP) and kernel orthogonal
+matching pursuit with composite kernel (KOMPCK). All re-
+sults are taken from [32] except SCDL, which is taken from
+[23]. Accuracy assessment was performed with independent
+test data, giving overall accuracies, average accuracies, ? co-
+efficient, and confusion matrices that were used to calculate the
+class accuracies. The training and test data sets as well as the
+sampling scheme used for the proposed shape-DC approach
+are identical to [32] and [23] to ensure the comparability of
+the results.
+IV. EXPERIMENTAL RESULTS AND DISCUSSION
+A. INDIAN PINES Dataset
+The averaged accuracy measures for ten results with ran-
+domly sampled training and test data, achieved by using 10
+shapelets and a patchsize of 9 × 9 are shown in Tab. I. The
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 6
+Shapelet-based layer
+Pixel-based layer
+Fig. 5. Graphical model used for determination of the best fitting spectral information given the shapelet regions. Exemplarily, one shapelet is illustrated (red
+border) overlaying the image layer. Left: The lower, pixel-based layer contains the pixel information (illustrated in gray) and the upper layer contains the
+shapelet regions (illustrated in brown and blue). Right: Dark nodes denote feature nodes, light gray nodes denote pixel-wise class label nodes and the brown
+and orange nodes denote the class label nodes for the shapelet regions. Each label node is connected to a feature node and class label nodes for the shapelet
+regions are connected to all class label nodes for all pixels lying in the shapelet region.
+Input
+Image patch X j
+Shapelets S1, . . . ,SN
+Spectral information(
+Lx1,
+Ly1
+)
+, . . . ,
+(
+LxL,
+LyL
+)
+Algorithm: Dictionary construction
+foreach Sn do
+Compute correlations between all
+patch pixels xz ? X j and spectral
+information Lx1, . . . , LxL
+foreach shapelet region Sr do
+Determine rough estimate of
+class labels y?r
+compute normalized histogram
+hr over y?r according to (4)
+and (5)
+end
+Estimate indices
+[
+Pb, Sb
+]
+of best
+fitting spectral information by
+minimizing (3)
+Derive dictionary elements x
+(
+Pb
+)
+Derive dictionary element labels
+y
+(
+Pb
+)
+end
+Output
+Dictionary elements
+dj,1, . . . ,dj,N
+Dictionary element labels
+yj,1, . . . ,yj,N
+Fig. 6. Schematic overview of the construction of the patch-specific spatial-spectral dictionary.
+training data, test data and the classification map of the run
+with the highest average accuracy is shown in Fig. 10.
+The results show that our proposed approach achieves
+higher classification accuracies than SVMCK, SOMP, SSP
+and SCDL. It achieves comparable results to kernel subspace
+pursuit with composite kernel (KSPCK). Regarding the class-
+specific accuracies our proposed approach performs well,
+resulting in the highest or second-best accuracy in the very
+most cases. Even small classes (e.g., OATS) are accurately
+classified. While most classes are classified stable, resulting
+in low standard deviations, the accuracies of small classes
+(e.g., OATS and GRASS/PASTURE-MOWED) show relatively
+high standard deviations. Thus, as for other classifiers, the
+selection of adequate training samples is important.
+Fig. 7(a) and 7(b) show the impact of the number of
+shapelets and the patchsize on the classification accuracies.
+The number of used dictionary elements is fixed to W = 3.
+The results show that the highest accuracies are obtained
+with a patchsize of 9 × 9 pixel. The best overall accuracy
+of 99.14% is obtained for a patchsize of 13 × 13 pixel and
+50 shapelets and the highest average accuracy of 98.29% is
+obtained for a patchsize of 9 × 9 pixel with 100 shapelets
+(see Tab. I), however, several other parameter settings show
+comparable results. The plots clearly indicate the gain of using
+shapelets for large patchsizes instead of using only one homo-
+geneous patch, i.e., one shapelet. However, even with only
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 7
+TABLE I
+SIZE OF TRAINING AND TEST DATA, CLASSWISE ACCURACIES [%], OVERALL ACCURACY [%], AVERAGE ACCURACY [%] AND ? COEFFICIENT OF INDIAN
+PINES DATASET. NUMBERS IN BRACKETS SHOW THE STANDARD DEVIATION OVER 10 RANDOMLY SAMPLED TRAINING- AND TESTSETS. BOLD NUMBERS
+INDICATE THE BEST RESULTS. BOLD NUMBER INDICATES THE BEST RESULTS AND UNDERLINED RESULTS THE SECOND BEST RESULT.
+# train # test SVMCK SOMP SSP KSPCK KSSP KOMPCK SCDL shape-DC
+O ALFALFA 6 48 95.83 85.42 81.25 95.83 91.67 97.92 93.75 95.83 (3.30)
+O CORN-NOTILL 144 1290 96.67 94.88 95.74 99.15 97.98 99.22 94.93 97.95 (1.67)
+O CORN-MIN 84 750 90.93 94.93 92.80 96.93 97.73 96.93 97.39 98.56 (2.72)
+O CORN 24 210 85.71 91.43 82.38 97.14 96.67 95.24 90.57 98.38 (1.74)
+O GRASS/PASTURE 50 447 93.74 89.49 93.29 98.21 94.85 98.43 97.23 99.10 (0.91)
+O GRASS/TREES 75 672 97.32 98.51 98.81 99.11 98.96 99.11 99.17 99.70 (0.28)
+O GRASS/PASTURE-MOWED 3 23 69.57 91.30 82.61 100.00 17.39 100.00 100.00 96.52 (5.67)
+O HAY-WINDROWED 49 440 98.41 99.55 99.77 99.97 100.00 100.00 99.95 99.95 (0.10)
+O OATS 2 18 55.56 0.00 0.00 100.00 0.00 88.89 79.44 95.55 (6.09)
+O SOYBEANS-NOTILL 97 871 93.80 89.44 91.27 97.70 94.37 98.05 96.30 98.62 (0.86)
+O SOYBEANS-MIN 247 2221 94.37 97.34 97.43 98.20 98.33 97.43 98.46 99.23 (0.92)
+O SOYBEANS-CLEAN 62 552 93.66 88.22 89.13 98.73 97.46 98.73 92.97 97.57 (1.44)
+O WHEAT 22 190 99.47 100.00 99.47 100.00 100.00 100.00 99.05 99.68 (0.71)
+O WOODS 130 1164 99.14 99.14 99.05 99.48 99.91 99.40 98.87 99.91 (0.15)
+O BUILDING-GRASS-TREES 38 342 87.43 99.12 97.95 97.37 97.08 97.95 97.13 98.71 (1.12)
+O STONE-STEEL TOWERS 10 85 100.00 96.47 92.94 95.29 94.12 97.65 96.00 92.94 (4.63)
+Overall 1043 9323 94.86 95.28 95.34 98.47 97.46 98.33 97.81 98.87 (0.19)
+Average 90.73 88.45 87.12 98.31 86.03 97.81 95.70 98.02 (0.76)
+? 0.941 0.946 0.947 0.983 0.971 0.981 0.964 0.987 (0.002)
+one homogeneous patch our proposed approach can achieve
+higher accuracies than many of the approaches considered
+for comparison. This underlines the fact that it is worth to
+learn a specifically designed dictionary in order to increase
+the classification accuracy. Especially for large patchsizes,
+which show poor results for a small number of shapelets, the
+accuracies significantly increase with an increasing number
+of shapelets. However, if the patchsize is small an increased
+number of shapelets results in lower accuracies. We assume a
+reason for this to be an overfitting effect, where noise is fitted
+by potentially non-representative shapelets. That means the
+more shapelets are extracted, the less representative they are
+for the image. The effect becomes the less apparent the larger
+the patchsize is, since the number of used dictionary elements
+is restricted to W = 3 and due to this, large patches are hardly
+able to model noise. This is underlined by the results presented
+in Fig. 8. The patchsize is fixed to 9× 9, while the influence
+of the number of dictionary elements is evaluated by means
+of the overall and average accuracy. The highest accuracy is
+achieved with 3 dictionary elements (i.e., W = 3), while the
+accuracy decreases significantly when the number of elements
+is further increased.
+Fig. 9 shows the impact of the approximate superpixel size
+R for shapelet extraction on the classification accuracies, while
+the number of shapelets is fixed to 10. An approximate size of
+20×20 pixel shows good results for all patchsizes, whereas an
+approximate size of 10× 10 pixel provide less representative
+shapelets. A larger size of approximately 40× 40 pixel works
+well for larger patchsizes indicating that the approximate su-
+perpixel size should be increased with an increased patchsize.
+B. UNIVERSITY OF PAVIA Dataset
+Tab. II shows the result obtained by using 100 shapelets and
+a patchsize of 15× 15 pixels. Our proposed approach clearly
+outperforms the other methods in terms of overall accuracy and
+? coefficient (see Tab. II and Fig. 10). This is also underlined
+by the class-specific accuracies. In many cases the approach
+performs better or at least equally well when compared to the
+class accuracies achieved by the other methods. As for the
+INDIAN PINES dataset the results clearly show that the use of
+shapelets significantly improves the classification accuracies
+for large patchsizes when compared to similar approaches
+assuming only a homogeneous neighborhood (e.g., SOMP).
+The most accurate results are achieved by a relatively large
+patchsize of 15 × 15 pixel (see Fig. 7(c) and Fig. 7(d))
+and thus, the classification result is very smooth within large
+homogeneous regions (e.g., MEADOWS). Nevertheless, also
+small regions such as SHADOWS and METAL SHEETS are
+classified with high accuracies. The main reason for this might
+be the usage of shapelets. Besides our proposed approach
+also SCDL uses a large patchsize of 16 × 16 pixel, while
+all other approaches (SVMCK, SOMP, SSP and kernel simul-
+taneous subspace pursuit (KSSP)) use a smaller patchsize of
+5 × 5 pixel ([23], [32]). As already stated by [24], unlike
+the INDIAN PINES dataset this dataset mostly lacks in large
+spatial homogeneous regions and thus, a small patchsize is
+used for SVMCK, SOMP, SSP and KSSP in order to represent
+small regions. Although the number of shapelets producing the
+best result is relatively high, the actual size of the dictionary
+is lower since some spatial-spectral dictionary elements are
+redundant and can be removed. For the best result, the average
+number of dictionary elements is 45 with a standard deviation
+of 33 elements.
+In order to analyze the influence of the quality of the
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 8
+TABLE II
+SIZE OF TRAINING AND TEST DATA, CLASSWISE ACCURACIES [%], OVERALL ACCURACY [%], AVERAGE ACCURACY [%] AND ? COEFFICIENT OF
+UNIVERSITY OF PAVIA DATASET. BOLD NUMBER INDICATES THE BEST RESULTS AND UNDERLINED RESULTS THE SECOND BEST RESULT.
+# train # test SVMCK SOMP SSP KSPCK KSSP KOMPCK SCDL shape-DC
+A Asphalt 548 6304 79.85 59.33 69.59 89.64 89.56 82.23 81.87 96.64
+A Meadows 540 18146 84.86 78.15 72.31 72.68 79.98 72.47 96.48 98.50
+A Gravel 392 1815 81.87 83.53 74.10 80.06 85.45 82.26 83.36 76.31
+A Trees 524 2912 96.36 96.91 95.33 98.94 98.66 98.56 95.47 91.28
+A Metal sheets 265 1113 99.37 99.46 99.73 100.00 99.91 99.82 99.82 100.00
+A Bare soil 532 4572 93.55 77.41 86.72 94.77 95.76 93.92 81.21 83.81
+A Bitumen 375 981 90.21 98.57 90.32 89.81 97.96 92.46 74.11 100.00
+A Bricks 514 3364 92.81 89.09 90.46 89.54 96.43 78.78 85.91 95.33
+A Shadows 231 795 95.35 91.95 90.94 96.48 98.49 96.98 96.60 97.74
+Overall 3921 40002 87.18 79.00 78.39 83.19 87.65 81.07 90.42 94.48
+Average 90.47 86.04 85.50 90.21 93.58 88.61 88.31 93.07
+? 0.833 0.728 0.724 0.785 0.840 0.785 0.870 0.925
+segmentation, we replaced the image-specific shapelets with
+Haar wavelets as presented by [52], which usually do not
+represent characteristic patterns in the image. The overall accu-
+racy decreases to 93.62, the average accuracy to 88.84 and ? to
+0.912. However, the results are still better or comparable to the
+presented approaches. To our experience every segmentation
+algorithm which can roughly represent the boundaries between
+different classes within the image leads to an increase in
+accuracy over results obtained by using synthetic shapelets
+such as Haar wavelets.
+C. CENTER OF PAVIA Dataset
+Tab. III shows the result obtained by using 25 shapelets and
+a patchsize of 17×17 pixels. As before, our approach performs
+better than compared methods in terms of overall accuracy,
+average accuracy and ? or performs at least equally well. This
+is also underlined by the class-specific results achieved by our
+proposed method. In the very most cases the highest or at least
+the second-best class accuracy is achieved, resulting in more
+balanced results. As for the other results, Fig. 10 shows that
+classes with large homogeneous regions (e.g., WATER) as well
+as small classes (e.g., ASPHALT) can be classified accurately.
+Besides the before mentioned results, as illustrated in Fig.
+7(e), the highest overall accuracy could be obtained with 250
+shapelets using a patchsize of 17 × 17 pixel. Although the
+number of shapelets in this case is relatively high, the average
+number of spatial-spectral dictionary elements after removing
+redundant elements is 45 with a standard deviation of 69
+elements. As for all dataset, this is significantly lower than for
+all compared methods, which use mostly the complete training
+data set as dictionary or at least several hundreds (e.g., SCDL).
+As for UNIVERSITY OF PAVIA dataset, we analyzed the
+influence of the quality of segmentation by replacing the
+shapelets by Haar wavelets. The overall accuracy reduces to
+97.58, the average accuracy to 97.29 and ? to 0.954. The ob-
+tained results are comparable to most of the approaches. These
+results underline the gain in using image-specific shapelets
+rather than synthetic ones.
+V. CONCLUSION AND OUTLOOK
+The paper presented a shapelet-based sparse representation
+approach with a constructed spatial-spectral dictionary for the
+classification of hyperspectral image data. The presented ap-
+proach differs from previously proposed sparse representation-
+based classifiers for hyperspectral image data in this way
+that sophisticated prior knowledge about the spatial nature
+of an image is exploited by utilizing a constructed, highly
+adapted patch-specific dictionary. The experimental results
+show that our proposed approach outperforms or performed
+at least equally well in terms of accuracies, when compared
+to other sparse representation-based classification procedures
+which use only limited spatial information or state-of-the-
+art classifiers, which use spatial information. Moreover, a
+replacement of image-specific shapelets with Haar wavelets
+lead to a decrease in accuracy, showing the gain in accuracy
+when using characteristic spatial patterns rather than synthetic
+patterns. It is interesting to underline the stable performance
+of the proposed shape-DC approach, when comparing the
+results achieved on the different data sets. Contrary, the other
+methods show diverse performance in terms of accuracy,
+when classifying different data sets. While a method can be
+applicable for the classification of one data set (i.e., resulting
+in a high classification accuracy), the same method seems not
+adequate for the classification of another data set.
+Experiments showed the influence of the user-dependent pa-
+rameters, i.e., the number of shapelets and dictionary elements,
+on the classification accuracy. The patchsize can be chosen
+intuitively according to the spatial homogeneity in the image.
+Moreover, the approach seems to be insensitive if a larger
+patchsize and an adequate number of shapelets is chosen.
+Our experimental results allow some guidelines with regard
+to reliable ranges for the two considered parameters, i.e., ac-
+cording to the results, about 5?100 shapelets should be used,
+and a number of three dictionary elements (W = 3) appears
+sufficient. These recommendations proved effective in all three
+experiments. Therefore the proposed sparse representation-
+based classification with dictionary construction constitutes
+a feasible approach and useful modification of the state-of-
+the-art classifiers utilizing spatial information and kernelized
+sparse representation based classifiers.
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 9
+TABLE III
+SIZE OF TRAINING AND TEST DATA, CLASSWISE ACCURACIES [%], OVERALL ACCURACY [%], AVERAGE ACCURACY [%] AND ? COEFFICIENT OF
+CENTER OF PAVIA DATASET. BOLD NUMBER INDICATES THE BEST RESULTS AND UNDERLINED RESULTS THE SECOND BEST RESULT.
+# train # test SVMCK SOMP SSP KSPCK KSSP KOMPCK SCDL shape-DC
+A Water 745 64533 97.46 99.32 97.79 98.79 99.26 98.98 99.40 99.11
+A Trees 785 5722 93.08 92.38 92.82 91.70 91.23 96.31 93.19 94.73
+A Meadow 797 2094 97.09 95.46 97.80 99.57 97.71 96.08 97.49 97.43
+A Brick 485 1667 77.02 85.66 78.52 94.54 95.26 97.78 98.32 98.61
+A Soil 820 5729 98.39 96.37 95.81 94.99 97.45 97.82 99.27 99.98
+A Asphalt 678 6847 94.32 93.81 96.52 93.92 97.41 96.54 95.45 99.22
+A Bitumen 808 6479 97.50 94.68 95.96 96.90 97.82 98.63 95.77 97.07
+A Tile 223 2899 99.83 99.69 99.79 99.55 99.90 100.00 99.59 99.97
+A Shadows 195 1970 99.95 98.68 98.83 93.60 71.42 96.65 100.00 100.00
+Overall 5536 97940 97.66 96.81 96.93 97.55 97.82 98.63 98.47 98.78
+Average 95.01 94.96 94.87 95.95 94.16 97.64 97.61 98.46
+? 0.958 0.943 0.945 0.956 0.960 0.972 0.972 0.978
+Future work could address the improvement of the com-
+putation time for constructing the patch-specific dictionary.
+The runtime of our prototype Matlab implementation for the
+presented datasets using the best parameters settings is about
+0.5h for INDIAN PINES, about 6h for UNIVERSITY OF PAVIA
+and about 25h for CENTER OF PAVIA using a single node (Intel
+Xeon Westmere X5650 CPU with 12 threads) of the Soroban
+supercomputer at FU Berlin1. The computational bottleneck
+is caused by solving an optimization function (see Eq. 3)
+for each dictionary element. However, the determination of
+the dictionary elements is parallelizable. Speed-up can be
+achieved by e.g. grouping similar patches and reconstruct them
+with the same dictionary or using non-fully overlap of image
+patches for reconstruction, although at the cost of a decrease
+in accuracy.
+ACKNOWLEDGEMENT
+The authors would like to thank D. Landgrebe and
+L. Biehl (Purdue University, USA) for providing the INDIAN
+PINES dataset (available on: https://engineering.purdue.edu/
+?biehl/MultiSpec/hyperspectral.html) and P. Gamba (Univer-
+sity of Pavia, Italy) for providing the Pavia datasets. The
+authors would also like to thank the German Research Founda-
+tion (DFG) WA 2728/3-1 for funding and The Fields Institute
+for Research in Mathematical Sciences, Toronto, Canada. The
+research herein was performed in part while Ribana Roscher
+was visiting the Fields Institute.
+REFERENCES
+[1] G. Camps-Valls, D. Tuia, L. Bruzzone, and J. A. Benediktsson,
+“Advances in hyperspectral image classification: Earth monitoring
+with statistical learning methods,” IEEE Signal Processing Magazine,
+vol. 31, no. 1, pp. 45–54, Jan 2014. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=6678612
+[2] J. M. Bioucas-Dias, A. Plaza, G. Camps-Valls, P. Scheunders,
+N. Nasrabadi, and J. Chanussot, “Hyperspectral remote sensing data
+analysis and future challenges,” IEEE Geoscience and Remote Sensing
+Magazine, vol. 1, no. 2, pp. 6–36, Jun 2013. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=6555921
+[3] G. Mountrakis, J. Im, and C. Ogole, “Support vector machines in remote
+sensing: A review,” ISPRS Journal of Photogrammetry and Remote
+Sensing, vol. 66, no. 3, pp. 247–259, May 2011. [Online]. Available:
+http://linkinghub.elsevier.com/retrieve/pii/S0924271610001140
+1technical details at https://www.zedat.fu-berlin.de/HPC/Soroban
+[4] F. Melgani and L. Bruzzone, “Classification of hyperspectral remote
+sensing images with support vector machines,” IEEE Trans. Geosci.
+Remote Sens., vol. 42, no. 8, pp. 1778–1790, Aug 2004.
+[5] B. Waske, S. van der Linden, J. A. Benediktsson, A. Rabe, and
+P. Hostert, “Sensitivity of support vector machines to random feature
+selection in classification of hyperspectral data,” IEEE Transactions
+on Geoscience and Remote Sensing, vol. 48, no. 7, pp. 2880–2889,
+Jul 2010. [Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/
+wrapper.htm?arnumber=5439692
+[6] B. Waske, J. A. Benediktsson, K. rnason, and J. R. Sveinsson, “Mapping
+of hyperspectral aviris data using machine-learning algorithms,”
+Canadian Journal of Remote Sensing, vol. 35, no. sup1, pp. S106–
+S116, Jan 2009. [Online]. Available: http://www.tandfonline.com/doi/
+abs/10.5589/m09-018
+[7] R. Roscher, B. Waske, and W. Fo?rstner, “Incremental import vector
+machines for classifying hyperspectral data,” IEEE Transactions on
+Geoscience and Remote Sensing, vol. 9, no. 99, pp. 1–11, 2012.
+[8] J. Li, J. M. Bioucas-Dias, and A. Plaza, “Semisupervised hyperspectral
+image segmentation using multinomial logistic regression with active
+learning,” IEEE Transactions on Geoscience and Remote Sensing,
+vol. 48, no. 11, pp. 4085–4098, 2010.
+[9] B. Demir and S. Erturk, “Hyperspectral image classification using
+relevance vector machines,” IEEE Geoscience and Remote Sensing
+Letters, vol. 4, no. 4, pp. 586–590, Oct 2007. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=4317528
+[10] K. Schindler, “An overview and comparison of smooth labeling methods
+for land-cover classification,” IEEE Transactions on Geoscience and
+Remote Sensing, vol. 50, no. 11, pp. 4534–4545, Nov 2012.
+[Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/wrapper.
+htm?arnumber=6198886
+[11] M. Fauvel, Y. Tarabalka, J. A. Benediktsson, J. Chanussot, and J. C.
+Tilton, “Advances in spectral-spatial classification of hyperspectral
+images,” Proceedings of the IEEE, vol. 101, no. 3, pp. 652–675,
+Mar 2013. [Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/
+wrapper.htm?arnumber=6297992
+[12] G. Camps-Valls, L. Gomez-Chova, J. Muoz-Mar, J. Vila-Francs, and
+J. Calpe-Maravilla, “Composite kernels for hyperspectral image classi-
+fication,” IEEE Geosci. Remote Sens. Lett., vol. 3, no. 1, pp. 93–97, Jan
+2006.
+[13] D. Tuia, F. Ratle, A. Pozdnoukhov, and G. Camps-Valls, “Multisource
+composite kernels for urban-image classification,” IEEE Geoscience
+and Remote Sensing Letters, vol. 7, no. 1, pp. 88–92, Jan 2010.
+[Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/wrapper.
+htm?arnumber=4909045
+[14] J. A. Benediktsson, J. A. Palmason, and J. R. Sveinsson, “Classification
+of hyperspectral data from urban areas based on extended morphological
+profiles,” IEEE Trans. Geosci. Remote Sens., vol. 43, no. 3, pp. 480–491,
+Mar 2005.
+[15] M. Fauvel, J. A. Benediktsson, J. Chanussot, and J. R. Sveinsson,
+“Spectral and spatial classification of hyperspectral data using svms
+and morphological profiles,” IEEE Transactions on Geoscience and
+Remote Sensing, vol. 46, no. 11, pp. 3804–3814, Nov 2008.
+[Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/wrapper.
+htm?arnumber=4686022
+[16] M. Dalla Mura, J. A. Benediktsson, B. Waske, and L. Bruzzone,
+“Morphological attribute profiles for the analysis of very high resolution
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 10
+images,” IEEE Transactions on Geoscience and Remote Sensing,
+vol. 48, no. 10, pp. 3747–3762, Oct 2010. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=5482208
+[17] J. Li, P. R. Marpu, A. Plaza, J. M. Bioucas-Dias, and J. A. Benediktsson,
+“Generalized composite kernel framework for hyperspectral image
+classification,” IEEE Transactions on Geoscience and Remote Sensing,
+vol. 51, no. 9, pp. 4816–4829, Sep 2013. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=6450085
+[18] T. Blaschke, “Object based image analysis for remote sensing,” ISPRS
+journal of photogrammetry and remote sensing, vol. 65, no. 1, pp. 2–16,
+2010.
+[19] L. Bruzzone and L. Carlin, “A multilevel context-based system for
+classification of very high spatial resolution images,” IEEE Trans.
+Geosci. Remote Sens., vol. 44, no. 9, pp. 2587–2600, Sep 2006.
+[20] R. L. Kettig and D. A. Landgrebe, “classification of multispectral image
+data by extraction and classification of homogeneous objects,,” IEEE
+Trans. Geosci. Electron., vol. GE-14, pp. 19–26, Jan 1976.
+[21] W. Li, S. Prasad, and J. E. Fowler, “Hyperspectral image classification
+using gaussian mixture models and markov random fields,” IEEE
+Geoscience and Remote Sensing Letters, vol. 11, no. 1, pp. 153–157,
+Jan 2014. [Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/
+wrapper.htm?arnumber=6497493
+[22] Y. Tarabalka, M. Fauvel, J. Chanussot, and J. A. Benediktsson, “Svm-
+and mrf-based method for accurate classification of hyperspectral
+images,” IEEE Geoscience and Remote Sensing Letters, vol. 7, no. 4,
+pp. 736–740, Oct 2010. [Online]. Available: http://ieeexplore.ieee.org/
+lpdocs/epic03/wrapper.htm?arnumber=5464269
+[23] A. Soltani-Farani, H. R. Rabiee, and S. A. Hosseini, “Spatial-aware
+dictionary learning for hyperspectral image classification,” IEEE Con-
+ference on Computer Vision and Pattern Recognition, 2013.
+[24] Y. Chen, N. M. Nasrabadi, and T. D. Tran, “Hyperspectral
+image classification using dictionary-based sparse representation,”
+IEEE Transactions on Geoscience and Remote Sensing, vol. 49,
+no. 10, pp. 3973–3985, Oct 2011. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=5766028
+[25] S. Yang, H. Jin, M. Wang, Y. Ren, and L. Jiao, “Data-driven
+compressive sampling and learning sparse coding for hyperspectral
+image classification,” IEEE Geoscience and Remote Sensing Letters,
+vol. 11, no. 2, pp. 479–483, Feb 2014. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=6578556
+[26] A. S. Charles, B. A. Olshausen, and C. J. Rozell, “Learning sparse
+codes for hyperspectral imagery,” IEEE Journal of Selected Topics
+in Signal Processing, vol. 5, no. 5, pp. 963–978, Sep 2011.
+[Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/wrapper.
+htm?arnumber=5762314
+[27] A. Castrodad, Z. Xing, J. B. Greer, E. Bosch, L. Carin, and G. Sapiro,
+“Learning discriminative sparse representations for modeling, source
+separation, and mapping of hyperspectral imagery,” IEEE Transactions
+on Geoscience and Remote Sensing, vol. 49, no. 11, pp. 4263–4281,
+Nov 2011. [Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/
+wrapper.htm?arnumber=6026943
+[28] J. Mairal, F. Bach, and J. Ponce, “Task-driven dictionary learning,”
+IEEE Transactions on Pattern Analysis and Machine Intelligence,
+vol. 34, no. 4, pp. 791–804, Apr 2012. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=5975166
+[29] R. Jenatton, J. Mairal, G. Obozinski, and F. Bach, “Proximal methods for
+hierarchical sparse coding,” The Journal of Machine Learning Research,
+vol. 12, pp. 2297–2334, 2011.
+[30] K. Kreutz-Delgado, J. F. Murray, B. D. Rao, K. Engan, T. Lee, and T. J.
+Sejnowski, “Dictionary learning algorithms for sparse representation,”
+Neural Computation, vol. 15, no. 2, pp. 349–396, 2003.
+[31] M. S. Lewicki and T. J. Sejnowski, “Learning overcomplete representa-
+tions,” Neural Comput., vol. 12, no. 2, pp. 337–365, 2000.
+[32] Y. Chen, N. M. Nasrabadi, and T. D. Tran, “Hyperspectral image
+classification via kernel sparse representation,” IEEE Transactions
+on Geoscience and Remote Sensing, vol. 51, no. 1, pp. 217–231,
+Jan 2013. [Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/
+wrapper.htm?arnumber=6236130
+[33] J. Ziniel and P. Schniter, “Efficient high-dimensional inference
+in the multiple measurement vector problem,” IEEE Transactions
+on Signal Processing, vol. 61, no. 2, pp. 340–354, Jan 2013.
+[Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/wrapper.
+htm?arnumber=6320709
+[34] M. E. Davies and Y. C. Eldar, “Rank awareness in joint sparse
+recovery,” IEEE Transactions on Information Theory, vol. 58, no. 2,
+pp. 1135–1146, Feb 2012. [Online]. Available: http://ieeexplore.ieee.
+org/lpdocs/epic03/wrapper.htm?arnumber=6145474
+[35] J. A. Tropp, A. C. Gilbert, and M. J. Strauss, “Algorithms for simul-
+taneous sparse approximation: Part i: Greedy pursuit,” Signal Process.,
+vol. 86, no. 3, pp. 572–588, 2006.
+[36] X. Fu, W. Ma, T. Chan, and J. M. Bioucas-Dias, “Self-dictionary sparse
+regression for hyperspectral unmixing: Greedy pursuit and pure pixel
+search are related,” 2014.
+[37] N. V. Aravind, K. Abhinandan, V. Acharya, and D. Sumam, “Compari-
+son of OMP and SOMP in the reconstruction of compressively sensed
+hyperspectral images,” in International Conference on Communications
+and Signal Processing, 2011, pp. 188–192.
+[38] Y. C. Pati, R. Rezaiifar, and P. S. Krishnaprasad, “Orthogonal matching
+pursuit: Recursive function approximation with applications to wavelet
+decomposition,” in Conference Record of The Twenty-Seventh Asilomar
+Conference on Signals, Systems and Computers, 1993, pp. 40–44.
+[39] H. Yuan, Y. Lu, L. Yang, H. Luo, and Y. Y. Tang, “Sparse representation
+using contextual information for hyperspectral image classification,” in
+IEEE International Conference on Cybernetics, 2013, pp. 138–143.
+[40] U. Srinivas, Y. Chen, V. Monga, N. M. Nasrabadi, and T. D. Tran,
+“Exploiting sparsity in hyperspectral image classification via graphical
+models,” IEEE Geoscience and Remote Sensing Letters, vol. 10, no. 3,
+pp. 505–509, 2013.
+[41] X. Sun, Q. Qu, N. M. Nasrabadi, and T. D. Tran, “Structured priors for
+sparse-representation-based hyperspectral image classification,” IEEE
+Geoscience and Remote Sensing Letters, vol. 11, no. 7, pp. 1235–1239,
+2014.
+[42] M.-D. Iordache, J. M. Bioucas-Dias, and A. Plaza, “Collaborative
+sparse regression for hyperspectral unmixing,” IEEE Transactions
+on Geoscience and Remote Sensing, vol. 52, no. 1, pp. 341–354,
+Jan 2014. [Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/
+wrapper.htm?arnumber=6471206
+[43] J. M. Bioucas-Dias, A. Plaza, N. Dobigeon, M. Parente, Q. Du,
+P. Gader, and J. Chanussot, “Hyperspectral unmixing overview:
+Geometrical, statistical, and sparse regression-based approaches,” IEEE
+Journal of Selected Topics in Applied Earth Observations and Remote
+Sensing, vol. 5, no. 2, pp. 354–379, Apr 2012. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=6200362
+[44] S. Arora, R. Ge, and A. Moitra, “New algorithms for learning inco-
+herent and overcomplete dictionaries,” in Journal of Machine Learning
+Research (Workshop and Conference Proceedings), 2014, pp. 779–806.
+[45] R. Rubinstein, A. M. Bruckstein, and M. Elad, “Dictionaries
+for sparse representation modeling,” Proceedings of the IEEE,
+vol. 98, no. 6, pp. 1045–1057, Jun 2010. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=5452966
+[46] A. S. Charles and C. J. Rozell, “Spectral superresolution of hyperspectral
+imagery using reweighted ¡formula formulatype=”inline”¿¡tex
+notation=”tex”¿`1¡/tex¿¡/formula¿ spatial filtering,” IEEE Geoscience
+and Remote Sensing Letters, vol. 11, no. 3, pp. 602–606, Mar 2014.
+[Online]. Available: http://ieeexplore.ieee.org/lpdocs/epic03/wrapper.
+htm?arnumber=6562769
+[47] J. Chua, I. Givoni, R. Adams, and B. Frey, “Learning structural ele-
+ment patch models with hierarchical palettes,” in IEEE Conference on
+Computer Vision and Pattern Recognition, 2012, pp. 2416–2423.
+[48] D. I. Moody, S. P. Brumby, J. C. Rowland, and C. Gangodagamage,
+“Undercomplete learned dictionaries for land cover classification in mul-
+tispectral imagery of arctic landscapes using cosa: clustering of sparse
+approximations,” in SPIE Defense, Security, and Sensing. International
+Society for Optics and Photonics, 2013, pp. 87 430B–87 430B.
+[49] R. Achanta, A. Shaji, K. Smith, A. Lucchi, P. Fua, and S. Susstrunk,
+“Slic superpixels compared to state-of-the-art superpixel methods,”
+IEEE Transactions on Pattern Analysis and Machine Intelligence,
+vol. 34, no. 11, pp. 2274–2282, Nov 2012. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=6205760
+[50] L. Kaufman and P. Rousseeuw, “Clustering by means of medoids,”
+Statistical Data Analysis Based on the L1Norm and Related Methods,
+pp. 405–416, 1987.
+[51] D. J. MacKay, Information theory, inference, and learning algorithms.
+Citeseer, 2003, vol. 7.
+[52] M. Aharon, M. Elad, and A. Bruckstein, “¡tex¿rmk¡/tex¿-svd:
+An algorithm for designing overcomplete dictionaries for sparse
+representation,” IEEE Transactions on Signal Processing, vol. 54,
+no. 11, pp. 4311–4322, Nov 2006. [Online]. Available: http:
+//ieeexplore.ieee.org/lpdocs/epic03/wrapper.htm?arnumber=1710377
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 11
+Ribana Roscher received the Dipl.-Ing. degree in
+geodesy from University of Bonn, Germany, in 2008.
+She received his Ph.D. in geodesy and geoinforma-
+tion from the same institution in 2012. Since 2013
+she is a postdoctoral researcher at Freie Universita?t
+Berlin, Institute of Geographical Sciences, focussing
+on methods for land cover classification and sparse
+representations for high-dimensional sensor data. In
+2015 she was a visiting researcher at The Fields
+Institute for Research in Mathematical Sciences,
+University of Toronto, Canada, joining the thematic
+program on ’Statistical inference, learning, and models for big data’. Dr.
+Roscher is reviewer for different international journals, including IEEE
+TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, IEEE JOURNAL
+OF SELECTED TOPICS IN APPLIED EARTH OBSERVATIONS AND REMOTE
+SENSING and IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARN-
+ING SYSTEMS.
+Bjo?rn Waske received the degree in applied envi-
+ronmental sciences with a major in remote sensing
+from Trier University, Germany, in 2002 and the
+Ph.D. degree in geography from the University of
+Bonn, Germany, in 2007. From 2008 until Au-
+gust 2009, he was a postdoctoral researcher at the
+Faculty of Electrical and Computer Engineering,
+University of Iceland, Reyjavik, Iceland; followed
+by a (junior)professor for remote sensing at the
+University of Bonn, Germany, until September 2013.
+Since then he is a professor for remote sensing and
+geoinformatics at the Freie Universitt Berlin, Germany. His current research
+activities concentrate on advanced concepts for image classification and data
+fusion, with a strong focus on monitoring land use cover and land use
+cover change. Dr. Waske is a reviewer for different international journals,
+including the IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENS-
+ING, IEEE GEOSCIENCE AND REMOTE SENSING LETTERS, IEEE JOURNAL
+OF SELECTED TOPICS IN APPLIED EARTH OBSERVATIONS AND REMOTE
+SENSING and REMOTE SENSING.
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 12
+(a) Overall accuracy INDIAN PINES (b) Average accuracy INDIAN PINES
+(c) Overall accuracy UNIVERSITY OF PAVIA (d) Average accuracy UNIVERSITY OF PAVIA
+(e) Overall accuracy CENTER OF PAVIA (f) Average accuracy CENTER OF PAVIA
+Fig. 7. Influence of the number of shapelets and the patchsize on the overall accuracy and average accuracy. The number of used dictionary elements is fixed
+to W = 3.
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 13
+(a) Overall accuracy (b) Average accuracy
+Fig. 8. Impact of the number of used dictionary elements on the overall accuracy and average accuracy for the INDIAN PINES dataset.
+(a) Overall accuracy (b) Average accuracy
+Fig. 9. Impact of approximate superpixel size for shapelet extraction on the overall accuracy and average accuracy for the INDIAN PINES dataset.
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 54, NO. 3, MARCH 2016 14
+(a) Image (b) Training data (c) Test data (d) shape-DC result
+(e) Image (f) Training data (g) Test data (h) shape-DC result
+(i) Image (j) Training data (k) Test data (l) shape-DC result
+Fig. 10. Image, training and test data of the datasets INDIAN PINES dataset (upper row), UNIVERSITY OF PAVIA (middle row) and CENTER OF PAVIA (bottom
+row). The classification result is presented in the right column.

@@ -1,0 +1,1094 @@
+1
+Hierarchical Multi-scale Attention Networks for
+Action Recognition
+Shiyang Yan, Jeremy S. Smith, Wenjin Lu and Bailing Zhang
+Abstract—Recurrent Neural Networks (RNNs) have been
+widely used in natural language processing and computer vision.
+Among them, the Hierarchical Multi-scale RNN (HM-RNN), a
+kind of multi-scale hierarchical RNN proposed recently, can learn
+the hierarchical temporal structure from data automatically. In
+this paper, we extend the work to solve the computer vision task
+of action recognition. However, in sequence-to-sequence models
+like RNN, it is normally very hard to discover the relationships
+between inputs and outputs given static inputs. As a solution,
+attention mechanism could be applied to extract the relevant
+information from input thus facilitating the modeling of input-
+output relationships. Based on these considerations, we propose
+a novel attention network, namely Hierarchical Multi-scale At-
+tention Network (HM-AN), by combining the HM-RNN and the
+attention mechanism and apply it to action recognition. A newly
+proposed gradient estimation method for stochastic neurons,
+namely Gumbel-softmax, is exploited to implement the temporal
+boundary detectors and the stochastic hard attention mechanism.
+To amealiate the negative effect of sensitive temperature of the
+Gumbel-softmax, an adaptive temperature training method is
+applied to better the system performance. The experimental
+results demonstrate the improved effect of HM-AN over LSTM
+with attention on the vision task. Through visualization of what
+have been learnt by the networks, it can be observed that both
+the attention regions of images and the hierarchical temporal
+structure can be captured by HM-AN.
+Index Terms—Action recognition, Hierarchial multi-scale
+RNNs, Attention mechanism, Stochastic neurons.
+I. INTRODUCTION
+Action recognition in videos is a fundamental task in
+computer vision. Recently, with the rapid development of
+deep learning, and in particular, deep convolutional neural
+networks (CNNs), a number of models [1] [2] [3] [4] have
+been proposed for image recognition. However, for video-
+based action recognition, a model should accept inputs with
+variable length and generate the corresponding outputs. This
+special requirement makes the conventional CNN model that
+caters for one-versus-all classification unsuitable.
+RNNs have long been explored for sequential applications
+for decades, often with good results. However, a significant
+limitation of vanilla RNN models which strictly integrate state
+information over time is the vanishing gradient effect [5]:
+the ability to back propagate an error signal through a long-
+range temporal interval becomes increasingly impossible in
+practice. To mitigate this problem, a class of models with
+a long-range dependencies learning capability, called Long
+Shiyang Yan, Wenjin Lu and Bailing Zhang are with the Department
+of Computer Science and Software Engineering, Xi’an Jiaotong-liverpool
+University, Suzhou, China.
+Jeremy S. Smith is with the University of Liverpool.
+Short-Term Memory (LSTM), was introduced by Hochreiter
+and Schmidhuber [6]. Specifically, LSTM consists of memory
+cells, with each cell containing units to learn when to forget
+previous hidden states and when to update hidden states with
+new information.
+Many sequential data often have complex temporal structure
+which requires both hierarchical and multi-scale information to
+be modeled properly. In language modeling, a long sentence is
+often composed of many phrases which further can be decom-
+posed by words. Meanwhile, in action recognition, an action
+category can be described by many sub-actions. For instance,
+‘long jump’ contains ‘running’, ‘jumping’ and ‘landing’. As
+stated in [7], a promising approach to model such hierarchical
+representation is the multi-scale RNN. One popular approach
+of implementing multi-scale RNN is to treat the hierarchical
+timescales as pre-defined parameters. For example, Wang et
+al. [8] implemented a multi-scale architecture by building a
+multiple layers LSTM in which higher layer skip several time
+steps. In their paper, the skipped number of time steps is the
+parameter to be pre-defined. However, it is often impractical to
+pre-define such timescales without learning, which also leads
+to poor generalization capability. Chung et al. [7] proposed
+a novel RNN structure, Hierarchical Multi-scale Recurrent
+Neural Network (HM-RNN), to learn time boundaries from
+data automatically. These temporal boundaries are like rules
+described by discrete variables inside RNN cells. Normally,
+it is difficult to implement training algorithms for discrete
+variables. Popular approaches include unbiased estimator with
+the aid of REINFORCE [9]. In this paper, we re-implement the
+HM-RNN by applying a recently proposed Gumbel-sigmoid
+function [10] [11] to realize the training of stochastic neurons
+due to its efficiency in practice [12].
+In the general RNN framework for sequence-to-sequence
+problems, the information of input is treated uniformly without
+discrimination on the different parts. This will result in fixed
+length of intermediate features and subsequent sub-optimal
+system performance. On the other hand, the practice is in sharp
+contrast to the way humans accomplish sequence processing
+tasks. Humans tend to selectively concentrate on a part of
+information and at the same time ignores other perceivable
+information. The mechanism of selectively focusing on rel-
+evant contents in the representation is called attention. The
+attention based RNN model in machine learning was suc-
+cessfully applied in natural language processing (NLP), and
+more specifically, in neural translation [13]. For many visual
+recognition tasks, different portions of an image or segments of
+a video have unequal importance, which should be selectively
+weighted with attention. Xu et al. [14] systematically analyzed
+ar
+X
+iv
+:1
+70
+8.
+07
+59
+0v
+2 
+ [
+cs
+.C
+V
+] 
+ 2
+8 
+A
+ug
+ 2
+01
+7
+2
+the stochastic hard attention and deterministic soft attention
+models and applied them in image captioning tasks, with
+improved results compared with other RNN-like algorithms.
+The hard attention mechanism requires a stochastic neuron
+which is hard to train using conventional back propagation
+algorithm. They applied REINFORCE [9] as an estimator to
+implement hard attention for image captioning.
+The REINFORCE is an unbias gradient estimator for
+stochastic units, however, it is very complex to implement
+and often with high gradient variance during training [12].
+In this paper, we study the applicability of Gumbel-softmax
+[10] [11] in hard attention because Gumbel-softmax is an
+efficient way to estimate discrete units during training of
+neural networks. To mitigate the problem of sensitive temper-
+ature in Gumbel-softmax, we apply an adaptive temperature
+scheme [12] in which the temperature value is also learnt
+from data. The experimental results verify that the adaptive
+temperature is a convenient way to avoid manual searching
+for the parameter. Additionally, we also test the deterministic
+soft attention [14] [15] and stochastic hard attention imple-
+mented by REINFORCE-like algorithms [16] [17] [14] in
+action recognition. Combined with HM-RNN and two types
+of attention models, we systematically evaluate the proposed
+Hierarchical Multi-scale Attention Networks (HM-AN) for
+action recognition in videos, with improved results.
+Our main contributions can be summarized as follows:
+• We propose a Hierarchical Multi-scale Attention Network
+(HM-AN) by combining HM-RNN and both stochastic
+hard attention and deterministic soft attention mechanism
+for vision tasks.
+• By re-implementing Gumbel-softmax and Gumbel-
+sigmoid, we make the stochastic neurons in the networks
+trainable by back propagation.
+• We test the proposed model on action recognition from
+video, with improved results.
+• Through visualization of the learnt attention regions and
+boundary detectors of HM-AN, we provide insights for
+further research.
+II. RELATED WORKS
+A. Hierarchical RNNs
+The modeling of hierarchical temporal information has
+long been an important topic in many research areas. The
+most notable model is LSTM proposed by Hochreiter and
+Schmidhuber [6]. LSTM employs the multi-scale updating
+concept, where the hidden units’ update can be controlled by
+gating such as input gates or forget gates. This mechanism
+enables the LSTM to deal long term dependencies in temporal
+domain. Despite the advantage, the maximum time steps are
+limited within a few hundreds because of the leaky integration
+which makes the memory for long-term gradually diluted
+[7]. Actually, the maximum time steps in video processing
+is several dozens which makes the application of LSTM in
+video recognition very challenging.
+To alleviate the problem, many researchers tried to build
+a hierarchical structure explicitly, for instance, Hierarchical
+Attention Networks (HAN) proposed in [8], which is imple-
+mented by skipping several time steps in the higher layers
+of the stacked multi-layer LSTMs. However, the number of
+time steps to be skipped is a pre-defined parameter. How to
+choose these parameters and why to choose certain number
+are unclear.
+More recent models like clockwork RNN [18] partitioned
+the hidden states of RNN into several modules with different
+timescales assigned to them. The clockwork RNN is more
+computationally efficient than the standard RNN as the hidden
+states are updated only at the assigned time steps. However,
+finding the suitable timescales is challenging which makes the
+model less applicable.
+To mitigate the problem, Chung et al. [7] proposed Hierar-
+chical Multiscale Recurrent Neural Network (HM-RNN). HM-
+RNN is able to learn the temporal boundaries from data, which
+facilitates the RNN model to build a hierarchical structure and
+enable long-term dependencies automatically. However, the
+temporal boundaries are stochastic discrete variables which are
+very hard to train using standard back propagation algorithm.
+A popular approach to train the discrete neurons is the
+REINFORCE-like [19] algorithms. It is an unbiased estimator
+but often with high gradient variance [7]. The original HM-
+RNN applied straight-through estimator [9] because of its
+efficiency and simplicity in practice. In this paper, instead, we
+applied a more recent Gumbel-sigmoid [10] [11] to estimate
+the stochastic neurons. It is much more efficient than other
+approaches and achieved state-of-the-art performance among
+many other gradient estimators [10].
+B. Attention Mechanism
+One important property of human perception is that we do
+not tend to process a whole scene in its entirety at once. Instead
+humans pay attention selectively on parts of the visual scene to
+acquire information where it is needed [16]. Different attention
+models have been proposed and applied in object recognition
+and machine translation. Mnih et al. [16] proposed an attention
+mechanism to represent static images, videos or as an agent
+that interacts with a dynamic visual environment. Also, Ba
+et al. [17] presented an attention-based model to recognize
+multiple objects in images. The two above-mentioned models
+are all with the aid of REINFORCE-like algorithms.
+The soft attention model was proposed for machine trans-
+lation problem in NLP [13], and Xu et al. [14] extended
+it to image caption generation as the task is analogous to
+‘translating’ an image to a sentence. Specifically, they built a
+stochastic hard attention model with the aid of REINFORCE
+and a deterministic soft attention model. The two attention
+mechanisms were applied in image captioning task, with good
+results. Subsequently, Sharma et al. [15] built a similar model
+with the soft attention applied in action recognition from
+videos.
+There is a number of subsequent works on the attention
+mechanism. For instance, in [20], the attention model is
+utilized for video description generation by softly weighting
+the visual features extracted from frames in each video. Li et
+al. [21] combined convolutional LSTM [22] with soft attention
+3
+mechanism for video action recognition and detection. Teh et
+al. [23] extended the soft attention into CNN networks for
+weakly supervised object detection.
+One important reason for applying soft attention instead of
+its hard version is that the stochastic hard attention mechanism
+is difficult to train. Although the REINFORCE-like algorithms
+[19] are unbiased estimators to train stochastic units, their gra-
+dients have high variants. To solve the problem, recently, Jang
+et al. [10] proposed a novel categorical re-parameterization
+techniques using Gumbel-softmax distribution. The Gumbel-
+softmax is a superior estimator for categorical discrete units
+[10]. It has been proved to be efficient and has high perfor-
+mance in [10].
+C. Action Recognition
+RNNs have been popular for speech recognition [24], image
+caption generation [14], and video description generation [20].
+There have also been efforts made for the application of LSTM
+RNNs in action recognition. For instance, [25] proposed
+an end-to-end training system using CNN and RNNs deep
+both in space and time to recognize activities in video. [26]
+also explicitly models the video as an ordered sequence of
+frames using LSTM. Most of the previous works treat image
+features extracted from CNNs as static inputs to RNNs to
+generate action labels at each frame. However, static features
+indiscriminating of important and irrelevant information will
+be detrimental to system performance. On the other hand,
+the interpretation of CNN features will be much easier if
+attention model can be applied for action recognition because
+attention mechanism automatically focuses on specific regions
+to facilitate the classification.
+In this paper, as discussed previously, we re-implement the
+HM-RNN to capture the hierarchical structure of temporal
+information from video frames. By incorporating the HM-
+RNN with both stochastic hard attention and deterministic
+soft attention, long-term dependencies of video frames can
+be captured.
+Works related to ours also include the attention model
+proposed by Xu et al. [14] and [27]. [14] first applied both
+stochastic hard attention and deterministic soft attention mech-
+anisms for spatial locations of images for image captioning.
+[27] instead used weighting on image patches to implement
+a region-level attention. In this paper, similar to [14], both
+of stochastic hard attention and deterministic soft attention
+are studied. However, when implementing hard attention, [14]
+borrowed the idea of REINFORCE whilst we also propose
+to apply a more recent Gumbel-softmax to estimate discrete
+neurons in the attention mechanism.
+III. THE PROPOSED METHODS
+In this section, we first re-visit the HM-RNN structure
+proposed in [7], then introduce the proposed HM-AN net-
+works, with details of Gumbel-softmax and Gumbel-sigmoid
+to estimate the stochastic discrete neurons in the networks.
+A. HM-RNN
+HM-RNN was proposed in [7] to better capture the hier-
+archical multi-scale temporal structure in sequence modeling.
+HM-RNN defines three operations depending on the boundary
+detectors: UPDATE, COPY and FLUSH. The selection of
+these operations is determined by boundary state zl?1t and
+zlt?1, where l and t stand for the current layer and time step,
+respectively:
+UPDATE, zlt?1 = 0 and z
+l?1
+t = 1;
+COPY, zlt?1 = 0 and z
+l?1
+t = 0;
+FLUSH, zlt?1 = 1.
+(1)
+The updating rules of operation UPDATE, COPY and
+FLUSH are defined as follows:
+clt =
+?????
+f lt  clt?1 + ilt  glt, UPDATE
+clt?1, COPY
+ilt  glt, FLUSH
+(2)
+The updating rules for hidden states are also determined by
+the pre-defined operations:
+hlt =
+{
+hlt?1, COPY
+olt  clt, otherwise
+(3)
+The (i, f, o) indicate input, forget and output gate, respec-
+tively. g is called ‘cell proposal’ vector. One of the advantages
+of HM-RNN is that the updating operation (UPDATE) is only
+executed at certain time steps sparsely instead of all, which
+largely reduce the computation cost.
+The COPY operation simply copies the cell memory and
+hidden state from previous time step to current time step in
+upper layers until the end of a subsequence, as shown in
+Fig. 1. Hence, upper layer is able to capture coarser temporal
+information. Also, the boundaries of subsequence are learnt
+from data which is a big improvement of other related models.
+To start a new subsequence, FLUSH operation needs to be
+executed. FLUSH operation firstly forces the summarized
+information from lower layers to be merged with upper layers,
+then re-initialize the cell memories for the next subsequence.
+In summary, the COPY and UPDATE operations enable the
+upper and lower layers to capture information on different time
+scales, thus realizing a multi-scale and hierarchical structure
+for a single subsequence. On the other hand, FLUSH operation
+is able to summarize the information from last subsequence
+and forward them to next subsequence, which guarantee
+the connection and coherence between parts within a long
+sequence.
+The values of gates (i, f, o, g) and boundary detector z are
+obtained by:
+????????
+ilt
+f lt
+olt
+glt
+zlt
+???????? =
+????????
+sigm
+sigm
+sigm
+tanh
+hardsigm
+???????? fslice
+??????
+s
+recurrent(l)
+t +
+s
+top?down(l)
+t +
+s
+bottom?up(l)
+t +
+bl
+?????? (4)
+4
+Fig. 1. Network Structure: After the networks discover the implicit boundary relations of the multi-scale property, boundary detectors can set the networks
+into an explicit multi-scale architecture.
+where
+s
+recurrent(l)
+t = U
+l
+lh
+l
+t?1 (5)
+s
+top?down(l)
+t = U
+l
+l+1(z
+l
+t?1  hl+1t?1) (6)
+s
+bottom?up(l)
+t =W
+l
+l?1(z
+l?1
+t  hl+1t ) (7)
+and the hardsigm is estimated using Gumbel-sigmoid which
+will be explained later.
+B. HM-AN
+The sequential problems inherent in action recognition and
+image captioning in computer vision can be tackled by RNN-
+based framework. As explained previously, HM-RNN is able
+to learn the hierarchical temporal structure from data and
+enable long-term dependencies. This inspires our proposal of
+HM-AN model.
+On the other hand, attention has been proved very effective
+in action recognition [15]. In HM-AN, to capture the implicit
+relationships between the inputs and outputs in sequence to
+sequence problems, we apply both hard and soft attention
+mechanisms to explicitly learn the important and relevant
+image features regarding the specific outputs. More detailed
+explanation follows.
+1) Estimation of Boundary Detectors: In the proposed HM-
+AN, the boundary detectors zt are estimated with Gumbel-
+sigmoid, which is derived directly from Gumbel-softmax pro-
+posed in [10] and [11].
+The Gumbel-softmax replaces the argmax in Gumbel-Max
+trick [28], [29] with following Softmax function:
+yi =
+exp(log(?i + gi)/?)?k
+j=1 exp(log(?j + gj)/?)
+(8)
+where g1, ..., gk are i.i.d. sampled from distribution Gumbel
+(0,1), and ? is the temperature parameter. k indicates the
+dimension of generated Softmax vector.
+To derive Gumbel-sigmoid, we firstly re-write Sigmoid
+function as a Softmax of two variables: ?i and 0.
+sigm(?i) =
+1
+(1 + exp(??i))
+=
+1
+(1 + exp(0? ?i))
+=
+1
+1 + exp(0)/exp(?i)
+=
+exp(?i)
+(exp(?i) + exp(0))
+(9)
+Hence, the Gumbel-sigmoid can be written as:
+yi =
+exp(log(?i + gi/?)
+exp(log(?i + gi)/?) + exp(log(g?)/?)
+(10)
+where gi, g? are independently sampled from distribution Gum-
+bel (0,1).
+To obtain a discrete value, we set values of zt = y?i as:
+y?i =
+{
+1 yi ? 0.5
+0 otherwise
+(11)
+In our experiments, all the boundary detectors zt are esti-
+mated using the Gumbel-sigmoid with a constant temperature
+0.3.
+2) Deterministic Soft Attention: To implement soft attention
+over image regions for action recognition task, we applied a
+similar strategy with the soft attention mechanism in [15] and
+[14].
+Specifically, the model predicts a Softmax over K×K image
+locations. The location Softmax is defined as:
+lt,i =
+exp(Wiht?1)?K×K
+j=1 exp(Wjht?1)
+i = 1, ...,K2 (12)
+where i means the ith location corresponding to the specific
+regions in the original image.
+This Softmax can be considered as the probability with
+which the model learns the specific regions in the image, which
+is important for the task at hand. Once these probabilities are
+5
+Fig. 2. The attention mechanism: The soft attention assign weights on different locations of features using softmax whilst the values of hard attention map
+are either 1 or 0 which means only one important location is selected.
+obtained, the model computes the expected value of inputs by
+taking expectation over image features at different regions:
+xt =
+K2?
+i=1
+lt,iXt,i (13)
+where xt is considered as inputs of the HM-AN networks.
+In our HM-AN implementations, the hidden states used to
+determine the region softmax is only defined for the first
+layer, i.e., h1t?1. The upper layers will automatically learn the
+abstract information of input features as explained previously.
+The soft attention mechanism can be visualized in the left side
+of Fig. 2.
+3) Stochastic Hard Attention:
+a) REINFORCE-like algorithm: The stochastic hard at-
+tention was proposed in [14]. Their hard attention was realized
+with the aid of REINFORCE-like algorithm. In this section,
+we also introduce this kind of hard attention mechanism.
+The location variable lt indicates where the model decides to
+focus attention on the tth frame of a video. lt,i is an indicator
+of one-hot representation which can be set to 1 if the ith
+location contains relevant feature.
+Specifically, we assign a hard attentive location of {?i}:
+p(li,t = 1|lj<t,a) = argmax(?t,i)
+= argmax
+(
+exp(Wiht?1)?K×K
+j=1 exp(Wjht?1)
+)
+(14)
+where a represents the input image features.
+We can define an objective function Ll that is a variational
+lower bound on the marginal log-likelihood log p(y|a) of
+observing the action label y given image features a. Hence,
+Ll can be represented as:
+Ll =
+?
+l
+p(l|a)log p(y|l, a)
+? log
+?
+l
+p(l|a)p(y|l, a)
+= logp(y|a)
+(15)
+?Ll
+?W
+=
+?
+l
+p(l|a)[?log p(y|l, a)
+?W
++
+log p(y|l, a)?log p(l|a)
+?W
+]
+(16)
+Ideally, we would like to compute the gradients of Equation
+16. However, it is not feasible to compute the gradient of ex-
+pectation in Equation 16. Hence, a Monte Carlo approximation
+technique is applied to estimate the gradient of the operation
+of expectation.
+Hence, the derivatives of the objective function with respect
+to the network parameters can be expressed as:
+?Ll
+?W
+=
+1
+N
+N?
+n=1
+[
+?log p(y|l?n, a)
+?W
++
+log p(y|l?n, a)
+?log p(l?n|a)
+?W
+]
+(17)
+where l? is obtained based on the argmax operation as in
+Equation 14.
+Similar with the approaches in [14], a variance reduction
+technique is used. With the kth mini-batch, the moving average
+baseline is estimated as an accumulation of the previous log-
+likelihoods with exponential decay:
+bk = 0.9× bk?1 + 0.1× log p(y|l?k, a) (18)
+The learning rule for this hard attention mechanism is
+defined as follows:
+?Ll
+?W
+? 1
+N
+N?
+n=1
+[
+?log p(y|l?n, a)
+?W
++
+?(log p(y|l?n, a)? b)
+?log p(l?n|a)
+?W
+]
+(19)
+where ? is a pre-defined parameter.
+As being pointed out in Ba et al. [17], Mnih et al. [16]
+and Xu et al. [14], this is a formulation which is equivalent
+to the REINFORCE learning rule [19]. For convenience, it is
+abbreviated as REINFORCE-Hard Attention in the following.
+6
+b) Gumbel Softmax: In hard attention mechanism, the
+model selects one important region instead of taking the
+expectation. Hence, it is a stochastic unit which can not be
+trained using back propagation. [14] applied the REINFORCE
+to estimate the gradient of the stochastic neuron. Although
+the REINFORCE is an unbiased estimator, the variance of
+gradient is large and the algorithm is complex to implement.
+To solve these problems, we propose to apply Gumbel-softmax
+to estimate the gradient of the discrete units in our model.
+Gumbel-softmax is better in practice [10] and much easier to
+implement.
+We can simply replace the Softmax with Gumbel-softmax
+in Equation 12 and remove the process of taking expectation
+to realize the hard attention.
+lt,i =
+exp(log(Wiht?1 + gi)/?)?K×K
+j=1 exp(log(Wjht?1 + gj)/?)
+i = 1...K2
+(20)
+The Gumbel-softmax will choose a single location indicat-
+ing the most important image region for the task. However, the
+searching space for the parameter of temperature is too large
+to be manually selected. And the temperature is a sensitive
+parameter as explained in [10]. Hence in this paper we applied
+the adaptive temperature as in [12]. The adaptive temperature
+is to determine the value of temperature adaptively depending
+on current hidden states. In other words, instead of being
+treated as pre-defined parameter, the value of temperature
+is learnt from data. Specifically, we can set the following
+mechanism to determine the temperature:
+? =
+1
+Softplus(Wtemph1t + btemp) + 1
+(21)
+where h1t is the hidden state of first layer of our HM-AN.
+Equation 21 generates a scalar for temperature. In the equation,
+adding 1 can enable the temperature fall into the scope of 0
+and 1. The hard attention mechanism can be seen in the right
+side of Fig. 2.
+C. Application of HM-AN in Action Recognition
+The proposed HM-AN can be directly applied in video
+action recognition. In video action recognition, the dynamics
+exist in the inputs, i.e., the given video frames. With attention
+mechanism embedded in RNN, the important features of
+each frames can be discovered and discriminated in order to
+facilitate the recognition.
+For action recognition, the HM-AN applies the cross-
+entropy loss for recognition.
+LOSS = ?
+T?
+t=1
+C?
+i=1
+yt,ilog(y?t,i) (22)
+where yt is the label vector, y?t is the classification probabilities
+at time step t. T is the number of time steps and C is the
+number of action categories. The system architecture of action
+recognition using HM-AN is shown in Fig. 3
+IV. EXPERIMENTS
+In this section, we first explain our implementation details
+then report the experimental results on action recognition.
+A. Implementation Details
+We implemented the HM-AN in the platform of Theano [30]
+and all the experiments were conducted on a server embedded
+with a Titan X GPU. In our experiments, the HM-AN is a three
+layer stacked RNN. The outputs are concatenated by hidden
+states from three layers and forwarded to a softmax layer.
+In addition to the baseline approach (LSTM networks), 4
+versions of HM-AN were implemented for the purpose of
+comparison:
+• LSTM with soft attention (Baseline). The baseline ap-
+proach is set as LSTM networks with soft attention
+mechanism.
+• Deterministic soft attention in HM-AN (Soft Attention).
+This is to see how soft attention mechanism performs
+with the HM-AN.
+• Stochastic hard attention with reinforcement learning in
+HM-AN (REINFORCE-Hard Attention). This kind of
+hard attention mechanism is described in Section III-B3a.
+• Stochastic hard attention with 0.3 temperature for
+Gumbel-softmax in HM-AN (Constant-Gumbel-Hard At-
+tention). The constant temperature is applied in Gumbel-
+softmax to accomplish the proposed hard attention model.
+• Stochastic hard attention with adaptive temperature for
+Gumbel-softmax in HM-AN (Adaptive-Gumbel-Hard At-
+tention). The temperature is set as a function of hidden
+states of RNN.
+For the experiments, we firstly extracted frame-level CNN
+features using MatConvNet [31] based on Residue-152 Net-
+works [32] trained on the ImageNet [33] dataset. The images
+were resized to 224×224, hence the dimension of each frame-
+level features is 7×7×2048. For the network training, we
+applied mini-batch size of 64 samples at each iteration. For
+each video clip, the baseline approach randomly selected 30
+frames for training while the proposed approaches selected
+60 frames for training as the proposed HM-AN is able to
+capture long-term dependencies. Actually, the optimal length
+for LSTM with attention is 30 and increasing the number will
+seriously deteriorate the performance. We applied the back
+propagation algorithm through time and Adam optimizer [34]
+with a learning rate of 0.0001 to train the networks. The
+learning rate was changed to 0.00001 after 10,000 iterations.
+At test time, we compute class predictions for each time step
+and then average those predictions over 60 frames. To obtain a
+prediction for the entire video clip, we average the predictions
+from all 60 frame blocks in the video. Also, we find normally
+the networks converge in several epoches.
+B. Experimental Results and Analysis
+1) Datasets: We evaluated our approach on three widely
+used datasets, namely UCF sports [35], Olympic sports
+datasets [36] and a more difficult Human Motion Database
+(HMDB51) dataset [37]. Fig. 4 provides some examples of the
+7
+Fig. 3. Action recognition with HM-AN.
+(a) UCF sports dataset
+(b) Olympic sports dataset
+(c) HMDB51 dataset
+Fig. 4. Some examples from the datasets used in this paper.
+three datasets used in this paper. UCF sports dataset contains a
+set of actions collected from various sports which are typically
+featured on broadcast channels such as ESPN or BBC. This
+dataset consists of 150 videos with the resolution of 720 ×
+480 and with 10 different action categories in it. Olympic
+sports dataset was collected from YouTube sequences [36] and
+contains 16 different sports categories with 50 videos per class.
+Hence, there are total 800 videos in this dataset. The HMDB51
+dataset is a more difficult dataset which provides three train-
+test splits each consisting of 5100 videos. This clips are labeled
+with 51 action categories. The training set for each split has
+3570 videos and the test set has 1530 videos.
+For UCF sports dataset, as there is lack of training-testing
+split for evaluation, we manually divide the dataset into
+training and testing sets. We randomly pick up 75 percent for
+training, and leave the remaining 25 percent for testing. We
+then report the classification accuracy on the testing dataset.
+As for Olympic sports dataset, we use the original training-
+Fig. 5. Training cost of the UCF sports dataset.
+testing split with 649 clips for training and 134 clips for testing
+provided in dataset. Following the practice in [36], we evaluate
+the Average Precision (AP) for each category on this dataset.
+When evaluating our method on HMDB51, we also follow
+the original training-testing split and report the classification
+accuracy of split 1 on the testing set.
+2) Results:
+a) UCF sports dataset: We firstly tested the performance
+of the LSTM with soft attention proposed in [15] on the
+UCF sports dataset and obtained 70.0% accuracy. All the
+experimental settings are the same as these in [15]. Then we
+evaluated the proposed four approaches mentioned previously.
+HM-AN with stochastic hard attention which is realized with
+REINFORCE-like algorithm improves the results to 82.0%.
+HM-AN with soft attention is similar to the REINFORCE-
+Hard Attention, with accuracy results of 81.1%. The hard
+attention mechanism realized by Gumbel-softmax with adap-
+tive temperature achieves 82.0% accuracy, similar to our
+REINFORCE-Hard Attention model. However, the Constant-
+8
+Fig. 6. Training cost of the Olympic sports dataset.
+Fig. 7. Training cost of the HMDB51 dataset.
+Gumbel-Hard Attention which uses Gumbel-softmax with
+constant temperature value of 0.3 only yields 76.0% accuracy,
+which indicates the significant role of adaptive temperature
+in maintaining the system performance. Fig. 5 shows the
+curves of training cost cross entropy for the Adaptive-Gumbel-
+Hard Attention approach and REINFORCE-Hard Attention
+approach, respectively. It can be seen from the figure that
+the REINFORCE-Hard Attention converges marginally slower
+than the approach of Adaptive-Gumbel-Hard Attention.
+As shown in Table I, we compare our model with the
+methods proposed in [38] in which a convolutional LSTM
+attention network with hierarchical architecture was used for
+action recognition. The hierarchical architecture in [38] was
+pre-defined whilst our model is able to learn the hierarchy from
+data. The improvements brought by our methods are obvious
+as shown in Table I.
+b) Olympic sports dataset: Olympic sports dataset is
+of medium size. Experiments on this dataset are shown in
+Table II. The mAP result of baseline approach is 73.7%.
+Our method HM-AN with Soft attention achieves 82.4%
+mAP. However, unlike UCF sports dataset, the mAP result of
+REINFORCE-Hard Attention is 77.1%, which is lower than
+TABLE I
+ACCURACY ON UCF SPORTS
+Methods Accuracy
+Baseline [15] 70.0%
+Conv-Attention [38] 72.0%
+CHAM [38] 74.0%
+Soft Attention (Ours) 81.1%
+REINFORCE-Hard Attention (Ours) 82.0%
+Constant-Gumbel-Hard Attention (Ours) 76.0%
+Adaptive-Gumbel-Hard Attention (Ours) 82.0%
+Fig. 8. Confusion Matrix of HM-AN with Adaptive-Gumbel-Hard Attention
+on the UCF sports dataset.
+the approach of Soft Attention. The Constant-Gumbel-Hard
+Attention, which is implemented by Gumbel-softmax with a
+constant temperature 0.3, obtains a mAP value of 82.3%. By
+making the temperature value of Gumbel-softmax adaptive,
+the proposed model achieves 82.7% mAP, the highest among
+all our experimental settings. Again, our proposed methods
+show superior performance compared to the hand-designed
+hierarchical model in [38] even the convolutional LSTM with
+attention was utilized in [38].
+c) HMDB51 dataset: HMDB51 is a more difficult and
+bigger dataset. The performance of baseline approach is re-
+ported in [15], with 41.3% accuracy. Our HM-AN model with
+soft attention improves the accuracy to 43.8%. We then apply
+the REINFORCE-Hard Attention approach on this dataset.
+The accuracy result turns out to be lower than the HM-AN
+with soft attention. Moreover, the model with REINFORCE-
+like algorithm converges slower than the Gumbel-softmax
+with adaptive temperature, also with more oscillations on the
+training cost, which is shown in Fig. 7. With constant value
+0.3 of temperature for hard attention, the model achieves
+44.0% accuracy. Again, the improvement by adding adaptive
+temperature is obvious, with 44.2% accuracy on HMDB51
+dataset. The accuracy results are further summarized in Table
+III. We also compare the performance of the proposed HM-
+9
+TABLE II
+AP ON OLYMPICS SPORTS
+Class Vault Triple Jump Tennis serve Spring board Snatch
+Baseline [15] 97.0% 88.4% 52.3% 60.0% 23.2%
+Conv-Attention [38] 97.0% 94.0% 49.8% 66.4% 26.1%
+CHAM [38] 97.0% 98.9% 49.5% 69.2% 47.8%
+Soft Attention(Ours) 99.0% 100.0% 60.7% 64.2% 38.6%
+REINFORCE-Hard Attention (Ours) 100.0% 95.0% 50.8% 56.3% 28.6%
+Constant-Gumbel-Hard Attention (Ours) 97.0 % 99.0% 62.6 % 58.7% 40.3%
+Adaptive-Gumbel-Hard Attention (Ours) 98.1% 98.9% 62.1% 64.3% 45.4%
+Shot put Pole vault Platform 10m Long jump Javelin Throw High jump
+67.4% 69.8% 84.1% 100.0% 89.6% 84.4%
+60.0% 100% 86.0% 98.0% 87.9% 80.0%
+79.8% 60.8% 89.7% 100.0% 95.0% 78.7%
+77.2% 85.4% 91.5% 98.9% 97.0 77.2%
+90.6% 100.0% 86.7% 100.0% 89.7% 77.5%
+87.8% 100.0% 93.1% 100.0% 93.2% 82.8%
+84.1% 100.0% 94.8% 100.0% 95.3% 86.2%
+Hammer throw Discus throw Clean and jerk Bowling Basketball layup mAP
+38.0% 100.0% 76.0% 60.0% 89.8% 73.7%
+36.6% 97.8% 100.0% 46.8% 81.2% 75.5%
+37.9% 97.0% 84.8% 46.7% 89.1% 76.4%
+44.1% 94.2% 83.8% 63.9% 89.2% 77.1%
+52.9% 95.8% 92.4% 69.4% 98.1% 82.4%
+54.7% 95.8% 91.3% 60.5% 100.0% 82.3%
+53.8% 95.8% 84.9% 62.5% 97.0% 82.7%
+AN with some published models related to ours. Firstly, the
+methods not from RNN family but only with the spatial image
+shows poor performance as shown in Table IV, even with CNN
+model fine-tuned. Specifically, the softmax regression results
+from [15] directly extracted image feature of each frame and
+perform softmax regression on them, with 33.5% accuracy.
+The spatial convolutional net from the famous two-stream
+approach [39] can be considered as a similar method with the
+difference that the two-stream approach performs fine-tuning
+on the CNN model, with an improved accuracy of 40.5%.
+The LSTM without attention also achieves 40.5% accuracy
+[15]. When adding soft attention mechanism, an improved
+accuracy of 41.3% can be obtained. The Conv-Attention [38]
+and ConvALSTM [21] both use convolutional LSTM with
+attention. The differences are that Conv-Attention extracts
+features from Residual-152 Networks [40] without fine-tuning
+whilst ConvALSTM extracts image features from a fine-tuned
+VGG16 model. The ConvALSTM leads Conv-Attention by a
+small margin, with 43.3% accuracy. As explained previously,
+CHAM [38] has a hand-designed hierarchical architecture
+in contrast with ours in which the temporal hierarchy is
+formed through training. Our best setting (Adaptive-Gumbel-
+Hard Attention) reports the highest accuracy (44.2%) among
+methods from the RNN family and leads the CHAM results
+(43.4%) by 0.8 percent.
+d) Analysis and Visualization: We tested four approaches
+(Soft Attention, REINFORCE-Hard Attention, Constant-
+Gumbel-Hard Attention and Adaptive-Gumbel-Hard Atten-
+tion) on three different datasets: UCF sports dataset, Olympic
+sports dataset and HMDB51 dataset. On UCF sports dataset,
+The REINFORCE-Hard Attention and Adaptive-Gumbel-Hard
+Attention generate satisfactory results and shows better per-
+TABLE III
+ACCURACY ON HMDB51
+Methods Accuracy
+Baseline [15] 41.3%
+Soft Attention (Ours) 43.8%
+REINFORCE-Hard Attention(Ours) 41.5%
+Constant-Gumbel-Hard Attention (Ours) 44.0%
+Adaptive-Gumbel-Hard Attention (Ours) 44.2%
+formance than the soft attention and Constant-Gumbel-Hard
+Attention. This indicates that the adaptive temperature is an
+efficient method to improve performance in implementation of
+Gumbel-softmax based hard attention.
+On both of the Olympic sports dataset and HMDB51
+dataset, the best approach is the Adaptive-Gumbel-Hard
+Attention while the REINFORCE-Hard Attention is even
+worse than soft attention mechanism. On the bigger datasets,
+the advantages of Gumbel-softmax include small gradient
+variance and simplicity, which are obvious compared with
+the REINFORCE-like algorithms. This shows that Gumbel-
+softmax generalizes well on large and complex datasets. This
+is reflected not only by the accuracy results, but also by the
+training cost curves in Fig. 6 and Fig. 7. This conclusion is
+also consistent with the findings in other recent researches
+[12] which also applied both REINFORCE-like algorithms and
+Gumbel-softmax as estimators for stochastic neurons.
+The visualization of attention maps and boundary detectors
+learnt by the HM-AN is given in Fig. 10. In the attention
+maps, the brighter an area is, the more important it is for the
+recognition. The soft attention captures multi-regions while
+the hard attention selects only one important region. As can
+be seen from the figure, in different time steps, the attention
+10
+TABLE IV
+COMPARISON WITH RELATED METHODS ON HMDB51
+Methods Accuracy Spatial Image Only Fine-tuning of CNN model
+Softmax Rgression [15] 33.5% Yes No
+Spatial Convolutional Net [39] 40.5% Yes Yes
+Trajectory-based modeling [41] 40.7% No No
+Average pooled LSTM [15] 40.5% Yes No
+Baseline [15] 41.3% Yes No
+Conv-Attention [38] 42.2% Yes No
+ConvALSTM [21] 43.3% Yes Yes
+CHAM [38] 43.4% Yes No
+Adaptive-Gumbel-Hard Attention (Ours) 44.2% Yes No
+Fig. 9. Confusion Matrix of HM-AN Adaptive-Gumbel-Hard Attention on the HMDB51 dataset.
+11
+regions are different which means the model is able to select
+region to facilitate the recognition through time automatically.
+The z 1, z 2 and z 3 in the figure indicate the boundary
+detectors in the first layer, the second layer and the third layer,
+respectively. In the figure for boundary detector, the black
+regions indicate there exists a boundary in the time-domain
+whilst the grey regions show the UPDATE operation can be
+performed. The multi-scale properties in the time-domain can
+be captured by the HM-AN as different layer shows different
+boundaries.
+V. CONCLUSION
+In this paper, we proposed a novel RNN model, HM-
+AN, which improves HM-RNN with attention mechanism for
+visual tasks. Specifically, the boundary detectors in HM-AN
+is implemented by recently proposed Gumbel-sigmoid. Two
+versions of attention mechanism are implemented and tested.
+Our work is the first attempt to implement hard attention in
+vision task with the aid of Gumbel-softmax instead of REIN-
+FORCE algorithm. To solve the problem of sensitive parameter
+of softmax temperature, we applied the adaptive temperature
+methods to improve the system performance. To validate the
+effectiveness of HM-AN, we conducted experiments on action
+recognition from videos. Through experimenting, we showed
+that HM-AN is more effective than LSTMs with attention. The
+attention regions of both hard and soft attention and boundaries
+detected in the networks provide visualization for the insights
+of what the networks have learnt. Theoretically, our model
+can be built based on various features, e.g., Dense Trajectory,
+to further improve the performance. However, our emphasis
+in this paper is to prove the superiority of the model itself
+compare with other RNN-like model given same features.
+Hence, we chose to use deep spatial features only. Our work
+would facilitate further research on the hierarchical RNNs and
+its applications on the vision tasks.
+REFERENCES
+[1] A. Krizhevsky, I. Sutskever, and G. E. Hinton, “Imagenet
+classification with deep convolutional neural networks,”
+in Advances in neural information processing systems,
+2012, pp. 1097–1105.
+[2] K. Simonyan and A. Zisserman, “Very deep convolu-
+tional networks for large-scale image recognition,” arXiv
+preprint arXiv:1409.1556, 2014.
+[3] C. Szegedy, W. Liu, Y. Jia, P. Sermanet, S. Reed,
+D. Anguelov, D. Erhan, V. Vanhoucke, and A. Rabi-
+novich, “Going deeper with convolutions,” in Proceed-
+ings of the IEEE Conference on Computer Vision and
+Pattern Recognition, 2015, pp. 1–9.
+[4] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual
+learning for image recognition,” in 2016 IEEE Con-
+ference on Computer Vision and Pattern Recognition
+(CVPR), June 2016, pp. 770–778.
+[5] Y. Bengio, P. Simard, and P. Frasconi, “Learning long-
+term dependencies with gradient descent is difficult,”
+IEEE transactions on neural networks, vol. 5, no. 2, pp.
+157–166, 1994.
+[6] S. Hochreiter and J. Schmidhuber, “Long short-term
+memory,” Neural computation, vol. 9, no. 8, pp. 1735–
+1780, 1997.
+[7] J. Chung, S. Ahn, and Y. Bengio, “Hierarchical
+multiscale recurrent neural networks,” arXiv preprint
+arXiv:1609.01704, 2016.
+[8] Y. Wang, S. Wang, J. Tang, N. O’Hare, Y. Chang,
+and B. Li, “Hierarchical attention network for action
+recognition in videos,” arXiv preprint arXiv:1607.06416,
+2016.
+[9] Y. Bengio, N. Le?onard, and A. Courville, “Estimating or
+propagating gradients through stochastic neurons for con-
+ditional computation,” arXiv preprint arXiv:1308.3432,
+2013.
+[10] E. Jang, S. Gu, and B. Poole, “Categorical repa-
+rameterization with gumbel-softmax,” arXiv preprint
+arXiv:1611.01144, 2016.
+[11] C. J. Maddison, A. Mnih, and Y. W. Teh, “The concrete
+distribution: A continuous relaxation of discrete random
+variables,” CoRR, vol. abs/1611.00712, 2016. [Online].
+Available: http://arxiv.org/abs/1611.00712
+[12] C. Gulcehre, S. Chandar, and Y. Bengio, “Memory
+augmented neural networks with wormhole connections,”
+arXiv preprint arXiv:1701.08718, 2017.
+[13] D. Bahdanau, K. Cho, and Y. Bengio, “Neural machine
+translation by jointly learning to align and translate,”
+arXiv preprint arXiv:1409.0473, 2014.
+[14] K. Xu, J. Ba, R. Kiros, K. Cho, A. Courville,
+R. Salakhudinov, R. Zemel, and Y. Bengio, “Show,
+attend and tell: Neural image caption generation with
+visual attention,” in International Conference on Machine
+Learning, 2015, pp. 2048–2057.
+[15] S. Sharma, R. Kiros, and R. Salakhutdinov, “Ac-
+tion recognition using visual attention,” arXiv preprint
+arXiv:1511.04119, 2015.
+[16] V. Mnih, N. Heess, A. Graves et al., “Recurrent models
+of visual attention,” in Advances in neural information
+processing systems, 2014, pp. 2204–2212.
+[17] J. Ba, V. Mnih, and K. Kavukcuoglu, “Multiple ob-
+ject recognition with visual attention,” arXiv preprint
+arXiv:1412.7755, 2014.
+[18] J. Koutnik, K. Greff, F. Gomez, and J. Schmidhuber, “A
+clockwork rnn,” arXiv preprint arXiv:1402.3511, 2014.
+[19] R. J. Williams, “Simple statistical gradient-following al-
+gorithms for connectionist reinforcement learning,” Ma-
+chine learning, vol. 8, no. 3-4, pp. 229–256, 1992.
+[20] L. Yao, A. Torabi, K. Cho, N. Ballas, C. Pal,
+H. Larochelle, and A. Courville, “Video description gen-
+eration incorporating spatio-temporal features and a soft-
+attention mechanism,” arXiv preprint arXiv:1502.08029,
+2015.
+[21] Z. Li, E. Gavves, M. Jain, and C. G. Snoek, “Videolstm
+convolves, attends and flows for action recognition,”
+arXiv preprint arXiv:1607.01794, 2016.
+[22] S. Xingjian, Z. Chen, H. Wang, D.-Y. Yeung, W.-K.
+Wong, and W.-c. Woo, “Convolutional lstm network: A
+machine learning approach for precipitation nowcasting,”
+in Advances in Neural Information Processing Systems,
+12
+Fig. 10. Visualization of attention maps and detected boundaries for action recognition.
+2015, pp. 802–810.
+[23] E. Teh, M. Rochan, and Y. Wang, “Attention networks for
+weakly supervised object localization.” BMVC, 2016.
+[24] A. Graves, N. Jaitly, and A.-r. Mohamed, “Hybrid speech
+recognition with deep bidirectional lstm,” in Automatic
+Speech Recognition and Understanding (ASRU), 2013
+IEEE Workshop on. IEEE, 2013, pp. 273–278.
+[25] J. Donahue, L. Anne Hendricks, S. Guadarrama,
+M. Rohrbach, S. Venugopalan, K. Saenko, and T. Darrell,
+“Long-term recurrent convolutional networks for visual
+recognition and description,” in Proceedings of the IEEE
+Conference on Computer Vision and Pattern Recognition,
+2015, pp. 2625–2634.
+[26] J. Yue-Hei Ng, M. Hausknecht, S. Vijayanarasimhan,
+O. Vinyals, R. Monga, and G. Toderici, “Beyond short
+snippets: Deep networks for video classification,” in
+Proceedings of the IEEE Conference on Computer Vision
+and Pattern Recognition, 2015, pp. 4694–4702.
+[27] J. Jin, K. Fu, R. Cui, F. Sha, and C. Zhang, “Aligning
+where to see and what to tell: image caption with region-
+based attention and scene factorization,” arXiv preprint
+arXiv:1506.06272, 2015.
+13
+[28] E. J. Gumbel and J. Lieblein, “Statistical theory of
+extreme values and some practical applications: a series
+of lectures,” 1954.
+[29] C. J. Maddison, D. Tarlow, and T. Minka, “A* sampling,”
+in Advances in Neural Information Processing Systems,
+2014, pp. 3086–3094.
+[30] F. Bastien, P. Lamblin, R. Pascanu, J. Bergstra, I. Good-
+fellow, A. Bergeron, N. Bouchard, D. Warde-Farley, and
+Y. Bengio, “Theano: new features and speed improve-
+ments,” arXiv preprint arXiv:1211.5590, 2012.
+[31] A. Vedaldi and K. Lenc, “Matconvnet: Convolutional
+neural networks for matlab,” in Proceedings of the 23rd
+ACM international conference on Multimedia. ACM,
+2015, pp. 689–692.
+[32] K. He, X. Zhang, S. Ren, and J. Sun, “Deep resid-
+ual learning for image recognition,” arXiv preprint
+arXiv:1512.03385, 2015.
+[33] J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, and
+L. Fei-Fei, “Imagenet: A large-scale hierarchical image
+database,” in Computer Vision and Pattern Recognition,
+2009. CVPR 2009. IEEE Conference on. IEEE, 2009,
+pp. 248–255.
+[34] D. Kingma and J. Ba, “Adam: A method for stochastic
+optimization,” arXiv preprint arXiv:1412.6980, 2014.
+[35] M. Rodriguez, “Spatio-temporal maximum average cor-
+relation height templates in action recognition and video
+summarization,” 2010.
+[36] J. C. Niebles, C.-W. Chen, and L. Fei-Fei, “Modeling
+temporal structure of decomposable motion segments
+for activity classification,” in European conference on
+computer vision. Springer, 2010, pp. 392–405.
+[37] H. Kuehne, H. Jhuang, E. Garrote, T. Poggio, and
+T. Serre, “HMDB: a large video database for human
+motion recognition,” in Proceedings of the International
+Conference on Computer Vision (ICCV), 2011.
+[38] S. Yan, J. S. Smith, W. Lu, and B. Zhang, “Cham:
+action recognition using convolutional hierarchical atten-
+tion model,” arXiv preprint arXiv:1705.03146, 2017.
+[39] K. Simonyan and A. Zisserman, “Two-stream convo-
+lutional networks for action recognition in videos,” in
+Advances in Neural Information Processing Systems,
+2014, pp. 568–576.
+[40] K. He, X. Zhang, S. Ren, and J. Sun, “Deep resid-
+ual learning for image recognition,” in Proceedings of
+the IEEE Conference on Computer Vision and Pattern
+Recognition, 2016, pp. 770–778.
+[41] Y.-G. Jiang, Q. Dai, X. Xue, W. Liu, and C.-W. Ngo,
+“Trajectory-based modeling of human actions with mo-
+tion reference points,” in European Conference on Com-
+puter Vision. Springer, 2012, pp. 425–438.

@@ -1,0 +1,2021 @@
+1
+Shape Registration with Directional Data
+Maire?ad Grogan & Rozenn Dahyot
+School of Computer Science and Statistics
+Trinity College Dublin, Ireland
+Abstract—We propose several cost functions for reg-
+istration of shapes encoded with Euclidean and/or non-
+Euclidean information (unit vectors). Our framework
+is assessed for estimation of both rigid and non-rigid
+transformations between the target and model shapes
+corresponding to 2D contours and 3D surfaces. The experi-
+mental results obtained confirm that using the combination
+of a point’s position and unit normal vector in a cost
+function can enhance the registration results compared to
+state of the art methods.
+I. INTRODUCTION
+Directions, axes or rotations are described as unit
+vectors in Rd and are known collectively as directional
+data. In computer vision this type of data is often pro-
+cessed and includes surface normals and tangent vectors,
+orientations of image gradients, the direction of sound
+sources and GPS coordinate information [1], [2], [3].
+Directional data can be viewed as points on the surface
+of a hypersphere Sd, with angular directions observed
+in the real world frequently visualized on the circle
+or sphere. A lot of research has been concerned with
+successfully modelling and analysing this type of data,
+with distributions proposed by von Mises, Fisher and
+Watson [4] used in a range of applications including data
+clustering, segmentation and texture mapping[5].
+In this paper we propose to use von Mises-Fisher
+kernels to model the normal vectors of the shape (i.e. 2D
+contours, and 3D surface). Registration is then performed
+by minimizing a distance between two Kernel Density
+Estimates encoding the target and model shapes. Section
+II reviews the related work and in Section III, we
+propose several new cost functions for registration using
+normal information. Section IV outlines some of the
+implementation details of our method and experimental
+results (Section V) compare our approach to leading
+techniques for registration [6] [7] [8].
+II. RELATED WORKS
+A. Euclidean distance between GMMs
+Considering p1(x) and p2(x), two probability density
+functions (pdf) for the random vector x ? Rd, the
+Euclidean L2 distance between p1 and p2 is defined as:
+L2(p1, p2) =
+?
+[p1(x)? p2(x)]2 dx = ?p1 ? p2?2 (1)
+Many divergences have been defined for p.d.f. but L2 has
+the advantage of being explicit in the case of Gaussian
+Mixtures Models (GMM) and also robust to outliers
+when these GMMs are kernel density estimates (KDE)
+with Gaussian Kernels [9], [6]. L2 can be rewritten as:
+L2(p1, p2) = ?p1?p2?2 = ?p1?2+?p2?2?2?p1|p2? (2)
+and simplified to
+L2E(p1, p2) = ?p1?2 ? 2?p1|p2? (3)
+when p2 is chosen as the empirical p.d.f. (i.e. KDE with
+Dirac Kernels) fitted on a target point set [9], [6]. Jian et
+al. applied L2 for shape registration in R2 and R3, where
+a parameterized GMM p1(x|?) is fitted to a target shape
+model represented by GMM p2 [6]: ? controls an affine
+or non rigid transformation (e.g. Thin Plate Spline) and
+the solution ?? is computed such that it minimizes the L2
+distance. While Jian et al encode shapes as GMMs fitted
+to point clouds of contours (R2) or surfaces (R3), Arel-
+lano et al. extended this shape registration approach into
+a multiple instance shape (ellipses) detection scheme,
+and also use directional information about the contour
+[10]. Similarly, in this paper we propose to consider
+directional information and we consider specific kernels
+suited for directional data as opposed to the Gaussian
+Kernel used by Arellano et al. Another application for L2
+registration in the image domain is to compute the colour
+transfer function to change the colour feel of images and
+videos [11], [12], [13]. In this context, L2 registration
+is shown to outperform other popular schemes including
+these designed on the Optimal Transport framework [13].
+Other registration techniques include maximum likeli-
+hood techniques, in which one point set is represented by
+a GMM and the other by a mixture of delta functions,
+which is equivalent to minimising the KL divergence
+between the two mixtures. In [7], Myronenko et al.
+also impose that the GMM centroids move coherently,
+preserving the structure of the point clouds. The Iterative
+Closest Point algorithm is another popular registration
+ar
+X
+iv
+:1
+70
+8.
+07
+79
+1v
+2 
+ [
+cs
+.C
+V
+] 
+ 2
+9 
+A
+ug
+ 2
+01
+7
+2
+technique which alternates between estimating closest-
+point correspondences and a rigid transformation. How-
+ever, it can become trapped in local minima and requires
+a good initialisation, and many methods have been
+proposed as improvements [14]. Yang et al. [8] propose
+to combine ICP with a branch-and-bound scheme which
+efficiently searches the rigid 3D motion space. They
+also derive novel upper and lower bounds for the ICP
+error function and provide a globally optimal solution
+to the 3D rigid registration problem. Rather than using
+fuzzy correspondences [7], [6] other techniques estimate
+explicit correspondences between the point sets using
+shape descriptors. Belongie et al. use shape context
+to register point sets, while other techniques use the
+local neighbourhood structure of the shapes [15], [16].
+Yang et al. [17] propose to combine global and local
+structural differences in a global and local mixture dis-
+tance (GLMD) based method for non-rigid registration.
+Their iterative two step process alternately estimates
+the correspondences and computes the transformation.
+They define a distance which combines both global and
+local feature differences and use it to estimate point
+correspondences, and use an annealing scheme which
+ensures that the defined distance gradually changes from
+a local distance to a global distance.
+B. Directional data
+We consider the d-dimensional unit random vector u
+such that ?u? = 1 (u ? Sd?1 with Sd?1 the hypersphere
+in Rd ). Several distributions exist for random unit vec-
+tors and some are presented in this section. Applications
+of such distributions include RGB-D image segmentation
+[5] and structure from motion in 360 video [18] amongst
+others [1], [2], [3].
+1) von Mises-Fisher kernel: The von Mises-Fisher
+probability density function for a random unit vector
+u ? Sd?1 is defined as:
+vMF (u;µ, ?) = Cd(?) exp
+(
+? µTu
+)
+(4)
+with parameters ? ? 0 and ?µ? = 1 and the normalising
+constant Cd is defined as:
+Cd(?) =
+1?
+Sd?1 exp (? µ
+Tu) du
+=
+?
+d
+2
+?1
+(2?)
+d
+2 I d
+2
+?1(?)
+(5)
+with I d
+2
+?1 the modified Bessel function of order
+d
+2 ? 1.
+The von Mises-Fisher distribution with parameters ? and
+µ is noted vMF (µ, ?) for simplification. For dimension
+d = 3, u is a unit vector in R3 and belongs to the sphere
+S2 , and the normalising constant in the von Mises-Fisher
+distribution is [5]:
+C3(?) =
+?
+4? sinh(?)
+(6)
+For d 6= 3, the value Cd(?) is not directly available
+but can be computed using numerical integration. The
+value of the parameter ? determines the shape of the
+distribution, with high values of ? creating a distribution
+highly concentrated about the mean direction µ, and low
+values of ? creating an almost uniform distribution on
+Sd?1.
+2) Watson distribution: The Watson distribution is
+also used to model axially symmetric directional data
+and is defined as follows:
+Wd(u;µ, ?) =Md(?) exp
+(
+? (µTu)2
+)
+(7)
+with the normalising constant:
+Md(?) =
+1?
+Sd?1 exp (? (µ
+Tu)2) du
+(8)
+This can be computed as Md(?) = M(12 ,
+d
+2 , ?), the
+confluent hyper-geometric function also known as the
+Kummer function, which is not directly available but can
+be approximated. Like the von Mises-Fisher distribution,
+the value of ? determines the shape of the distribution.
+III. L2 WITH DIRECTIONAL DATA
+Given two sets of observations S1 =
+{(x(i)1 , u
+(i)
+1 )}i=1,··· ,n1 and S2 = {(x
+(j)
+2 , u
+(j)
+2 )}j=1,··· ,n2
+for the random vectors (x, u) ? Rdx × Sdu , we encode
+the model and target shapes using KDEs and register
+them by minimising the L2 distance between them. Here
+we assume that the shapes differ by some transformation
+?, controlled by the parameter ?, which registers S1
+to S2 and creates a new shape with observations
+S?1 = {(x?(i)1 , u?
+(i)
+1 )}i=1,··· ,n1 that maps to S2.
+Probability density functions are modelled using sets
+S?1 and S2 providing two possible distributions denoted
+p1 and p2 for the random vector x ? Rdx , u ? Sdu ,
+and (x, u) ? Rdx × Sdu . The L2 distance between p1
+and p2 can then be computed as L2(p1, p2) = ?p1 ?
+p2?2 = ?p1?2 + ?p2?2? 2?p1|p2? which is equivalent to
+maximizing the scalar product ?p1|p2? when ? is a rigid
+mapping [6].
+A. Pdf modelling for x ? Rdx
+Jian et al used a KDE with a Gaussian kernel
+N (x; x?(i)1 , h) fitted to each point x?
+(i)
+1 in S?1 [6]:
+p1(x) =
+1
+n1
+n1?
+i=1
+N (x; x?(i)1 , h1) (9)
+Likewise the second set of points {x(j)2 } is modelled
+using the Gaussian kernels:
+p2(x) =
+1
+n2
+n2?
+j=1
+N (x;x(i)2 , h2) (10)
+3
+All Gaussians are chosen spherical in shape and have
+uniform scale and using the scalar product between
+two Gaussian kernels (cf. Table IV), the following cost
+function is proposed to estimate ?:
+Cx = 1
+n1n1
+n1?
+j=1
+n1?
+i=1
+1?
+4h21?
+exp
+(
+??x?(j)1 ? x?
+(i)
+1 ?2
+4h21
+)
+? 2
+n1n2
+n2?
+j=1
+n1?
+i=1
+1?
+2(h21 + h
+2
+2)?
+exp
+(
+??x(j)2 ? x?
+(i)
+1 ?2
+2(h21 + h
+2
+2)
+)
+(11)
+This cost function is equivalent to that proposed for
+shape registration by Jian et al.[6]. Note that if we
+had instead fitted a Dirac kernel to each of the points
+in {x(j)2 } we would have obtained the following cost
+function:
+Cx? =
+1
+n1n1
+n1?
+j=1
+n1?
+i=1
+1?
+4h21?
+exp
+(
+??x?(j)1 ? x?
+(i)
+1 ?2
+4h21
+)
+? 2
+n1n2
+n2?
+j=1
+n1?
+i=1
+1?
+2h21?
+exp
+(
+??x(j)2 ? x?
+(i)
+1 ?2
+2h21
+)
+(12)
+which is equivalent to Cx when h2 = 0.
+B. Pdf modelling for u ? Sdu
+To model the first set of normals {u(i)1 } we propose
+a KDE with a von Mises-Fisher kernel vMF (u; u?(i)1 , ?)
+fitted to each normal u?(i)1 in S?1:
+p1(u) =
+1
+n1
+n1?
+i=1
+vMF (u; u?
+(i)
+1 , ?1) (13)
+We propose to model the second set of normal vectors
+{u(j)2 } using either the empirical distribution:
+p2(u) =
+1
+n2
+n2?
+j=1
+?(u? u(j)2 ) (14)
+or using the von Mises-Fisher distribution:
+p2(u) =
+1
+n2
+n2?
+j=1
+vMF (u;u
+(j)
+2 , ?2). (15)
+Using the definitions for ?p1|p2? as given in Table
+IV, two cost functions used to estimate ? by minimising
+?p1?2 ? 2?p1|p2? can then be defined as follows:
+Cu? =
+(
+Cdu(?1)
+n1
+)2 n1?
+i=1
+n1?
+j=1
+C?1du
+(
+??1u?(i)1 + ?1u?
+(j)
+1 ?
+)
+? 2Cdu(?1)
+n1n2
+n1?
+i=1
+n2?
+j=1
+exp(?1u?
+(i)T
+1 u
+(j)
+2 ), (16)
+based on the modelling for p2 defined Equation (14) and
+Cu =
+(
+Cdu(?1)
+n1
+)2 n1?
+i=1
+n1?
+j=1
+C?1du
+(
+??1u?(i)1 + ?1u?
+(j)
+1 ?
+)
+?2 Cdu(?1)Cdu(?2)
+n1n2
+n1?
+i=1
+n2?
+j=1
+C?1du
+(
+??1u?(i)1 + ?2u
+(j)
+2 ?
+)
+(17)
+based on the modelling for p2 defined in Equation (15).
+Since both terms in Cu depend on the normalising con-
+stant Cdu(?), the computation of Cu requires numerical
+integration when du 6= 3. On the other hand, when ?? is
+a rigid transformation Cu? can be simplified as
+?? = argmax
+?
+{
+Cu? =
+n1?
+i=1
+n2?
+j=1
+exp(?1u?
+(i)T
+1 u
+(j)
+2 )
+}
+(18)
+and therefore can be easily computed ?du. This is one
+of the main advantages of using the Dirac distribution to
+model one set of normal vectors.
+C. Pdf modelling for (x, u) ? Rdx × Sdu
+We investigate in this section a cost function which
+accounts for both the normal vectors and point positions
+of the shapes in the modelling. For the transformed
+observations a KDE with Gaussian kernels fitted to each
+point x?(i)1 and a vMF kernel fitted to each normal vector
+u?
+(i)
+1 is modelled as follows:
+p1(x, u) =
+1
+n1
+n1?
+i=1
+vMF (u; u?
+(i)
+1 , ?1) N (x; x?
+(i)
+1 , h1)
+(19)
+For the second set of observations we again propose two
+methods for modelling the point and normal vectors.
+First, we propose to fit a dirac Delta kernel to each
+normal vector u(j)2 and a Gaussian kernel to each point
+x
+(j)
+2 to create a KDE of the form:
+p2(x, u) =
+1
+n2
+n2?
+j=1
+?(u? u(j)2 ) N (x;x
+(j)
+2 , h2). (20)
+We also propose an alternate KDE with vMF kernels
+fitted to the normal vectors {u(j)2 } as in Equation 19:
+p2(x, u) =
+1
+n2
+n2?
+j=1
+vMF (u;u
+(j)
+2 , ?2) N (x;x
+(j)
+2 , h2).
+(21)
+4
+Then the parameter ? is estimated by minimizing one of
+the following cost functions:
+Cx,u? =
+1
+n1n1
+n1?
+j=1
+n1?
+i=1
+?vMF (u?(i)1 , ?1)|vMF (u?
+(j)
+1 , ?1)?
+× ?N (x?(i)1 , h1)|N (x?
+(j)
+1 , h1)?
+? 2
+n1n2
+n2?
+j=1
+n1?
+i=1
+?vMF (u?(i)1 , ?1)|?(u
+(j)
+2 )?
+× ?N (x?(i)1 , h1)|N (x
+(j)
+2 , h2)? (22)
+based on the modelling proposed in Equation (20), or
+Cx,u = 1
+n1n1
+n1?
+j=1
+n1?
+i=1
+?vMF (u?(i)1 , ?1)|vMF (u?
+(j)
+1 , ?1)?
+× ?N (x?(i)1 , h1)|N (x?
+(j)
+1 , h1)?
+? 2
+n1n2
+n2?
+j=1
+n1?
+i=1
+?vMF (u?(i)1 , ?1)|vMF (u
+(j)
+2 , ?2)?
+× ?N (x?(i)1 , h1)|N (x
+(j)
+2 , h2)? (23)
+based on the modelling proposed in Equation (21). Using
+the appropriate scalar product definitions given in Table
+IV, the proposed cost functions can be written explicitly
+as:
+Cx,u? =
+Cd(?1)Cd(?1)
+n1n1
+?
+4h21?
+×
+n1?
+i=1
+n1?
+j=1
+C?1d
+(
+??1u?(i)1 + ?1u?
+(j)
+1 ?
+)
+exp
+(
+??x?(j)1 ? x?
+(i)
+1 ?2
+4h21
+)
+? 2Cd(?1)
+n1n2
+?
+2(h21 + h
+2
+2)?
+×
+n1?
+i=1
+n2?
+j=1
+exp(?1 u
+(j)
+2
+T
+u?
+(i)
+1 ) exp
+(
+??x(j)2 ? x?
+(i)
+1 ?2
+2(h21 + h
+2
+2)
+)
+(24)
+and
+Cx,u = Cdu(?1)Cdu(?1)
+n1n1
+?
+4h21?
+×
+n1?
+i=1
+n1?
+j=1
+C?1du
+(
+??1u?(i)1 + ?1u?
+(j)
+1 ?
+)
+exp
+(
+??x?(j)1 ? x?
+(i)
+1 ?2
+2h21
+)
+? 2 Cdu(?1)Cdu(?2)
+n1n2
+?
+2(h21 + h
+2
+2)?
+×
+n1?
+i=1
+n2?
+j=1
+C?1du
+(
+??1u?(i)1 + ?2u
+(j)
+2 ?
+)
+exp
+(
+??x(j)2 ? x?
+(i)
+1 ?2
+2(h21 + h
+2
+2)
+)
+(25)
+Although both terms in Cx,u depend on the normalizing
+constant Cdu(?), in C
+x,u
+? the term ?p1|p2? is independent
+of this constant and can be computed for any dimension
+du. Therefore when ? is a rigid transformation, ? can be
+estimated for any dimension du by maximizing the cost
+function:
+Cx,u? =
+n1?
+i=1
+n2?
+j=1
+exp(?1 u
+(j)
+2
+T
+u?
+(i)
+1 ) exp
+(
+??x(j)2 ? x?
+(i)
+1 ?2
+2(h21 + h
+2
+2)
+)
+(26)
+IV. IMPLEMENTATION DETAILS
+In this section we outline some of the implementa-
+tion details of our algorithm when it was applied to
+registering two shapes S1 and S2 with point sets {x(i)1 }
+and {x(j)2 } and unit normal vectors {u
+(i)
+1 } and {u
+(j)
+2 }
+respectively.
+A. Transformation function ?
+To test the proposed cost functions, we considered
+shapes differing by both a rigid and non-rigid transfor-
+mation ?. As a translation only affects the observations
+{x(i)} and not the normal vectors {u(i)}, the cost func-
+tions Cu and Cu? are invariant to translation. To ensure
+all cost functions are evaluated equally, when estimating
+a rigid transformation we omit a translation and only
+consider data differing by a rotation.
+For shapes differing by a non-rigid deformation, we
+estimate a Thin Plate Spline transformation and do not
+include a regularisation term to control the non-linearlity
+of the transformation. However this can be added by the
+user if necessary. The N control points cj used to control
+the TPS transformations in our non-rigid experiments are
+chosen uniformly on a grid spanning the bounding box
+of the model shape.
+B. Algorithm
+Given two point sets {x(i)1 }i=1,..n1 and {x
+(j)
+2 }j=1,..n2
+representing the model and target shapes, our strategy
+for estimating the transformation ?(x, ?) is summarised
+in Algorithm 1.
+5
+Algorithm 1 Our strategy for estimating the transforma-
+tion ?(x, ?).
+Require: ?? initialised so that ?(x, ??) = x (identity
+function)
+Require: ?init, ?final and hinit, hfinal for Cx,u.
+Require: hstep, ?step
+Require: Computation of unit normal vectors
+{u(i)1 }i=1,..n1 and {u
+(j)
+2 }j=1,..n2 from {x
+(i)
+1 }i=1,..n1
+and {x(j)2 }j=1,..n2 .
+Choose m points {x(i)1 }i=1,..m and {x
+(j)
+2 }j=1,..m and
+their associated unit normal vectors {u(i)1 }i=1,..m and
+{u(j)2 }j=1,..m for processing.
+Start h = hinit and ? = ?init
+repeat
+?? ? argmin? C(?)
+h? hstep × h
+?? ?step × ?
+until Convergence h < hfinal and ? > ?final return
+??
+In all of our experiments we let h1 = h2 = h and
+?1 = ?2 = ?. To avoid local minima, we implement a
+simulated annealing strategy by gradually decreasing h
+and increasing ?. The values chosen for all parameters
+can be found in the supplementary material. As the com-
+putation time of our proposed algorithms are dependent
+on the number of points in S1 and S2, we reduce the
+number of points processed by choosing a sample of m
+points and their associated unit normal vectors from both
+S1 and S2.
+-2.5 -2 -1.5 -1 -0.5 0 0.5 1 1.5
+-1.5
+-1
+-0.5
+0
+0.5
+1
+1.5
+(a)
+(b) (c) (d)
+h = 44hfinal h = 4
+2hfinal h = hfinal
+? = 1
+24
+?final ? =
+1
+22
+?final ? = ?final
+Fig. 1. In (a) the parametric curve (blue) sampled at 50 locations
+(red) with normal vectors (shown in blue) is S1, and was rotated
+by an angle of ?GT = 90? to generate S2. In (b), (c) and (d) we
+show the effect that our simulated annealing strategy has on the cost
+functions computed using S1 and S2 as ? ranges from 1? to 360?.
+To avoid local minima, h is gradually decreased and ? is gradually
+increased until h = hfinal and ? = ?final. Green: Cx; Red: Cu;
+Blue: Cx,u; Pink: ?GT .
+C. Normal Vector Computation
+We use several methods to compute the normal vectors
+{u(i)} at the points {x(i)}. When testing our cost func-
+tions on 2D data, we use parametric curves and compute
+the normal vectors analytically. For 3D shapes in the
+form of meshes, we compute the normal vectors at a
+given vertex x(i) as the average of the normal vectors
+of each face connected to x(i). We also compute the
+normal vectors without exploiting the connectivity of a
+vertex, instead fitting a plane to it’s nearest neighbours
+to compute the normal vector [19], [20].
+D. Computation Complexity
+Due to the double sum in all of the cost functions,
+their computational complexity depends on the number
+of points n1 and n2. When no point correspondences
+are chosen the computational complexity is of order
+O(n1 × n2). Choosing to use n point correspondences
+reduces this to O(n). The computation time needed
+by the gradient ascent technique also depends on the
+dimension of the latent space, which is determined by
+the transformation being estimated and the dimension dx
+of the space in which the shapes are defined. We do not
+provide analytical gradients to the gradient ascent algo-
+rithm when testing any of the proposed cost functions.
+Numerical methods are used instead to approximate the
+gradient at each iteration. While analytical gradients can
+be computed for Cx [6], and for all cost function when
+estimating a rotation, computing gradients for Cx,u or
+Cx,u? when estimating a TPS transformation is not trivial,
+and we found that using numerical approximation was
+preferable. We used this approach for all cost functions
+to maintain consistency. We use Matlab’s optimisation
+function fmincon when estimating a rotation transforma-
+tion, and fminunc when estimating a TPS transformation.
+E. Correspondences
+In some cases, when estimating a non-rigid transfor-
+mation, correspondences are used to reduce computa-
+tional complexity and improve the registration result.
+When n correspondences are chosen, the double sum?n1
+i
+?n2
+j in all cost functions is reduced to
+?n
+i . To
+compute correspondences we used the method proposed
+by Yang et al.[17]. First, a global distance between the
+model and target point sets {x(i)1 } and {x
+(i)
+2 } is computed
+based on the squared Euclidean distance between each
+pair of points in the point sets. Then a local distance,
+which measures the difference in neighbourhood struc-
+ture between each pair of points in the point sets, is
+computed. The local and global distances are combined
+6
+in a cost matrix, and used to estimate a set of point
+correspondences. Yang et al also incorporate an anneal-
+ing scheme which is designed to slowly change the cost
+minimisation from local to global. We also implemented
+this transition from local to global by incorporating it
+into our simulated annealing strategy.
+F. Comparisons
+To evaluate our algorithm we compared our results to
+several state of the art registration techniques [6], [7], [8],
+[17]. The parameters chosen for each of these techniques
+is given in the supplementary material. To ensure that a
+fair comparison between Jian’s cost function Cx and our
+proposed cost functions was presented, we altered some
+of the optimisation steps in the code provided by Jian
+et al.1 so that they coincided with those implemented
+with our proposed cost functions. For example, we
+implemented the same simulated annealing framework
+for Cx as for Cu, Cu? , C
+x,u
+? and C
+x,u. The optimisation
+changes made enhanced the results achievable by Cx by
+allowing the function to avoid local minima and converge
+to a good solution.
+G. Evaluation
+In all experiments we chose the model and target
+point sets to be of equal size with n1 = n2 = n. The
+ground truth point correspondences between the model
+and target shapes {x(i)1 , x
+(i)
+2 }i=1,..n are also known and
+we evaluate the results of all algorithms by computed the
+mean square error (MSE) between corresponding points
+in the transformed model ({x?(i)1 }) and target point sets
+as follows:
+1
+n
+n?
+i=1
+?x?(i)1 ? x
+(i)
+2 ? (27)
+Note that all n points in the target shape and transformed
+model are used to compute the MSE, not just the
+subsample of size m used to estimate ?(x, ??).
+H. Experimental set up
+Our cost functions are evaluated experimentally (c.f.
+sections V and VI) with the following settings:
+• For rigid transformation, the scalar product ?p1|p2?
+is the cost function that is maximized as ?p1? does
+not change in this case (In Sections V-A and VI-A).
+• For non-rigid transformation, ?p1?2 ? 2?p1|p2? is
+minimized to estimate ? (c.f. Sections V-B and
+VI-B).
+In Section VI-C we give details about the computational
+cost of our algorithm.
+1https://github.com/bing-jian/gmmreg
+V. EXPERIMENTAL RESULTS 2D
+When considering the von Mises kernel as part of our
+cost functions, because its normalizing constant C3(?) is
+explicitly available for u ? S2 while C2(?) is not for 2D
+data (u ? S), we propose to artificially define u on S2
+instead of S in this case by adding a third dimensional
+coordinate to the normal vector (which is set to zero) to
+ease and speed up computation.
+A. 2D Rotation Registration
+Curves S1 and S2 differ by a rotation ? which is
+defined as ?(x, ?) = Rx (and ?(u, ?) = Ru for the
+normal vector u ? S, ignoring the zero value added
+to artificially extend u ? S2 ), where R is a 2D
+rotation matrix controlled by the angle ?. We assess the
+estimation of the rotation angle ? using the cost functions
+Cx [6], Cu, Cu? , Cx,u and C
+x,u
+? .
+When testing our results we found that Cu and Cu? as
+well as Cx,u and Cx,u? are practically equivalent, so for
+ease of comparison we only present results for Cu and
+Cx,u. 2
+1) Figure 2(a) presents the average MSE errors com-
+puted for Cx [6], Cu and Cx,u when considering
+rotation transformation between the two shapes to
+be registered. It shows that Cx,u performs the best,
+followed by Cu and then Cx. Several values of ?
+were tested (reported in abscissa Fig. 2(a)), and for
+each value we created and registered 10 pairs of
+curves S1 and S2.
+2) Figure 2(b) presents the average MSE errors com-
+puted for Cx [6], Cu and Cx,u when consider-
+ing rotation transformation but with missing data
+between the two shapes to be registered. Again
+Cx,u performs the best, followed by Cu and then
+Cx. In this experiment a parametric curve S1 is
+represented by 150 vertices {x(i)1 }i=1,..150 with
+their corresponding normal vectors {u(i)1 }i=1,..150
+to create S1 = {(x(i)1 , u
+(i)
+1 )}i=1,..150. S2 is cre-
+ated by rotating S1 (with ? = 60 degrees)
+and a percentage of points (reported in abscissa
+Fig. 2(b)) are removed from S2 before regis-
+tration. For each percentage of points removed
+(7%, 20%, 33%, 47%, 60%) we generating 10 pairs
+of curves S1 and S2 on which we tested the
+estimation of ?. As the number of removed points
+increases to 60% or more, Cx,u had a higher
+tendency to fall into local minima and the error
+increases as a result. Similar results were found
+for other values of ? tested.
+2Results for Cu? and Cx,u? can be found in the supplementary
+material.
+7
+ 30  60  90 120 150 180
+Rotation
+10
+-15
+10
+-10
+10
+-5
+10
+0
+M
+S
+E
+E
+r
+r
+o
+r
+0 % 7 % 20 % 33 % 47 % 60 %
+Percentage of Removed Points
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+M
+S
+E
+E
+rr
+o
+r
+(a) (b)
+Fig. 2. MSE results comparing our cost functions on 2D data with
+rigid tranformation (rotation). In (a) the MSE value given at each
+rotation is the average over 10 curve registration results, as is the
+MSE value given at each percentage of removed points in (b).
+B. 2D Non-rigid Registration
+Shapes S1 and S2 differ now by a non-rigid defor-
+mation (defined as a TPS transformation with varying
+degrees of deformation). The estimated TPS transforma-
+tion is controlled by N = 12 control points and our
+latent space of parameters to estimate is of dimension
+(12 × 2) + 6 = 30. Cost functions Cx [6] and Cx,u
+are assessed, and Cu and Cu? are omitted as normal
+information alone is not sufficient when estimating a
+non-rigid transformation. Cx,u? generates similar results
+to Cx,u and is not reported either. As well as comparing
+Cx [6] and Cx,u, we also compare to other state of the
+art non-rigid registration techniques namely CPD [7] and
+GLMD [17]. For comparison we implement a similar
+experimental framework as that presented by Yang et
+al.[17] and for this reason we also normalize all curves
+so that they lie within [0, 1]× [0, 1].
+1) For each level of non rigid deformation we register
+120 pairs of shapes S1 and S2 and present the
+average MSE results in Figure 3(a). We found that
+in general Cx,u performs well, but fails on occasion
+skewing the average MSE (i.e. at deformations of
+degree 5 and 7). Similar spikes appear in the results
+for Cx[6]. Both CPD[7] and GLMD[17] generate
+consistent results over all deformations.
+2) Setting the degree of deformation to 4, rotations
+of ±15?,±30?,±45?,±60? and ±75? is added so
+that both rotation and non rigid parameters now
+need to be estimated to register S1 and S2. At each
+rotation value we registered 240 pairs of deformed
+curves for each method and the mean square
+errors computed can be seen in Figure 3 (b). Cx,u
+performs best, followed by Cx, GLMD[17] and
+CPD[7]. The addition of the normal information
+in the cost function ensured that in general Cx,u
+estimated the correct rotation and deformation,
+while in the case of the other cost functions, the
+non-rigid deformation parameters were often used
+to attempt to account for the rotation difference.
+3) Setting the degree of deformation to 4 without ro-
+tation, a percentage of points is randomly removed
+from S1 before registration on S2. Figure 3(c)
+shows that Cx,ucorr performed as well as GLMD[17],
+followed by Cxcorr and CPD[7]. Without corre-
+spondences we found that both Cx,u and Cx (not
+reported) tried to maximize the amount of overlap
+between the curves and rarely estimated the correct
+parameters. For this experiment correspondences
+were estimated using Yang et al’s technique, as
+described in Section IV-E, and were used when op-
+timizing Cx,ucorr and Cxcorr. 120 pairs of curves were
+registered at each level of missing data (reported
+in abscissa) and the average MSE is reported in
+Figure 3(c).
+VI. EXPERIMENTAL RESULTS IN 3D
+A. 3D Rotation Registration
+We now consider two 3D shapes S1 =
+{(x(i)1 , u
+(i)
+1 )}i=1,··· ,n and S2 = {(x
+(j)
+2 , u
+(j)
+2 )}j=1,··· ,n
+which are represented by their point locations
+{x(i)} ? R3 and normal vectors {u(i)} ? S2. Shapes
+S1 and S2 differ by a rotation ? which is defined as
+?(x, ?) = Rx with ? = R. In this case our latent space
+is of dimension 9. We compared our results to those
+obtained using Jian et al’s method Cx [6], CPD [7]
+and Go-ICP [8]. The shapes used in this experiment
+are the Stanford Bunny, Dragon and Buddha meshes
+provided by the Stanford University Computer Graphics
+Laboratory 3, and the Horse mesh provided by Sumner
+et al. [21]. Each of these shapes is stored in .ply format
+with both vertex and edge information available, from
+which normal vectors are easily calculated, as described
+in Section IV-C. These meshes have between 5000 and
+40000 vertices each, and a sub-sample of vertices and
+their corresponding normal vectors are used in all of
+our experiments.
+When testing our results we found that Cu and Cu? as
+well as Cx,u and Cx,u? are practically equivalent, so for
+ease of comparison we only present results for Cu? and
+Cx,u? in the following section. Further comparisons with
+Cu and Cx,u can be found in the supplementary material.
+The MSE errors for the following experiments are
+presented in Figure 4.
+1) The first column of Figure 4 presents the results
+of rigid registration when target and model meshes
+3http://graphics.stanford.edu/data/3Dscanrep/
+8
+1 2 3 4 5 6 7 8
+Degree of Deformation
+10
+-4
+10
+-3
+10
+-2
+M
+S
+E
+E
+rr
+o
+r
+15 30 45 60 75
+Rotation
+10
+-3
+10
+-2
+10
+-1
+10
+0
+M
+S
+E
+E
+r
+r
+o
+r
+7 % 20 % 33 % 47 % 60 %
+Percentage of Points Removed
+10
+-3
+10
+-2
+10
+-1
+M
+S
+E
+E
+rr
+o
+r
+(a) (b) (c)
+Fig. 3. MSE results for non-rigid registration with 2D data. (a) Deformation estimation results with degree of deformation varying from 1 to
+8; (b) Deformation and rotation estimation, with degree of deformation 4 and rotation varying from 15? to 75?; (c) Deformation estimation
+with missing data. Our methods Cx [6], Cx,u CxCorr and Cx,uCorr Vs GLMD [17], CPD[7].
+have the same sampling w.r.t. different levels of
+rotation magnitude (reported in abscissa). At each
+level of rotation magnitude, 15 different pairs of
+shapes S1 and S2 were registered from which
+MSE is calculated. Correspondences are not used
+to enhance the registration process in this case and
+overall CPD performs best, followed by Go-ICP
+and Cu? , while C
+x,u
+? and Jian et al’s method C
+x
+seem to generate similar results. Since there is a
+one to one correspondence between the samples
+from each shape, all methods perform very well
+with an average MSE of around 10?34 for CPD
+and 10?12 in all other cases. Both CPD and Go-
+ICP have a tendency to fall into local minima as the
+rotation increases while Cu? , Cx? and C
+x,u
+? continue
+to estimate good solutions.
+2) Similarly the second experiment (reported in the
+second column of Figure 4) considers the case
+where target and model meshes do not have the
+same set of vertices but instead different samples
+of 1000 points were chosen from S1 and S2,
+along with their corresponding normal vectors, so
+that no one to one correspondence exist between
+the subsampled target and model shapes. Cx,u?
+performs the best in this case, followed by Jian et
+al’s method Cx. Here Cu? performed the worst as
+unlike vertices, normal vectors represent the first
+derivative of the surface and are more sensitive
+to noise, thus varying more when they are not
+sampled at exactly the same locations on S1 and
+S2. Again both CPD and Go-ICP fall into local
+solutions as the rotation magnitude increases.
+3) Our cost functions are assessed when noise is
+present in the data (third column of Figure 4))
+with three levels of Gaussian noise (mean zero and
+standard deviation varying from 0.001 to 0.003 re-
+ported in abscissa) applied to vertices of S2, which
+differs from S1 by a rotation of magnitude 30?.
+When computing the normal vectors of the noisy
+shape S2 we used the nearest neighbours approach
+implemented by Meshlab, as described in Section
+IV-C. We found that when noise is present in the
+point positions, this gives a better estimate of the
+normal vector than using the vertex connectivity.
+As the noise on the points {x(i)2 } increases we
+also increase the number of nearest neighbours
+(Nk) used to compute the normal vectors, for
+example we set Nk = 40, 60 and 120 for noise
+levels 0.001, 0.002 and 0.003 respectively when
+registering two Bunny shapes. The normal vectors
+associated with the noise free shape S1 were
+computed using the vertex and edge information
+provided in the .ply. Different samples of 1000
+points, along with their associated normal vectors,
+were then chosen from S1 and the noisy S2, so that
+no one to one point correspondences exist between
+the target and model point clouds. The registration
+process was repeated 15 times for each noise level,
+and in all cases, Cx,u? performs the best, followed
+by Cx, CPD and Go-ICP. The additional smoothed
+normal vector information used by Cx,u? allows it
+to converge to a more accurate solution, even when
+a large degree of noise is added to the points in
+the shape S1. Again Cu? does not perform as well
+as the other approaches.
+9
+Same Sampling Different Sampling Added Noise
+15 30 45 60 75 90 105
+Rotation Magnitude
+10
+-35
+10
+-30
+10
+-25
+10
+-20
+10
+-15
+10
+-10
+10
+-5
+10
+0
+M
+S
+E
+E
+rr
+o
+r
+15 30 45 60 75 90 105
+Rotation Magnitude
+10
+-8
+10
+-7
+10
+-6
+10
+-5
+10
+-4
+10
+-3
+10
+-2
+M
+S
+E
+E
+rr
+o
+r
+0.001 0.002 0.003
+Noise Level
+10
+-8
+10
+-7
+10
+-6
+10
+-5
+10
+-4
+10
+-3
+10
+-2
+M
+S
+E
+E
+r
+r
+o
+r
+Bunny
+15 30 45 60 75 90 105
+Rotation Magnitude
+10
+-35
+10
+-30
+10
+-25
+10
+-20
+10
+-15
+10
+-10
+10
+-5
+10
+0
+M
+S
+E
+E
+rr
+o
+r
+15 30 45 60 75 90 105
+Rotation Magnitude
+10
+-10
+10
+-8
+10
+-6
+10
+-4
+10
+-2
+10
+0
+M
+S
+E
+E
+rr
+o
+r
+0.001 0.002 0.003
+Noise Level
+10
+-8
+10
+-7
+10
+-6
+10
+-5
+10
+-4
+10
+-3
+10
+-2
+10
+-1
+M
+S
+E
+E
+r
+r
+o
+r
+Dragon
+15 30 45 60 75 90 105
+Rotation Magnitude
+10
+-35
+10
+-30
+10
+-25
+10
+-20
+10
+-15
+10
+-10
+10
+-5
+10
+0
+M
+S
+E
+E
+rr
+o
+r
+15 30 45 60 75 90 105
+Rotation Magnitude
+10
+-10
+10
+-8
+10
+-6
+10
+-4
+10
+-2
+10
+0
+M
+S
+E
+E
+rr
+o
+r
+0.001 0.002 0.003
+Noise Level
+10
+-8
+10
+-7
+10
+-6
+10
+-5
+10
+-4
+10
+-3
+10
+-2
+10
+-1
+M
+S
+E
+E
+r
+r
+o
+r
+Buddha
+15 30 45 60 75 90 105
+Rotation Magnitude
+10
+-35
+10
+-30
+10
+-25
+10
+-20
+10
+-15
+10
+-10
+10
+-5
+10
+0
+M
+S
+E
+E
+rr
+o
+r
+15 30 45 60 75 90 105
+Rotation Magnitude
+10
+-10
+10
+-8
+10
+-6
+10
+-4
+10
+-2
+M
+S
+E
+E
+rr
+o
+r
+0.001 0.002 0.003
+Noise Level
+10
+-8
+10
+-7
+10
+-6
+10
+-5
+10
+-4
+10
+-3
+10
+-2
+M
+S
+E
+E
+r
+r
+o
+r
+Horse
+Fig. 4. MSE results for rigid registration with 3D data: same
+sampling (column 1), different sampling (column 2) and with added
+noise (column 3). Rows 1-4 give the error results for the Bunny,
+Dragon, Buddha and Horse meshes respectively.
+B. 3D Non-rigid Registration
+Finally we consider two 3D shapes S1 and S2 differ
+by a non-rigid deformation. We register these shapes by
+estimating a non-rigid TPS transformation. We choose
+the number of control points as N = 125 so our latent
+space has (125 × 3) + 12 = 387 dimensions. Point
+correspondences are used here in the cost functions Cx
+and Cx,u, notated as Cxcorr and C
+x,u
+corr. Again we omit Cu
+and Cu? as we found that they did not perform well when
+estimating a non-rigid transformation. We also omit Cx,u?
+as it has previously been shown to perform similarly to
+Cx,u.
+We present two sets of experiments in this section. In
+the first set we compare how Cxcorr and C
+x,u
+corr perform
+when registering shapes with known correspondences
+and in the second we compare Cxcorr, C
+x,u
+corr, CPD[7]
+and GLMD[17] when registering shapes with unknown
+correspondences that must be estimated.
+1) In this first experiment we use the dataset of shapes
+provided by Sumner et al. [21] which contains
+meshes of several different types of animal in dif-
+ferent poses, including a cat, lion and horse. Each
+mesh of the same animal has an equal number
+of vertices and exact point correspondences. We
+use the ground truth point correspondences when
+computing Cxcorr and C
+x,u
+corr to reduce computational
+complexity. Choosing two meshes of the same
+type of animal, we let the vertices of each mesh
+be the points {x(i)1 } and {x
+(i)
+2 } and compute the
+corresponding normal vectors {u(i)1 } and {u
+(i)
+2 }
+using the edge information provided in the mesh.
+We then apply a rotation to S1 so that the shapes
+differ by both a rotation and non-rigid deformation.
+For each level of rotation tested we register 10
+pairs of shapes S1 and S2. Figure 5(a) reports
+MSE comparing Cxcorr and C
+x,u
+corr: due to the large
+dimension of the latent space (387 dimensions), the
+gradient ascent technique required a large number
+of iterations to register the shape S1 to S2. For each
+cost function, to reduce computation time the limit
+of on the number of function evaluations com-
+puted during optimization is set to 50,000 (at each
+simulated annealing step). Very little difference is
+observed between the cost functions and even with
+50,000 functions evaluations, both Cxcorr and C
+x,u
+corr
+failed to converge to a good solution.
+In this experiment a scan taken of the Stanford
+Bunny with 1000 points is used to generate S1
+and S2. Taking the points of the scan to be {x(i)2 },
+we computed the normals vectors {u(i)2 } using the
+nearest neighbour approach discussed in Section
+IV-C. Then using the same deformation technique
+proposed by Yang et al. [17] and implemented in
+Section IV-C, we used 9 control points on the
+boundary of the points {x(i)2 } to deform them,
+generating the points {x(i)1 }. Again the normal
+vectors {u(i)1 } were computed using the nearest
+neighbour approach.
+For cost functions Cxcorr and C
+x,u
+corr, we estimate the
+point correspondences using the method proposed
+by Yang et al.[17] and detailed in Section IV-E. We
+test 4 levels of deformation and register 15 pairs
+of shapes at each level. We also test the case in
+which S1 and S2 differ by a rotation and non-rigid
+deformation by applying a rotation to the shape
+S1. We set the level of deformation to 3 and test
+5 levels of rotation (15?, 30?, 45?, 60?, 75?), with
+15 pairs of shapes registered for each rotation.
+The MSE results can be seen in Figure 5(b) and
+10
+2)
+ 0 20 40 60
+Rotation Magnitude
+0.8
+1
+1.2
+1.4
+1.6
+1.8
+2
+2.2
+2.4
+M
+S
+E
+E
+rr
+o
+r
+×10
+-3
+1 2 3 4
+Degree of Deformation
+10
+-7
+10
+-6
+10
+-5
+10
+-4
+10
+-3
+M
+S
+E
+E
+rr
+o
+r
+15 30 45 60 75
+Rotation Magnitude
+10
+-7
+10
+-6
+10
+-5
+10
+-4
+10
+-3
+10
+-2
+10
+-1
+M
+S
+E
+E
+rr
+o
+r
+(a) (b) (c)
+Fig. 5. MSE results for non-rigid registration with 3D data. (a) Comparison between Cxcorr and Cx,ucorr when registering meshes with exact
+correspondences. The meshes differ by a deformation and rotation varying from 0? to 60?. The standard error bars are included and emphasise
+the similarity between the cost functions; (b) Non-rigid transformation estimation between bunny shapes differing by a deformation varying
+from degree 1 to 4; (c) Non-rigid transformation estimation when two bunny shapes differ by a deformation of degree 3 and rotation varying
+from 15? to 75?.
+5(c). In Figure5(b), for all degrees of deformation
+applied to the model shape S1, GLMD performs
+the best, while Cxcorr and C
+x,u
+corr perform similarly.
+Although we found that the correspondences es-
+timated by Yang et al’s technique and used by
+Cxcorr and C
+x,u
+corr were accurate, using only 125 con-
+trol points for the estimated TPS transformation
+limited the accuracy of both Cxcorr and C
+x,u
+corr in
+comparison to GLMD, which uses all 1000 points
+in S1 as control points. However, increasing the
+number of control points used by Cxcorr and C
+x,u
+corr
+also increases the dimension of the latent space,
+requiring a larger number of iterations to converge
+to a good solution.
+The results of registering Bunny shapes differed
+by both a non rigid deformation and rotation can
+be seen in Figure 5(c). In this case we found
+that the correspondences estimated by Yang et
+al’s technique had some errors due to the rotation
+difference between the shapes. This decreased the
+accuracy of both GLMD and the cost functions
+Cxcorr and C
+x,u
+corr, although GLMD still performed
+the best. Although Cx,ucorr typically performs well
+when the shapes differ by a rotation, when the
+wrong point correspondences are used the accuracy
+of Cx,ucorr is reduced. Again we found that using
+only 125 control points also reduced the accuracy
+achievable by Cxcorr and C
+x,u
+corr.
+C. Computation time
+In Table I we present the computation times needed
+by the proposed cost functions to carry out 10 itera-
+tions of the gradient ascent algorithm used to register
+two shapes S1 = {(x(i)1 , u
+(i)
+1 )}i=1,··· ,100 and S2 =
+{(x(j)2 , u
+(j)
+2 )}j=1,··· ,100, each with 100 points and unit
+normal vectors. In Table II we give the average number
+of iterations needed by each cost function to converge to
+the correct solution. These figures were computed when
+using our full annealing strategy, with the number of
+annealing steps used given in column 5 of Table II. In
+Table III we also present the computation times needed
+by the CPD, Go ICP and GLMD algorithms to register
+shapes S1 and S2.
+VII. SHAPE REGISTRATION AND INTERPOLATION
+(QUALITATIVE EXPERIMENTS)
+We applied the cost functions Cx,u and Cx to the
+registration of curves extracted from images taken from
+a dataset provided by Lu et al. [22]4. Each image
+represents a patterned letter, and for a given pair of
+model and target letters we extracted 50 points along
+their external boundary contour (cf. Fig. 6, row 1,3,5,7).
+We then registered these point clouds, and applied the
+estimated transformation to all black pixels in the model
+letter, transforming it into the target letter (cf. Fig. 6,
+row 2,4,6,8). From Figure 6 we can see that Cx,u out-
+performs Cx when registering the model and target point
+clouds (row 1,3,5,7). While the connectivity between the
+points is not taken into account when registering the
+point clouds using Cx, with Cx,u the normal vectors are
+computed by fitting a spline to the ordered points, thus
+capturing some of the connectivity information between
+4Available at http://gfx.cs.princeton.edu/pubs/Lu 2014 DDS/
+11
+ctrl pts dim n1 n2 Cx Cu Cu? Cx,u Cx,u?
+2D Rotation 7 1 100 100 0.20s 0.20s 0.16s 0.21s 0.20s
+3D Rotation 7 9 100 100 0.22s 0.27s 0.29s 0.30s .4695
+2D TPS 12 30 100 100 2.2s 7 7 2.9s 7
+3D TPS 125 387 100 100 16s 7 7 30s 7
+TABLE I
+THE TIME TAKEN BY EACH OF THE COST FUNCTIONS TO COMPUTE 100 ITERATIONS OF THE GRADIENT ASCENT ALGORITHM. IN EACH
+CASE THE SHAPES S1 AND S2 HAVE 100 POINTS EACH. THE NUMBER OF CONTROL POINTS USED BY THE TPS FUNCTIONS IS SHOWN IN
+COLUMN 2 AND COLUMN 3 GIVES THE DIMENSION OF THE LATENT SPACE IN EACH CASE.
+dim n1 n2 Ann Steps Cx Cu Cu? Cx,u Cx,u?
+2D Rotation 1 100 100 6 50 43 50 40 48
+3D Rotation 9 100 100 8 220 275 240 390 400
+2D TPS 30 100 100 5 1370 7 7 1500 7
+3D TPS 387 100 100 8 880* 7 7 880* 7
+TABLE II
+THE NUMBER OF ITERATIONS TYPICALLY TAKEN BY EACH ALGORITHM TO REGISTER TWO POINTCLOUDS WITH 100 POINTS EACH.
+THESE FIGURES ARE COMPUTED USING OUR FULL SIMULATED ANNEALING STRATEGY, WITH THE NUMBER OF SIMULATED
+ANNEALLING STEPS USED GIVEN IN COLUMN 5. *NOTE THAT DUE TO THE HIGH DIMENSION OF THE LATENT SPACE, WE LIMITED THE
+NUMBER OF FUNCTION EVALUATIONS IN THIS CASE, THUS LIMITING THE NUMBER OF ITERATIONS ALLOWED. ALTHOUGH A GOOD
+SOLUTION WAS REACHED AFTER THIS MANY ITERATIONS, THE COST FUNCTIONS STILL HAD NOT FULLY CONVERGED.
+n1 n2 Go ICP CPD GLMD
+3D Rotation 100 100 0.78s 32s 7
+2D TPS 100 100 7 0.09s 0.13s
+3D TPS 100 100 7 0.05s 0.12s
+TABLE III
+THE TIME TAKEN, ON AVERAGE, BY THE GO ICP, CPD AND GLMD METHODS TO CONVERGE TO THE CORRECT SOLUTION. FOR CPD,
+THE MSE TOLERANCE CHOSEN FOR 3D ROTATION, 2D TPS AND 3D TPD REGISTRATION WAS THE SAME AS THAT USED IN THE DEMO
+CODE PROVIDED BY AUTHORS. IT WAS SET TO e?8 FOR 3D ROTATION, e?8 FOR 2D TPS AND e?3 FOR 3D TPS, HENCE THE
+DIFFERENCE IN COMPUTATION TIMES.
+them, and giving a better registration result. When the
+estimated transformation is applied to all black pixels
+in the model letter, Cx,u again gives a better result. In
+row 6 and 8 we can see that artifacts can emerge during
+this step, even when the original point clouds have been
+registered almost exactly. This occurs when some points
+inside the boundary curve of the model letter, which are
+not taken into account during registration, get mapped
+outside the boundary contour by the TPS transformation,
+eg. in row 6, column 4, points inside the model letter
+‘V’ have been mapped outside the boundary contour
+when it is transformed to ‘N’. This could be resolved by
+considering points inside the boundary contour during
+registration. We also found that in some cases, neither
+cost function performed well as the model and target
+letters were too different, and an appropriate TPS trans-
+formation could not be estimated that would transform
+one shape into another.
+As the transformations being estimated are paramet-
+ric, we can create new transformations by interpolating
+between solutions. For example, given two solutions ?1
+and ?2, estimated when registering a model letter to
+two different target letters, we can create interpolations
+between the three letters using the new transformation
+?new:
+?new = ?1?Id + ?2?1 + ?3?2, (28)
+where ?Id is the identity transformation and ?i are
+scalars. The pyramids in Figure 7 display samples of
+shapes generated by interpolating between the estimated
+transformations, computed using different values of ?i.
+Similar interpolation results have been presented when
+using optimal transport for colour transfer and shape
+registration. These methods use a discrete grid repre-
+sentation of shapes in 2D and 3D and do not explicitly
+take into account shape connectivity when estimating a
+registration solution [23], [24], [25].
+VIII. CONCLUSION
+We have proposed several cost functions to perform
+registration of shapes encoded with vertex and normal in-
+formation. These were assessed experimentally for rigid
+(rotation) and non-rigid transformation for 2D contours
+and 3D surfaces. We found that our new cost function
+12
+Model Target Cx Cx,u
+Fig. 6. In rows 1, 3, 5 and 7 we present the 50 points extracted
+along the external boundary of the model (col. 1) and target (col.
+2) letters, and the transformation results estimated using Cx (col. 3)
+and Cx,u (col. 4). The connectivity information between points is
+shown, and is used when computing the normal vectors for Cx,u.
+In rows 2, 4, 6 and 8 we show the patterned model letter (col. 1)
+and target letter (col. 2), and the transformed model letters estimated
+using Cx (col. 3) and Cx,u (col. 4). Cx,u outperforms Cx in all cases.
+Artifacts can emerge when transforming the entire model letter using
+a transformation estimated by considering only the boundary contour,
+eg. in row 6, col. 4, points inside the model letter ‘V’ have been
+mapped outside the boundary after transformation to ‘N’.
+Cx,u combining normal and vertex information overall
+outperform others:
+• For rotation estimation (2D & 3D), Cx,u performs
+best overall in terms of accuracy, outperforming Jian
+et al’s cost function Cx [6] as well as CPD [7] and
+Go ICP [8].
+• For 2D shapes differing by ONLY a non-rigid
+transformation we found that all techniques perform
+similarly.
+• For 2D shapes differing by a non-rigid transforma-
+tion AND a rotation, Cx,u outperforms Cx [6] as
+well as CPD [7] and GLMD [17].
+• When partial curves are registered and correspon-
+dences are used, Cx,ucorr also outperforms CPD [7]
+and Cxcorr, giving similar results to GLMD [17].
+However, in the case of 3D shapes differing by a non-
+rigid deformation we found that the high dimensional
+latent space and the small number of control points used
+reduced the accuracy of Cx,ucorr and Cxcorr. As correspon-
+dences were incorporated into both cost functions to
+reduce computational cost, the accuracy of the results
+also depended on the quality of the correspondences
+estimated. The need to compute derivatives and normals
+vectors at each iteration when using Cx,ucorr also increased
+the computational cost of the algorithm. Implementing a
+new optimisation technique which is less time consum-
+ing and could explore the latent space quickly would
+ensure that this type of cost functions could be used
+when the dimension of the space is high. Optimising
+a combination of these cost functions could also prove
+beneficial for robust registration, such as removing the
+rotational difference between shapes using normal infor-
+mation (cost function Cu) before estimating the non-rigid
+transformation with Cx,u.
+ACKNOWLEDGEMENTS
+This work has been supported by a Ussher scholarship from
+Trinity College Dublin (Ireland), and partially supported by
+EU FP7-PEOPLE-2013- IAPP GRAISearch grant (612334).
+REFERENCES
+[1] N. Dalal, B. Triggs, Histograms of oriented gradients for human
+detection, in: Proceedings of the 2005 IEEE Computer Soci-
+ety Conference on Computer Vision and Pattern Recognition
+(CVPR’05) - Volume 1 - Volume 01, CVPR ’05, 2005.
+[2] I. Markovic, I. Petrovic, Bearing-only tracking with a mixture
+of von mises distributions, in: Intelligent Robots and Systems
+(IROS), 2012 IEEE/RSJ International Conference on, 2012, pp.
+707–712. doi:10.1109/IROS.2012.6385600.
+[3] J. Traa, P. Smaragdis, Multiple speaker tracking with the
+factorial von mises-fisher filter, in: IEEE INTERNATIONAL
+WORKSHOP ON MACHINE LEARNING FOR SIGNAL
+PROCESSING, REIMS, FRANCE, 2014.
+[4] R. Fisher, Dispersion on a sphere, Proceedings of the
+Royal Society of London A: Mathematical, Physical
+and Engineering Sciences 217 (1130) (1953) 295–305.
+arXiv:http://rspa.royalsocietypublishing.
+org/content/217/1130/295.full.pdf,
+doi:10.1098/rspa.1953.0064.
+URL http://rspa.royalsocietypublishing.org/content/217/1130/
+295
+[5] A. Hasnat, Unsupervised 3d image clustering and extension to
+joint color and depth segmentation, Ph.D. thesis, Universite? Jean
+Monnet de Saint-Etienne, France (2014).
+[6] B. Jian, B. Vemuri, Robust point set registration using gaussian
+mixture models, Pattern Analysis and Machine Intelligence,
+IEEE Transactions on 33 (8) (2011) 1633–1645. doi:10.
+1109/TPAMI.2010.223.
+[7] A. Myronenko, X. Song, Point set registration: Coherent point
+drift, IEEE Transactions on Pattern Analysis and Machine
+Intelligence 32 (12) (2010) 2262–2275. doi:10.1109/
+TPAMI.2010.46.
+[8] J. Yang, H. Li, Y. Jia, Go-icp: Solving 3d registration efficiently
+and globally optimally, in: 2013 IEEE International Conference
+on Computer Vision, 2013, pp. 1457–1464. doi:10.1109/
+ICCV.2013.184.
+13
+(a) Using Cx (b) Using Cx,u
+Fig. 7. Curve registration and interpolation results generated using (a) Cx and (b) Cx,u. In both cases, Cx and Cx,u are used to register
+the model letter ‘L’ (red) to target letters ‘V’ and ‘Z’ (green). The registration results after transformation using the estimated parameters
+?1 and ?2 are outlined in blue, showing that Cx,u performs better than Cx when registering ‘L’ to ‘Z’. In both cases, new shapes can be
+created by interpolating between the model shape ‘L’ and its transformations into ‘V’ and ‘Z’. These are shown in the pyramids.
+[9] D. W. Scott, Parametric statistical modeling by minimum inte-
+grated square error, Technometrics 43 (3) (2001) pp. 274–285.
+URL http://www.jstor.org/stable/1271214
+[10] C. Arellano, R. Dahyot, Robust ellipse detection with gaus-
+sian mixture models, Pattern Recognitiondoi:10.1016/j.
+patcog.2016.01.017.
+[11] M. Grogan, M. Prasad, R. Dahyot, L2 registration for colour
+transfer, in: Proceedings of the 23rd European Signal Processing
+Conference (EUSIPCO), EUSIPCO ’15, Nice, France, 2015, pp.
+2366–2370.
+[12] M. Grogan, R. Dahyot, L2 registration for colour transfer in
+videos, in: Proceedings of the 12th European Conference on Vi-
+sual Media Production, CVMP ’15, ACM, New York, NY, USA,
+2015, pp. 16:1–16:1. doi:10.1145/2824840.2824862.
+URL http://doi.acm.org/10.1145/2824840.2824862
+[13] M. Grogan, R.Dahyot, Robust registration of gaussian mixtures
+for colour transfer, Tech. rep., https://arxiv.org/abs/1705.06091
+(2017).
+[14] S. Rusinkiewicz, M. Levoy, Efficient Variants of the ICP Algo-
+rithm, in: International Conference on 3-D Imaging and Model-
+ing, 2001, pp. 145–152. doi:10.1109/IM.2001.924423.
+[15] Y. Zheng, D. Doermann, Robust point matching for nonrigid
+shapes by preserving local neighborhood structures, Pattern
+Analysis and Machine Intelligence, IEEE Transactions on 28 (4)
+(2006) 643–649. doi:10.1109/TPAMI.2006.81.
+[16] J. H. Lee, C. H. Won, Topology preserving relaxation labeling
+for nonrigid point matching, IEEE Transactions on Pattern
+Analysis and Machine Intelligence 33 (2) (2011) 427–432.
+doi:10.1109/TPAMI.2010.179.
+[17] Y. Yang, S. H. Ong, K. W. C. Foong, A robust global and local
+mixture distance based non-rigid point set registration, Pattern
+Recogn. 48 (1) (2015) 156–173. doi:10.1016/j.patcog.
+2014.06.017.
+URL http://dx.doi.org/10.1016/j.patcog.2014.06.017
+[18] H. Guan, W. A. P. Smith, Structure-from-motion in spherical
+video using the von mises-fisher distribution, IEEE Transactions
+on Image Processing 26 (2) (2017) 711–723. doi:10.1109/
+TIP.2016.2621662.
+[19] R. Hoffman, A. K. Jain, Segmentation and classification of
+range images, IEEE Transactions on Pattern Analysis and
+Machine Intelligence PAMI-9 (5) (1987) 608–620. doi:
+10.1109/TPAMI.1987.4767955.
+[20] H. Hoppe, T. DeRose, T. Duchamp, J. McDonald, W. Stuetzle,
+Surface reconstruction from unorganized points, SIGGRAPH
+14
+Comput. Graph. 26 (2) (1992) 71–78. doi:10.1145/
+142920.134011.
+URL http://doi.acm.org/10.1145/142920.134011
+[21] R. W. Sumner, J. Popovic?, Deformation transfer for triangle
+meshes, ACM Trans. Graph. 23 (3) (2004) 399–405. doi:
+10.1145/1015706.1015736.
+URL http://doi.acm.org/10.1145/1015706.1015736
+[22] J. Lu, C. Barnes, C. Wan, P. Asente, R. Mech, A. Finkelstein,
+DecoBrush: Drawing structured decorative patterns by example,
+in: ACM Transactions on Graphics (Proc. SIGGRAPH), 2014.
+[23] J. Solomon, F. de Goes, G. Peyre?, M. Cuturi, A. Butscher,
+A. Nguyen, T. Du, L. Guibas, Convolutional wasserstein dis-
+tances: Efficient optimal transportation on geometric domains,
+ACM Trans. Graph. 34 (4) (2015) 66:1–66:11. doi:10.
+1145/2766963.
+URL http://doi.acm.org/10.1145/2766963
+[24] N. Bonneel, G. Peyre?, M. Cuturi, Wasserstein barycentric co-
+ordinates: Histogram regression using optimal transport, ACM
+Trans. Graph. 35 (4) (2016) 71:1–71:10. doi:10.1145/
+2897824.2925918.
+URL http://doi.acm.org/10.1145/2897824.2925918
+[25] N. Bonneel, J. Rabin, G. Peyr, H. Pfister, Sliced and radon
+wasserstein barycenters of measures, Journal of Mathematical
+Imaging and Vision 51 (1) (2015) 22–45. doi:10.1007/
+s10851-014-0506-3.
+URL http://dx.doi.org/10.1007/s10851-014-0506-3
+[26] M. Grogan, Colour transfer and shape registration using func-
+tional data representations, Ph.D. thesis, Trinity College Dublin,
+Ireland (2017).
+APPENDIX
+The product of two von Mises-Fisher distributions,
+vMF1 = Vd(u;µ1, ?1) and vMF2 = Vd(u;µ2, ?2) can
+be written:
+vMF1 × vMF2 = Cd(?1) Cd(?2)
+× exp
+(
+??1µ1 + ?2µ2?
+uT (?1µ1 + ?2µ2)
+??1µ1 + ?2µ2?
+)
+(29)
+In other words, the product vMF1 × vMF2 is propor-
+tional to vMF = Vd(u;µ, ?) such that:
+vMF1 × vMF2 =
+Cd(?1) Cd(?2)
+Cd(?)
+vMF (30)
+with ? = ??1µ1 + ?2µ2? and µ = ?1µ1+?2µ2??1µ1+?2µ2? . Since
+vMF integrates to 1, the scalar product between vMF1
+and vMF2 can be defined as:
+?vMF1|vMF2? =
+?
+u?Sd?1
+vMF1 × vMF2 du
+=
+Cd(?1) Cd(?2)
+Cd(?)
+(31)
+The scalar product between two von Mises-Fisher dis-
+tributions can therefore be easily computed when an
+explicit expression for the function Cd(?) is available
+(e.g. equation (6) for d = 3). Alternatively numerical
+integration can be used as an approximation to equation
+(5) for any value d > 1.
+u ? Sd?1
+?(u? µ1) vMF (µ1, ?1)
+?(u? µ2) 7 Cd(?1) exp(?1 µT1 µ2)
+vMF (µ2, ?2) Cd(?2) exp(?2 µ
+T
+2 µ1)
+Cd(?1) Cd(?2)
+Cd(??1µ1+?2µ2?)
+x ? Rd
+?(x? µ1) N (x;µ1, h21)
+?(x? µ2) 7 N (µ1;µ2, h21), [9]
+N (x;µ2, h22) N (µ1;µ2, h22), [9] N (µ1;µ2, h21 + h22) [6]
+TABLE IV
+SCALAR PRODUCTS FOR GAUSSIAN (N ), VON MISES-FISHER
+(vMF ) AND DIRAC (?) KERNELS.
+When modelling axial symmetric data the bimodal
+form of the von Mises-Fisher distribution could be used.
+The scalar product of two such distributions follows from
+Equation (31).
+We propose modelling shape vertices and their nor-
+mals using a combination of Dirac, von Mises-Fisher and
+Normal kernels. Computing the L2 distance between the
+proposed KDEs relies on the scalar products between
+their associated kernels. All of these scalar products are
+summarised in Table IV.

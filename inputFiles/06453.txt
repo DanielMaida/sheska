@@ -1,0 +1,858 @@
+Sharpness-aware Low dose CT denoising using conditional
+generative adversarial network
+Xin Yi, Paul Babyn
+Department of Medical Imaging, University of Saskatchewan, Saskatoon, SK, Canada
+Abstract
+Low Dose Computed tomography (CT) has offered tremendous benefits in radi-
+ation restricted applications, but the quantum noise as resulted by the insufficient
+number of photons could potentially harm the diagnostic performance. Current
+image-based denoising methods tend to produce a blur effect on the final recon-
+structed results especially in high noise levels. In this paper, a deep learning
+based approach was proposed to mitigate this problem. An adversarially trained
+network and a sharpness detection network were trained to guide the training pro-
+cess. Experiments on both simulated and real dataset shows that the results of the
+proposed method have very small resolution loss and achieves better performance
+relative to the-state-of-art methods both quantitatively and visually.
+Keywords: Low Dose CT, Denoising, Conditional Generative Adversarial
+Networks, Deep learning, sharpness
+1. Introduction
+The use of Computed Tomography (CT) has rapidly increased over the past
+decade, with an estimated 80 million CT scans performed in 2015 in the United
+States [1]. Although CT offers tremendous benefits, its use has lead to significant
+concern regarding radiation exposure. To address this issue, the as low as reason-
+ably achievable (ALARA) principle has been adopted to avoid excessive radiation
+dose for the patient.
+However diagnostic performance should not be compromised when lowering
+the radiation dose. One of the most effective ways to reduce radiation dose is to
+reduce tube current, which has been adopted in many imaging protocols. How-
+ever, low dose CT (LDCT) inevitably introduces more noise than conventional CT
+(convCT), which may potentially impede subsequent diagnosis or require more
+advanced algorithms for reconstruction. Many works have been devoted to CT
+denoising with promising results achieved by a variety of techniques, including
+1
+ar
+X
+iv
+:1
+70
+8.
+06
+45
+3v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+2 
+A
+ug
+ 2
+01
+7
+those in the image, sinogram domains and iterative reconstruction techniques.
+One recent technique of increasing interest is deep learning (DL).
+DL has been shown to exhibit superior performance on many image related
+tasks, including low level edge detection [2], image segmentation [3], and high
+level vision problems including image recognition [4], and image captioning [5],
+with these advances now being brought into the medical domain [6, 7, 8, 9]. In
+this paper, we explore the possibility of applying generative adversarial neural net
+(GAN) [10] to the task of LDCT denoising.
+In many image related reconstruction tasks, e.g. super resolution and inpaint-
+ing, it is known that minimizing the per-pixel loss between the output image and
+the groundtruth alone generate either blurring or make the result visually not ap-
+pealing [11, 12, 13]. We have observed the same effect in the traditional neural
+network based CT denoising works [6, 7, 8, 9]. The adversarial loss introduced
+by GAN can be treated as a driving force that can push the generated image to
+reside in the manifold of convCT, thus reducing the bluring effect as caused by us-
+ing per-pixel loss to some extent. Furthermore, an additional sharpness detection
+network was also introduced to measure the sharpness of the denoised image, with
+focus on low contrast regions. SAGAN (sharpness-aware generative adversarial
+network) will be used to denote this proposed denoising method in the remainder
+of the paper.
+2. Related Works
+LDCT Denoising algorithms can be broadly categorized into three groups,
+those conducted within the sinogram or domains and iterative reconstruction meth-
+ods (which iterate back and forth across the sinogram and image domains).
+The CT sinogram represent the attenuation line integrals from the radial views
+and is the raw projection data in the CT scan. Since the sinogram is also a 2-
+D signal, traditional image processing techniques have been applied for the noise
+reduction, such as bilateral filtering [14], structural adaptive filtering [15], etc. The
+filtered data can then be reconstructed to a CT image with methods like filtered
+back projection (FBP). Although the statistical property of the noise can be well
+characterized, these methods require the availability of the raw data which is
+not always accessible. In addition, by application of edge preservation smoothing
+operations (bilateral filtering), small edges would inevitably be filtered out and
+lead to loss of structure and spatial resolution in the reconstructed CT image.
+Note that the above method only performs a single back projection to re-
+construct the original image. Another stream of works performs an additional
+forward projection, mapping the reconstructed image to the sinogram domain
+by modelling the acquisition process. Corrections can be made by iterating the
+2
+forward and backward process. This methodology is referred as model-based it-
+erative reconstruction (MBIR). Usually, MBIR methods model scanner geometry
+and physical properties of the imaging processing, e.g. the photon counting statis-
+tics and the polychromatic nature of the source x-ray [16]. Some works add prior
+object information to the model to regulate the reconstructed image, such as to-
+tal variation minimization [17, 18], Markov random fields based roughness or a
+sparsity penalty [19]. Due to its iterative nature, MBIR models tend to consume
+excessive computation time for the reconstruction. There are works that are trying
+to accelerate the convergence behaviour of the optimization process, for example,
+by variable splitting of the data fidelity term [20] or by combining Nesterov’s mo-
+mentum with ordered subsets method [21].
+To employ the MBIR method, one also has to have access to the raw sino-
+gram data. Image-based denosing methods do not have this limitation. The
+input and output are both images. Many of the denoising methods for LDCT are
+borrowed from natural image processing field, such as Non-Local means [22] and
+BM3D [23]. The former one computes the weighted average of similar patches
+in the image domain while as the latter one is computed in a transform domain.
+Both methods assume the redundancy of image information. Inspired by these
+two seminal works, many applications have emerged applying them into low dose
+CTs [24, 25, 26, 27, 28, 29, 30]. Another line of work focuses on compressive sens-
+ing, with the underlying assumption that every local path can be represented as a
+sparse combination of a set of bases. In the very begining, the bases are from some
+generic analytic transforms, e.g. discrete gradient, contourlet [31], curvelet [32].
+Chen et al. built a prior image constrained compressed sensing (PICCS) algorithm
+for dynamic CT reconstruction under reduced views based on discrete gradient
+transform [33]. It has been found that these transforms are very sensitive to both
+true structures and noises. Later on, bases learned directly from the source images
+were used with promising results being achieved. Algorithms like K-SVD [34] have
+made the dictionary learning very efficient and has inspired many applications in
+the medical domain [35, 36, 37, 33, 38].
+Convolutional neural network (CNN) based methods have recently achieved
+great success in image related tasks. Although its origins can be traced back to the
+80s, the resurgence of CNN can be greatly attributed to increased computational
+power and recently introduced techniques for efficient training of deep networks,
+such as BatchNorm [39], Rectifier linear units [40] and residual connection [4].
+Chen et al. [7] first used CNN to denoise CT images by learning a patch-based
+neural net and later on refined it with a encoder and decoder structure for end-
+to-end training [8]. Kang et al. [9] devised a 24 convolution layer net with by
+pass connection and contracting path for denoising but instead of mapping in the
+image domain, it performed end-to-end training in the wavelet domain. Yang et
+3
+al. [6] adopted perceptual loss into the training, which measures the difference of
+the processed image and the ground truth in a high level feature space projected
+by a pre-trained CNN.
+Generative adversarial network was first introduced in 2014 by Goodfel-
+low et al. [10]. It is a generative model trying to generate real world images by
+employing a min-max optimization framework where two networks (Generator G
+and Discriminator D) are trained against each other. G tries to synthesize real
+appearing images from random noise whereas D is trying to distinguish between
+the generated and real images. If the Generator G get sufficiently well trained, the
+Discriminator D will eventually be unable to tell if the generated image is fake or
+not.
+The original setup of GAN does not contain any constraints to control what
+modes of data it can generate. However, if auxiliary information were provided
+during the generation, GAN can be driven to output images with specific modes.
+GAN in this scenario is usually referred as conditional GAN (cGAN) since the out-
+put is conditioned on additional information. Mirza et al. [41] supplied class label
+encoded as one hot vector to generate MINIST digits. Other works have exploited
+the same class label information but with different network architecture [42, 43].
+Reed et al. [44, 45] fed GAN with text descriptions and object locations. Isola
+et al. proposed to do a image to image translation with GAN by directly supply
+the GAN with images [46]. In this framework, training images must be aligned
+image pairs. Later on, Zhu et al. relaxed this restriction by introducing the cy-
+cle consistency loss so that images can be translated between two sets of unpaired
+samples [47]. But as also mentioned in their paper, the paired training remains the
+upper bound. Pathak et al. [48] generated missing image patches conditioned on
+the surrounding image context. Sangkloy et al. [49] generated images constrained
+by the sketched boundaries and sparse color strokes. Shrivastava et al. refined
+synthetic images with GAN trying to narrowing the gap between the synthetic
+images and real image [50]. Walker et al. adopted a cGAN by conditioning on
+the predicted future pose information to synthesize future frames of a video [51].
+In this work, the denoised image is generated by conditioning on the low dose
+counterparts.
+Sharpness Detection The sharpness detection network should be sensitive
+to low contrast regions. Traditional methods based on local image energy have
+intrinsic limitations which is the sensitivity to both the blur kernel and the image
+content. Recent works have proposed more sophisticated measures by exploiting
+the statistic differences of specific properties of blur and sharp region, e.g. gradi-
+ent [52], local binary pattern [3], power spectrum slope [52, 53], Discrete Cosine
+Transform (DCT) coefficient [54]. Shi et al. used sparse coding to decompose local
+path and quantize the local sharpness with the number of reconstructed atoms [55].
+4
+There are researches trying to directly estimate the blur kernel but the estimated
+map tend to be very coarse and the optimization process is very time consum-
+ing [56, 57]. There are other works that can produce a sharpness map, such as
+in depth map estimation [58], blur segmentation [59], but the depth map is not
+necessarily corresponding to the amount of sharpness and they tend to highlight
+blurred edges or insensitive to the change of small amount of blur. In this work,
+we adopted the method of [3] given its sensitivity to low contrast region. Detailed
+description can be found in section 3.2.3.
+3. Methods
+Figure 1: Overview of SAGAN. G is the generator that is responsible for the denoising. D is the
+descriminator employed to discriminate the denoised and real image pairs during training. S is
+sharpness detection network and used to compare between the sharpness of the generated and
+real image.
+3.1. Objective
+As shown in Figure 1, SAGAN consists three networks, the generator G,
+discriminator D and the sharpness detection network S. G learns a mapping
+G : {x, z} ? y?, where x is the LDCT the generator is conditioned upon and
+z is a random noise vector. y? is the denoised CT that is expected to be as close as
+to the convCT y. D’s objective is to discriminate the denoised image pair (x, y?)
+from the real one (x, y). Note that here D is conditioned upon both the LDCT and
+convCT. The training of G against D forms the adversarial part of the objective,
+which can be expressed as
+Ladv(G,D) = Ex,y?pdata(x,y)[(D(x, y)? 1)
+2] + Ex?pdata(x),z?pz(z)[D(x, y?)
+2],
+5
+where pz(z) is the prior distribution of the noise z.
+G is trying to minimize the above objective whereas D is trying to maximize it.
+Note that we adopt the least square loss instead of cross entropy loss in the above
+formulation because the least square loss tend to generate better images [60]. This
+loss is usually accompanied by traditional pixel-wise loss to encourage data fidelity
+for G, which can be expressed as
+LL1(G) = Ex,y?pdata(x,y),z?pz(z)[||y ? y?||L1 ],
+Moreover, we proposed a sharpness detection network to explicitly evaluate the
+denoised image’s sharpness. The generator now not only has to fool the discrimi-
+nator and generate a image as close as to the groundtruth in a L1 sense, but also
+has to generate a similar sharpness map as close as to the groundtruth. With S
+denoting the mapping from the input to the sharpness map, the sharpness loss can
+be expressed as:
+Lsharp(G) = Ex,y?pdata(x,y),z?pz(z)[||S(y?)? S(y)||L2 ],
+Combining these three losses together, the final objective of SAGAN is
+LSAGAN = arg min
+G
+max
+D
+(Ladv(G,D) + ?1LL1(G) + ?2Lsharp(G)),
+where ?1 and ?2 are the weighting terms to balance the losses. In practice, people
+have found that the adding of noise in this setup tends to be not effective [46, 61].
+Therefore, in the implementation we have discarded z so that the network only
+produces deterministic output.
+3.2. Network Architecture
+3.2.1. Generator
+There are several different variants of generator architecture that have been
+adopted in the literature for image-to-image translation tasks; the Encoder-Decoder
+structure [62], the U-Net structure [63, 46], the Residual net structure and one for
+removing of rain drops (denoted as Derain) [13]. The Encoder-Decoder structure
+has a bottleneck layer that requires all the information pass through it. The infor-
+mation consolidated by the encoder only encrypts the global structure of the input
+while discarding the textured details. U-Net is similar to this architecture with a
+slight difference in that it adds skip connections from encoder to decoder so that
+details will not be missed [63]. The residual components with skip connection,
+first introduced by He et al. [4] is claimed to be better for the training of very deep
+networks. Therefore, many works have tried to incorporate it into the generator
+architecture [49, 13, 47, 64]. For applications where the conditioned input and
+output differs in a large parts, e.g. in style transfer and generating segmentation
+6
+Figure 2: Proposed generator of the SAGAN. The residual block in the center of the network is
+repeated K times and K was chosen as 9 for the experiment.
+maps from image, people tend to use large effective receptive field and step size
+to shrink the first stage feature map [64]. However, for noise removal, the changes
+are more local and non-uniform. Therefore, we adopted the unet256 structure
+with stride of 1 with no downsampling for the first stage feature extraction. We
+also incorporate several layers of the residual connection in the bottle neck layers
+for stabilizing the training of the network. Note that the feature of the bottle-
+neck layers’ spatial dimension is not reduced to 1 × 1 as in the Encoder-Decoder
+structure to reduce the model size (similar to SegNet [65]) and we do not observe
+any significant performance drop by doing this. The architecture can be seen in
+Figure 2. An experiment to compare the different generator architecture can be
+found in section 5.1.
+3.2.2. Discriminator
+The objective of the discriminator is to tell the difference between the denoised
+image pair and the real image pairs. Here, we adopt the PatchGAN structure
+from pix2pix framework [46], where instead of classifying the whole image as real
+or fake, it will focus on overlaped image patches. By using G alone with L1 or
+L2 loss, the architecture would degrade to the traditional CNN-based denoising
+methods.
+7
+3.2.3. Sharpness detection network
+Bluring of the edges are a major problem faced by many image denoising meth-
+ods. For traditional denoising methods using non-linear filtering, the edges will be
+inevitably blurred no matter by averaging out neighbouring pixels or self-similar
+patches. It is even worse in high noise settings whereas noise can also produce
+some edge-like structures. Neural network based methods could also suffer the
+same problem if optimizing the pixel-wise differences between the generated image
+and the ground truth, because the result that averages out all possible solutions
+end up giving the best quantitive measure. The adversarial loss used introduced
+by the discriminator of GAN is able to output a much sharper and recognizable
+image from the candidates. However, the adversarial loss does not guarantee the
+images to be sharply reconstructed, especially for low contrast regions.
+We believe that auxiliary guided information should be provided to the genera-
+tor so that it can recover the underlying sharpness of the low contrast regions from
+the contaminated noisy image. Therefore, in this work, an independent sharpness
+detection network S was trained specifically for this problem. During the training
+of SAGAN, the denoised image from G is sent to S and the output sharpness map
+is compared with the map of the ground truth image. We compute the mean
+square error between the two sharpness maps and this error was backpropagated
+through the generator to update its weights.
+4. Experiment Setup
+The proposed SAGAN was applied to both simulated low dose and real low
+dose CT images to evaluate its effectiveness. In both settings, peak signal to noise
+ratio (PSNR) and structured similarity index (SSIM) [66] were adopted as the
+quantitive metrics for the evaluation. The former metric is commonly used to
+measure the pair-wise difference of two signals whereas the SSIM is claimed to
+better conform to the human visual perception and more robust to misalignment
+of the input signals. For the real dataset, the signal-to-noise-ratio (SNR) was also
+used as a direct measure of the noise level.
+4.1. Simulated Dataset
+In this dataset, 239 normal dose CT images were downloaded from the National
+Cancer Imaging Archive (NBIA). Each image has a size of 512 × 512 covering
+different parts of the human body. A fan-beam geometry was used to transform
+the image to the sinogram, utilizing 937 detectors and 1200 views.
+The photons hitting the detector are usually treated as Possion distributed.
+Together with the electrical noise which starts to gain prominence in low dose
+cases and is normally Gaussian distributed, the detected signal can be expressed
+8
+N0 = 10000 N0 = 30000 N0 = 50000 N0 = 100000
+convCT
+simulated LDCT
+Figure 3: Sample images from the simulated dataset. First row shows the original convCT. Sec-
+ond row shows the simulated low dose image with N0 = 10000, 30000, 50000, 100000 respectively.
+as:
+N ? Poisson(N0exp(?y)) + Gaussian(0, ?2e), (1)
+where N0 is the X-ray source intensity or sometimes called blank flux, y is the
+sinogram data, and ?e is the standard deviation of the electrical noise [25, 67].
+The blank scan flux N0 was set to be 1×105, 5×104, 3×104, 1×104 to simulate
+effect of different dose levels and the electrical noise was discarded for simplicity.
+Since the network used is fully convolutional, the input can be of different size.
+Each image was further divided into four 256 × 256 sub-images to boost the size
+of the dataset. 700 out of the resultant 956 sub-images were randomly selected
+as the training set and the remaining 64 full images were used as the test set.
+Some sample images are shown in Figure 3. Note that the simulated dose here is
+generally lower than that of [8].
+4.2. Real Dataset
+CT scans of a deceased piglet were obtained with a range of different doses
+utilizing a GE scanner (Discovery CT750 HD) using 100 kVp source potencial and
+0.625 mm slice thickness. A series of tube currents were used in the scanning to
+produce images with different dose levels, ranging from 300 mAs down to 15 mAs.
+The 300mAs served as the normal full dose whereas the others served as LDCTs
+with tube current reductions of 50%, 25%, 10% and 5% respectively. At each
+dose level we obtained 850 images of a size 512 × 512 in total. 708 of them were
+selected for training and 142 for testing. As for the simulated dataset, the training
+size of the real dataset was boosted by dividing each image into four 256 × 256
+sub-images, giving us 2832 images in total for training.
+9
+Dose level Full 50% 25% 10% 5%
+Tube current (mAs) 300 150 75 30 15
+CTDIvol (mGy) 30.83 15.41 7.71 3.08 1.54
+DLP (mGy-cm) 943.24 471.62 235.81 94.32 47.16
+Effective dose
+(mSv)
+14.14 7.07 3.54 1.41 0.71
+(a) Doses used for the piglet dataset. In all 5 series, tube potential was 100 kV with 0.625 mm
+slice thickness. Tube currents were decreased to 50%, 25%, 10%, 5% of full dose tube current
+(300mAs) to obtained images with different doses.
+Scan series Full 3.33%
+Tube current (mAs) 300 10
+CTDIvol (mGy) 26.47 0.88
+(b) Doses used for the Catphan 600 dataset. In all 5 series, tube potential is 120 kV with 0.625
+mm slice thickness.
+Table 1: Detailed doses for the piglet and phantom datasets.
+A CT phantom (Catphan 600) was scanned to evaluate the spatial resolution
+of the reconstructed image, using 120 kV and 0.625mm slice thickness. For this
+dataset, only two doses were used. The one with 300 mAs served as the convCT
+and the one with 10mAs served as the LDCT. The detailed doses is provided in
+Table 1.
+A couple of experiments were conducted. In the first experiment, we evaluated
+the effect of the generator by using a simulated dataset. The spatial resolution
+was evaluated with the Catphan 600 dataset and the proposed SAGAN was also
+applied on the piglet dataset to test its generalizability on real quantum noise.
+Two state-of-the-art methods: BM3D, K-SVD from two major line of traditional
+image denoising methods were selected for the comparison. For the real dataset,
+the available CT manufacture iterative reconstruction methods, ASIR (40%) and
+VEO were also compared. All experiments on the real dataset are based on the
+full range dicom image.
+4.3. Implementation Details
+4.3.1. Training of SAGAN
+All the networks are trained on the Guillimin cluster of Calcul quebec and the
+Cedar cluster of Compute Canada. Adam optimizer [68] with ?1 = 0.5 was used
+for the optimization with learning rate 0.0001. The generator and discriminator
+was trained alternatively across the training with k = 1 as similar in [10]. The
+10
+convCT ? = 0.5 ? = 1.0 ? = 1.5 ? = 2.0
+Figure 4: The output of the sharpness detection network. The upper row is the convCT of a
+lung region selected from the piglet dataset and its blurred versions with increasing amount of
+Gaussion blur (? shown on top). The lower row shows their corresponding sharpness map.
+implementation was based on the Torch framework. The training images have size
+of 256 × 256 whereas the testing is with full size 512 × 512 CT images. All the
+networks here are trained to 200 epochs. ?1 was set to be 100 and ?2 to 0.001. For
+the simulated dataset, one SAGAN was trained for each simulated dose. For the
+real dataset, a single SAGAN was trained on the combined training set including
+both piglet and phantom dataset (this results shown here for the real dataset are
+from the 100 epochs, will update once the training is finished).
+4.3.2. Training of the sharpness detection network
+The sharpness detection network follows the work of Yi et al. [3]. In that work,
+Yi et al. used a non-differentiable analytic sharpness metric to quantify the local
+sharpness of a single image. Here in this work, we trained a neural network to
+imitate its behaviour. To be more specific, the defocus segmentation dataset [69]
+that contains 704 defocused images was adopted for the training. 5 subimages of
+size 256× 256 were sampled from the 4 corners and centre of each defocus image
+to boost the size of the training set. For the training of the sharpness detection
+network, the unet256 structure was adopted and the sharpness map created by the
+local sharpness metric of [3] was used for regression. Adam optimizer [68] with
+?1 = 0.5 was also used for the optimization with learning rate also 0.0001. Some
+sample images and their sharpness map can be seen in Figure 4.
+11
+LDCT convCT unet256 res9 derain proposed
+Figure 5: Evaluation of the generator architecture. LDCT is with N0 = 10000.
+5. Results
+5.1. Analysis of the generator architecture
+A variety of generator architectures were evaluated, including unet256 [63],
+res9 [64], Derain [13]. In the analysis, only the architecture of the generator was
+modified. The discriminator was fixed to be the patchGAN with patch size of
+70 × 70 [46]. The sharpness network was not incorporated in this experiment for
+simplicity.
+The quantitive results were shown in Table 2. As can be seen that the Res9
+had the highest PSNR and SSIM among its comparators. It seems to be the best
+architecture at hand. But by reviewing the denoised image visually from Figure 5,
+you can see that res9 actually gives the smoothest outlook. We would attribute
+this to the large receptive filed used in the first layer of its architecture. Derain has
+the lowest measure value and the resulted image has some grainy artifacts across
+the image. We think it is because the derain architecture does not shrink the
+spatial size of the feature map during processing. It is useful to preserve details
+of the image and maintain a sharp appearance, but less effective to remove noise
+which has relatively small texture as compared to rain drops. The result of unet256
+and the proposed one has comparable quantitive results. But the advantage of the
+proposed architecture is that the number of network parameters (24M) is almost
+5 times smaller than that of unet256 (109M).
+Generator
+Archetecture
+N0 = 10000 N0 = 30000 N0 = 50000 N0 = 100000
+PSNR
+18.3346
+SSIM
+0.7557
+PSNR
+21.6793
+SSIM
+0.7926
+PSNR
+23.1568
+SSIM
+0.8119
+PSNR
+24.8987
+SSIM
+0.8387
+unet256 25.8217 0.8392 26.8945 0.8595 27.0749 0.8640 27.5084 0.8751
+res9 26.2855 0.8448 27.6102 0.8701 28.1629 0.8763 28.3741 0.8887
+derain 24.3202 0.8208 26.5170 0.8529 27.5219 0.8678 28.1673 0.8796
+proposed 25.7950 0.8400 27.0859 0.8586 27.6007 0.8663 28.4161 0.8826
+Table 2: Comparison of different generator architecture on the simulated dataset. The input
+noise level in terms of PSNR and SSIM is shown in the top row.
+12
+LDCT convCT w/o sharpness loss w sharpness loss BM3D K-SVD
+Figure 6: Visual examples to compare the effectiveness of the proposed sharpness loss. 3 selected
+anatomic regions are shown in each column with zoomed window providing more detail.
+5.2. Analysis of the sharpness loss
+In this experiment, we evaluated the effectiveness of the sharpness loss. Table 3
+shows quantitive results before and after applying the sharpness detection network.
+The values in term of PSNR and SSIM are comparable to each other. The reason
+can be explained by the competition of the data fidelity loss and the sharpness
+loss. However, visual examples shown in Figure 6 clearly demonstrates that the
+sharpness loss excels at suppressing noises on small structures without introducing
+too much blurring.
+Methods
+N0 = 10000 N0 = 30000 N0 = 50000 N0 = 100000
+PSNR
+18.3346
+SSIM
+0.7557
+PSNR
+21.6793
+SSIM
+0.7926
+PSNR
+23.1568
+SSIM
+0.8119
+PSNR
+24.8987
+SSIM
+0.8387
+w/o sharpness loss 25.7950 0.8400 27.0859 0.8586 27.6007 0.8663 28.4161 0.8826
+w sharpness loss 25.9336 0.8403 26.9864 0.8572 27.5792 0.8665 28.0455 0.8769
+BM3D 24.0038 0.8202 25.6046 0.8485 26.0913 0.8589 26.7598 0.8726
+K-SVD 21.9578 0.7665 24.0790 0.8167 25.0425 0.8379 26.0902 0.8620
+Table 3: Quantitive evaluation of the sharpness-aware loss.
+13
+LDCT convCT SAGAN VEO BM3D KSVD
+Figure 7: Visual comparison of the spatial resolution on the CTP 528 high contrast module of
+the Catphan 600. Images are trained and tested on the full range Dicom image. Display window
+is [40, 400]. Line profiles along the red line are shown in Figure 8.
+5.3. Denoising results on simulated dataset
+As can be also seen from Table 3 and Figure 6, the performance of SAGAN
+in terms of PSNR and SSIM is better than BM3D and K-SVD in all noise levels.
+For the visual appearance, SAGAN is also sharper than BM3D and K-SVD and
+can recover more details. K-SVD could not remove all the noises and sometimes
+make the resultant image very blocky. In the zoomed region of row 3 of Figure 6,
+the two top left bubbles are merged and blurred by BM3D whereas SAGAN can
+reconstruct it properly. K-SVD has a lot of line artifacts around the bubble. The
+streak artifact is another problem faced by BM3D in high quantum noise level as
+has already been pointed out by many works [8, 9].
+5.4. Denoising results on Catphan 600
+Figure 7 gives the denoised visual result for the CTP 528 high contrast module
+of the Catphan 600. The 4-line pairs is clearly distinguishable for convCT but
+not for 5-line pairs. We can observed these line pairs equally well on SAGAN
+reconstructed images which suggests that the amount of spatial resolution loss is
+very small. Figure 8 shows the line profile along the line drawn across the 3 and
+4-line pairs. 30 points were sampled along the drawn line. SAGAN is the one
+among the comparative methods that achieves the highest spatial resolution. K-
+SVD behaves slightly better than BM3D and VEO demonstrates the lowest spatial
+resolution.
+5.5. Denoising results on the real piglet dataset
+Here we plotted a line graph of the PSNR and SSIM against the dosage in
+Figure 10 for all the comparator methods. It can be seen that all methods except
+VEO have their performance improved with the increase of dose in terms of PSNR.
+The abnormal behaviour of VEO is resulted by the slight misalignment of image
+sequences in the two highest doses, especially for the 25%. SSIM is less affected
+because it penalizes local structures rather than the pixel-wise difference. Figure 9
+shows some visual examples from different anatomic region (from head to pelvis)
+at the lowest dose and their reconstruction by all the comparator methods. We can
+14
+5-lp
+/cm
+4-lp/cm
+0 10 20 30
+0
+200
+400
+600
+Point
+C
+T
+N
+u
+m
+b
+er
+(H
+U
+)
+0 10 20 30
+0
+200
+400
+Point
+C
+T
+N
+u
+m
+b
+er
+(H
+U
+)
+VEO LDCT ConvCT BM3D SAGAN K-SVD
+Figure 8: Line profile for the 4-line pair per centimeter (left) and 5-line pair per centimeter
+(right).
+15
+see clearly that SAGAN produces results that are more visually appealing than
+the others.
+Figure 11 shows the mean standard deviation of CT numbers on 42 hand
+selected rectangular homogeneous regions as a direct measure of noise level. The
+red horizontal dashed line is the performance of the convCT and serves as reference
+and it can be seen that all commercial methods do not surpass the reference line.
+In general, the standard deviation of SAGAN results are pretty constant across all
+dose levels. At the highest noise level, the measure was 42.72 for FBP and 22.13
+for SAGAN, corresponding to a noise reduction factor of 1.93. Considering both
+the quantitative measures and the visual appearance, SAGAN is no doubt the best
+method among the comparators in the highest noise level.
+6. Discussion
+These quantitative results demonstrate that SAGAN excels in recovering un-
+derlying structures in great uncertainty. The adversarially trained discriminator
+guarantees the denoised texture to be close to convCT. This is an advantage over
+VEO, which produces a different texture. Another advantage is time efficiency.
+Neural network based methods, including SAGAN only need one forward pass in
+the testing and the task could be accomplished in less than a second. BM3D
+showed better denoising at the highest dose, however SAGAN was better at lower
+doses. BM3D and K-SVD also had evident streak artifacts across the image surface
+at low doses as seen in Figure 3.
+The sharpness-aware loss proposed here is similar to the methodology of the
+content loss as used in [11, 64] but differs in the final purpose. The similarity
+lies in that we both measure the high-level features of the generated and input
+image. But in their work, the high-level features are from the middle layer of the
+pre-trained VGG network [70] and used to ensure the perceptual similarity. On
+the contrary, the high-level features used here are extracted from a specifically
+trained network and directly correspond to the visual sharpness.
+7. Conclusion
+In this paper, we have proposed an sharpness aware network for low dose CT
+denoising. It utilizes both the adversarial loss and the sharpness loss to lever-
+age the blur effect faced by image based denoising method, especially under high
+noise levels. The proposed SAGAN achieves better performance in the quantitive
+assessment and the visual results are more appealing than the competetors.
+However, we acknowledge that there are some limitations of this work that are
+waiting to be solved in the future. First of all, the sharpness detection network is
+16
+LDCT
+convCT
+BM3D
+SAGAN
+VEO
+ASIR
+K-SVD
+Figure 9: Visual examples for the denoised images on the piglet dataset. Columns are samples
+selected from pelvis to head. The first row is the LDCT (5% of full dose reconstructed by FBP).
+The second row is the convCT (100% dose reconstructed by FBP). The last 5 rows are results
+from different denoising methods.
+17
+102 103
+30
+35
+DLP (mGy-cm)
+P
+S
+N
+R
+102 103
+0.92
+0.94
+0.96
+0.98
+DLP (mGy-cm)
+S
+S
+IM
+VEO ASIR FBP BM3D SAGAN K-SVD
+Figure 10: PSNR and SSIM plotted against dose-length product (DLP) for different reconstruc-
+tion methods for the real piglet dataset.
+102 103
+20
+30
+40
+DLP (mGy-cm)
+S
+ta
+n
+d
+ar
+d
+D
+ev
+ia
+ti
+on
+(H
+U
+)
+VEO
+ASIR
+FBP
+BM3D
+SAGAN
+K-SVD
+Figure 11: Standard deviation of image noise against dose-length product (DLP) for different re-
+construction methods. Red dashed line refers to the standard deviation of the FBP reconstructed
+convCT.
+18
+trained to compute the sharpness metric of [3] which is not very sensitive to just
+noticeable blur. This could limit the final sharpness of the denoised image.
+Second, the analysis is mostly centred on the visual quality of the denoised im-
+age. Although substantial noise reduction is achieved, the image diagnosis quality
+in clinical practice still needs to be evaluated.
+Finally, for all the neural network based methods, the network need to be
+trained against a specific dosage. Even though we trained it on a wild range of
+doses but the generalizability to unseen doses is still waiting to be determined.
+8. Acknowledgement
+The authors would like to thank Troy Anderson for the imaging of the piglet
+dataset acquired at the Royal University Hospital, Saskatoon.
+[1] D. J. Brenner, What do we really know about cancer risks
+at dose pertinent to ct scans, https://www.google.ca/url?
+sa=t&rct=j&q=&esrc=s&source=web&cd=5&cad=rja&uact=8&ved=
+0ahUKEwiw49jnhNDUAhWq64MKHQ0OCK8QFgg8MAQ&url=http%3A%2F%
+2Famos3.aapm.org%2Fabstracts%2Fpdf%2F115-31657-387514-119239.
+pdf&usg=AFQjCNHdMR-_B-E47dg_leg1__KaJLd-RA (2016).
+[2] G. Bertasius, J. Shi, L. Torresani, Deepedge: A multi-scale bifurcated deep
+network for top-down contour detection, in: Proceedings of the IEEE Confer-
+ence on Computer Vision and Pattern Recognition, 2015, pp. 4380–4389.
+[3] X. Yi, M. Eramian, Lbp-based segmentation of defocus blur, IEEE Transac-
+tions on Image Processing 25 (4) (2016) 1626–1638.
+[4] K. He, X. Zhang, S. Ren, J. Sun, Deep residual learning for image recognition,
+in: Proceedings of the IEEE Conference on Computer Vision and Pattern
+Recognition, 2016, pp. 770–778.
+[5] O. Vinyals, A. Toshev, S. Bengio, D. Erhan, Show and tell: A neural image
+caption generator, in: Proceedings of the IEEE Conference on Computer
+Vision and Pattern Recognition, 2015, pp. 3156–3164.
+[6] Q. Yang, P. Yan, M. K. Kalra, G. Wang, Ct image denoising with perceptive
+deep neural networks, arXiv preprint arXiv:1702.07019.
+[7] H. Chen, Y. Zhang, W. Zhang, P. Liao, K. Li, J. Zhou, G. Wang, Low-dose
+ct via deep neural network, arXiv preprint arXiv:1609.08508.
+19
+[8] H. Chen, Y. Zhang, M. K. Kalra, F. Lin, P. Liao, J. Zhou, G. Wang, Low-dose
+ct with a residual encoder-decoder convolutional neural network (red-cnn),
+arXiv preprint arXiv:1702.00288.
+[9] E. Kang, J. Min, J. C. Ye, A deep convolutional neural network using
+directional wavelets for low-dose x-ray ct reconstruction, arXiv preprint
+arXiv:1610.09736.
+[10] I. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu, D. Warde-Farley, S. Ozair,
+A. Courville, Y. Bengio, Generative adversarial nets, in: Advances in neural
+information processing systems, 2014, pp. 2672–2680.
+[11] C. Ledig, L. Theis, F. Husza?r, J. Caballero, A. Cunningham, A. Acosta,
+A. Aitken, A. Tejani, J. Totz, Z. Wang, et al., Photo-realistic single im-
+age super-resolution using a generative adversarial network, arXiv preprint
+arXiv:1609.04802.
+[12] R. Huang, S. Zhang, T. Li, R. He, Beyond face rotation: Global and local per-
+ception gan for photorealistic and identity preserving frontal view synthesis,
+arXiv preprint arXiv:1704.04086.
+[13] H. Zhang, V. Sindagi, V. M. Patel, Image de-raining using a conditional
+generative adversarial network, arXiv preprint arXiv:1701.05957.
+[14] A. Manduca, L. Yu, J. D. Trzasko, N. Khaylova, J. M. Kofler, C. M. McCol-
+lough, J. G. Fletcher, Projection space denoising with bilateral filtering and
+ct noise modeling for dose reduction in ct, Medical physics 36 (11) (2009)
+4911–4919.
+[15] M. Balda, J. Hornegger, B. Heismann, Ray contribution masks for structure
+adaptive sinogram filtering, IEEE transactions on medical imaging 31 (6)
+(2012) 1228–1239.
+[16] M. Beister, D. Kolditz, W. A. Kalender, Iterative reconstruction methods in
+x-ray ct, Physica medica 28 (2) (2012) 94–108.
+[17] Z. Tian, X. Jia, K. Yuan, T. Pan, S. B. Jiang, Low-dose ct reconstruction
+via edge-preserving total variation regularization, Physics in medicine and
+biology 56 (18) (2011) 5949.
+[18] M. Zhu, S. J. Wright, T. F. Chan, Duality-based algorithms for total-
+variation-regularized image restoration, Computational Optimization and Ap-
+plications 47 (3) (2010) 377–400.
+20
+[19] C. Bouman, K. Sauer, A generalized gaussian image model for edge-preserving
+map estimation, IEEE Transactions on Image Processing 2 (3) (1993) 296–
+310.
+[20] S. Ramani, J. A. Fessler, A splitting-based iterative algorithm for acceler-
+ated statistical x-ray ct reconstruction, IEEE transactions on medical imaging
+31 (3) (2012) 677–688.
+[21] D. Kim, S. Ramani, J. A. Fessler, Combining ordered subsets and momentum
+for accelerated x-ray ct image reconstruction, IEEE transactions on medical
+imaging 34 (1) (2015) 167–178.
+[22] A. Buades, B. Coll, J.-M. Morel, A non-local algorithm for image denois-
+ing, in: Computer Vision and Pattern Recognition, 2005. CVPR 2005. IEEE
+Computer Society Conference on, Vol. 2, IEEE, 2005, pp. 60–65.
+[23] K. Dabov, A. Foi, V. Katkovnik, K. Egiazarian, Image denoising by sparse
+3-d transform-domain collaborative filtering, IEEE Transactions on image
+processing 16 (8) (2007) 2080–2095.
+[24] M. Green, E. M. Marom, N. Kiryati, E. Konen, A. Mayer, Efficient low-dose
+ct denoising by locally-consistent non-local means (lc-nlm), in: International
+Conference on Medical Image Computing and Computer-Assisted Interven-
+tion, Springer, 2016, pp. 423–431.
+[25] H. Zhang, J. Ma, J. Wang, Y. Liu, H. Lu, Z. Liang, Statistical image recon-
+struction for low-dose ct using nonlocal means-based regularization, Comput-
+erized Medical Imaging and Graphics 38 (6) (2014) 423–435.
+[26] H. Zhang, J. Ma, J. Wang, Y. Liu, H. Han, H. Lu, W. Moore, Z. Liang,
+Statistical image reconstruction for low-dose ct using nonlocal means-based
+regularization. part ii: An adaptive approach, Computerized Medical Imaging
+and Graphics 43 (2015) 26–35.
+[27] Y. Chen, D. Gao, C. Nie, L. Luo, W. Chen, X. Yin, Y. Lin, Bayesian statistical
+reconstruction for low-dose x-ray computed tomography using an adaptive-
+weighting nonlocal prior, Computerized Medical Imaging and Graphics 33 (7)
+(2009) 495–500.
+[28] J. Ma, J. Huang, Q. Feng, H. Zhang, H. Lu, Z. Liang, W. Chen, Low-dose
+computed tomography image restoration using previous normal-dose scan,
+Medical physics 38 (10) (2011) 5713–5731.
+21
+[29] S. Ha, K. Mueller, Low dose ct image restoration using a database of image
+patches, Physics in medicine and biology 60 (2) (2015) 869.
+[30] Y. Chen, Z. Yang, Y. Hu, G. Yang, Y. Zhu, Y. Li, W. Chen, C. Toumoulin,
+et al., Thoracic low-dose ct image processing using an artifact suppressed
+large-scale nonlocal means, Physics in Medicine and Biology 57 (9) (2012)
+2667.
+[31] D.-Y. Po, M. N. Do, Directional multiscale modeling of images using the
+contourlet transform, IEEE Transactions on image processing 15 (6) (2006)
+1610–1620.
+[32] E. J. Candes, D. L. Donoho, Recovering edges in ill-posed inverse problems:
+Optimality of curvelet frames, Annals of statistics (2002) 784–842.
+[33] M. G. Lubner, P. J. Pickhardt, J. Tang, G.-H. Chen, Reduced image noise
+at low-dose multidetector ct of the abdomen with prior image constrained
+compressed sensing algorithm, Radiology 260 (1) (2011) 248–256.
+[34] M. Aharon, M. Elad, A. Bruckstein, rmk-svd: An algorithm for designing
+overcomplete dictionaries for sparse representation, IEEE Transactions on
+signal processing 54 (11) (2006) 4311–4322.
+[35] Q. Xu, H. Yu, X. Mou, L. Zhang, J. Hsieh, G. Wang, Low-dose x-ray ct
+reconstruction via dictionary learning, IEEE Transactions on Medical Imaging
+31 (9) (2012) 1682–1697.
+[36] S. Li, L. Fang, H. Yin, An efficient dictionary learning algorithm and its
+application to 3-d medical image denoising, IEEE Transactions on Biomedical
+Engineering 59 (2) (2012) 417–427.
+[37] Y. Chen, X. Yin, L. Shi, H. Shu, L. Luo, J.-L. Coatrieux, C. Toumoulin,
+Improving abdomen tumor low-dose ct images using a fast dictionary learning
+based processing, Physics in medicine and biology 58 (16) (2013) 5803.
+[38] Y. Chen, L. Shi, Q. Feng, J. Yang, H. Shu, L. Luo, J.-L. Coatrieux, W. Chen,
+Artifact suppressed dictionary learning for low-dose ct image processing, IEEE
+Transactions on Medical Imaging 33 (12) (2014) 2271–2292.
+[39] S. Ioffe, C. Szegedy, Batch normalization: Accelerating deep network training
+by reducing internal covariate shift, arXiv preprint arXiv:1502.03167.
+[40] X. Glorot, A. Bordes, Y. Bengio, Deep sparse rectifier neural networks., in:
+Aistats, Vol. 15, 2011, p. 275.
+22
+[41] M. Mirza, S. Osindero, Conditional generative adversarial nets, arXiv preprint
+arXiv:1411.1784.
+[42] A. Odena, C. Olah, J. Shlens, Conditional image synthesis with auxiliary
+classifier gansarXiv:1610.09585.
+URL https://arxiv.org/abs/1610.09585
+[43] A. Odena, Semi-supervised learning with generative adversarial networks,
+arXiv preprint arXiv:1606.01583.
+[44] S. Reed, Z. Akata, X. Yan, L. Logeswaran, B. Schiele, H. Lee, Generative
+adversarial text to image synthesis, in: Proceedings of The 33rd International
+Conference on Machine Learning, Vol. 3, 2016.
+[45] S. E. Reed, Z. Akata, S. Mohan, S. Tenka, B. Schiele, H. Lee, Learning what
+and where to draw, in: Advances in Neural Information Processing Systems,
+2016, pp. 217–225.
+[46] P. Isola, J.-Y. Zhu, T. Zhou, A. A. Efros, Image-to-image translation with
+conditional adversarial networks, arXiv preprint arXiv:1611.07004.
+[47] J.-Y. Zhu, T. Park, P. Isola, A. A. Efros, Unpaired image-to-image translation
+using cycle-consistent adversarial networks, arXiv preprint arXiv:1703.10593.
+[48] D. Pathak, P. Krahenbuhl, J. Donahue, T. Darrell, A. A. Efros, Context
+encoders: Feature learning by inpainting, in: Proceedings of the IEEE Con-
+ference on Computer Vision and Pattern Recognition, 2016, pp. 2536–2544.
+[49] P. Sangkloy, J. Lu, C. Fang, F. Yu, J. Hays, Scribbler: Controlling deep image
+synthesis with sketch and color, arXiv preprint arXiv:1612.00835.
+[50] A. Shrivastava, T. Pfister, O. Tuzel, J. Susskind, W. Wang, R. Webb, Learning
+from simulated and unsupervised images through adversarial training, arXiv
+preprint arXiv:1612.07828.
+[51] J. Walker, K. Marino, A. Gupta, M. Hebert, The pose knows: Video forecast-
+ing by generating pose futures, arXiv preprint arXiv:1705.00053.
+[52] J. Shi, L. Xu, J. Jia, Discriminative blur detection features, in: Computer
+Vision and Pattern Recognition (CVPR), 2014 IEEE Conference on, IEEE,
+2014, pp. 2965–2972.
+[53] C. T. Vu, T. D. Phan, D. M. Chandler, : A spectral and spatial measure of
+local perceived sharpness in natural images, Image Processing, IEEE Trans-
+actions on 21 (3) (2012) 934–945.
+23
+[54] S. A. Golestaneh, L. J. Karam, Spatially-varying blur detection based on
+multiscale fused and sorted transform coefficients of gradient magnitudes,
+arXiv preprint arXiv:1703.07478.
+[55] J. J. Jianping Shi, Li Xu, Just noticeable defocus blur detection and esti-
+mation, in: Computer Vision and Pattern Recognition (CVPR), 2015 IEEE
+Conference on, IEEE, 2015.
+[56] X. Zhu, S. Cohen, S. Schiller, P. Milanfar, Estimating spatially varying defo-
+cus blur from a single image, Image Processing, IEEE Transactions on 22 (12)
+(2013) 4879–4891.
+[57] A. Chakrabarti, T. Zickler, W. T. Freeman, Analyzing spatially-varying blur,
+in: Computer Vision and Pattern Recognition (CVPR), 2010 IEEE Confer-
+ence on, IEEE, 2010, pp. 2512–2519.
+[58] S. Zhuo, T. Sim, Defocus map estimation from a single image, Pattern Recog-
+nition 44 (9) (2011) 1852–1858.
+[59] C. Tang, J. Wu, Y. Hou, P. Wang, W. Li, A spectral and spatial approach of
+coarse-to-fine blurred image region detection, IEEE Signal Processing Letters
+23 (11) (2016) 1652–1656.
+[60] X. Mao, Q. Li, H. Xie, R. Y. Lau, Z. Wang, Least squares generative adver-
+sarial networks, arXiv preprint ArXiv:1611.04076.
+[61] M. Mathieu, C. Couprie, Y. LeCun, Deep multi-scale video prediction beyond
+mean square error, arXiv preprint arXiv:1511.05440.
+[62] G. E. Hinton, R. R. Salakhutdinov, Reducing the dimensionality of data with
+neural networks, science 313 (5786) (2006) 504–507.
+[63] O. Ronneberger, P. Fischer, T. Brox, U-net: Convolutional networks for
+biomedical image segmentation, in: International Conference on Medical Im-
+age Computing and Computer-Assisted Intervention, Springer, 2015, pp. 234–
+241.
+[64] J. Johnson, A. Alahi, L. Fei-Fei, Perceptual losses for real-time style transfer
+and super-resolution, in: European Conference on Computer Vision, Springer,
+2016, pp. 694–711.
+[65] V. Badrinarayanan, A. Kendall, R. Cipolla, Segnet: A deep convolu-
+tional encoder-decoder architecture for image segmentation, arXiv preprint
+arXiv:1511.00561.
+24
+[66] Z. Wang, A. C. Bovik, H. R. Sheikh, E. P. Simoncelli, Image quality as-
+sessment: from error visibility to structural similarity, IEEE transactions on
+image processing 13 (4) (2004) 600–612.
+[67] P. J. La Riviere, Penalized-likelihood sinogram smoothing for low-dose ct,
+Medical physics 32 (6) (2005) 1676–1683.
+[68] D. Kingma, J. Ba, Adam: A method for stochastic optimization, arXiv
+preprint arXiv:1412.6980.
+[69] J. Shi, L. Xu, J. Jia, Blur detection dataset, http://www.cse.cuhk.edu.hk/
+~leojia/projects/dblurdetect/dataset.html (2014).
+[70] K. Simonyan, A. Zisserman, Very deep convolutional networks for large-scale
+image recognition, arXiv preprint arXiv:1409.1556.
+25

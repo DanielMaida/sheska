@@ -1,0 +1,1219 @@
+ar
+X
+iv
+:1
+70
+8.
+06
+37
+4v
+1 
+ [
+cs
+.R
+O
+] 
+ 2
+1 
+A
+ug
+ 2
+01
+7
+On a Formal Model of Safe and Scalable Self-driving Cars
+Shai Shalev-Shwartz, Shaked Shammah, Amnon Shashua
+Mobileye, 2017
+Abstract
+In recent years, car makers and tech companies are racing toward self driving cars. It seems that the main pa-
+rameter in this race is who will have the first car on the road. The goal of this paper is to add to the equation two
+additional crucial parameters. The first is standardization of safety assurance — what are the minimal requirements
+that every self-driving car must satisfy, and how can we verify these requirements. The second parameter is scalability
+— engineering solutions that lead to unleashed costs will not scale to millions of cars, which will push interest in this
+field into a niche academic corner, which might drive the entire field into a “winter of autonomous driving”. In the
+first part of the paper we propose a white-box, interpretable, mathematical model for safety assurance. In the second
+part we describe a design of a system that adheres to our safety assurance requirements and is scalable to millions of
+cars.
+1 Introduction
+The “Winter of AI” is commonly known as the decades long period of inactivity following the collapse of Artificial
+Intelligence research that over-reached its goals and hyped its promise until the inevitable fall during the early 80s.
+We believe that the development of Autonomous Vehicles (AV) is dangerously moving along a similar path that might
+end in great disappointment after which further progress will come to a halt for many years to come.
+The challenges posed by most current approaches are centered around lack of safety guarantees, and lack of scala-
+bility. Consider the issue of guaranteeing a multi-agent safe driving (“Safety”). Given that society will unlikely tolerate
+road accident fatalities caused by machines, guarantee of Safety is paramount to the acceptance of AV. Ultimately, our
+desire is to guarantee zero accidents, but this is impossible since multiple agents are typically involved in an accident
+and one can easily envision situations where an accident occurs solely due to the blame of other agents (see Fig. 1 for
+illustration). In light of this, the typical response of practitioners of AV is to resort to a statistical data-driven approach
+where Safety validation becomes tighter as more mileage is collected.
+To appreciate the problematic nature of a data-driven approach to Safety, consider first that the probability of a
+fatality caused by an accident per one hour of (human) driving is known to be 10?6. It is reasonable to assume that for
+society to accept machines to replace humans in the task of driving, the fatality rate should be reduced by three orders
+of magnitude, namely a probability of 10?9 per hour1. In this regard, attempts to guarantee Safety using a data-driven
+statistical approach, claiming increasing superiority as more mileage is driven, are naive at best. The amount of data
+required to guarantee a probability of 10?9 fatality per hour of driving is proportional to its inverse, 109 hours of data
+(see details in the sequel), which is roughly in the order of thirty billion miles. Moreover, a multi-agent system interacts
+with its environment and thus cannot be validated offline2, thus any change to the software of planning and control will
+require a new data collection of the same magnitude — clearly unwieldy. Finally, developing a system through data
+invariably suffers from lack of interpretability and explainability of the actions being taken — if an AV kills someone,
+we need to know the reason. Consequently, a model-based approach to Safety is required but the existing ”functional
+safety” and ASIL requirements in the automotive industry are not designed to cope with multi-agent environments.
+Hence the need for a formal model of Safety which is one of the goals of this paper.
+1This estimate is inspired from the fatality rate of air bags and from aviation standards. In particular, 10?9 is the probability that a wing will
+spontaneously detach from the aircraft in mid air.
+2unless a realistic simulator emulating real human driving with all its richness and complexities such as reckless driving is available, but the
+problem of validating the simulator is even harder than creating a Safe AV agent — see Appendix C.
+1
+The second area of risk lies with lack of scalability. The difference between AV and other great science and
+technology achievements of the past is that as a “science project” the effort is not sustainable and will eventually lose
+steam. The premise underlying AV goes beyond “building a better world” and instead is based on the premise that
+mobility without a driver can be sustained at a lower cost than with a driver. This premise is invariably coupled with
+the notion of scalability — in the sense of supporting mass production of AVs (in the millions) and more importantly of
+supporting a negligible incremental cost to enable driving in a new city. Therefore the cost of computing and sensing
+does matter, if AV is to be mass manufactured, the cost of validation and the ability to drive “everywhere” rather than
+in a select few cities is also a necessary requirement to sustain a business.
+The issue with most current approaches is centered around a “brute force” state of mind along three axes: (i)
+the required “computing density”, (ii) the way high-definition maps are defined and created, and (iii) the required
+specification from sensors. A brute-force approach goes against scalability and shifts the weight towards a future in
+which unlimited on-board computing is ubiquitous, somehow the cost of building and maintaining HD-maps becomes
+negligible and scalable, and that exotic super advanced sensors would be developed, productized to automotive grade,
+and at a negligible cost. A future for which any of the above holds is indeed plausible but having all of the above
+hold becomes a low-probability event. The combined issues of Safety and Scalability contain the risk of “Winter of
+AV”. The goal of this paper is to provide a formal model of how Safety and Scalability are pieced together into an
+AV program that society can accept and is scalable in the sense of supporting millions of cars driving anywhere in the
+developed countries.
+The contribution of this paper is twofold. On the Safety front we introduce a model called “Responsibility Sensitive
+Safety” (RSS) which formalizes the notion of “accident blame”, is interpretable and explainable, and incorporates a
+sense of “responsibility” into the actions of a robotic agent. The definition of RSS is agnostic to the manner in which
+it is implemented — which is a key feature to facilitate our goal of creating a convincing global safety model. RSS is
+motivated by the observation (as highlighted in Fig. 1) that agents play a non-symmetrical role in an accident where
+typically only one of the agents is responsible for the accident and therefore is to be blamed for it. The RSS model
+also includes a formal treatment of “cautious driving” under limited sensing conditions where not all agents are always
+visible (due to occlusions of kids behind a parking vehicle, for example). Our ultimate goal is to guarantee that an
+agent will never make an accident of its “blame”. Clearly, a model is useful only if it comes with an efficient Policy3
+that complies with RSS — in particular an action that looks innocent at the current moment might lead to a catastrophic
+event in the far future (“butterfly effect”). We prove that our definition of RSS is useful by constructing a set of local
+constraints on the short-term future that guarantees Safety for the entire future.
+Our second contribution evolves around the introduction of a “semantic” language that consists of units, measure-
+ments, and action space, and specification as to how they are incorporated into Planning, Sensing and Actuation of the
+AV. To get a sense of what we mean by Semantics, consider how a human taking driving lessons is instructed to think
+about “driving policy”. These instructions are not geometric — they do not take the form “drive 13.7 meters at the
+current speed and then accelerate at a rate of 0.8 m/s2”. Instead, the instructions are of a semantic nature — “follow
+the car in front of you” or “overtake that car on your left”. The language of human driving policy is about longitudinal
+and lateral goals rather than through geometric units of acceleration vectors. We develop a formal Semantic language
+and show that the Semantic model is crucial on multiple fronts connected to the computational complexity of Planning
+that do not scale up exponentially with time and number of agents, to the manner in which Safety and Comfort interact,
+to the way the computation of sensing is defined and the specification of sensor modalities and how they interact in
+a fusion methodology. We show how the resulting fusion methodology (based on the semantic langauge) guarantees
+the RSS model to the required 10?9 probability of fatality, per one hour of driving, while performing only offline
+validation over a dataset of the order of 105 hours of driving data.
+Specifically, we show that in a reinforcement learning setting we can define the Q function4 over actions defined
+over a semantic space in which the number of trajectories to be inspected at any given time is bounded by 104 regardless
+of the time horizon used for Planning. Moreover, the signal to noise ratio in this space is high, allowing for effective
+machine learning approaches to succeed in modeling the Q function. In the case of computation of sensing, Semantics
+allow to distinguish between mistakes that affect Safety versus those mistakes that affect the Comfort of driving. We
+3a function that maps the “sensing state” to an action.
+4A function evaluating the long term quality of performing an action a ? A when the agent is at state s ? S. Given such a Q-function, the
+natural choice of an action is to pick the one with highest quality, ?(s) = argmax
+a
+Q(s, a).
+2
+define a PAC model5 for sensing which is tied to the Q-function and show how measurement mistakes are incorporated
+into Planning in a manner that complies with RSS yet allows to optimize the comfort of driving. The language of
+semantics is shown to be crucial for the success of this model as other standard measures of error, such as error with
+respect to a global coordinate system, do not comply with the PAC sensing model. In addition, the semantic language
+is also a critical enabler for defining HD-maps that can be constructed using low-bandwidth sensing data and thus be
+constructed through crowd-sourcing and support scalability.
+To summarize, we propose a formal model that covers all the important ingredients of an AV: sense, plan and act.
+The model guarantees that from a Planning perspective there will be no accident of the AV’s blame, and also through
+a PAC-sensing model guarantees that, with sensing errors, a fusion methodology we present will require only offline
+data collection of a very reasonable magnitude to comply with our Safety model. Furthermore, the model ties together
+Safety and Scalability through the language of semantics, thereby providing a complete methodology for a safe and
+scalable AV. Finally, it is worth noting that developing an accepted safety model that would be adopted by the industry
+and regulatory bodies is a necessary condition for the success of AV — and it is better to do it earlier rather than later.
+An early adoption of a safety model will enable the industry to focus resources along a path that will lead to acceptance
+of AV. Our RSS model contains parameters whose value need to be determined through discussion with regulatory
+bodies and it would serve everyone if this discussion happens early in the process of developing AV solutions.
+1.1 Outline
+We follow the classic sense-plan-act robotic control methodology. The sensing system is responsible for understanding
+the present state of the environment. The planning part, which we call “driving policy”, is responsible for figuring out
+what is the best next move (a “what will happen if” type of reasoning). The acting part is responsible for implementing
+the plan. The focus of the paper is on the sensing and planning parts (since the acting part is by and large well
+understood by control theory).
+Mistakes that might lead to accidents can stem from sensing errors or planning errors. Planning is a multi-agent
+game, as there are other road users (humans and machines) that react to our actions. Section 2 deals with safety
+guarantees for the planning part, which we call multi-agent safety. We formally show that statistically estimating the
+probability of planning errors must be done “online”, namely, after every update of the software we must drive billions
+of miles with the new software. This is clearly infeasible. As an alternative, we propose a formal mathematical model
+for multi-agent safety which we call Responsibility Sensitive Safety (RSS). This model gives a 100% guarantee that
+the planning module will not make mistakes of the AV’s blame (the notion of “blame” is formally defined). Such model
+is useless without an efficient way to validate that a certain driving policy adheres to it. In Section 3 we accompany
+the RSS definitions with computationally efficient methods to validate them.
+Mistakes of the sensing system are easier to validate, since sensing can be independent6 of the vehicle actions, and
+therefore we can validate the probability of a severe sensing error using “offline” data. But, even collecting offline
+data of more than 109 hours of driving is challenging. In Section 5.2, as part of a description of our sensing system,
+we present a fusion approach that be validated using a significantly smaller amount of data.
+The rest of the sections deal with Scalability. We outline a complete system that is safe and can scale to millions
+of cars. In Section 4 we describe our driving policy, starting from an explanation of why existing methods are so
+computationally demanding, and then showing how our semantic-based approach leads to a computationally efficient
+driving policy. In Section 5 we connect our semantic driving policy to semantic requirements from the sensing system,
+showing how it leads to sensing and mapping requirements that can scale to millions of cars in today’s technology.
+2 Multi-agent Safety
+We start off by formalizing our arguments with regard to the necessity of a thorough safety definition, a minimal
+standard to which AV systems must abide. In the following technical lemma, we formally show why a statistical
+approach to validation of an AV system is infeasible, even for validating a simple claim such as “the system makes N
+5Probably Approximate Correct (PAC), borrowing Valiant’s PAC-learning terminology.
+6Strictly speaking, the vehicle actions might change the distribution over the way we view the environment. However, this dependency can be
+rather easily circumvented by data augmentation techniques.
+3
+Figure 1: The central car can do nothing to ensure absolute safety.
+accidents per hour”. This implies that a model-based safety definition is the only feasible tool for validating an AV
+system.
+Lemma 1 Let X be a probability space, and A be an event for which Pr(A) = p1 < 0.1. Assume we sample m =
+1
+p1
+i.i.d. samples from X , and let Z =
+?m
+i=1 1[x?A]. Then
+Pr(Z = 0) ? e?2.
+Proof We use the inequality 1? x ? e?2x (proven for completeness in Appendix A.1), to get
+Pr(Z = 0) = (1? p1)
+m ? e?2p1m = e?2.
+Corollary 1 Assume an AV system AV1 makes an accident with small yet insufficient probability p1. Any deterministic
+validation procedure which is given 1/p1 samples, will, with constant probability, not distinguish between AV1 and a
+different AV system AV0 which never makes accidents.
+In order to gain perspective over the typical values for such probabilities, assume we desire an accident probability of
+10?9 per hour, and a certain AV system provides only 10?8 probability. Even if we obtain 108 hours of driving, there
+is constant probability that our validation process will not be able to tell us that the system is dangerous.
+Finally, note that this difficulty is for invalidating a single, specific, dangerous AV system. A full solution cannot
+be a viewed as a single system, as new versions, bug fixes, and updates will be necessary. Each change, even of a single
+line of code, generates a new system from a validator’s perspective. Thus, a solution which is statistically validated,
+must do so online, over new samples after every small fix or change, to account for the shift in the distribution of states
+observed and arrived-at by the new system. Repeatedly and systematically obtaining such a huge number of samples
+(and even then, with constant probability, failing to validate the system), is infeasible.
+We further add to the discussion the fact that any statistical claim must be formalized in order to be measured.
+Claiming a statistical property over the number of accidents a system makes is significantly weaker than claiming “it
+drives in a safe manner”. In order to say that, one must formally define what is safety.
+Lastly, we stress that the “implementation free” approach which we are adopting in this section, not concerning
+ourselves with how to ensure the given safety definitions, is key to achieving our goal of creating a convincing, global
+safety model. The problem of implementing a scalable safe system is dealt with in the next sections.
+2.1 Absolute Safety is Impossible
+We begin with a naive attempt at defining a safe action-taking by a car, and immediately rule it out as infeasible. We
+say an action a taken by a car c is absolutely safe if no accident can follow it at some future time. It is easy to see that
+4
+Back
+Front
+c0
+c1
+(a)
+c0
+c1
+(b)
+Figure 2: 2a: t = 0. The front and back corridors of c0. 2b: t = 1. c1 has cut-in to c0’s front corridor.
+it is impossible to achieve absolute safety, by observing simple driving scenarios, for example, as depicted in Figure 1:
+from the central car’s perspective, no action can ensure none of the surrounding cars will crash into it, and no action
+can help it escape this potentially dangerous situation. We emphasize that solving this problem by forbidding the
+autonomous car from being in such situations is completely impossible — every highway with more than 2 lanes will
+lead to it and forbidding this scenario amounts to staying in the garage.
+The implications might seem, at first glance, disappointing. Nothing is absolutely safe. However, we claim that
+this requirement is too harsh as evident by the fact that humans do not get even close to following absolute safety.
+Instead, humans follow a safety notion that depends on responsibility.
+2.2 Responsibility-Sensitive Safety
+A crucial aspect missing from the absolute safety concept is the non-symmetry of most accidents - it is usually one
+of the drivers who is responsible for a crash, and is to be blamed. Clearly, in the example we consider in Figure 1,
+the central car is not responsible for an accident, if the left car, for example, suddenly drives into it. We’d like to
+formalize the fact that considering its lack of responsibility, a behaviour of staying in its own lane can be considered
+safe. In order to do that, we develop a formal concept of “accident blame”, which, we argue, captures the common
+sense behind safe driving.
+Let us gain some intuition with an informal examination of one of the most basic responsibility concepts we will
+later formally develop. Consider the simple case of two cars cf , cr, driving at the same speed, one behind the other,
+along a straight road. Assume cf , the car at the front, suddenly brakes because of an obstacle appearing on the road,
+and manages to avoid it. Unfortunately, cr did not keep enough of a distance from cf , is not able to respond in time,
+and crashes into cf ’s rear side. It is clear that the blame is on cr; it is the responsibility of the rear car to keep safe
+distance from the front car, and to be ready for unexpected, yet reasonable, braking.
+We now move on to formally consider a much broader family of scenarios: driving in a multi-lane road, where
+cars can freely change lanes, cut into other cars’ paths, drive at different speeds, and so on. To simplify the following
+discussion, we assume a straight road on a planar surface, where the lateral, longitudinal axes are the x, y axes,
+respectively7. We also consider a discrete time space. We start off with definitions aiding in distinction between two
+intuitively different sets of cases: simple ones, where no significant lateral manoeuvre is performed, and more complex
+ones, involving lateral movement.
+Definition 1 (Car Corridor) The Corridor of a car c is the range [cx,left, cx,right]× [±?], where cx,left, cx,right are
+the positions of the leftmost, rightmost corners of c.
+Definition 2 (Cut-in) A car c1 Cuts-in to car c0’s corridor at time t if it did not intersect c0’s corridor at time t? 1,
+and does intersect it at time t.
+7The homomorphism between a straight road and a curved one allows for easy modification for the general case.
+5
+We may make the further distinction between front/back parts of the corridor. We will also use the term “the direction
+of a cut-in” to describe movement in the direction of the relevant corridor boundary. See Figure 2 for an illustration.
+We will use these definitions to define cases with lateral movement. For the simple case where there is no such
+occurence, such as the simple case of a car following another, we define the safe longitudinal distance:
+Definition 3 (Safe longitudinal distance) A longitudinal distance between a car cr and another car cf that is in cr’s
+frontal corridor is safe w.r.t. a response time ? if for any braking command a, |a| < amax,brake, performed by cf , if cr
+will apply its maximal brake from time ? until a full stop then it won’t collide with cf .
+Lemma 2 below calculates d as a function of the velocities of cr, cf , the response time ?, and the maximal acceleration
+amax,brake. Both ? and amax,brake are constants, which should be determined to some reasonable values by regulation.
+Lemma 2 Let cr be a vehicle which is behind cf on the longitudinal axis. Let amax,brake, amax,accel be the maximal
+braking and acceleration commands, and let ? be cr’s response time. Let vr, vf be the longitudinal velocities of the
+cars, and let lf , lr be their lengths. Define by v?,max = vr + ? · amax,accel, and define Tr = ? +
+v?,max
+amax,brake
+and
+Tf =
+vf
+amax,brake
+. Let L = (lr + lf )/2. Then, the minimal safe longitudinal distance for cr is:
+dmin =
+{
+L if Tr ? Tf
+L+ Tf [(v?,max ? vf ) + ?amax,brake]?
+?2amax,brake
+2 +
+(Tr?Tf )(v?,max?(Tf??)amax,brake)
+2 else
+Proof Let dt be the distance at time t. To prevent an accident, we must have that dt > L for every t. To construct
+dmin we need to find the tightest needed lower bound on d0. Clearly, d0 must be at least L. As long as the two cars
+didn’t stop after T ? ? seconds, the velocity of the preceding car will be vf ? T amax,brake while cr’s velocity will
+be upper bounded by v?,max ? (T ? ?) amax,accel. So, the distance between the cars after T seconds will be lower
+bounded by:
+dT := d0 +
+T
+2
+(2vf ? T amax,brake)?
+[
+? v?,max +
+T ? ?
+2
+(2v?,max ? (T ? ?)amax,brake)
+]
+= d0 + T [(vf ? v?,max)? ?amax,brake] +
+?2amax,brake
+2
+.
+Note that Tr is the time on which cr arrives to a full stop (a velocity of 0) and Tf is the time on which the other vehicle
+arrives to a full stop. Note that amax,brake(Tr ? Tf ) = v?,max ? vf + ?amax,brake, so if Tr ? Tf it suffices to require
+that d0 > L. If Tr > Tf then
+dTr = d0 + Tf [(vf ? v?,max)? ?amax,brake] +
+?2amax,brake
+2
+?
+(Tr ? Tf )(v?,max ? (Tf ? ?)amax,brake)
+2
+.
+Requiring dTr > L and rearranging terms concludes the proof.
+Finally, we define a comparison operator which allows us to discuss comparisons with some notion of “margin”:
+when comparing lengths, velocities and so on, it is necessary to accept very similar quantities as “equal”.
+Definition 4 (µ-comparison) The µ-comparison of two numbers a, b is a >µ b if a > b+ µ, a <µ b if a < b? µ and
+a =µ b if |a? b| ? µ.
+All comparisons (argmin, argmax, etc.) below are µ-comparisons for some suitable µs. Assume an accident
+occurred between cars c1, c2. In order to consider who is to blame for the accident, we define the relevant moment
+which needs to be examined. This is some point in time which preceded the accident, and intuitively, was the “point
+of no return”; after it, nothing could be done to prevent the accident.
+Definition 5 (Blame Time) The Blame Time of an accident is the first time preceding the accident in which:
+• there was an intersection between one of the cars and the other’s corridor, and
+6
+• the longitudinal distance was not safe.
+Clearly there is such a time, since at the moment of accident, both conditions hold. We note that we can split Blame
+Times into two separate categories:
+• Ones in which a cut-in also occurs, namely, they are the first moment of intersection of one car and the other’s
+corridor, and it’s in a non safe distance.
+• Ones in which a cut-in does not occur, namely, there was intersection with the corridor already, in a safe longi-
+tudinal distance, and the distance had changed to unsafe at the Blame Time.
+Definition 6 (µ-Losing by Lateral Velocity) Assume a cut-in occurs between cars c1, c2. We say that c1 µ-Loses by
+Lateral Velocity in case its lateral velocity w.r.t. the direction of the cut-in is higher by µ than that of c2.
+It should be noted that the direction of the velocity is important: For example, velocities of ?1, 1 (both cars crashing
+into each other) is a tie, however if the velocities are 1, 1 + µ/2, the one with positive direction towards the other car
+is to be blamed. Intuitively, this definition will allow us to blame a car which drives laterally very fast into another.
+Definition 7 ((µ1, µ2)-Winning by Lateral Position) Assume a cut-in occurs between cars c1, c2. We say that c1
+(µ1, µ2)-Wins by Lateral Position in case its lateral position w.r.t. the cut-in lane’s center (the center closest to the
+cut-in relevant corridor) is smaller than µ1 (in absolute value), and smaller by µ2 than that of c2.
+Intuitively, we will not blame a car if it’s very close to the lane center (µ1), and much closer than the other car (by µ2).
+Definition 8 (Blame) The Blame of an accident between cars c1, c2, is a function of the state at the Blame Time, and
+is defined as follows:
+• If the Blame Time is not a cut-in time, the blame is on the rear car.
+• If the Blame Time is also a cut-in time, the blame is on both cars, unless for one of the cars, w.l.o.g. c1, the two
+following conditions hold, for some predefined µs:
+– It doesn’t lose by Lateral Velocity,
+– It wins by Lateral Position.
+In that case, c1 is spared.
+In words, if an unsafe cut-in occurs, both cars are to blame, unless one of the cars is not (significantly) laterally faster,
+and is (significantly) closer to the lane center. By this, we cleanly capture the desired behaviour: if following a car,
+keep a safe distance, and if cutting into a corridor of a car which simply drives in its own lane, do it only at a safe
+distance.
+Remark: One may wonder if following the safety guidelines described above will lead to an extremely defensive
+driving. This is not the case, as empirically evident by managing to drive in complex scenario in a natural way while
+adhering to the responsibility-sensitive safety constraints. See for example the “double-merge” scenario as described
+in [5].
+2.3 Dealing with Limited Sensing
+After considering the highway example, let us move on to a second example from which arises a general concept
+which cannot be overlooked - the problem of limited sensing. A very common human response, when blamed for
+an accident, falls into the “but I couldn’t see him” category. It is, many times, true. Human sensing capabilities are
+limited, sometimes because of an unaware decision to focus on a different part of the road, sometimes because of
+carelessness, and sometimes because of physical limitations - it is impossible to see a little kid hidden behind a parked
+car. Of those human limitations, advanced automatic sensing systems are only subject to the latter: 360? view of the
+7
+c
+(0)
+0
+c
+(0)
+1
+vlimit
+Building c
+(t?)
+0
+c
+(t?)
+1
+vlimit
+Building
+Figure 3: Worse case for a car occluded by a building. c0 should make sure that at the cut-in time t
+?, there’s a safe
+distance to the “virtual” occluded car c1.
+road, along with the fact that computers are never careless, puts them above human sensing capabilities. Returning to
+our “but I couldn’t see him” example, a fitting answer is “well, you should’ve been more careful”. Let us formalize
+what is being careful w.r.t. limited sensing, a crucial component of responsibility-sensitive safety (RSS).
+Consider a simple scenario, depicted in Figure 3. c0 is trying to exit a parking lot, merging into a (possibly) busy
+road, but cannot see whether there are cars in the street. Let us assume that this is an urban, narrow street, with a
+speed limit of 30 km/h. A human driver’s behaviour is to slowly merge onto the road, obtaining more and more field
+of view, until sensing limitations are eliminated. What assumptions does the human driver make, which allows this
+manoeuvre? Another significant moment in time should be defined - the first time the occluded object is exposed to
+us; after its exposure, we can deal with it just like any other object we can sense.
+Definition 9 (Exposure Time) The Exposure Time of an object is the first time in which we see it.
+Definition 10 (Blame due to Unreasonable Speed) Assume that at the exposure time or after it, car c1 was driving at
+speed v > vlimit, and c0 wasn’t doing so. Then, the blame is only on c1. We say that c1 is blamed due to unreasonable
+speed.
+This extension allows c0 to exit the parking lot safely, in the same manner a human driver does. Using our previous
+responsibility-sensitive safety definitions, along with a dynamic vlimit definition (which uses the road conditions and
+speed limit, plus reasonable margins), we have that the only necessity is to check whether in the worse case, as
+illustrated in the figure, the cut-in is in a safe longitudinal distance, while assuming that c1 will not exceed vlimit.
+Intuitively, this encourages c0 to drive slower and further from the occluder, thus slowly increasing its field of view
+and later allowing for safe merging into the street.
+Having extended the blame definition to this basic case of limited sensing, we offer a family of extensions for
+similar cases. Simple assumptions as to what can be occluded (a potentially fast car cannot be occluded between
+two closely parked cars, but a kid can), and what is the worse case manoeuvre it can perform (a kid’s vlimit is much
+smaller than that of a car), imply restrictions on driving - we must be prepared for the worse, and have the ability to
+respond if suddenly, the exposure time comes. A more elaborate example, in an urban scenario, can be taken from the
+scenario of a pedestrian which is possibly occluded by a parked car. Let us define accident blame for accidents with a
+pedestrian:
+Definition 11 (Accident-with-Pedestrian Blame) The Accident-with-Pedestrian Blame is always on the car, unless
+one of the following three holds:
+• the car hits the pedestrian with the car’s side, and the lateral velocity of the car is smaller than µ, w.r.t. the
+direction of the hit.
+• the pedestrian’s velocity at the exposure time or later was larger than vlimit.
+• the car is at complete stop.
+8
+Informally, the car is not to blame only if a pedestrian runs into its side, while the car does not ride faster than µ
+into the pedestrian, or if the car is at stop, or if the pedestrian was running super-humanly fast, in some direction, not
+necessarily the hitting direction.
+2.4 Utopia is Possible
+To wrap up the discussion, consider a utopic future, where all cars (and other road users) somehow are able to suc-
+cessfully verify that they will never be blamed for an accident. Since by definition, for every accident there is at least
+one car to blame, the meaning is that there will never be any accidents, leading us to a utopic future of absolute safety.
+2.5 A complete responsibility-sensitive safety definition
+Not all roads are of a simple structure. Some, like junctions and roundabouts, contain more complex situations, along
+with various right of way rules. Not all occluded objects are cars or pedestrians, with bicycles and motorcycles all
+legitimate road users to be considered. The principles introduced in this section can be extended to these additional
+cases. We leave the formal extensions to a longer version of this manuscript.
+3 Efficiently Validated Conditions for Responsibility-Sensitive Safety
+In Section 2, we have completely ignored the implementation aspect of RSS. Of course, those definitions will be use-
+less if there’s no efficient way of successfully verifying that we will never be blamed for an accident. To appreciate the
+difficulty, an action that is performed now may have a butterfly effect, that will lead to a chain of events with an acci-
+dent after 10 minutes of driving. A “brute-force” approach that will check all possible future outcomes is, of course,
+impossible. It is therefore crucial to accompany the responsibility-sensitive safety definitions with computationally
+efficient methods to validate them.
+3.1 Computationally Feasible Safety Verification
+The main mathematical tool for computationally feasible verification is “induction”. To prove a claim by induction,
+one begins with proving the claim for simple cases, and then, each induction step extends the proof to more and more
+involved cases. To illustrate how this induction tool can be helpful for safety verification, consider again the simple
+example of a car cr following another, cf . We will apply the following constraint on the policy of cr. At each time step
+t, the policy can pick any acceleration command such that even if cf will apply a deceleration of ?amax, the resulting
+distance between cr and cf at the next time step will be at least the safe longitudinal distance (defined in Definition 3
+and Lemma 2). If no such action exists, cr must apply the deceleration ?amax. The following lemma uses induction
+to prove that any policy that adheres to the above constraints will never make an accident with cf .
+Lemma 3 Under the assumptions given in Definition 3, if the policy of cr adheres to the constraints given above it
+will never make an accident with cf .
+Proof The proof is by induction. For the induction base we start with an initial state in which the distance between
+the two cars is safe (according to Lemma 2). The induction step is as follows. Consider the distance between cr and
+cf at some time t. If there is an action that results in a safe distance (even with cf making maximal deceleration), we
+are fine. If all actions cannot guarantee safe distance, let t? < t be the maximal time in which we took an action which
+was not maximal deceleration. By the induction hypothesis, at time t? + 1, we were in a safe distance, and from there
+on we performed maximal deceleration. Hence, by the definition of safe distance, we did not crash from time t? till
+now, which concludes the proof.
+The above example demonstrates a more general idea: there’s some emergency manoeuvre which can be performed
+by cr in an extreme case, and lead it back to a “safe state”. It should be noted that the constraints on the policy we have
+described above depend on just one future time step, hence it can be verified in a computationally efficient manner.
+9
+In order to generalize those ideas of sufficient local properties for RSS, we firstly define a Default Emergency
+Policy, and use it as a building block for defining a local property of action-taking which we call “cautious”. We then
+show that taking only cautious commands is sufficient for RSS.
+Definition 12 (Default Emergency Policy) The Default Emergency Policy (DEP) is to apply maximum braking power,
+and maximum heading change towards 0 heading w.r.t. the lane.
+Remark: The maximum braking power and heading change are derived from physical parameters of the car (and
+maybe also from weather and road conditions).
+Definition 13 (Safe state) A state s is safe if performing DEP starting from it will not lead to an accident of our
+blame.
+As in the simple case of a car following another, we define a command to be cautious if it leads to a safe state.
+Definition 14 (Cautious command) Suppose we are currently at state s0. A command a is cautious if the next state,
+s1, will be safe with respect to a set A of possible commands other vehicles might perform now.
+Remark: The above definition depends on the worst-case commands, in the set A, other vehicles might perform. We
+will construct the set A based on reasonable upper bounds on maximum braking/acceleration and lateral movements.
+The following theorem proves, by induction again, that if we only issue cautious commands then there will be no
+accidents of our blame.
+Theorem 1 Assume that in time 0, c is in a safe state, and for every time step, c only issues cautious commands, where
+if no cautious command exists at some time step, c applies DEP. Then, c will never make accidents of its blame.
+Proof By induction. The base of the induction follows from the definition of a safe state and step from the defintion
+of a cautious command.
+The main benefit of this approach is that there is no need to check infinite future, as we can quickly return to a
+safe state, and continue safely from there. Moreover, given the fact we will plan again at t + 1, and hence be able
+to perform DEP then if necessary, we should only check the command we are giving at time t, and not a possible
+longer plan we might have in mind - we can change that plan at t + 1. We note that now, incorporating a learning
+component in a system, when it is verified at run time by this transparent model, is made possible. Finally, this local
+verification implies full future RSS, which is our desired goal. An implementation obstacle is that the cautiousness
+definition involves all trajectories another agent can perform until tbrake, which, even for moderate tbrake, is a huge
+space. To tackle this, we next turn to develop an efficiently computable way to verify cautiousness, and hence RSS, in
+a scalable manner.
+3.1.1 Efficient cautiousness verification
+A first trivial observation is that a state is not safe if and only if there exists a specific vehicle, c?, which can perform
+commands from the set A which lead to an accident of our blame while we execute the DEP. Therefore, from now
+on, we focus on a scene with a single target car, denoted c?, and in the general case, we will execute the procedure
+sequentially, for each of the other vehicles in the scene.
+When considering a single target car, an action a is not cautious if and only if there is a sequence of commands
+for c?, denoted a?1, . . . , a?tbrake , all in the set A, that results in an accident of c’s blame. As we have already proved, if at
+time 0, it holds that c? is in the frontal corridor of c, there is a simple way to check the cautiousness of a — we just need
+to verify that even if c? will apply maximal brake for one time step (and we’ll perform a), the resulting longitudinal
+distance will remain safe. The lemma below gives a sufficient condition for cautiousness in the more involved cases,
+where lateral manoeuvres are to be considered too.
+Lemma 4 Assume that at time T = 0, c? is not in the frontal corridor of c. Then, if at every T ? (0, tbrake], there is no
+non-safe cut in of c’s blame, then a is cautious.
+10
+Proof Suppose that a is not cautious, namely, there exists a?1, . . . , a?tbrake that leads to an accident of c’s blame. Before
+the accident there must be a cut-in time, T . Assume first that T > 0. If this cut-in was at a safe longitudinal distance,
+then there cannot be an accident of our blame due to the fact that DEP is executed by deceleration of ?amax and based
+on the definition of safe longitudinal distance (and we assume here that the response time ? is larger than the time
+resolution of steps). If the cut-in was non-safe, by the assumption of the lemma it was not of c’s blame, hence the
+accident is also not of c’s blame.
+Finally, if T ? 0, by the assumption of the lemma, at the moment of cutting, c? was at the back corridor of c. By
+induction, c performed only safe cut-ins in the past, and hence either the cut-in was safe or it was c?’s blame. In both
+cases, the current accident is not of c’s blame.
+In light of Lemma 4, we are left with the problem of checking whether there can be a non-safe cut in of c’s blame.
+Below we present an efficient algorithm for checking the possibility of a non-safe cut-in at time t. To validate the
+entire trajectory we discretize the time interval [0, tbrake] and apply the algorithm on all time intervals (with a slightly
+larger value of ? in the definition of safe distance to ensure that the discretization doesn’t hurt). Let c?diag be the length
+of a diagonal of a minimal rectangle bounding c?. For each time t ? [0, tbrake], define clength(t) to be the longitudinal
+“span” of c in time t, and let L(t) =
+c?diag+clength[t]
+2 . Define cwidth[t] in similar fashion and let W (t) =
+c?diag+cwidth[t]
+2 .
+11
+Algorithm 1: Check the possibility of a non-safe cut-in at
+time t
+input:
+y?[0], v?y[0], x?[0], v?x[0] are longitudinal/lateral position/velocity of c? at time 0
+y[t], vy[t], x[t], vx[t] are longitudinal/lateral position/velocity of c at time t
+ay,min, ay,max are longitudinal acceleration boundaries
+ax,max is a lateral acceleration absolute value boundary
+L = L(t), W = W (t)
+check longitudinal feasibility:
+let y?min = y?[0] + v?y[0]t+
+1
+2ay,mint
+2
+let y?max = y?[0] + v?y[0]t+
+1
+2ay,maxt
+2
+if [y?min, y?max] ? [y[t]? L, y[t] + L] 6= ?
+continue to check lateral feasibility
+else if y?min > y[t] + L and (y?min, v?y[0] + ay,mint) is not longitudinally safe w.r.t. (y[t], vy[t])
+continue to check lateral feasibility
+else if y?max < y[t]? L and (y?max, v?y[0] + ay,maxt) is not longitudinally safe w.r.t. (y[t], vy[t])
+continue to check lateral feasibility
+return “non-feasible”
+check lateral feasibility:
+w.l.o.g. assume x[t] = 0 and x?[0] ? 0, and v?x[0] ? 0.
+if a position x[t] is not considered (µ1, µ2)-Winning by Lateral Position w.r.t. a position x[t]?W
+w.l.o.g. assume vx[t] = ?µ, as in Definition 6.
+else
+w.l.o.g. assume vx[t] = ?2µ, as in Definition 6.
+let ttop = 0.5(t? v?x[0]/ax,max)
+if ttop < 0
+return “non-feasible”
+let xmax = x?[0] + 2(v?[0]ttop + 0.5ax,maxt
+2
+top) + v?x[0]
+2/(2ax,max)
+if xmax < ?W
+return “non-feasible”
+return “feasible”
+The following theorem proves the correctness of the above algorithm.
+Theorem 2 If Algorithm 1 returns “non-feasible” then there cannot be a non-safe cut-in of the ego vehicle’s blame at
+time t.
+To prove the theorem, we rely on the following key lemmas, which prove the correctness of the two building blocks
+of Algorithm 1. We start off with the longitudinal feasibility:
+Lemma 5 Under the notation of Algorithm 1, if the check longitudinal feasibility procedure is concluded by returning
+“non-feasible”, then there cannot be a non-safe cut-in of the ego vehicle’s blame at time t.
+Proof Ignoring the lateral aspect of a cut-in manoeuvre, we examine the mere possibility that the longitudinal distance
+between c and c? will be unsafe. It is clear that the positions (y?min, y?max) are bounding the position which can be
+attained by c? at time t. By the fact [y?min, y?max] ? [y[t] ? L, y[t] + L] = ?, we obtain that any longitudinally non-
+safe distance which is attainable, is ? L. Assume y?min > y[t] + L, and assume by contradiction that a non-safe
+longitudinal position and velocity, denoted y?bad[t], v?ybad[t], are attainable using acceleration commands bounded
+by ay,min, ay,max. By definition of y?min, we have y?bad[t] > y?min, and hence the distance between the cars is larger,
+namely y?bad[t]?(y[t]+L) > y?min?(y[t]+L). Since (y?min, v?y[0]+ay,mint) is longitudinally safe w.r.t. (y[t], vy [t]), by
+12
+definition of longitudinal non-safety, it follows that the attained velocity v?ybad[t] must be smaller than v?y [0]+ay,mint.
+However, it is clear that in order to achieve lesser speed, c? must use average acceleration which is lesser than ay,min
+throughout the time window [0, t], thus contradicting the fact that the longitudinal non-safety was attained using
+commands bounded by ay,min, ay,max. By considering a symmetrical argument for the case y?max < y[t] ? L, the
+proof is completed.
+We now move on to the lateral feasibility.
+Lemma 6 Under the notation of Algorithm 1, if the check lateral feasibility procedure is concluded by returning
+“non-feasible”, then there cannot be a non-safe cut-in of the ego vehicle’s blame at time t.
+Proof Firstly, it is clear that there is no loss of generality by the assumptions x[t] = 0, x?[0] ? 0 and the ones regarding
+vx[t], by a simple change of coordinates and consideration of relative velocity. Moreover, by similar arguments it is
+simple to extend to the case when v?x[0] ? 0.
+Note that the positions of the cars involved in the cut-in, which in our case, are (x[t], x[t] ? W ), imply some
+(µ1, µ2)-Winning by Lateral Position property, affecting the blame. By our assumptions over vx[t], we obtain that the
+maximal lateral velocity c? may use at time t, under assumption that c will be blamed, is 0: either in order to µ-“tie”
+lateral velocity (in the case c does not (µ1, µ2)-Win by Lateral Position, this can be enough in order to put the blame
+on it), or to µ-Win lateral velocity (in the case c does (µ1, µ2)-Win by Lateral Position, this is necessary in order to
+put the blame on it). It is left to check whether exists a manoeuvre starting at v?x[0], ending at v?x[t] = 0, using lateral
+accelerations bounded by ax,max, with final position x?[t] ? x[t] ? W . In words, a cut-in which ends at the desired
+lateral velocity, 0.
+Recall the definition ttop = 0.5(t ? v?x[0]/ax,max) from the algorithm. Assume ttop < 0. This implies that the
+time needed by c? in order to reach lateral velocity 0 when using maximal lateral acceleration, namely, v?x[0]/ax,max,
+is lesser than t. This implies that there is no manoeuvre which it can perform in order to reach the desired velocity in
+time, and hence no problematic manoeuvre exists. Therefore, if the procedure returned “non-feasible” due to ttop < 0,
+indeed, there is no feasibility of a non-safe cut-in of c’s blame.
+Consider the case ttop ? 0. Then, the procedure returned “non-feasible” due to xmax < ?W . Let us consider a
+family of lateral velocity profiles for c? in the time range [0, t], denoted U = {ua : a > v?x[0]/t} and parameterized
+by a. We define, for each a, in similar fashion to the one used in the algorithm, ttop(a) := 0.5(t? v?x[0]/a). Note that
+ttop(a) > 0 for all a > v?x[0]/t. We now define the velocity profile ua for all times t
+? ? [0, t] as follows:
+ua(t
+?) =
+{
+v?x[0] + a · t? t? < ttop(a)
+v?x[0] + a · (2ttop(a)? t?) t? ? ttop(a)
+First, It is very easy to see that ua satisfies the constraints ua(0) = v?x[0], ua(t) = v?x[t]. Second, it is easy to calculate
+the distance travelled while using ua, as this amounts to integration of a piecewise linear function. Let us define the
+arrived-at position as x?ua , and note that xmax defined in the algorithm is precisely x?uax,max . Third, it is easy to see
+that the travelled distance is monotonically increasing with a, and is unbounded. Hence, for any desired final position
+x > x?uv?x [0]/t , there exists a value of a for which x = x?ua . In particular, for x = x[t]?W , such a value exists, and we
+denote it by acut.
+Observe that since xmax, defined in the algorithm, is < x[t]?W , we have that acut > ax,max. This in not sufficient
+in order to show no valid manoeuvre can lead to position ? x[t]?W ; this is implied only for members of the family
+U . We now prove that even outside of U , all velocity profiles which attain a final position of x[t] ?W must use an
+acceleration value of at least acut on the way, making them invalid, and hence completing the proof.
+Assume some velocity profile u satisfies the boundary constraints u(0) = v?x[0], u(t) = v?x[t]. Moreover, assume
+it attains some final position x?u ? x[t]?W . We thus obtain:
+? t
+0
+u(?)d? ?
+? t
+0
+uacut(?)d?.
+Assume u ? uacut for all ? . In particular, u(ttop(acut)) ? uacut(ttop(acut)). From the mean value theorem, there
+13
+exists ? ? [0, ttop(acut)] s.t.
+u?(?) =
+u(ttop(acut))? u(0)
+ttop(acut)
+=
+u(ttop(acut))? uacut(0)
+ttop(acut)
+?
+uacut(ttop(acut))? uacut(0)
+ttop(acut)
+= acut > ax,max,
+implying infeasibility of u, as it uses acceleration (that is, u?, the derivative of the velocity) which exceeds ax,max.
+Now, assume u ? uacut does not hold for all ? . Then, due to the fact
+? t
+0
+u(?)d? ?
+? t
+0
+uacut(?)d? , there must be a
+point where u > uacut . If such point ?large exists in [0, ttop(acut)], then we can easily use the mean value theorem in
+the same manner as above, to obtain ? ? [0, ?large] where too large an acceleration is used. If such point only exists in
+[ttop(acut), t], similar argument will give us a point ? ? [?large, t] in which an acceleration value lesser than ?ax,max
+was used, concluding the proof.
+Equipped with the above lemmas, Theorem 2’s proof is immediate.
+3.2 Safety Verification - Occlusions
+In very similar fashion to dealing with observed objects, we define the extension for cautiousness w.r.t. occluded
+objects, with a similar theorem to Theorem 1, proving that cautiousness implies there are never accidents of our
+blame.
+Definition 15 (Cautiousness w.r.t. Occluded Objects) A command given at time t is Cautious w.r.t. Occluded Ob-
+jects if in the case that the exposure time of the object is t + 1, and we command a Default Emergency Policy (DEP)
+at t+ 1, there will not be an accident of our blame.
+Lemma 7 If we only give cautious, w.r.t. occluded objects and non occluded objects, commands, there will never be
+an accident of our blame.
+Proof Assume that an accident of our blame occurred at time t, with the exposure time being t? ? t. By cautiousness
+assumption, the command given at t? ? 1 allowed us to command a DEP at t? without being blamed for an acci-
+dent. As there was an accident of our blame, we apparently did not command a DEP at time t?. But from t? on, we
+were safe w.r.t. non occluded objects, hence the command we gave was safe, and there was no accident of our blame.
+Here too, in Appendix B, we provide efficient ways to checking cautiousness w.r.t. a worse-case assumptions over
+occluded objects, allowing for feasible, scalable, RSS.
+4 Driving Policy
+A driving policy is a mapping from a sensing state (a description of the world around us) into a driving command (e.g.,
+the command is lateral and longitudinal accelerations for the coming second, which determines where and at what
+speed should the car be in one second from now). The driving command is passed to a controller, that aims at actually
+moving the car to the desired position/speed.
+In the previous sections we described a formal safety model and proposed constraints on the commands issued by
+the driving policy that guarantee safety. The constraints on safety are designed for extreme cases. Typically, we do
+not want to even need these constraints, and would like to construct a driving policy that leads to a comfortable ride.
+The focus of this section is on how to build an efficient driving policy, in particular, one that requires computational
+resources that can scale to millions of cars. For now, we ignore the issue of how to obtain the sensing state and assume
+an utopic sensing state, that faithfully represents the world around us without any limitations. In later sections we will
+discuss the effect of inaccuracies in the sensing state on the driving policy.
+We can cast the problem of defining a driving policy in the language of Reinforcement Learning (RL). At each
+iteration of RL, an agent observes a state describing the world, denoted st, and should pick an action, denoted at,
+based on a policy function, ?, that maps states into actions. As a result of its action and other factors out of its control
+14
+(such as the actions of other agents), the state of the world is changed to st+1. We denote a (state,action) sequence by
+s? = ((s1, a1), (s2, a2), . . . , (slen(s?), alen(s?))). Every policy induces a probability function over (state,action) sequences.
+This probability function is affected by the actions taken by the agent, but also depends on the environment (and in
+particular, on how other agents behave). We denote by P? the probability over (state,action) sequences induced by
+?. The quality of a policy is defined to be Es??P? [?(s?)], where ?(s?) is a reward function that measures how good the
+sequence s? is. In most case, ?(s?) takes the form ?(s?) =
+?len(s?)
+t=1 ?(st, at), where ?(s, a) is an instantaneous reward
+function, that measures the immediate quality of being at state s and performing action a. For simplicity, we stick to
+this simpler case.
+To cast the driving policy problem in the above RL language, let st be some representation of the road, and
+the positions, velocities, and accelerations, of the ego vehicle as well as other road users. Let at be a lateral and
+longitudinal acceleration command. The next state, st+1, depends on at as well as on how the other agents will
+behave. The instantaneous reward, ?(st, at), may depend on the relative position/velocities/acceleration to other cars,
+the difference between our speed and the desired speed, whether we follow the desired route, whether our acceleration
+is comfortable etc.
+The main difficulty of deciding what action should the policy take at time t stems from the fact that one needs to
+estimate the long term effect of this action on the reward. For example, in the context of driving policy, an action that is
+taken at time t may seem a good action for the present (that is, the reward value ?(st, at) is good), but might lead to an
+accident after 5 seconds (that is, the reward value in 5 seconds would be catastrophic). We therefore need to estimate
+the long term quality of performing an action a when the agent is at state s. This is often called the Q-function, namely,
+Q(s, a) should reflect the long term quality of performing action a at time s. Given such a Q-function, the natural
+choice of an action is to pick the one with highest quality, ?(s) = argmaxa Q(s, a).
+The immediate questions are how to define Q and how to evaluate Q efficiently. Let us first make the (completely
+non-realistic) simplifying assumption that st+1 is some deterministic function of (st, at), namely, st+1 = f(st, at).
+The reader familiar with Markov Decision Processes (MDPs), will quickly notice that this assumption is even stronger
+than the Markovian assumption of MDPs (i.e., that st+1 is conditionally independent of the past given (st, at)). As
+noted in [5], even the Markovian assumption is not adequate for multi-agent scenarios, such as driving, and we will
+therefore later relax the assumption.
+Under this simplifying assumption, given st, for every sequence of decisions for T steps, (at, . . . , at+T ), we can
+calculate exactly the future states (st+1, . . . , st+T+1) as well as the reward values for times t, . . . , T . Summarizing all
+these reward values into a single number, e.g. by taking their sum
+?T
+?=t ?(s? , a? ), we can define Q(s, a) as follows:
+Q(s, a) = max
+(at,...,at+T )
+T
+?
+?=t
+?(s? , a? ) s.t. st = s, at = a, ??, s?+1 = f(s? , a? )
+That is, Q(s, a) is the best future we can hope for, if we are currently at state s and immediately perform action a.
+Let us discuss how to calculate Q. The first idea is to discretize the set of possible actions, A, into a finite set
+A?, and simply traverse all action sequences in the discretized set. Then, the runtime is dominated by the number of
+discrete action sequences, |A?|T . If A? represents 10 lateral accelerations and 10 longitudinal accelerations, we obtain
+100T possibilities, which becomes infeasible even for small values of T . While there are heuristics for speeding up
+the search (e.g. coarse-to-fine search), this brute-force approach requires tremendous computational power.
+The parameter T is often called the “time horizon of planning”, and it controls a natural tradeoff between com-
+putation time and quality of evaluation — the larger T is, the better our evaluation of the current action (since we
+explicitly examine its effect deeper into the future), but on the other hand, a larger T increases the computation time
+exponentially. To understand why we may need a large value of T , consider a scenario in which we are 200 meters be-
+fore a highway exit and we should take it. When the time horizon is long enough, the cumulative reward will indicate
+if at some time ? between t and t + T we have arrived to the exit lane. On the other hand, for a short time horizon,
+even if we perform the right immediate action we will not know if it will lead us eventually to the exit lane.
+A different approach attempts to perform offline calculations in order to construct an approximation of Q, denoted
+Q?, and then during the online run of the policy, use Q? as an approximation to Q, without explicitly rolling out the
+future. One way to construct such an approximation is to discretize both the action domain and the state domain.
+Denote by A?, S? these discretized sets. We can perform an offline calculation for evaluating the value of Q(s, a)
+15
+for every (s, a) ? S? × A?. Then, for every a ? A? we define Q?(st, a) to be Q(s, a) for s = argmins?S? ?s ? st?.
+Furthermore, based on the pioneering work of Bellman [2, 3], we can calculate Q(s, a) for every (s, a) ? S? × A?,
+based on dynamic programming procedures (such as the Value Iteration algorithm), and under our assumptions, the
+total runtime is order of T |A?| |S?|. The main problem with this approach is that in any reasonable approximation, S?
+is extremely large (due to the curse of dimensionality). Indeed, the sensing state should represent 6 parameters for
+every other relevant vehicle in the sense — the longitudinal and lateral position, velocity, and acceleration. Even if we
+discretize each dimension to only 10 values (a very crude discretization), since we have 6 dimensions, to describe a
+single car we need 106 states, and to describe k cars we need 106k states. This leads to unrealistic memory requirements
+for storing the values of Q for every (s, a) in S? × A?.
+A popular approach to deal with this curse of dimensionality is to restrict Q to come from a restricted class of
+functions (often called a hypothesis class), such as linear functions over manually determined features or deep neural
+networks. For example, [4] learned a deep neural network that approximates Q in the context of playing Atari games.
+This leads to a resource-efficient solution, provided that the class of functions that approximate Q can be evaluated
+efficiently. However, there are several disadvantages of this approach. First, it is not known if the chosen class of
+functions contain a good approximation to the desired Q function. Second, even if such function exists, it is not
+known if existing algorithms will manage to learn it efficiently. So far, there are not many success stories for learning
+a Q function for complicated multi-agent problems, such as the ones we are facing in driving. There are several
+theoretical reasons why this task is difficult. We have already mentioned that the Markovian assumption, underlying
+existing methods, is problematic. But, a more severe problem is that we are facing a very small signal-to-noise ratio
+due to the time resolution of decision making, as we explain below.
+Consider a simple scenario in which we need to change lane in order to take a highway exit in 200 meters and
+the road is currently empty. The best decision is to start making the lane change. We are making decisions every
+0.1 second, so at the current time t, the best value of Q(st, a) should be for the action a corresponding to a small
+lateral acceleration to the right. Consider the action a? that corresponds to zero lateral acceleration. Since there is
+a very little difference between starting the change lane now, or in 0.1 seconds, the values of Q(st, a) and Q(st, a
+?)
+are almost the same. In other words, there is very little advantage for picking a over a?. On the other hand, since
+we are using a function approximation for Q, and since there is noise in measuring the state st, it is likely that our
+approximation to the Q value is noisy. This yields a very small signal-to-noise ratio, which leads to an extremely slow
+learning, especially for stochastic learning algorithms which are heavily used for the neural networks approximation
+class. However, as noted in [1], this problem is not a property of any particular function approximation class, but
+rather, it is inherent in the definition of the Q function.
+In summary, existing approaches can be roughly divided into two camps. The first one is the brute-force approach
+which includes searching over many sequences of actions or discretizing the sensing state domain and maintaining a
+huge table in memory. This approach can lead to a very accurate approximation of Q but requires unleashed resources,
+either in terms of computation time or in terms of memory. The second one is a resource efficient approach in which
+we either search for short sequences of actions or we apply a function approximation to Q. In both cases, we pay by
+having a less accurate approximation of Q, that might lead to poor decisions.
+Our approach to constructing a Q function that is both resource-efficient and accurate is to depart from geometrical
+actions and to adapt a semantic action space, as described in the next subsection.
+4.1 Semantics to the rescue
+To motivate our semantic approach, consider a teenager that just got his driving license. His father seats next to him
+and gives him “driving policy” instructions. These instructions are not geometric — they do not take the form “drive
+13.7 meters at the current speed and then accelerate at a rate of 0.8 m/s2”. Instead, the instructions are of semantic
+nature — “follow the car in front of you” or “quickly overtake that car on your left”. We formalize a semantic language
+for such instructions, and use them as a semantic action space. We then define the Q function over the semantic action
+space. We show that a semantic action can have a very long time horizon, which allows us to estimate Q(s, a) without
+planning for many future semantic actions. Yes, the total number of semantic actions is still small. This allows
+us to obtain an accurate estimation of the Q function while still being resource efficient. Furthermore, as we show
+later, we combine learning techniques for further improving the quality function, while not suffering from a small
+16
+signal-to-noise ratio due to a significant difference between different semantic actions.
+We now define our semantic action space. The main idea is to define lateral and longitudinal goals, as well as the
+aggressiveness level of achieving them. Lateral goals are desired positions in lane coordinate system (e.g., “my goal
+is to be in the center of lane number 2”). Longitudinal goals are of three types. The first is relative position and speed
+w.r.t. other vehicles (e.g., “my goal is to be behind car number 3, at its same speed, and at a distance of 2 seconds
+from it”). The second is a speed target (e.g., “drive at the allowed speed for this road times 110%”). The third is a
+speed constraint at a certain position (e.g., when approaching a junction, “speed of 0 at the stop line”, or when passing
+a sharp curve, “speed of at most 60kmh at a certain position on the curve”). For the third option we can instead apply
+a “speed profile” (few discrete points on the route and the desired speed at each of them). A reasonable number of
+lateral goals is bounded by 16 = 4× 4 (4 positions in at most 4 relevant lanes). A reasonable number of longitudinal
+goals of the first type is bounded by 8 × 2 × 3 = 48 (8 relevant cars, whether to be in front or behind them, and
+3 relevant distances). A reasonable number of absolute speed targets are 10, and a reasonable upper bound on the
+number of speed constraints is 2. To implement a given lateral or longitudinal goal, we need to apply acceleration and
+then deceleration (or the other way around). The aggressiveness of achieving the goal is a maximal (in absolute value)
+acceleration/deceleration to achieve the goal. With the goal and aggressivness defined, we have a closed form formula
+to implement the goal, using kinematic calculations. The only remaining part is to determine the combination between
+the lateral and longitudinal goals (e.g., “start with the lateral goal, and exactly at the middle of it, start to apply also
+the longitudinal goal”). A set of 5 mixing times and 3 aggressiveness levels seems more than enough. All in all, we
+have obtained a semantic action space whose size is ? 104.
+It is worth mentioning that the variable time required for fulfilling these semantic actions is not the same as the
+frequency of the decision making process. To be reactive to the dynamic world, we should make decisions at a high
+frequency — in our implementation, every 100ms. In contrast, each such decision is based on constructing a trajectory
+that fulfills some semantic action, which will have a much longer time horizon (say, 10 seconds). We use the longer
+time horizon since it helps us to better evaluate the short term prefix of the trajectory. In the next subsection we discuss
+the evaluation of semantic actions, but before that, we argue that semantic actions induce a sufficient search space.
+Is this sufficient: We have seen that a semantic action space induces a subset of all possible geometrical curves,
+whose size is exponentially smaller (in T ) than enumerating all possible geometrical curves. The first immediate
+question is whether the set of short term prefixes of this smaller search space contains all geometric commands that
+we will ever want to use. We argue that this is indeed sufficient in the following sense. If the road is free of other
+agents, then there is no reason to make changes except setting a lateral goal and/or absolute acceleration commands
+and/or speed constraints on certain positions. If the road contains other agents, we may want to negotiate the right of
+way with the other agents. In this case, it suffices to set longitudinal goals relatively to the other agents. The exact
+implementation of these goals in the long run may vary, but the short term prefixes will not change by much. Hence,
+we obtain a very good cover of the relevant short term geometrical commands.
+4.2 Constructing an evaluation function for semantic actions
+We have defined a semantic set of actions, denoted by As. Given that we are currently in state s, we need a way
+to choose the best as ? As. To tackle this problem, we follow a similar approach to the options mechanism of [6].
+The basic idea is to think of as as a meta-action (or an option). For each choice of a meta-action, we construct a
+geometrical trajectory (s1, a1), . . . , (sT , aT ) that represents an implementation of the meta-action, a
+s. To do so we of
+course need to know how other agents will react to our actions, but for now we are still relying on (the non-realistic)
+assumption that st+1 = f(st, at) for some known deterministic function f . We can now use
+1
+T
+?T
+t=1 ?(st, at) as a
+good approximation of the quality of performing the semantic action as when we are at state s1.
+Most of the time, this simple approach yields a powerful driving policy. However, in some situations a more
+sophisticated quality function is required. For example, suppose that we are following a slow truck before an exit lane,
+where we need to take the exit lane. One semantic option is to keep driving slowly behind the truck. Another one is to
+overtake the truck, hoping that later we can get back to the exit lane and make the exit on time. The quality measure
+described previously does not consider what will happen after we will overtake the truck, and hence we will not choose
+the second semantic action even if there is enough time to make the overtake and return to the exit lane. Machine
+17
+learning can help us to construct a better evaluation of semantic actions, that will take into account more than the
+immediate semantic actions. Previously, we have argued that learning a Q function over immediate geometric actions
+is problematic due to the low signal-to-noise ratio (the lack of advantage). This is not problematic when considering
+semantic actions, both because there is a large difference between performing the different semantic actions and
+because the semantic time horizon (how many semantic actions we take into account) is very small (probably less than
+three in most cases).
+Another advantage of applying machine learning is for the sake of generalization: we can probably set an adequate
+evaluation function for every road, by a manual inspection of the properties of the road, and maybe some trial and error.
+But, can we automatically generalize to any road? Here, a machine learning approach can be trained on a large variety
+of road types so as to generalize to unseen roads as well.
+To summarize, our semantic action space allows to enjoy the benefits of both worlds: semantic actions contain
+information on a long time horizon, hence we can obtain a very accurate evaluation of their quality while being
+resource efficient.
+4.3 The dynamics of the other agents
+So far, we have relied on the assumption that st+1 is a deterministic function of st and at. As we have emphasized
+previously, this assumption is completely not realistic as our actions affect the behavior of other road users. While we
+do take into account some reactions of other agents to our actions (for example, we assume that if we will perform a
+safe cut-in than the car behind us will adjust its speed so as not to hit us from behind), it is not realistic to assume that
+we model all of the dynamics of other agents.
+The solution to this problem is to re-apply our decision making at a high frequency, and by doing this, we constantly
+adapt our policy to the parts of the environment that are beyond our modeling. In a sense, one can think of this as a
+Markovization of the world at every step. This is a common technique that tends to work very good in practice as long
+as the balance between modeling error and frequency of planning is adequate.
+5 Sensing
+In this section we describe the sensing state, which is a description of the relevant information of the scene, and forms
+the input to the driving policy module. By and large, the sensing state contains static and dynamic objects. The
+static objects are lanes, physical road delimiters, constraints on speed, constraints on the right of way, and information
+on occluders (e.g. a fence that occludes relevant part of a merging road). Dynamic objects are vehicles (bounding
+box, speed, acceleration), pedestrians (bounding box, speed, acceleration), traffic lights, dynamic road delimiters (e.g.
+cones at a construction area), temporary traffic signs and police activity, and other obstacles on the road (e.g. an
+animal, a mattress that fell from a truck, etc.).
+In any reasonable sensor setting, we cannot expect to obtain the exact sensing state, s. Instead, we view raw sensor
+and mapping data, which we denote by x ? X , and there is a sensing system that takes x and produces an approximate
+sensing state. Formally,
+Definition 16 (Sensing system) Let S denotes the domain of sensing state and let X be the domain of raw sensor and
+mapping data. A sensing system is a function s? : X ? S.
+It is important to understand when we should accept s?(x) as a reasonable approximation to s. The ultimate way to
+answer this question is by examining the implications of this approximation on the performance of our driving policy
+in general, and on the safety in particular. Following our safety-comfort distinction, here again we distinguish between
+sensing mistakes that lead to non-safe behaviour and sensing mistakes that affect the comfort aspects of the ride.
+Before we dive into the details, let us first describe the type of errors a sensing system might make:
+• False negative: the sensing system misses an object
+• False positive: the sensing system indicates a “ghost” object
+18
+• Inaccurate measurements: the sensing system correctly detects an object but incorrectly estimates its position or
+speed
+• Inaccurate semantic: the sensing system correctly detects an object but misinterpret its semantic meaning, for
+example, the color of a traffic light
+5.1 Comfort
+Recall that for a semantic action a, we have used Q(s, a) to denote our evaluation of a given that the current sensing
+state is s. Our policy picks the action ?(s) = argmaxa Q(s, a). If we inject s?(x) instead of s then the selected
+semantic action would be ?(s?(x)) = argmaxa Q(s?(x), a). Clearly, if ?(s?(x)) = ?(s) then s?(x) should be accepted
+as a good approximation to s. But, it is also not bad at all to pick ?(s?(x)) as long as the quality of ?(s?(x)) w.r.t. the true
+state, s, is almost optimal, namely, Q(s, ?(s?(x))) ? Q(s, ?(s))? ?, for some parameter ?. We say that s? is ?-accurate
+w.r.t. Q in such case. Naturally, we cannot expect the sensing system to be ?-accurate all the time. We therefore also
+allow the sensing system to fail with some small probability ?. In such a case we say that s? is Probably (w.p. of at
+least 1? ?), Approximately (up to ?), Correct, or PAC for short (borrowing Valiant’s PAC learning terminology [7]).
+We may use several (?, ?) pairs for evaluating different aspects of the system. For example, we can choose three
+thresholds, ?1 < ?2 < ?3 to represent mild, medium, and gross mistakes, and for each one of them set a different value
+of ?. This leads to the following definition.
+Definition 17 (PAC sensing system) Let ((?1, ?1), . . . , (?k, ?k)) be a set of (accuracy,confidence) pairs, let S be the
+sensing state domain, let X be the raw sensor and mapping data domain, and let D be a distribution over X × S. Let
+A be an action space, Q : S × A ? R be a quality function, and ? : S ? A be such that ?(s) ? argmaxa Q(s, a).
+A sensing system, s? : X ? S, is Probably-Approximately-Correct (PAC) with respect to the above parameters if for
+every i ? {1, . . . , k} we have that P(x,s)?D[Q(s, ?(s?(x))) ? Q(s, ?(s)) ? ?i] ? 1? ?i.
+Few remarks are in order:
+• The definition depends on a distribution D over X × S. It is important to emphasize that we construct this dis-
+tribution by recording data of many human drivers but not by following the particular policy of our autonomous
+vehicle. While the latter seems more adequate, it necessitates online validation, which makes the development
+of the sensing system impractical. Since the effect of any reasonable policy on D is minor, by applying simple
+data augmentation techniques we can construct an adequate distribution and then perform offline validation after
+every major update of the sensing system.
+• The definition provides a sufficient, but not necessary, condition for comfort ride using s?. It is not necessary
+because it ignores the important fact that short term wrong decisions have little effect on the comfort of the ride.
+For example, suppose that there is a vehicle 100 meters in front of us, and it is slower than the host vehicle.
+The best decision would be to start accelerating slightly now. If the sensing system misses this vehicle, but
+will detect it in the next time (after 100 mili-seconds), then the difference between the two rides will not be
+noticeable. To simplify the presentation, we have neglected this issue and required a stronger condition. The
+adaptation to a multi-frame PAC definition is conceptually straightforward, but involves more technicality and
+therefore we omit it.
+We next derive design principles that follow from the above PAC definition. Recall that we have described several
+types of sensing mistakes. For mistakes of types false negative, false positive, and inaccurate semantic, either the
+mistakes will be on non-relevant objects (e.g., a traffic light for left turn when we are proceeding straight), or they will
+be captured by the ? part of the definition. We therefore focus on the “inaccurate measurements” type of errors, which
+happens frequently.
+Somewhat surprisingly, we will show that the popular approach of measuring the accuracy of a sensing system
+via ego-accuracy (that is, by measuring the accuracy of position of every object with respect to the host vehicle) is
+not sufficient for ensuring PAC sensing system. We will then propose a different approach that ensures PAC sensing
+system, and will show how to obtain it efficiently. We start with some additional definitions.
+19
+For every object o in the scene, let p(o), p?(o) be the positions of o in the coordinate system of the host vehicle
+according to s, s?(x), respectively. Note that the distance between o and the host vehicle is ?p?. The additive error of
+p? is ?p(o) ? p?(o)?.The relative error of p?(o), w.r.t. the distance between o and the host vehicle, is the additive error
+divided by ?p(o)?, namely ?p(o)?p?(o)??p(o)? .
+We first argue that it is not realistic to require that the additive error is small for far away objects. Indeed, consider
+o to be a vehicle at a distance of 150 meters from the host vehicle, and let ? be of moderate size, say ? = 0.1. For
+additive accuracy, it means that we should know the position of the vehicle up to 10cm of accuracy. This is not realistic
+for reasonably priced sensors. On the other hand, for relative accuracy we need to estimate the position up to 10%,
+which amounts to 15m of accuracy. This is feasible to achieve (as we will describe later).
+We say that a sensing system, s?, positions a set of objects, O, in an ?-ego-accurate way, if for every o ? O, the
+(relative) error between p(o) and p?(o) is at most ?. The following example shows that an ?-ego-accurate sensing state
+does not guarantee PAC sensing system with respect to every reasonable Q. Indeed, consider a scenario in which the
+host vehicle drives at a speed of 30m/s, and there is a stopped vehicle 150 meters in front of it. If this vehicle is in
+the ego lane, and there is no option to change lanes in time, we must start decelerating now at a rate of at least 3m/s2
+(otherwise, we will either not stop in time or we will need to decelerate strongly later). On the other hand, if the
+vehicle is on the side of the road, we don’t need to apply a strong deceleration. Suppose that p(o) is one of these cases
+while p?(o) is the other case, and there is a 5 meters difference between these two positions. Then, the relative error of
+p?(o) is
+?p?(o)? p(o)?
+?p(o)?
+=
+5
+150
+=
+1
+30
+? 0.034 .
+That is, our sensing system may be ?-ego-accurate for a rather small value of ? (less than 3.5% error), and yet, for any
+reasonable Q function, the values of Q are completely different since we are confusing between a situation in which
+we need to brake strongly and a situation in which we do not need to brake strongly.
+The above example shows that ?-ego-accuracy does not guarantee that our sensing system is PAC. Is there another
+property that is sufficient for PAC sensing system? Naturally, the answer to this question depends on Q. We will
+describe a family of Q functions for which there is a simple property of the positioning that guarantees PAC sensing
+system. Intuitively, the problem of ?-ego-accuracy is that it might lead to semantic mistakes — in the aforementioned
+example, even though s? was ?-ego-accurate with ? < 3.5%, it mis-assigned the vehicle to the correct lane. To solve
+this problem, we rely on semantic units for lateral position.
+Definition 18 (semantic units) A lane center is a simple natural curve, namely, it is a differentiable, injective, map-
+ping ? : [a, b] ? R3, where for every a ? t1 < t2 ? b we have that the length Length(t1, t2) :=
+? t2
+?=t1
+|??(?)|d?
+equals to t2 ? t1. The width of the lane is a function w : [a, b] ? R+. The projection of a point x ? R3 onto the
+curve is the point on the curve closest to x, namely, the point ?(tx) for tx = argmint?[a,b] ??(t) ? x?. The semantic
+longitudinal position of x w.r.t. the lane is tx and the semantic lateral position of x w.r.t. the lane is ?(tx)/w(tx).
+Semantic speed and acceleration are defined as first and second derivatives of the above.
+Similarly to geometrical units, for semantic longitudinal distance we use relative error: if s? induces a semantic
+longitudinal distance of p?(o) for some object, while the true distance is p(o), then the relative error is |p?(o)?p(o)|max{p(o),1}
+(where the maximum in the denominator deals with cases in which the object has almost the same longitudinal distance
+(e.g., a car next to us on another lane). Since semantic lateral distances are small we can use additive error for them.
+This leads to the following defintion:
+Definition 19 (error in semantic units) Let ? be a lane and suppose that the semantic longitudinal distance of the
+host vehicle w.r.t. the lane is 0. Let x ? R3 be a point and let plat(x), plon(x) be the semantic lateral and longitudinal
+distances to the point w.r.t. the lane. Let p?lat(x), p?lon(x) be approximated measurements. The distance between p? and
+p w.r.t. x is defined as
+d(p?, p;x) = max
+{
+|p?lat(x) ? plat(x)| ,
+|p?lon(x)? plon(x)|
+max{plon(x), 1}
+}
+The distance of the lateral and longitudinal velocities is defined analogously.
+Equipped with the above definition, we are ready to define the property of Q and the corresponding sufficient
+condition for PAC sensing system.
+20
+Definition 20 (Semantically-Lipschitz Q) A Q function is L-semantically-Lipschitz if for every a, s, s?, |Q(s, a) ?
+Q(s?(x), a)| ? L maxo d(p?, p; o), where p?, p are the measurements induced by s, s? on an object o.
+As an immediate corollary we obtain:
+Lemma 8 If Q is L-semantically-Lipschitz and a sensing system s? produces semantic measurements such that with
+probability of at least 1? ? we have d(p?, p; o) ? ?/L, then s? is a PAC sensing system with parameters ?, ?.
+5.2 Safety
+We now discuss sensing mistakes that lead to non-safe behavior. As mentioned before, our policy is provably safe, in
+the sense that it won’t lead to accidents of the AV’s blame. Such accidents might still occur due to hardware failure
+(e.g., a break down of all the sensors or exploding tire on the highway), software failure (a significant bug in some of
+the modules), or a sensing mistake. Our ultimate goal is that the probability of such events will be extremely small
+— a probability of 10?9 for such an accident per hour. To appreciate this number, the average number of hours an
+american driver spend on the road is (as of 2016) less than 300. So, in expectation, one needs to live 3.3 million years
+to be in an accident.
+We first define what is a safety-critic sensing mistake. Recall that at every step, our policy picks the value of a
+that maximizes Q(s, a), namely, ?(s) = argmaxa Q(s, a). We ensure safety by letting Q(s, a) = ?? for every
+action a which is not cautious (see Definition 14). Therefore, the first type of safety-critic sensing mistake is if our
+sensing system leads to picking a non-safe action. Formally, letting ?(s?(x)) = argmaxa Q(s?(x), a) be the decision
+according to s?, we say that s? leads to a safety-critic miss if Q(s, ?(s?(x))) = ??. The second type of safety-critic
+sensing mistake is if all the actions are non safe according to s?(x), and we must apply the standard emergency policy
+(brakeing hard), while according to s there is a safe action, namely, maxa Q(s, a) > ??. This is dangerous when
+our speed is high and there is a car behind us. We call such mistake a safety-critic ghost.
+Usually, a safety-critic miss is caused by a false negative while a safety-critic ghost is caused by a false positive.
+Such mistakes can also be caused from significantly incorrect measurements, but in most cases, our comfort objective
+ensures we are far away from the boundary of the safety definitions, and therefore reasonable measurements errors are
+unlikely to lead to a safety-critic mistake.
+How can we ensure that the probability of safety-critic mistakes will be very small, say, smaller than 10?9 per
+hour? As followed from Lemma 1, without making further assumptions we need to check our system on more than
+109 hours of driving. This is unrealistic (or at least extremely challenging) — it amounts to recording the driving of
+3.3 million cars over a year. Furthermore, building a system that achieves such a high accuracy is a great challenge.
+Our solution for both the system design and validation challenges is to rely on several sub-systems, each of which
+is engineered independently and depends on a different technology, and the systems are fused together in a way that
+ensures boosting of their individual accuracy.
+Suppose we build 3 sub-systems, denoted, s1, s2, s3 (the extension to more than 3 is straightforward). Each sub-
+system receives a and should output safe/non-safe. Actions for which the majority of the sub-systems (2 in our case)
+accept as safe are considered safe. If there is no action that is considered safe by at least 2 sub-systems then we apply
+the default emergency policy.
+Let us now analyze the performance of this fusion scheme. We rely on the following definition:
+Definition 21 (One side c-approximate independent) Two Bernoulli random variables r1, r2 are called one side c-
+approximate independent if
+P[r1 ? r2] ? c P[r1] P[r2] .
+For i ? {1, 2, 3}, denote by emi , e
+g
+i the Bernoulli random variables that indicate if sub-system i performs a safety-critic
+miss/ghost respectively. Similarly, em, eg indicate a safety-critic miss/ghost of the fusion system. We rely on the
+assumption that for any pair i 6= j, the random variables emi , e
+m
+j are one sided c-approximate independent, and the
+same holds for egi , e
+g
+j . Before explaining why this assumption is reasonable, let us first analyze its implication. We can
+21
+bound the probability of em by:
+P[em] = P[em1 ? e
+m
+2 ? e
+m
+3 ] +
+3
+?
+j=1
+P[¬emj ? ?i6=je
+m
+i ]
+? 3P[em1 ? e
+m
+2 ? e
+m
+3 ] +
+3
+?
+j=1
+P[¬emj ? ?i6=je
+m
+i ]
+=
+3
+?
+j=1
+P[?i6=je
+m
+i ]
+? c
+3
+?
+j=1
+?
+i6=j
+P[emi ].
+Therefore, if all sub-systems have P[emi ] ? p then P[e
+m] ? 3 c p2. The exact same derivation holds for the safety-critic
+ghost mistakes. By applying a union bound we therefore conclude:
+Corollary 2 Assume that for any pair i 6= j, the random variables emi , e
+m
+j are one sided c-approximate independent,
+and the same holds for egi , e
+g
+j . Assume also that for every i, P[e
+m
+i ] ? p and P[e
+g
+i ] ? p. Then,
+P[em ? eg] ? 6 c p2 .
+This corollary allows us to use significantly smaller data sets in order to validate the sensing system. For example,
+if we would like to achieve a safety-critic mistake probability of 10?9, instead of taking order of 109 examples, it
+suffices to take order of 105 examples and test each system separately.
+It is left to reason about the rational behind the one sided independence assumption. There are pairs of sensors that
+yield completely non-correlated errors. For example, radar works well in bad weather conditions but might fail due
+to non-relevant metallic objects, as opposed to camera that is affected by bad weather but is not likely to be affected
+by metallic objects. Seemingly, camera and lidar have common sources of mistakes — both are affected by foggy
+weather, heavy rain or snow. However, the type of mistake for camera and lidar would be different — camera might
+miss objects due to bad weather while lidar might detect a ghost due to reflections from particles in the air. Since we
+have distinguished between the two types of mistakes, the approximate independency is still likely to hold.
+Remark: Our definition of safety-critic ghost requires that all actions are non-safe by at least two sensors. We argue
+that even in difficult conditions (e.g. heavy fog), this is unlikely to happen. The reason is that in such situations,
+systems that are affected by the difficult conditions (e.g. the lidar), will dictate a very defensive driving, as they can
+declare high velocity and lateral maneuver to be non-safe. As a result, we will drive slowly, and then even if we require
+an emergency stop, it is not dangerous due to the low speed of driving. Therefore, our definition yields an adaptation
+of the driving style to the conditions of the road.
+5.3 Building a scalable sensing system
+We have described the requirements from a sensing system, both in terms of comfort and safety. We now briefly
+suggest our approach for building a sensing system that meets these requirements while being scalable.
+There are three main components of our sensing system. The first is long range, 360 degrees coverage, of the
+scene based on cameras. The three main advantages of cameras are: (1) high resolution, (2) texture, (3) price. The low
+price enables a scalable system. The texture enables to understand the semantics of the scene, including lane marks,
+traffic light, intentions of pedestrians, and more. The high resolution enables a long range of detection. Furthermore,
+detecting lane marks and objects in the same domain enables excellent semantic lateral accuracy. The two main
+disadvantages of cameras are: (1) the information is 2D and estimating longitudinal distance is difficult, (2) sensitivity
+to lighting conditions (low sun, bad weather). We overcome these difficulties using the next two components of our
+system.
+22
+The second component of our system is a semantic high-definition mapping technology, called Road Experience
+Management (REM). A common geometrical approach to map creation is to record a cloud of 3D points (obtained by a
+lidar) in the map creation process, and then, localization on the map is obtained by matching the existing lidar points to
+the ones in the map. There are several disadvantages of this approach. First, it requires a large memory per kilometer of
+mapping data, as we need to save many points. This necessitates an expensive communication infrastructure. Second,
+only few cars are equipped with lidar sensors, and therefore, the map is updated very infrequently. This is problematic
+as changes in the road can occur (construction zones, hazards), and the “time-to-reflect-reality” of lidar-based mapping
+solutions is large. In contrast, REM follows a semantic-based approach. The idea is to leverage the large number of
+vehicles that are equipped with cameras and with software that detects semantically meaningful objects in the scene
+(lane marks, curbs, poles, traffic lights, etc.). Nowadays, many new cars are equipped with ADAS systems which
+can be leveraged for crowd source based creation of the map. Since the processing is done on the vehicle side, only
+a small amount of semantic data should be communicated to the cloud. This allows a very frequent update of the
+map in a scalable way. In addition, the autonomous vehicles can receive the small sized mapping data over existing
+communication platforms (the cellular network). Finally, highly accurate localization on the map can be obtained
+based on cameras, without the need for expensive lidars.
+REM is used for three purposes. First, it gives us a foresight on the static structure of the road (we can plan
+for a highway exit way in advance). Second, it gives us another source of accurate information of all of the static
+information, which together with the camera detections yields a robust view of the static part of the world. Third,
+it solves the problem of lifting the 2D information from the image plane into the 3D world as follows. The map
+describes all of the lanes as curves in the 3D world. Localization of the ego vehicle on the map enables to trivially lift
+every object on the road from the image plane to its 3D position. This yields a positioning system that adheres to the
+accuracy in semantic units described in Section 5.1.
+The third component of our system is a complementary radar and lidar systems. These systems serve two purposes.
+First, they enable to yield an extremely high accuracy for the sake of safety (as described in Section 5.2). Second, they
+give direct measurements on speed and distances, which further improves the comfort of the ride.
+References
+[1] Leemon C Baird. Reinforcement learning in continuous time: Advantage updating. In Neural Networks, 1994.
+IEEE World Congress on Computational Intelligence., 1994 IEEE International Conference on, volume 4, pages
+2448–2453. IEEE, 1994.
+[2] Richard Bellman. Dynamic programming and lagrange multipliers. Proceedings of the National Academy of
+Sciences of the United States of America, 42(10):767, 1956.
+[3] Richard Bellman. Introduction to the mathematical theory of control processes, volume 2. IMA, 1971.
+[4] Volodymyr Mnih, Koray Kavukcuoglu, David Silver, Andrei A Rusu, Joel Veness, Marc G Bellemare, Alex
+Graves, Martin Riedmiller, Andreas K Fidjeland, Georg Ostrovski, et al. Human-level control through deep
+reinforcement learning. Nature, 518(7540):529–533, 2015.
+[5] Shai Shalev-Shwartz, Shaked Shammah, and Amnon Shashua. Safe, multi-agent, reinforcement learning for
+autonomous driving. arXiv preprint arXiv:1610.03295, 2016.
+[6] Richard S Sutton, Doina Precup, and Satinder Singh. Between mdps and semi-mdps: A framework for temporal
+abstraction in reinforcement learning. Artificial intelligence, 112(1):181–211, 1999.
+[7] L. G. Valiant. A theory of the learnable. Communications of the ACM, 27(11):1134–1142, November 1984.
+23
+A Technical Lemmas
+A.1 Technical Lemma 1
+Lemma 9 For all x ? [0, 0.1], it holds that 1? x ? e?2x.
+Proof Let f(x) = 1? x? e?2x. Our goal is to show it is ? 0 for x ? [0, 0.1]. Note that f(0) = 0, and it is therefore
+sufficient to have that f ?(x) ? 0 in the aforementioned range. Explicitly, f ?(x) = ?1 + 2e?2x. Clearly, f ?(0) = 1,
+and it is monotonically decreasing, hence it is sufficient to verify that f ?(0.1) > 0, which is easy to do numerically,
+f ?(0.1) ? 0.637.
+B Efficient Cautiousness Verification - Occluded Objects
+As we do with non occluded objects, we check whether giving the current command, and after it, the DEP, is RSS.
+For this, we unroll our future until tbrake, when assuming the exposure time is 1 and we then command DEP, which
+suffices for cautiousness by definition. For all t? ? [0, tbrake], we check whether a blameful accident can occur - when
+assuming worse case over the occluded object. We use some of our worse case manoeuvres and safe distance rules.
+We take an occluder based approach to find interest points - namely, for each occluding object, we calculate the worse
+case. This is a crucial efficiency-driven approach - a pedestrian, for example, can be hidden in many positions behind
+a car, and can perform many manoeuvres, but there’s a single worse case position and manoeuvre it can perform.
+Let us deal here with the more elaborate case, that of the occluded pedestrian. Consider an occluded area behind a
+parked car. We start off by noting that it is very easy to find the closest points in an occluded area and the front/side of
+our car c, by their simple geometrical properties (triangles, rectangles8). Furthermore, it is easy to see that a pedestrian
+can run into the front of the car (under the vlimit constraint) from the occluded area IFF he can do it using the shortest
+path possible. Using the fact that the maximal distance which can be travelled by the pedestrian is vlimit · t?, we obtain
+a simple check for a frontal hit possibility. As for a side hit, we note that in case the path is shorter than vlimit · t
+?,
+we are responsible IFF our lateral velocity is greater than µ, in the direction of the hit. See Figure 4 for examples for
+shortest paths. We now obtain a simple algorithm for cautiousness verification w.r.t. occluded pedestrians, which we
+describe here in free pseudo code. The crucial part, that of checking existence of possibility of blameful accident with
+a pedestrian occluded by a vehicle, is done in the simple manner described above.
+Algorithm 2: Check cautiousness w.r.t. an occluded
+pedestrian
+for t? ? [0, tbrake]
+Roll self future until t?
+if Exists possibility of blameful accident with a pedestrian occluded by a vehicle
+return “non-cautious”
+return “cautious”
+C On the Problem of Validating a Simulator
+Multi-agent safety is hard to validate statistically as it should be done in an “online” manner. One may argue that by
+building a simulator of the driving environment, we can validate the driving policy in the “lab”. The problem with
+this argument is that validating that the simulator faithfully represents reality is as hard as validating the policy itself.
+To see why this is true, suppose that the simulator has been validated in the sense that applying a driving policy ? in
+the simulator leads to a probability of an accident of p?, and the probability of an accident of ? in the real world is p,
+8Formally, we can consider the occluded area as a union of a small number of convex regions of simple shape, and treat each of them separately.
+24
+c(0)
+c?
+(a)
+c(t
+?)
+c?
+(b)
+c(t
+?)
+c?
+(c)
+Figure 4: Worse case position (for time 0), and shortest paths, for frontal hit at time t?, in yellow. In Figure 4c, in
+magenta, the only place where there’s difference between the side hit’s shortest path and the frontal hit’s path.
+with |p ? p?| < ?. (We need that ? will be smaller than 10?9.) Now we replace the driving policy to be ??. Suppose
+that with probability of 10?8, ?? performs a weird action that confuses human drivers and leads to an accident. It is
+possible (and even rather likely) that this weird action is not modeled in the simulator, without contradicting its superb
+capabilities in estimating the performance of the original policy ?. This proves that even if a simulator has been shown
+to reflect reality for a driving policy ?, it is not guaranteed to reflect reality for another driving policy.
+25

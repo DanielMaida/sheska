@@ -1,0 +1,585 @@
+Deep EndoVO: A Recurrent Convolutional Neural
+Network (RCNN) based Visual Odometry Approach for
+Endoscopic Capsule Robots
+Mehmet Turana,d, Yasin Almalioglub, Helder Araujoc, Ender Konukoglud,
+Metin Sittia
+aPhysical Intelligence Department, Max Planck Institute for Intelligent Systems, Germany
+bComputer Engineering Department, Bogazici Univesity, Turkey
+cInstitute for Systems and Robotics, Universidade de Coimbra,Portugal
+d Computer Vision Laboratory, Department of Information Technology and Electrical
+Engineering, ETH Zurich, Switzerland
+Abstract
+Ingestible wireless capsule endoscopy is an emerging minimally invasive diag-
+nostic technology for inspection of the GI tract and diagnosis of a wide range of
+diseases and pathologies. Medical device companies and many research groups
+have recently made substantial progresses in converting passive capsule endo-
+scopes to active capsule robots, enabling more accurate, precise, and intuitive
+detection of the location and size of the diseased areas. Since a reliable real time
+pose estimation functionality is crucial for actively controlled endoscopic capsule
+robots, in this study, we propose a monocular visual odometry (VO) method for
+endoscopic capsule robot operations. Our method lies on the application of the
+deep Recurrent Convolutional Neural Networks (RCNNs) for the visual odom-
+etry task, where Convolutional Neural Networks (CNNs) and Recurrent Neural
+Networks (RNNs) are used for the feature extraction and inference of dynamics
+across the frames, respectively. Detailed analyses and evaluations made on a
+real pig stomach dataset proves that our system achieves high translational and
+rotational accuracies for different types of endoscopic capsule robot trajectories.
+Keywords: Endoscopic Capsule Robot, Visual Odometry, sequential deep
+Email addresses: mturan@student.ethz.ch (Mehmet Turan),
+yasin.almalioglu@boun.edu.tr (Yasin Almalioglu), helder@isr.uc.pt (Helder Araujo),
+ender.konukoglu@vision.ee.ethz.ch (Ender Konukoglu), sitti@is.mpg.de (Metin Sitti)
+Preprint submitted to Elsevier August 24, 2017
+ar
+X
+iv
+:1
+70
+8.
+06
+82
+2v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+2 
+A
+ug
+ 2
+01
+7
+learning, RCNN, CNN, LSTM, localization
+1. Introduction
+Following the advances in material science in last decades, untethered pill-
+size, swallowable capsule endoscopes with an on-board camera and wireless im-
+age transmission device have been developed and used in hospitals for screen-
+ing the gastrointestinal tract and diagnosing diseases such as the inflammatory
+bowel disease, the ulcerative colitis and the colorectal cancer. Unlike standard
+endoscopy, endoscopic capsule robots are non-invasive, painless and more ap-
+propriate to be employed for long duration screening purposes. Moreover, they
+can access difficult body parts that were not possible to reach before with stan-
+dard endoscopy (e.g., small intestines). Such advantages make pill-size capsule
+endoscopes a significant alternative screening method over standard endoscopy
+[1, 2, 3, 4, 5]. However, current capsule endoscopes used in hospitals are passive
+devices controlled by peristaltic motions of the inner organs. The control over
+capsule’s position, orientation, and functions would give the doctor a more pre-
+cise reachability of targeted body parts and more intuitive and correct diagnosis
+opportunity [6, 7, 8, 9]. Therefore, several groups have recently proposed ac-
+tive, remotely controllable robotic capsule endoscope prototypes equipped with
+additional functionalities such as local drug delivery, biopsy and other medi-
+cal functions [10, 2, 11, 12, 13, 14, 15, 16, 17, 18]. However, an active motion
+control needs feedback from a precise and reliable real time pose estimation
+functionality. In last decade, several localization methods [4, 19, 20, 21, 22]
+were proposed to calculate the 3D position and orientation of the endoscopic
+capsule robot such as fluoroscopy [4], ultrasonic imaging [19, 20, 21, 22], positron
+emission tomography (PET) [4, 22], magnetic resonance imaging (MRI) [4], ra-
+dio transmitter based techniques and magnetic field based techniques [15]. The
+common drawback of these localization methods is that they require extra sen-
+sors and hardware design. Such extra sensors have their own deficiencies and
+limitations if it comes to their application in small scale medical devices such as
+2
+Figure 1: Traditional visual odometry pipeline.
+space limitations, cost aspects, design incompatibilities, biocompatibility issue
+and the interference of sensors with activation system of the device.
+As a solution of these issues, a trend of visual odometry methods have attracted
+the attention for the localization of such small scale medical devices. A clas-
+sic visual odometry pipeline typically consisting of camera calibration, feature
+detection, feature matching, outliers rejection (e.g RANSAC), motion estima-
+tion, scale estimation and global optimization (bundle adjustment) is depicted
+in Fig. 1. Although some state-of-the-art algorithms based on this traditional
+pipeline have been applied for the visual odometry task of the hand-held en-
+doscopes in the past decades, their main deficiency is tracking failures in low
+textured areas. In last years, deep learning (DL) techniques have been dominat-
+ing many computer vision related tasks with some promising result, e.g object
+detection, object recognition, classification problems etc. Contrary to these
+high-level computer vision tasks, VO is mainly working on motion dynamics
+and relations across sequence of images, which can be defined as a sequential
+learning problem. With that motivation, we propose a novel monocular VO
+algorithm based on deep Recurrent Convolutional Neural Networks (RCNNs).
+Since it is designed in an end-to-end fashion, it does not need any module from
+the classic VO pipeline to be integrated. The main contributions of our paper
+are as follows:
+• To the best of our knowledge, this is the first monocular VO approach
+through deep learning techniques developed for the endoscopic capsule
+robot and hand-held standard endoscope localization.
+3
+• Neither prior knowledge nor parameter tuning is needed to recover the
+absolute trajectory scale contrary to monocular traditional VO approach.
+• A novel RCNN architecture is introduced which can successfully model
+sequential dependence and complex motion dynamics across endoscopic
+video frames.
+• A real pig stomach dataset and a synthetic human simulator dataset with
+6-DoF ground truth pose labels and 3D scan are recorded, which we are
+considering to publish for the sake of other researchers in that area.
+The proposed method solves several issues faced by typical visual odometry
+pipelines, e.g the need to establish a frame-to-frame feature correspondence, vi-
+gnetting, motion blur, specularity or low signal-to-noise ratio (SNR). We think
+that DL based endoscopic VO approach is more suitable for such challenge ar-
+eas since the operation environment (GI tract) has similar organ tissue patterns
+among different patients which can be learned by a sophisticated machine learn-
+ing approach easily. Even the dynamics of common artefacts such as vignetting,
+motion blur and specularity across frame sequences could be learned and used
+for a better pose estimation.
+As the outline of this paper, Section 2 introduces the proposed RCNN based
+localization method in detail. Section 3 presents our dataset and the experi-
+mental setup. Section 4 shows our experimental results, we achieved for 6-DoF
+localization of the endoscopic capsule robot. Section 5 gives future directions.
+2. System Overview and Analysis
+Our architecture makes use of inception modules for feature extraction and
+RNN for sequential modelling of motion dynamics to regress the robot’s orien-
+tation and position in real time (5.3 ms per frame). It takes two consecutive
+endoscopic RGB Depth frames each with timestamp and regresses the 6-DoF
+pose of the robot without need of any extra sensor. For the depth image cre-
+ation from RGB input images, we used shape from shading (SfS) technique of
+4
+Figure 2: Experimental overview.
+Tsai and Shah, which is based on the following assumptions [23]:
+• The object surface is lambertian
+• The light comes from a single point light source
+• The surface has no self-shaded areas.
+For more details of the Tsai-Shah SfS method, the reader is referred to the orig-
+inal paper of the authors. In past couple of years, some powerful CNN archi-
+tectures, such as GoogleNet[24], VGG16[25], ResNet50[26] have been developed
+and evaluated for various high level computer vision tasks, e.g object detection,
+object recognition and classification [24],[27],[28][29]. One major drawback of
+CNN architectures is the fact that they only analyse just-in-moment informa-
+tion, whereas VO is rather dependent on the correlative information across
+frames. Unlike traditional feed-forward artificial neural networks, RCNN can
+use its internal memory to process arbitrarily long sequences by its directed cy-
+cles between the hidden units. Therefore, we think that RCNN architectures are
+5
+more suitable than CNN architectures for VO tasks (see Fig. 3). The proposed
+deep EndoVO (endoscopic visual odometry) approach works as follows:
+Algorithm 1 Deep EndoVO
+1: Take two consecutive input RGB images.
+2: Create the depth images from RGB images using Tsai-Shah SfS method.
+3: Subtract mean RGB Depth value of the training set from the RGB Depth
+images.
+4: Stack the preprocessed RGB Depth frame pair to form a tensor.
+5: Serve the tensor into the stack of inception modules to create the feature
+vector.
+6: Feed the feature representation into the RNN layers.
+7: Estimate the 6-DoF relative pose.
+The proposed DL network consists of three inception layers and two LSTM
+layers concatenated sequentially. The inception layers, imitating visual cortex
+of human beings, are basically extracting multi-level features; i.e, features of
+different sizes such as small details, middle-size or larger features (see Fig. 5b.
+The final inception layer passes the feature representation into the RNN mod-
+ules (see Fig. 5a). RNNs are very suitable for modelling the dependencies
+across image sequences and for creating a temporal motion model since it has
+a memory of hidden states over time and has directed cycles among hidden
+units, enabling the current hidden state to be a function of arbitrary sequences
+of inputs (see Fig. 5a). Thus, using RNN, the pose estimation of the current
+frame benefits from information encapsulated in previous frames [31]. Given a
+set of inception features xk at time k, RNN updates at time step k, W denote
+corresponding weight matrices of the hidden units, b the bias vector, and H an
+element-wise hyperbolic tangent based activation function. Long Short-Term
+Memory (LSTM) is more suitable than RNN to exploit longer trajectories since
+it avoids the vanishing gradient problem of RNN resulting in a higher capac-
+ity of learning long-term relations among the sequences by introducing memory
+gates such as input, forget and output gates and hidden units of several blocks.
+6
+Figure 3: Architecture Block Diagram.
+Figure 4: Architecture of the proposed RCNN based monocular VO system.
+7
+(a) Information flow through the hidden
+units of the LSTM [30].
+(b) Inception layer[24]
+Figure 5: The structure of the LSTM and inception layers of the proposed model is shown.
+The input gate controls the amount of new information flowing into the current
+state, the forget gate adjusts the amount of existing information that remains
+in the memory and the output gate decides which part of the information trig-
+gers the activations. The folded LSTM and its unfolded version over time are
+shown in Fig. 5a along with the internal structure of a LSTM memory cell. It
+can be seen that unfolded LSTMs correspond to timestamps. Given the input
+vector xk at time k, the output vector hk?1 and the cell state vector ck?1 of
+the previous LSTM unit, the LSTM updates at time step k according to the
+following equations, where ? is sigmoid non-linearity, tanh is hyperbolic tangent
+non-linearity, W terms denote corresponding weight matrices, b terms denote
+bias vectors, ik, fk, gk, ck and ok are input gate, forget gate, input modulation
+gate, the cell state and output gate at time k, respectively [30]:
+fk = ?(Wf · [xk, hk?1] + bf ) ik = ?(Wi · [xk, hk?1] + bi)
+gk = tanh(Wg · [xk, hk?1] + bg) ck = fk  ck?1 + ik  gk
+ok = ?(Wo|cdot[xk, hk?1] + bo) hk = ok  tanh(ck)
+Although the LSTM is prone to vanishing gradient problem of RNN and
+is capable to detect the long-term dependencies, its learning capacity can be
+increased further by stacking multiple LSTM layers vertically. Thus, our deep
+RNN consists of two LSTM layers with the output sequence of the first one form-
+8
+ing the input sequence of the second one each containing 1000 hidden units, as
+illustrated in Fig. 4. The proposed system, which learns translational and rota-
+tional motions simultaneously to regress the 6-DoF pose, is trained on Euclidean
+loss using Adam optimization method with the following objective loss function:
+loss(I) = ?x?? x?2 + ??q? ? q?2 (1)
+where x is the translation vector and q is the rotation vector. The pseudo-code
+to calculate the loss value is given in Algorithm 2. In our loss function, a balance
+? must be kept between the orientation and translation loss values which are
+highly coupled each other as they are learned from the same model weights.
+Experimental results show that the optimal ? is given by the ratio between the
+loss values of predicted positions and orientations at the end of training session
+[29].
+Algorithm 2 Pseudo code to calculate the loss over the network
+1: procedure CalculateLoss
+2: loss ? 0
+3: for layer in layers do
+4: for top, loss weight in layer.tops, layer.loss weights do
+5: loss? loss+ loss weight× sum(top)
+The back-propagation algorithm is used to calculate the gradients of RCNN
+weights, which are passed to the Adam optimization method to compute adap-
+tive learning rates for each parameter employing the first-order gradient-based
+optimization of the stochastic objective function. In addition to saving expo-
+nentially decaying average of past squared gradients, vt, Adam optimization
+keeps exponentially decaying average of past gradients, mt that is similar to
+momentum. The update equations are given as
+(mt)i = ?1(mt?1)i + (1? ?1)(?L(Wt))i (2)
+(vt)i = ?2(vt?1)i + (1? ?2)(?L(Wt))2i (3)
+9
+(Wt+1)i = (Wt)i ? ?
+?
+1? (?2)ti
+1? (?1)ti
+(mt)i?
+(vt)i + ?
+(4)
+We used default values proposed by [32] for the parameters ?1, ?1 and ?: ?1 =
+0.9, ?2 = 0.999 and ? = 10
+?8.
+3. Dataset
+This section demonstrates the experimental setup of the proposed study,
+introduces our magnetically actuated soft capsule endoscopes (MASCE) and
+explains how the training and testing datasets were recorded.
+3.1. Magnetically Actuated Soft Capsule Endoscopes (MASCE)
+Our capsule prototype is a magnetically actuated soft capsule endoscope
+(MASCE) designed for disease detection, drug delivery and biopsy operations
+in the upper gastrointestinal tract. The prototype is composed of a RGB cam-
+era, a permanent magnet, a fine-needle and a drug chamber (see Fig. 6a for
+visual reference). The magnet exerts magnetic force and torque to the robot in
+response to a controlled external magnetic field [18]. The magnetic torque and
+forces are used to actuate the capsule robot and to release drug and deliver the
+needle through the hole in the bottom of the capsule. Magnetic fields from the
+electromagnets generate the magnetic force and torque on the magnet inside
+MASCE so that the robot moves inside the workspace. Sixty-four three-axis
+magnetic sensors are placed on the top, and nine electromagnets are placed in
+the bottom [18].
+3.2. Training dataset
+We created two groups of training datasets. The first training dataset was
+recorded on five different real pig stomachs (see Fig.2), whereby the second
+dataset which was only used for training purposes, was captured using a non-
+rigid open GI tract model EGD (esophagus gastro duodenoscopy) surgical sim-
+ulator LM-103 (see Fig.2). To ensure that our algorithm is not tuned to a
+10
+(a) Actuation system of the MASCE [18] (b) Exterior (left) and section view
+(right) of MASCE [18]
+Figure 6: MASCE design features and actuation unit
+specific camera model, four different commercial endoscopic cameras were em-
+ployed, specifications of which are shown in Table 1, accordingly. For each pig
+stomach-camera combination, 2000 frames were acquired which makes for four
+cameras and five pig stomachs 40000 frames, in total. Sample real pig stomach
+frames are shown in Fig. 7a for visual reference. As a second training dataset,
+for each of four cameras, we captured 10000 frames on an EGD human stomach
+simulator making 40000 frames, in total. Sample synthetic training frames are
+shown in Fig.7b for visual reference. During video recording, Optitrack motion
+tracking system consisting of eight Prime-13 cameras and a tracking software
+was utilized to obtain 6-DoF localization ground truth data in a sub-millimeter
+precision (see Fig. 3) which was used as a gold standard for the evaluations of
+the pose estimation accuracy.
+3.3. Testing dataset
+We created a testing dataset recorded using five different real pig stomachs,
+which were not used for the training section. For each pig stomach-camera
+combination, 2000 frames are acquired making 40000 frames, in total. We did
+not capture any synthetic dataset for the testing session since it is less realis-
+tic due to obvious patterns of such artificial simulators. For all of the video
+records, again Optitrack motion tracking system was utilized to obtain 6-DoF
+localization ground truth.
+11
+(a) Awaiba Naneye Endoscopic Camera
+Resolution 250 x 250 pixel
+Footprint 2.2 x 1.0 x 1.7 mm
+Pixel size 3 x 3 µm2
+Frame rate 44 fps
+(b) Misumi-V3506-2ES camera
+Resolution 400 x 400 pixel
+Diameter 8.2mm
+Pixel size 5.55 x 5.55 µm2
+Frame rate 30 fps
+(c) Misumi-V5506-2ES camera
+Resolution 640 x 480 pixel
+Diameter 8.6 mm
+Pixel size 6.0 x 6.0 µm2
+Frame rate 30 fps
+(d) Potensic Mini Camera
+Resolution 1280 x 720 pixel
+Diameter 8.8 mm
+Pixel size 10.0 x 10.0 µm2
+Frame rate 30 fps
+Table 1: Endoscopic camera specifications used for the experiments.
+(a) Sample frames recorded on a real pig
+stomach
+(b) Sample frames recorded on EGD simu-
+lator
+Figure 7: Sample frames from the datasets used in the experiments.
+4. Evaluations and Results
+Architecture was trained using Caffe library and NVIDIA Tesla K40 GPU.
+Using back-propagation-through-time method, the weights of hidden units were
+trained for up to 200 epochs with an initial learning rate of 0.001. Overfitting
+meaning that the noise or random fluctuations in the training data are picked
+up and learned as concepts by the model, whereas these concepts do not apply
+to a new data and negatively affect the ability of the model to make generaliza-
+12
+(a) Change in the loss values for a good
+fitting
+(b) Change in the loss values for overfitting
+Figure 8: The decrease in the training and validation loss values. In overfitting case, the
+training loss gets smaller than the validation loss. However, the loss values are balanced for a
+good fit.
+tions, was prevented using dropout and early stopping techniques (see Fig.11).
+Dropout regularization technique introduced by [33] is an extremely effective
+and simple method to avoid overfitting. It samples a part of the whole network
+and updates its parameters based on the input data. Early stopping is another
+widely used technique to prevent overfitting of a complex neural network ar-
+chitecture which was optimized by a gradient-based method. The approach is
+executed by splitting the dataset into a training and a validation set to evaluate
+the generalization capability of the model.
+For the testing sessions, only real pig stomach recordings were used to en-
+sure real world conditions. Additionally, we strictly avoided to use any frame
+from the training session for the testing session. Two separate experiments were
+conducted, whereas training session of the first experiment was performed us-
+ing only the synthetic training dataset (see Fig.7b) which we call simEndoVO
+and training session of the second experiment was performed using frames from
+both synthetic and real pig stomach dataset (see Fig. 7b and 7a) which we
+call realEndoVO. The performance of the simEndoVO and realEndoVO ap-
+proaches were analysed using averaged Root Mean Square Errors (RMSEs) for
+translational and rotational motions. For various trajectories with different
+complexity levels of motions, including uncomplicated paths with slow incre-
+mental translations and rotations, comprehensive scans with many local loop
+13
+(a) Trajectory 1 (b) Trajectory 2
+(c) Trajectory 3 (d) Trajectory 4
+Figure 9: Sample ground truth trajectories and estimated trajectories predicted by the DL
+based VO models. As seen, deep EndoVO is the closest to the ground truth trajectories. The
+scale is calculated and maintained correctly by the models.
+14
+(a) Trajectory length vs translation error (b) Trajectory length vs totation error
+Figure 10: Deep EndoVO outperforms both of the other models in terms of translational and
+rotational position estimation.
+closures and complex paths with sharp rotational and translational movements,
+we performed testings on both simEndoVO and realEndoVO comparing them
+with GoogLeNet and ResNet50 architectures which were modified to regress 6-
+DoF pose values by removing softmax layer and integrating a fully-connected
+(FC) layer and an affine regressor layer. The average translational and rota-
+tional RMSEs for simEndoVO, realEndoVO, GoogLeNet and ResNet50 net-
+works against different path lengths are shown in Fig. 10, respectively. The
+results depicted indicate, that realEndoVO clearly outperforms GoogLeNet and
+ResNet50, whereas simEndoVO slightly outperforms them. We presume that
+the effective use of LSTM in EndoVO architecture enabled learning motion dy-
+namics across frame sequences, which is not feasible by architectures working
+with the principle of just-in-moment information processing; i.e GoogleNet and
+ResNet50. The results in Fig.10 also indicate that the training procedure in-
+cluding both simulator and real dataset was more informative than training
+only with simulator dataset. On the other hand, the accuracies achieved by the
+modified GoogLeNet are slightly better than accuracies achieved by the modi-
+fied ResNet50, proving the superiority of inception layers over residual networks
+for feature extraction related tasks. Derived from RMSEs calculated, the ro-
+tational motion parameters seem to be more prone to overfitting compared to
+15
+(a) Training good fitting (b) Training overfitting
+(c) Test good fitting (d) Test overfitting
+Figure 11: The affect of good fitting and overfitting. The first and the second rows show
+over-fitted and well-fitted models, respectively. As seen in subfigures, the model learns the
+details and noise in the training data to an undesired extent that it negatively impacts the
+performance of the model on the test data
+translational motion parameters (see Fig.11 for visual reference). The reason
+for that observation could be the fact that inner organ scanning procedures gen-
+erally contain more translational motions than rotational motions resulting in a
+better learning for translations. As the length of the trajectory increases, both
+the translational and rotational error of all the proposed models significantly
+decrease (see Fig.10). Some sample ground truth and estimated trajectories
+for realEndoVO, GoogLeNet and ResNet50 are shown in Fig.9 for visual refer-
+ence. As seen in these sample trajectories, realEndoVO is able to stay close to
+16
+the ground truth pose values for even sharp crispy motions, contrary to real-
+EndoVO; GoogLeNet and ResNet50 path estimations which deviate drastically
+from the ground truth path values. Even for very fast and challenge paths
+such as 9a and 9c, the deviations of realEndoVO from the ground truth still
+remain in an acceptable range for medical operations. In addition to that, it
+is clearly seen that all of the three evaluated neural network architectures are
+able to estimate the scale very accurately without using any prior information
+or post alignment techniques contrary to traditional VO. Solving the scale am-
+biguity for monocular camera based VO makes our proposed DL based method
+more beneficial than traditional VO approach. As opposed to the traditional
+VO pipeline (see Fig.1), the DL-based VO do not require any explicit feature
+extraction, matching, outlier detection or multi-scale bundle adjustment-like
+parameter tuning requiring operations, which can be seen as further benefits of
+the proposed approach.
+4.1. Comparisons of deep EndoVO with state-of-the-art SLAM methods
+In this subsection, we compare the performance of the proposed deep En-
+doVO with two of the widely used state-of-the-art SLAM methods; i.e. large-
+scale direct monocular SLAM (LSD SLAM) [34] and the oriented fast and ro-
+tated brief SLAM (ORB SLAM) [35]. LSD SLAM is a direct image alignment-
+based method which optimizes the geometry using all of the image intensities. In
+addition to higher accuracy and robustness particularly in environments with lit-
+tle key points, this provides substantially more information about the geometry
+of the environment, which can be very valuable for medical robot applications,
+as well. ORB SLAM on the other hand, relies on feature point extraction and
+tracking to estimate camera pose and 3D map the environment. Even though
+it gives very promising results for feature-rich areas, its main deficiency appears
+once the robot enters poorly featured areas. Tracking failures are commonly
+observable for poorly featured GI tract tissues making ORB SLAM less proper
+for our case. We believe that our deep EndoVO architectures makes an optimal
+use of both direct and feature point information to estimate the pose. The av-
+17
+(a) Trajectory length vs translation error (b) Trajectory length vs rotation error
+Figure 12: Deep EndoVO outperforms the state-of-the-art SLAM methods ORB SLAM and
+LSD SLAM in both the translation and orientation estimation.
+erage translational and rotational RMSEs for simEndoVO, realEndoVO, LSD
+SLAM and ORB SLAM, shown in Fig. 12 indicate that both simEndoVO and
+realEndoVO clearly outperforms LSD SLAM and ORB SLAM in terms of pose
+accuracy. Sample trajectory estimations shown in Fig. 13 visualize clearly that
+the tracking capability of the proposed deep EndoVO is much more robust and
+reliable compared to LSD SLAM and ORB SLAM. In many parts of the trajec-
+tories, ORB SLAM and LSD SLAM deviate from the ground truth trajectory
+drastically, whereas deep EndoVO is still able to stay close to the ground truth
+values even for most challenge trajectory sections (see Fig.13b,13c).
+5. CONCLUSION
+In this study, we presented, to the best of our knowledge, the first deep
+VO method for endoscopic capsule robot and standard hand-held endoscope
+operations. The proposed system is able to achieve simultaneous representa-
+tion learning and sequential modelling of motion dynamics across frames by
+concatenating the inception modules with RNN layers. Many issues faced by
+traditional VO techniques such as feature correspondence establishment in low
+textured areas, high reflections, motion blur and low image quality are handled
+by the proposed deep EndoVO successfully. Since it is trained in an end-to-end
+18
+(a) Trajectory 1
+(b) Trajectory 2
+(c) Trajectory 3 (d) Trajectory 4
+Figure 13: The ground truth and the trajectory plots acquired via deep EndoVO, LSD SLAM
+and ORB SLAM. Deep EndoVO is the closest to the ground truth trajectories compared to
+the state-of-the-art SLAM methods.
+19
+manner, there is no need to carefully fine-tune the parameters of the system. As
+a future step, we consider to combine deep EndoVO with some functionalities
+from the traditional VO pipelines such as RANSAC for outlier detection and
+bundle fusion for globally consistent pose estimation etc to avoid drifts. More-
+over, we consider to develop a stereo version of the proposed deep EndoVO
+approach.
+20
+References
+References
+[1] Z. Liao, R. Gao, C. Xu, Z.-S. Li, Indications and detection, completion,
+and retention rates of small-bowel capsule endoscopy: a systematic review,
+Gastrointestinal endoscopy 71 (2) (2010) 280–286.
+[2] T. Nakamura, A. Terano, Capsule endoscopy: past, present, and future,
+Journal of gastroenterology 43 (2) (2008) 93–99.
+[3] G. Pan, L. Wang, Swallowable wireless capsule endoscopy: progress and
+technical challenges, Gastroenterology research and practice 2012.
+[4] T. D. Than, G. Alici, H. Zhou, W. Li, A review of localization systems for
+robotic endoscopic capsules, IEEE Transactions on Biomedical Engineering
+59 (9) (2012) 2387–2399.
+[5] M. Sitti, H. Ceylan, W. Hu, J. Giltinan, M. Turan, S. Yim, E. Diller,
+Biomedical applications of untethered mobile milli/microrobots, Proceed-
+ings of the IEEE 103 (2) (2015) 205–224.
+[6] M. Turan, Y. Almalioglu, H. Araujo, E. Konukoglu, M. Sitti, A non-rigid
+map fusion-based rgb-depth slam method for endoscopic capsule robots,
+arXiv preprint arXiv:1705.05444.
+[7] M. Turan, Y. Almalioglu, E. Konukoglu, M. Sitti, A deep learning based 6
+degree-of-freedom localization method for endoscopic capsule robots, arXiv
+preprint arXiv:1705.05435.
+[8] M. Turan, A. Abdullah, R. Jamiruddin, H. Araujo, E. Konukoglu, M. Sitti,
+Six degree-of-freedom localization of endoscopic capsule robots using recur-
+rent neural networks embedded into a convolutional neural network, arXiv
+preprint arXiv:1705.06196.
+21
+[9] M. Turan, Y. Y. Pilavci, R. Jamiruddin, H. Araujo, E. Konukoglu, M. Sitti,
+A fully dense and globally consistent 3d map reconstruction approach for
+gi tract to enhance therapeutic relevance of the endoscopic capsule robot,
+arXiv preprint arXiv:1705.06524.
+[10] M. K. Goenka, S. Majumder, U. Goenka, Capsule endoscopy: Present sta-
+tus and future expectation, World J Gastroenterol 20 (29) (2014) 10024–
+10037.
+[11] F. Munoz, G. Alici, W. Li, A review of drug delivery systems for capsule
+endoscopy, Advanced drug delivery reviews 71 (2014) 77–85.
+[12] F. Carpi, N. Kastelein, M. Talcott, C. Pappone, Magnetically controllable
+gastrointestinal steering of video capsules, IEEE Transactions on Biomed-
+ical Engineering 58 (2) (2011) 231–234.
+[13] H. Keller, A. Juloski, H. Kawano, M. Bechtold, A. Kimura, H. Takizawa,
+R. Kuth, Method for navigation and control of a magnetically guided
+capsule endoscope in the human stomach, in: 2012 4th IEEE RAS &
+EMBS International Conference on Biomedical Robotics and Biomecha-
+tronics (BioRob), IEEE, 2012, pp. 859–865.
+[14] A. W. Mahoney, S. E. Wright, J. J. Abbott, Managing the attractive mag-
+netic force between an untethered magnetically actuated tool and a rotat-
+ing permanent magnet, in: Robotics and Automation (ICRA), 2013 IEEE
+International Conference on, IEEE, 2013, pp. 5366–5371.
+[15] S. Yim, E. Gultepe, D. H. Gracias, M. Sitti, Biopsy using a magnetic cap-
+sule endoscope carrying, releasing, and retrieving untethered microgrippers,
+IEEE Transactions on Biomedical Engineering 61 (2) (2014) 513–521.
+[16] A. J. Petruska, J. J. Abbott, An omnidirectional electromagnet for remote
+manipulation, in: Robotics and Automation (ICRA), 2013 IEEE Interna-
+tional Conference on, IEEE, 2013, pp. 822–827.
+22
+[17] D. Son, S. Yim, M. Sitti, A 5-d localization method for a magnetically
+manipulated untethered robot using a 2-d array of hall-effect sensors,
+IEEE/ASME Transactions on Mechatronics 21 (2) (2016) 708–716.
+[18] D. Son, M. D. Dogan, M. Sitti, Magnetically actuated soft capsule en-
+doscope for fine-needle aspiration biopsy, in: Robotics and Automation
+(ICRA), 2017 IEEE International Conference on, IEEE, 2017, pp. 1132–
+1139.
+[19] M. Fluckiger, B. J. Nelson, Ultrasound emitter localization in heteroge-
+neous media, in: 2007 29th Annual International Conference of the IEEE
+Engineering in Medicine and Biology Society, IEEE, 2007, pp. 2867–2870.
+[20] J. M. Rubin, H. Xie, K. Kim, W. F. Weitzel, S. Y. Emelianov, S. R.
+Aglyamov, T. W. Wakefield, A. G. Urquhart, M. ODonnell, Sonographic
+elasticity imaging of acute and chronic deep venous thrombosis in humans,
+Journal of Ultrasound in Medicine 25 (9) (2006) 1179–1186.
+[21] K. Kim, L. A. Johnson, C. Jia, J. C. Joyce, S. Rangwalla, P. D. Higgins,
+J. M. Rubin, Noninvasive ultrasound elasticity imaging (uei) of crohn’s
+disease: animal model, Ultrasound in medicine & biology 34 (6) (2008)
+902–912.
+[22] S. Yim, M. Sitti, 3-d localization method for a magnetically actuated soft
+capsule endoscope and its applications, IEEE Transactions on Robotics
+29 (5) (2013) 1139–1151.
+[23] T. Ping-Sing, M. Shah, Shape from shading using linear approximation,
+Image and Vision Computing 12 (8) (1998) 487–498.
+[24] C. Szegedy, W. Liu, Y. Jia, P. Sermanet, S. Reed, D. Anguelov, D. Erhan,
+V. Vanhoucke, A. Rabinovich, Going deeper with convolutions, in: Pro-
+ceedings of the IEEE Conference on Computer Vision and Pattern Recog-
+nition, 2015, pp. 1–9.
+23
+[25] K. Simonyan, A. Zisserman, Very deep convolutional networks for large-
+scale image recognition, CoRR abs/1409.1556.
+[26] K. He, X. Zhang, S. Ren, J. Sun, Deep residual learning for image recog-
+nition, in: Proceedings of the IEEE conference on computer vision and
+pattern recognition, 2016, pp. 770–778.
+[27] N. Su?nderhauf, S. Shirazi, F. Dayoub, B. Upcroft, M. Milford, On the
+performance of convnet features for place recognition, in: Intelligent Robots
+and Systems (IROS), 2015 IEEE/RSJ International Conference on, IEEE,
+2015, pp. 4297–4304.
+[28] O. Russakovsky, J. Deng, H. Su, J. Krause, S. Satheesh, S. Ma, Z. Huang,
+A. Karpathy, A. Khosla, M. Bernstein, et al., Imagenet large scale visual
+recognition challenge, International Journal of Computer Vision 115 (3)
+(2015) 211–252.
+[29] A. Kendall, M. Grimes, R. Cipolla, Posenet: A convolutional network for
+real-time 6-dof camera relocalization, in: Proceedings of the IEEE Inter-
+national Conference on Computer Vision, 2015, pp. 2938–2946.
+[30] F. A. Gers, J. Schmidhuber, F. Cummins, Learning to forget: Continual
+prediction with lstm.
+[31] F. Walch, C. Hazirbas, L. Leal-Taixe?, T. Sattler, S. Hilsenbeck,
+D. Cremers, Image-based localization with spatial lstms, arXiv preprint
+arXiv:1611.07890.
+[32] D. Kingma, J. Ba, Adam: A method for stochastic optimization, arXiv
+preprint arXiv:1412.6980.
+[33] N. Srivastava, G. E. Hinton, A. Krizhevsky, I. Sutskever, R. Salakhutdinov,
+Dropout: a simple way to prevent neural networks from overfitting., Journal
+of machine learning research 15 (1) (2014) 1929–1958.
+24
+[34] J. Engel, T. Scho?ps, D. Cremers, Lsd-slam: Large-scale direct monocular
+slam, in: European Conference on Computer Vision, Springer, 2014, pp.
+834–849.
+[35] R. Mur-Artal, J. Montiel, J. D. Tardo?s, Orb-slam: a versatile and accu-
+rate monocular slam system, IEEE Transactions on Robotics 31 (5) (2015)
+1147–1163.
+25

@@ -1,0 +1,832 @@
+Comparative Benchmarking of Causal Discovery
+Techniques
+Karamjit Singh, Garima Gupta, Vartika Tewari and Gautam Shroff
+TCS Research, New Delhi, India
+{karamjit.singh, gupta.garima1, vartika.tiwari, gautam.shroff}@tcs.com
+Abstract
+In this paper we present a comprehensive view of prominent causal discovery
+algorithms, categorized into two main categories (1) assuming acyclic and no
+latent variables, and (2) allowing both cycles and latent variables, along with
+experimental results comparing them from three perspectives: (a) structural
+accuracy, (b) standard predictive accuracy, and (c) accuracy of counterfactual
+inference. For (b) and (c) we train causal Bayesian networks with structures
+as predicted by each causal discovery technique to carry out counterfactual
+or standard predictive inference. We compare causal algorithms on two pub-
+licly available and one simulated datasets having different sample sizes: small,
+medium and large. Experiments show that structural accuracy of a technique
+does not necessarily correlate with higher accuracy of inferencing tasks. Fur-
+ther, surveyed structure learning algorithms do not perform well in terms of
+structural accuracy in case of datasets having large number of variables.
+1
+ar
+X
+iv
+:1
+70
+8.
+06
+24
+6v
+1 
+ [
+cs
+.A
+I]
+  1
+8 
+A
+ug
+ 2
+01
+7
+1 Introduction
+Given a set of random variables V , the problem of identifying causal networks [1] [2], with each
+variable as a node and each edge representing a cause and effect relationship between variables is
+called causal discovery. Causal discovery is of paramount interest in many applications domains:
+For example, in medical diagnosis researchers are concerned with discovering the conditions,
+events, or genes that are likely to cause a certain disease. Similarly, in the biological domain one
+is interested in finding cause and effect between the expression levels of pairs of genes, proteins,
+or gene-protein pairs. In marketing, on the other hand, causality has been used for evaluating the
+efficacy of marketing campaigns as well as evaluate alternative strategies without actually trying
+them out in practice, via ‘counterfactual’ inference.
+Once causal relationships have been learned it is possible to derive causal models that allow
+us to infer or predict the variables of interest for many practical scenarios: For example, once the
+causes of a disease are discovered, these can be further used to predict its occurrence at earlier
+stages than otherwise. Another important use case of causal model learning and inferencing
+is in optimal product mix problems: Consider a case where dealer makes quarterly decision
+of how many of each product to purchase in order to maximize the profit for the quarter. In
+such cases quantity of each product to be purchased is the decision variable which alongwith
+other factors can be modelled as a causal model to infer the effect, i.e, quantity sold for each
+product. Further a linear mix of these causal predictions can be used to maximize profit and
+obtain optimal product purchase mix subject to certain constraints.
+Another advantage of causal models are for what-if analysis , or counterfactual inference
+[1]. For example consider an online advertisement setting: answering whether a proposed
+modification in the deployed ad-placement algorithm will result in better results. A change in the
+algorithm can be seen as an ‘intervention’ in the language of causality [1]: The simplest way to
+2
+test such a modification is to deploy it in the field and run an A/B test; in most cases this involves
+time and expense, both for implementation as well as possible business losses if a modification
+is unsuccessful. An alternate approach would be to pose this as a counterfactual question that
+could be answered using previously collected data without actually deploying the change; causal
+models enable such analysis.
+1.1 Overview of Causal Discovery Techniques
+In general causal discovery requires controlled experiments via interventions, which in many
+cases is too expensive, unethical, or technically impossible to perform. For example, it would
+be considered unethical to force a random selection of people to smoke in order to establish
+smoking as a cause for lung cancer. The development of methods to identify causal relationships
+from purely observational data is therefore desirable. Many algorithms have been developed
+using observational data to infer causal relations, particularly in the area of graphical causal
+modeling [3] [1]. However these algorithms can identify structures only upto Markov equivalence
+class 1.
+Data generated from controlled experiments, or interventions further allow us to distinguish
+between causal graphs that are Markov equivalent. However, in certain situations when number
+of experiments that can be performed are limited, finding an optimal set of experiments that
+are most informative towards uncovering the underlying structure is very crucial. This class of
+problem is called active learning [4]. The intuition behind active learning is that every variable
+is not equally informative when intervened. For instance, if X does not have any children in
+every graph of a Markov equivalence class, perturbing X will not lead to any visible impact that
+can further distinguish the graphs.
+Causal Bayesian networks [1], a commonly used form of causal model, are often restricted to
+1For example the three models X ? Y ? Z, X ? Y ? Z, and X ? Y ? Z all encode the same conditional
+independence, X?Z | Y and are Markov equivalent.
+3
+be acyclic. However, most biological networks have cycles or feedback loops in them. Therefore,
+another class of techniques that allow for cycles and feedback loops are very important especially
+in biological domain. Many algorithms in causal discovery have another important assumption
+in that latent variables are ignored: It is widely recognised that incorporating latent or hidden
+variables is a crucial aspect of causal modelling that can provide a more succinct representation
+of the observed data.
+1.2 Key Contributions and Outline
+In this paper we do the following:
+1. Provide an overview of causal discovery techniques, classified into two main categories:
+1) assuming acyclicity and no latent variables, and 2) allowing for both cycles and latent
+variables. In the first category we further divide techniques into three classes, 1) observa-
+tions only: algorithms which use observation data only to infer causal structure, 2) use mix
+of observation and intervention: algorithms which use both observations and intervention
+data, and 3) active learning.
+2. Present a comparative experimental benchmarking of causal discovery techniques using
+performance metrics constructed from three perspectives: 1) Accuracy of structure learning,
+2) Predictive accuracy, and 3) Counterfactual accuracy. Our experiments have been
+performed on three datasets (two real and one simulated) having different sample sizes;
+large, medium, and small.
+After stating the background definitions in Section 2, we briefly discuss the prominent
+algorithms of both categories and their advances in Section 3, 4. In Section 5, we define the three
+types of performance metrics which are used for comparison. In Section 6 we present benchmark
+results using the prominent structure learning techniques from each category over three datasets
+4
+of different sample sizes. We also benchmark both predictive accuracy and structural accuracy on
+all three datasets and counterfactual accuracy on a simulated dataset, in each case using Bayesian
+network models having structure as predicted by each causal discovery technique. Finally, after
+discussing the related work in section 7, we conclude in section 8 by discussing the merits and
+demerits of the techniques surveyed.
+2 Background
+We consider a graph with nodes having two types of edges: directed edges (?) and undirected
+edges (?). A graph having all directed (undirected) edges is called directed (undirected) graph.
+A directed graph with no cycles is called directed acyclic graph (DAG). A graph with mix
+of directed and undirected edges is called partial directed graph and along with the acyclic
+assumption is called partial directed acyclic graph (PDAG). The skeleton of a partial directed
+graph is the undirected graph that results from replacing all directed edges by undirected edges.
+A causal Bayesian network (CBN) is a Bayesian network with each edge representing cause
+and effect relationship from parent to child. A CBN satisfies Causal Markov property: Every
+node is independent from its non-descendants given its parents.
+The node Y on the path X?Y ? Z is called collider. If X and Z are not adjacent, Y is called
+an unshielded collider. In CBN, two nodes X and Y are said to be d-separated by a set S, if on
+every path X and Y (1) atleast one non-collider is in S, or (2) atleast one collider is not in S nor
+has a descendant in S. A causal graph G with probability distribution P satisfies faithfullness
+condition if and only if every conditional independence relation true in P is entailed by the Causal
+Markov Condition applied to G. Two DAGs that have the same d-separation properties are said
+to be Markov equivalent, and class of such DAGs is called Markov equivalence class. A Markov
+equivalence class can be described uniquely by a completed partially directed acyclic graph
+(CPDAG). The orientation of the edges in the CPDAG is as follows: A directed edge X ? Y in
+5
+the CPDAG means that the edge X ? Y occurs in all DAGs in the Markov equivalence class.
+An undirected edge X?Y in the CPDAG means that there is a DAG in the Markov equivalence
+class with X ? Y , as well as with X ? Y .
+Ancestral graphical models are used when causal structure allows for latent variables. These
+latent variables can be i) hidden confounder: variables which are a common cause of at least
+two observed variables, ii) hidden selection variables: hidden variables that are caused by at
+least two observed variables. A maximal ancestral graph (MAGs) consists of nodes representing
+(observed) variables and edges, which might be directed, undirected or bi-directed. Thus, each
+end of an edge can have the edgemark ‘tail ’or ‘head ’. If on the edge between X and Y there
+is a head mark at X, then X is not a ancestor of Y (or any selection variable) in the underlying
+DAG. If on the other hand there is a tail mark at X, then X is an ancestor of Y (or any selection
+variable). MAGs encode conditional independence information using m-separation, a graphical
+criterion which is very closely related to d-separation for DAGs. As with DAGs, we usually
+cannot identify a single MAG given observational data, rather several MAGs which encode the
+same set of conditional independence statements form a Markov equivalence class represented
+by a partial ancestral graph (PAG).
+3 Acyclicity and no Latent Variables
+Many algorithms have been proposed for learning CBNs with the assumptions of acyclicity
+and no latent variable. In this section, we discuss the three classes of algorithms under these
+assumptions.
+3.1 Using observations only
+Causal discovery from observation data has been widely accepted as the best alternative to
+randomized controlled experiments, since observational data can often be collected cheaply
+6
+and is easily available. The algorithms for causal discovery can be grouped into three broad
+categories: constraint-based, score-based algorithms and hybrid methods.
+Constraint-based methods: Constraint-based algorithms learn causal Bayesian networks
+with conditional independence tests through analyzing the probabilistic relations entailed by the
+Markov property of networks [1]. Given an observational data set D defined on a variable set V ,
+the constraint-based algorithms consists of three key steps: (1) uncovering the entire skeleton,
+(2) discovering v-structures, and (3) orienting edges as many as possible. Mainly constraint-
+based algorithms assume following three conditions: 1) causal sufficiency, 2) faithfulness and
+Markov condition, and 3) reliable independence tests. The independence tests generally can be
+implemented using G2 test [5], mutual information [6], and Fisher?s Z-test [7].
+PC [2] is one of the most popular constraint-based algorithm for learning causal graph. It
+starts with a complete undirected graph i.e., every node is connected to every other node. Then,
+for each edge (say, between X and Y ) it tests, whether there is any conditioning set S, so that X
+and Y are conditional independent given S, denoted by X ? Y |S. If such a set is found, the edge
+between X and Y is deleted. The algorithm considers conditioning set of increasing size, starting
+from empty, until the size of the conditioning set is larger than the size of the adjacency sets of
+the nodes. This step gives the skeleton structure. Further, after applying certain edge orientation
+rules, the output of the PC algorithm is the estimated CPDAG.
+Many variants have been developed which improve upon the PC algorithm. Conservative
+PC algorithm (CPC) [8] improves the robustness in orientation phase and captures violations
+of the Orientation-Faithfulness assumption.Adjacency Conservative PC algorithm (ACPC ) [9]
+relaxes the Adjacency-Faithfulness assumption and is experimentally shown to be superior to
+PC and CPC when pseudo-independent relations and equivalent edges are violated. PC-stable
+algorithm [10] yields order-independent skeletons but requires more independence tests and
+therefore results in even longer running time than the PC algorithm.
+7
+Score-based methods: Score-based algorithms assign a score to each candidate network for
+measuring how well the candidate network fits dataset [11] [12]. Greedy equivalence search
+(GES) algorithm [13] is one of the prominent example of score-based algorithms. GES has
+two phases: forward and backward phase. The forward phase starts with an empty graph, and
+sequentially adds single edges, each time choosing the edge addition that yields maximum
+improvement of the score, until the score can no longer be improved. The backward phase starts
+with the output of the forward phase, and sequentially deletes single edges, each time choosing
+the edge deletion that yields maximum improvement of the score, until the score can no longer
+be improved. GES assumes two properties: 1) score equivalent, and 2) decomposability. Score
+equivalent property makes sure that every DAG in a Markov equivalence class gets the same
+score and decomposability property of scoring criterion allows fast updates of scores during
+the forward and the backward phase, e.g., regularized log-likelihood such as BIC [14]. Finally,
+consistency property of scoring criterion ensures that the true CPDAG gets the highest score
+with probability approaching one.
+GES can be improved by including a turning phase of edges as well [15]. An analysis of the
+penalized maximum likelihood estimator for sparse DAGs in high dimensions which also avoids
+the faithfulness assumption is presented in [16]. A parallelized version of GES for continuous
+variable called FGS is presented in [17]
+Hybrid methods: Apart from constraint-based and score-based algorithms, there is another
+class of algorithms called hybrid methods. Hybrid methods learn the CPDAG by combining
+constraint-based and score-based methods. Typically, they first estimate (a supergraph of) the
+skeleton of the CPDAG using conditional independence tests, and then apply a search and score
+technique while restricting the set of allowed edges to the estimated skeleton. A prominent
+example is the Max-Min Hill-Climbing (MMHC) algorithm [18]. In the empirical study, authors
+showed MMHC outperform PC and GES with structural hamming distance (SHD) as a measure.
+8
+3.2 Using observation and intervention data
+The concept of Markov equivalence class must be extended to capture DAGs which are equivalent
+given observational data and data from specific interventions. However combining observations
+and intervention data is a challenging task due to the fact that intervention data samples from
+distribution which is not identically distributed as the observational distribution.
+In [19], authors point out that even when intervention data is given, the causal structure is
+generally not fully identifiable. However, the intervention data helps in identifying at least some
+parts of the causal structure, while other parts of the structure might remain ambiguous or could
+be uniquely identified if results on different intervention were available.
+Greedy interventional equivalence search (GIES) [15] is a prominent example of causal
+Bayesian structure learning algorithm which uses both observation and intervention data. GIES
+extension of score based method GES. It is based on optimization of BIC-score greedily moving
+through the space of essential interventional graphs with repeated forward, backward and turning
+phases.
+3.3 Active learning
+Active learning in the Bayesian setting was introduced by Tong and Koller in [4]. The algorithm
+proposed decision-theoretic frameworks based on the expected reduction in uncertainty over
+edge directions. It builds upon [20], which does MCMC over total orderings of nodes, instead of
+over DAGs, which makes the complexity of size O(n!) (size of the space of ordering) instead
+of O(2n
+2
+) (size of the space of DAGs). [21] is an another popular work in active learning space
+which is also a decision-theoretic framework but on the expected change in posterior distribution
+over graph. Difference between both the algorithms lies in the form loss function, where [21]
+uses more simplistic loss function having no assumption about the form of it. [4]s algorithm
+is faster than [21] because the former uses MCMC in the smaller space of orderings. While
+9
+both of these approaches have been shown to be effective, they have been studied only in the
+context of discrete Bayesian networks. For continuous variables, Guassian Bayesian networks
+(GBNs) have been used in various papers [22] [23] [24], where each variable is continuous and
+is modeled as a function of its parents with added Gaussian noise. [25] proposed an efficient
+active learning algorithm for biological networks based on the framework of Murphy algorithm.
+The informativeness of each candidate intervention is estimated via Bayesian inference, treating
+the graph as a latent random variable, and the most informative intervention is chosen. It
+also introduces an optimization technique unique to GBNs that leads to significant runtime
+improvement.
+4 Allowing cycles and Latent Variables
+4.1 Structure learning assuming hidden variables
+While learning causal relationship two major challenges are faced, one is the presence of hidden
+confounders and the other is selection bias.
+The Fast Causal Inference (FCI) algorithm [26] [2] was one of the first algorithms that was
+able to infer causal relations from conditional independence tests in the large sample limit, even
+in the presence of latent and selection variables. FCI algorithm can be outlined in five steps.
+The first and second step of FCI is analogous to the PC algorithm. It starts with the complete
+undirected graph, an initial skeleton and unshielded colliders are found as in the PC-algorithm.
+Due to the presence of hidden variables, it is no longer sufficient to consider only subsets of the
+neighborhoods of nodes X and Y to decide whether the edge X?Y should be removed. Therefore,
+the initial skeleton may contain some superfluous edges. These edges are removed in the next
+step (third) of the algorithm. In the third step, “Possible-D-SEP”is computed. The edges of the
+initial skeleton are then tested for conditional independence given subsets of Possible-D-SEP. If
+conditional independences are found, the conditioning sets are recorded as separation sets and
+10
+the corresponding edges are removed. Thus, edges of the initial skeleton might be removed and
+the list of all separation sets might get extended. In step four, unshielded colliders in the updated
+skeleton are oriented based on the updated list of separation sets. In step five, further orientation
+rules are applied in order to avoid contradictions in the resulting PAG.
+The run time complexity of FCI algorithm is exponential (even in case of sparse underlying
+DAG), which is a major drawback of FCI. Anytime FCI [27] combats the problem of exponential
+run time by allowing a trade-off between computational speed and informativeness by setting
+an additional tuning parameter. Really Fast Causal Inference (RFCI) [10] algorithm is another
+improvement of FCI, and does not compute any Possible-D-SEP sets, and thus does not make
+tests conditioning on subsets of Possible-D-SEP. This makes RFCI much faster than FCI. The
+causal interpretation of RFCI is sound and consistent in high-dimensional, sparse settings, but
+slightly less informative than that of FCI. FCI+ [28] is an alternate improvement of FCI, which
+is sound and complete and has polynomial complexity for underlying sparse DAGs.
+4.2 Structure learning assuming loops
+Algorithms which we have discussed till now have assumption of discovering acyclic (non-cyclic)
+directed graphs (DAGs) from data. Cyclic Causal Discovery (CCD) [29] takes cyclic condition
+into account and is one of the most well known algorithms that assumes cycles but no latent
+variables. CCD performs a series of statistical tests of zero partial correlations to construct PAG
+as output. The set of directed graphs contained in a PAG can be large, and while they all entail
+the same zero partial correlations they may not entail the same joint distribution or even the same
+covariances. Hence in some cases, the set represented by the PAG will include cyclic graphs that
+do not fit the data well, which is a limitation of this algorithm.
+11
+5 Performance Metrics
+We compare the performance of causal discovery algorithms from three perspectives: structural,
+predictive and counterfactual accuracy. We use following measures:
+5.1 Structure learning measures
+We compare different algorithms based on the learned causal structure compared to the actual
+causal structure using following standard structure learning measures as follows:
+F-score: It is the harmonic mean of precision and recall of the learned structure as compared
+to original structure. We calculate true positive (Tpi), true negative (Tni), false positive (Fpi), and
+false negative (Fni) in the learned structure, based on the directed edges discovered or missed as
+formally described in Figure 1.
+Area under ROC curve (AUC): Area under the curve of recall versus false positive rate
+(FPR) at different thresholds is the desired AUC.
+Structural hamming distance (SHD): The Structural Hamming Distance [30] [18] consid-
+ers two partially directed acyclic graphs (PDAGs) and counts how many edges do not coincide.
+Structural Intervention distance (SID): The SID [31] is based on a graphical criterion
+only and quantifies the closeness between two DAGs in terms of their corresponding causal
+inference statements. It is therefore well-suited for evaluating graphs that are used for computing
+interventions.
+5.2 Predictive accuracy
+Models derived from a causal graph (learned via causal discovery) can be further used for
+multiple practical applications involving predictions, intervention queries, or counterfactual
+reasoning. We use normalized root mean square error to measure the predictive accuracy of a
+Bayesian network based on a causal graph as follows:
+12
+Figure 1: Confusion matrix, i corresponds to each edge
+Bayesian Network Predictive NRMSE: We extend selected PAG/CPDAG to DAG using
+[32]. If no extension is possible, DAG corresponding to the skeleton of the PDAG is taken.
+Having obtained DAG structure of m nodes, we predict the value of each node by observing on
+rest m? 1 nodes in the structure using exact inferencing implemented in [33]. We compute
+the normalized root mean squared error (NRMSE) of the predicted values with respect to the
+actual value in the data. Averaged out NRMSE, denoted by NRMSEav, across all nodes is used
+to measure the predictive accuracy of the learned causal network.
+5.3 Counterfactual accuracy
+As discussed in Section 1.2, counterfactual inference is an important application of causality in
+many practical domains. We use the counterfactual inference accuracy as a measure to compare
+different causal graphs learned using various causal discovery algorithms. In order to answer a
+counterfactual query over a causal graph, we use the approach [34] of importance sampling to
+estimate a counterfactual expectation. This approach can be explained briefly via a simple model
+of an online advertising scenario, as follows:
+Consider a Markov factorization of a causal model with four variables given by:
+P(w) = P(A)P(C)P(B|A,C)P(D|B) (1)
+where w is shorthand for all variables. Let D be defined as the number of clicks, which is
+13
+our variable of interest, i.e., target node and B be the ad strategy node. We would like to
+estimate what the expected click yield E
+?
+D would have been if we had used a different ad strategy.
+This intervention amounts to replacing the actual factor P(B|A,C) by the counterfactual factor
+P
+?
+(B|A,C) in Markov factorization.
+P
+?
+(w) = P(A)P(C)P
+?
+(B|A,C)P(D|B) (2)
+Assuming that the actual factor P(B|A,C) is non-zero everywhere, we can then estimate the
+counterfactual expected click yield E
+?
+D using the transformation
+E
+?
+D =
+?
+w
+D?P
+?
+(w) =
+?
+w
+D? P
+?
+(B|A,C)
+P(B|A,C)
+?P(w) (3)
+Notice that this can be viewed as the expectation under P(w) after re-weighting the variable
+of interest D by P
+?
+(B|A,C)
+P(B|A,C) . Since the expectation is under P(w), it can also be estimated from the
+observed samples that also follow the original distribution P(w), so:
+E
+?
+D ?
+n
+?
+i=1
+Di ?
+P
+?
+(Bi|Ai,Ci)
+P(Bi|Ai,Ci)
+(4)
+In principle, we can compute the sample mean of above by normalizing by the sample size;
+in practice it is observed this can result in bias due to some of the ratios becoming very small,
+i.e., where P
+?
+(wi) is very small. This is natural since observations under P(w) may be much
+more unlikely if evaluated under the modified distribution P
+?
+(w). Instability can also result due
+to rare observations where P(w) is very small. Therefore in practice one just normalizes by the
+sum of the re-weighting weights actually used:
+E
+?
+D ?
+?ni=1 Di ?
+P
+?
+(Bi|Ai,Ci)
+P(Bi|Ai,Ci)
+?ni=1
+P?(Bi|Ai,Ci)
+P(Bi|Ai,Ci)
+(5)
+14
+6 Benchmarking
+In this section, we present our comparative benchmark results of structure learning algorithms
+over three datasets having different sample sizes using performance measures for structural,
+predictive and counterfactual accuracy. Performance evaluations and results for optimal product
+mix problem is not discussed because of the confidentiality of the data.
+6.1 Data Description
+Comprehensive evaluations of causal structure learning algorithms is carried out using two real
+datasets and one simulated dataset.
+DREAM4 dataset: Data from in-silico gene regulatory network [35] is used for benchmark-
+ing structure learning algorithms. DREAM4 dataset is generated from five networks each, for 10
+and 100 nodes respectively with different structures which include feedback loops. For 10?node
+DREAM4 networks, 1 wild type and 10 multi-factorial perturbation data samples are considered
+as observational dataset while intervention dataset consists of 20 intervention samples, consisting
+of one knockout and one knockdown per gene. 100?node DREAM4 networks consist of 201
+samples containing 1 wildtype, 100 knockdown and 100 knockout instances.
+Sachs dataset: Sachs dataset [36] consists of observational data collected after general
+perturbation, which relied on simultaneous measurement of single cell expression profiles of 11
+pyrophosphate proteins involved in a signaling pathway of human primary T cells. Sachs dataset
+contains 1756 observation samples.
+Simulated dataset: Data is generated randomly from 10-node Gaussian Bayesian network
+in [25]. Each edge weight is uniformly sampled from (?1,?.25)? (.25,1). Base level of each
+node is randomly sampled from uniform distribution of range (50,500) and noise-level for each
+node is uniformly sampled from (5,100). 10,000 observational data samples are generated from
+this model. Knock-out intervention data is also simulated from the same model by knocking out
+15
+each node sequentially to generate 1000 intervention samples per node.
+6.2 Implementation Details
+We have broadly categorized the various causal structure learning techniques into two major
+classes, as described in Section 3,4. From each class, we have chosen the most prevalent algo-
+rithms for which the implementation details are discussed below:
+Acyclicity and no Latent Variables
+Using observational data:
+PC : We use pcalg-R [37] for implementation of PC algorithm. Fisher Z-Score conditional
+independence test is used as conditional independence test for determining skeleton of the graph.
+By varying values of significance level (0 to 1 in steps of 0.01) of conditional independence tests,
+different CPDAGs are obtained.
+GES : Implementation of GES given in pcalg-R is used. l0-penalized Gaussian maximum
+likelihood estimator is used for scoring the candidate graph networks.
+MMHC : We use [18] implementation of the MMHC Algorithm given in the bnlearn-R
+package [38]. The BIC criterion is employed as the scoring algorithm and we vary the target
+nominal type-I error rate of the conditional independence test for finding the best possible
+structure CPDAGs.
+GBN: We utilize the implementation of GBN given in [25], where the conditional probability
+distribution (CPD) of each node given the parents is defined to be a linear Gaussian distribution.
+Output of the algorithm is the graph obtained by model averaging of the set of sampled graph
+structures drawn from the posterior distribution. Edge weights of the averaged, weighted
+resultant graph structure are normalized between 0 to 1, and thresholded at different levels to
+obtain different CPDAGs corresponding to each threshold level.
+16
+Using mix of observation and intervention data
+GIES : We use [15] implementation given in pcalg-R for estimating Markov equivalence of a
+DAG using GIES algorithm. l0-penalized Gaussian maximum likelihood estimator is used for
+scoring candidate causal graph structures.
+GBN : We use same implementation as discussed above for this case.
+Active Learning
+We explore the work of [25] which uses active learning to prioritize the interventions for
+optimal results using GBN framework. It learns the structure using top n interventions out of all
+given interventions. We experimented on DREAM4_10 dataset by setting the value of n from 1
+to 10, and then choosing the graph with best F-score.
+Allowing cycles and Latent Variables
+Assuming hidden variables: We use FCI, FCI+ and RFCI algorithms implemented in
+pcalg-R for comparison across different datasets. For all three algorithms, we vary significance
+level from 0 to 1 in steps of 0.01 of conditional independence tests to obtain 100 CPDAGs for
+each algorithm and we choose the graph having best F-score measure.
+Assuming cycles: We use CCD algorithm implemented in TETRAD [39] for learning cyclic
+causal structures. Causal structures corresponding to significance values varying between 0 to 1
+with step-size of 0.1 are obtained and the graphs with best F-score is chosen.
+6.3 Experimental Results
+6.3.1 Structural Accuracy
+Table 1 shows the structural measure such as F-Score, AUC, SHD, and SID computed on causal
+graphs learned using various causal structure learning algorithms on real datasets (Dream4 10
+nodes and Sachs). It also shows average calculated across all small-sized datasets and across all
+17
+datasets (small-sized and medium-sized). It is seen that active learning algorithm outperforms all
+other algorithms for Dream4 datasets (small) in terms of AUC and F-score, while MMHC and
+PC outperform others in terms of SHD and SID. For medium-sized dataset, i.e., Sachs data, FCI+
+seems to outperform every other algorithm in terms of all four structural measures. Algorithms
+which utilize intervention data (GIES) significantly perform better than their counterparts (GES)
+which use only observational data.
+Table 2 shows the structural accuracy of networks having large number of nodes, 100 in
+this case. It shows that GES outperforms other algorithms in terms of AUC and F-score. As
+evident from Table 2, structural performance drops drastically in case of networks with higher
+number of nodes. Time taken for execution of structure learning exceeds 24 hour and inferencing
+algorithms crash for large networks on i7-4600U CPU @ 2.10GHz × 4 system with 8GB RAM.
+Hence, current state-of-the-art causal structure learning algorithms do not work well for large
+node networks, present especially in biological domain.
+6.3.2 Predictive Accuracy
+Table 3 shows the averaged out NRMSE (NRMSEav) across all nodes of each learned network.
+Last column of table 3 shows the average of NRMSEav across all datasets. Lesser the NRMSEav,
+better is the predictive accuracy.
+In terms of predictive accuracy, GES outperforms all other algorithms for small dataset and
+does equally good as PC for medium size dataset. Overall NRMSEav of GES for all six dataset
+is 8.845, followed by GBN learned on observation data and structure learning algorithms taking
+hidden nodes into account.
+From Table 1 and 3, it is seen that algorithms having high structural AUC and F-score do not
+necessary have high inferencing capability. For example, active learning algorithm have highest
+F-score and AUC for small dataset, but GES outperforms it in terms of predictive accuracy.
+18
+Dataset Score AlgorithmsPC GES MMHC GBN GIES GBN_int FCI FCI+ RFCI CCD A.L.
+DREAM4_10_1
+F-Score 0.41 0.29 0.36 0.28 0.36 0.38 0.41 0.41 0.41 0.35 0.49
+AUC 0.55 0.59 0.54 0.56 0.64 0.67 0.27 0.34 0.34 0.53 0.71
+SHD 15 18 11 29 17 22 11 14 16 13 28
+SID 38 42 35 43 42 70 31 43 45 45 74
+DREAM4_10_2
+F-Score 0.45 0.28 0.34 0.37 0.29 0.44 0.42 0.44 0.44 0.42 0.45
+AUC 0.57 0.56 0.57 0.70 0.57 0.73 0.18 0.30 0.30 0.57 0.73
+SHD 19 25 17 29 21 31 18 18 20 17 21
+SID 65 56 57 44 51 60 69 47 69 40 66
+DREAM4_10_3
+F-Score 0.43 0.12 0.40 0.43 0.18 0.42 0.44 0.44 0.44 0.17 0.47
+AUC 0.54 0.46 0.61 0.68 0.50 0.67 0.27 0.33 0.33 0.47 0.74
+SHD 14 24 11 24 24 21 16 18 17 14 24
+SID 59 66 54 62 67 61 77 79 68 63 76
+DREAM4_10_4
+F-Score 0.32 0.12 0.27 0.34 0.29 0.75 0.30 0.32 0.32 0.44 0.62
+AUC 0.49 0.47 0.55 0.66 0.60 0.80 0.25 0.33 0.33 0.50 0.85
+SHD 22 26 14 30 25 22 17 24 18 25 26
+SID 75 59 63 71 59 65 70 56 69 29 72
+DREAM4_10_5
+F-Score 0.44 0.27 0.33 0.38 0.35 0.47 0.46 0.44 0.44 0.45 0.50
+AUC 0.65 0.60 0.57 0.73 0.66 0.83 0.32 0.38 0.38 0.58 0.83
+SHD 9 20 12 20 20 18 11 11 11 10 22
+SID 33 56 42 64 56 70 53 37 38 37 72
+Avg. DREAM4_10
+F-Score 0.41 0.22 0.33 0.36 0.29 0.49 0.40 0.41 0.41 0.36 0.50
+AUC 0.56 0.53 0.57 0.67 0.59 0.73 0.33 0.33 0.33 0.52 0.77
+SHD 15.4 22 13 25 20 23 15 17 15 15 24
+SID 34 55 59 74 39 65 59 52 57 42 72
+Sachs dataset
+F-Score 0.45 0.28 0.41 0.36 0.10 0.15 0.45 0.47 0.45 0.45 -
+AUC 0.67 0.57 0.63 0.61 0.40 0.46 0.68 0.67 0.67 0.49 -
+SHD 19 25 14 16 18 28 22 12 18 19 -
+SID 98 85 77 87 78 82 88 71 79 108 -
+AVERAGE
+F-Score 0.42 0.23 0.35 0.36 0.26 0.44 0.41 0.42 0.42 0.38 0.50
+AUC 0.58 0.54 0.58 0.66 0.56 0.69 0.39 0.39 0.39 0.52 0.77
+SHD 16 23 13 24 20 24 16 16 16 16 24
+SID 45 60 62 62 46 68 64 55 61 53 72
+Table 1: Table showing Structural F-Score and AUC for DREAM4_10 and Sachs datasets
+19
+Dataset SCORE
+Algorithms
+On Observational Data On Intervention Data For Hidden Variables
+PC GES GIES FCI FCI+ RFCI
+DREAM4_100_1
+F-Score 0.23 0.61 0.14 0.15 0.15 0.15
+AUC 0.58 0.57 0.58 0.18 0.31 0.31
+DREAM4_100_2
+F-Score 0.15 0.26 0.21 0.11 0.11 0.11
+AUC 0.008 0.58 0.55 0.002 0.002 0.002
+DREAM4_100_3
+F-Score 0.18 0.09 0.21 0.08 0.086 0.08
+AUC 0.01 0.49 0.55 0.002 0.002 0.002
+DREAM4_100_4
+F-Score 0.17 0.09 0.07 0.17 0.174 0.17
+AUC 0.02 0.48 0.45 0.006 0.004 0.004
+DREAM4_100_5
+F-Score 0.5 0.32 0.27 0.5 0.5 0.5
+AUC 0.05 0.63 0.60 0.030 0.03 0.03
+Table 2: Table showing structural F-score and AUC for DREAM4_100 datasets
+Algorithm DREAM4_10_1 DREAM4_10_2 DREAM4_10_3 DREAM4_10_4 DREAM4_10_5 Sachsdataset AVERAGE
+PC 9.01 31.43 32.79 32.13 33.15 6.2 24.1183
+GES 7.62 8.3 10.18 10.43 10.24 6.3 8.845
+GBN(obs) ** 8.32 11.57 9.91 11.17 6.836 9.56
+MMHC 16.84 10.12 22.39 16.87 12.58 8.78 14.59
+GIES 10.45 11.3 12.45 11.67 10.24 7.32 10.5716
+GBN(obs+int) 17.54 7.5 17.5 15.18 23.52 6.26 14.58
+FCI 15.72 10.8 10.04 13.08 14.66 6.59 11.815
+FCIP 10.53 11.05 10.09 7.82 18.63 6.24 10.7267
+RFCI 15.16 7.76 8.09 7.87 16.33 6.39 10.2667
+Active Learning 12.27 17.37 15.58 11.47 11.97 * 13.73
+Table 3: Averaged NRMSE, obs: (observational dataset) and int: (intervention dataset), ** took
+more than a day for execution (Results are not presented for the same).
+Similarly, MMHC and PC do better than every algorithm in terms of SHD and SID for small
+dataset but their predictive accuracies are low. This emphasizes that rather than just looking
+at traditional measures of finding structurally best causal network, inferencing capability of
+the learned causal structure should also be taken into account. Moreover, when true causal
+structure is not known, predictive accuracy can be used as an effective measure for finding the
+best causal structure. It is seen that FCI+ which works best for medium size data (Sachs) in
+terms of structure accuracy, also works reasonably well in terms of predictive accuracy.
+20
+Figure 2: Original graph of simulated dataset
+6.3.3 Counterfactual Accuracy
+We compare the counterfactual accuracy over the simulated dataset generated from the network
+shown in Fig. 2. In order to answer the counterfactual question, we perform intervention on
+node G6 by changing incoming edge weight, and sample the data from network. It resulted into
+updated means of the directly affected nodes G1,G5, and G10, called target nodes. We calculate
+the updated means of these three nodes through importance sampling, explained in Section 5.
+Figure 4 shows the average counterfactual error (CE) of all three nodes for causal graphs learned
+using various algorithms (shown in Fig. 3). It also shows the CE on original graph. The average
+counterfactual error is defined as follows:
+CE =
+?Gi(?act??pred)
+?Gi ?act
+, i = 1, 5, and 10 (6)
+?act =| meanobs?meanint |
+?pred =| meanobs?meancounter |
+(7)
+where meanobs is the mean of node before intervention, meanint is the mean after performing
+intervention on G6 and sample data and meancounter is mean obtained after importance sampling
+21
+Figure 3: Learned graphs using different causal structure learning algorithms
+(as discussed in section 5). Since the direction of counterfactual change for these nodes is always
+correct - hence comparing absolute error.
+Figure 4 shows that errors in PC, GES, and RFCI are close to those when the actual graph
+was used to compute counterfactual expectation (which is, in some sense, the best possible),
+whereas, errors in FCI, FCI+, MMHC are high as compared to original graph.
+22
+Figure 4: Comparison of counterfactual error for graphs learned using various algorithms
+6.4 Comparison of different size datasets
+We study the performances of causal structure learning algorithms based on the number of data
+samples in the dataset. DREAM4_10 dataset is small-sized dataset having less than 25 data
+samples, Sachs dataset is a medium sized dataset with around 1200 observation samples, and
+Simulated dataset is large-sized having greater than 10,000 observation samples and more than
+1000 intervention. From Table 4, we observe that for small sized dataset active learning based
+algorithm outperforms rest of the algorithms in terms of AUC and F-score, whereas, in terms
+of SHD and SID MMHC and PC perform better. For predictive accuracy, GES outperforms
+rest of the algorithm. For medium sized dataset, FCI+ outperform in all performance metrics of
+structural accuracy and predictive accuracy. For large dataset, PC outperforms everything else in
+all performance metrics. Thus, better structure leads to a better predictive accuracy for medium
+to large datasets but this does not holds for small-sized datasets.
+For simulated dataset, Figure 5 shows the comparison of different algorithms using % error in
+various perform measures. In order to calculate % error, we calculate %age of absolute difference
+between the computed value of performance measure and true value to get the percentage error:
+| computed value? true value |
+true value
+?100 (8)
+23
+Dataset
+Size NRMSE F-Score AUC SHD SID
+Small
+9.35
+(GES)
+0.50
+(A.L.)
+0.77
+(A.L.)
+13
+(MMHC)
+34
+(PC)
+Medium
+6.2
+(PC)
+0.47
+(FCI+)
+0.68
+(FCI)
+12
+(FCI+)
+71
+(FCI+)
+Large
+7.44
+(PC)
+0.91
+(PC)
+0.70
+(PC,GES)
+2
+(PC)
+12
+(PC)
+Table 4: Best results obtained,algorithm using various performance metrics with respect to size
+of the datasets. For small datasets, we took an average of measures across datasets
+For AUC and F-score, true value is 1 and for SHD and SID, true value is 0. True value in case
+NRMSE and CE is the predictive accuracy and counterfactual error on true graph, which is 0.76
+for NRMSE and 0.667 for CE. Figure 5 shows that PC outperforms rest of the algorithms in
+every perform measure.
+Figure 5: Comparison of various algorithms by % error in performance metrics for simulated
+dataset. Note- NRMSE for GES algorithm is not present as it is computationally highly inefficient
+due to highly dense network and took more than 24 hour to complete.
+7 Related Work
+There are number of literature surveys which discuss and compare various causal discovery
+algorithms theoretically and empirically. A review of constraint based algorithms for causal
+discovery is presented in [40]. The review discusses the details of state-of-the-art constraint-
+based causal structure learning algorithms. Also, it mentions publicly-available software and
+24
+datasets for constraint-based causal discovery. Various structure learning algorithms for CBNs
+is discussed in [41]. This work discusses algorithms of two classes: 1) Using observations
+and 2) Using mix of observation and interventions. A recent survey paper on causal structure
+learning [42] discusses the theory of algorithms on structure learning using observation data,
+classified into three types: constraint based, score based, and hybrid methods. It also discusses
+the estimation of causal effects from observational data. A review of recent causal structure
+learning methods is presented in [43], where authors have discussed algorithms mainly from
+the classes of 1) Using observations data, 2) Using mix of observation and intervention. It also
+discusses algorithms which assume hidden variable, while it merely touches active learning and
+algorithms with the assumption of cycles.
+8 Conclusion and Discussion
+In this paper, we provide an overview of causal discovery techniques, classified into two main
+categories: 1) assuming acyclicity and no latent variables, and 2) allowing for both cycles
+and latent variables. In the first category we further divide techniques into three classes, 1)
+observations only: algorithms which use observation data only to infer causal structure, 2) use mix
+of observation and intervention: algorithms which use both observations and intervention data,
+and 3) active learning. We present a comparative experimental benchmarking of causal discovery
+techniques using performance metrics constructed from three perspectives: 1) Accuracy of
+structure learning, 2) Predictive accuracy, and 3) Counterfactual accuracy. Our experiments have
+been performed on three datasets (two real and one simulated) having different sample sizes;
+large, medium, and small.
+From the comparative benchmarking analysis, we learn that for small-sized datasets, i.e.,
+having lesser number samples, active learning based algorithms outperform the remaining causal
+structure learning algorithms in terms of AUC and F-score, whereas, MMHC and PC work better
+25
+in terms of SHD and SID.
+For large-sized datasets, only observation based algorithms perform fairly well. It was
+observed that algorithms which perform poorly in terms structural accuracy on small sized data,
+still perform well in terms of predictive accuracy. For example, GES algorithm performs poorly
+in terms of structural measures by learning very complex structures but it performs really well as
+compared to other algorithms in terms of predictive accuracy. This emphasizes that structural
+efficiency of algorithm do not guarantee high inferencing capability of the network. However, for
+medium and large sized datasets, algorithms which outperform in terms of structural accuracy,
+also perform best for predictive accuracy and counterfactual accuracy.
+Structures learned using mix of observation and intervention data outperform the algorithms
+using observation data only. For example, GIES algorithm which uses both intervention and
+observation data outperform GES algorithm which uses only observation data. Also, we have
+learned that PC outperforms other algorithms in terms of every performance measure if the
+underlying model of data generation is linear Gaussian and data size is large. Also, none of
+the existing state of the art causal structure learning algorithms are able to capture the causal
+relations for the datasets having large number of nodes.
+References
+[1] J. Pearl, “Causality: models, reasoning and inference,” Econometric Theory, vol. 19, no.
+675-685, p. 46, 2003.
+[2] P. Spirtes, C. N. Glymour, and R. Scheines, Causation, prediction, and search. MIT press,
+2000.
+[3] D. Koller and N. Friedman, Probabilistic graphical models: principles and techniques.
+MIT press, 2009.
+26
+[4] S. Tong and D. Koller, “Active learning for structure in bayesian networks,” in International
+joint conference on artificial intelligence, vol. 17, no. 1. LAWRENCE ERLBAUM
+ASSOCIATES LTD, 2001, pp. 863–869.
+[5] A. Agresti and M. Kateri, Categorical data analysis. Springer, 2011.
+[6] A. D. Wyner, “A definition of conditional mutual information for arbitrary ensembles,”
+Information and Control, vol. 38, no. 1, pp. 51–59, 1978.
+[7] J. M. Peña, “Learning gaussian graphical models of gene networks with false discovery
+rate control,” in European conference on evolutionary computation, machine learning and
+data mining in bioinformatics. Springer, 2008, pp. 165–176.
+[8] J. Ramsey, J. Zhang, and P. L. Spirtes, “Adjacency-faithfulness and conservative causal
+inference,” arXiv preprint arXiv:1206.6843, 2012.
+[9] J. Lemeire, S. Meganck, F. Cartella, and T. Liu, “Conservative independence-based causal
+structure learning in absence of adjacency faithfulness,” International Journal of Approxi-
+mate Reasoning, vol. 53, no. 9, pp. 1305–1325, 2012.
+[10] D. Colombo, M. H. Maathuis, M. Kalisch, and T. S. Richardson, “Learning high-
+dimensional directed acyclic graphs with latent and selection variables,” The Annals of
+Statistics, pp. 294–321, 2012.
+[11] D. M. Chickering, “Learning equivalence classes of bayesian-network structures,” Journal
+of machine learning research, vol. 2, no. Feb, pp. 445–498, 2002.
+[12] G. F. Cooper and E. Herskovits, “A bayesian method for the induction of probabilistic
+networks from data,” Machine learning, vol. 9, no. 4, pp. 309–347, 1992.
+27
+[13] D. M. Chickering, “Optimal structure identification with greedy search,” Journal of machine
+learning research, vol. 3, no. Nov, pp. 507–554, 2002.
+[14] G. Schwarz, “Estimating the dimension of a model the annals of statistics 6 (2), 461–464,”
+URL: http://dx. doi. org/10.1214/aos/1176344136, 1978.
+[15] A. Hauser and P. Bühlmann, “Characterization and greedy learning of interventional markov
+equivalence classes of directed acyclic graphs,” Journal of Machine Learning Research,
+vol. 13, no. Aug, pp. 2409–2464, 2012.
+[16] S. Van de Geer, P. Bühlmann et al., “l0 penalized maximum likelihood for sparse directed
+acyclic graphs,” The Annals of Statistics, vol. 41, no. 2, pp. 536–567, 2013.
+[17] J. D. Ramsey, “Scaling up greedy causal search for continuous variables,” arXiv preprint
+arXiv:1507.07749, 2015.
+[18] I. Tsamardinos, L. E. Brown, and C. F. Aliferis, “The max-min hill-climbing bayesian
+network structure learning algorithm,” Machine learning, vol. 65, no. 1, pp. 31–78, 2006.
+[19] A. Hauser and P. Bühlmann, “Jointly interventional and observational data: estimation of
+interventional markov equivalence classes of directed acyclic graphs,” Journal of the Royal
+Statistical Society: Series B (Statistical Methodology), vol. 77, no. 1, pp. 291–318, 2015.
+[20] N. Friedman and D. Koller, “Being bayesian about network structure,” in Proceedings of
+the Sixteenth conference on Uncertainty in artificial intelligence. Morgan Kaufmann
+Publishers Inc., 2000, pp. 201–210.
+[21] K. P. Murphy, “Active learning of causal bayes net structure,” 2001.
+[22] M. Grzegorczyk, “An introduction to gaussian bayesian networks,” Systems Biology in
+Drug Discovery and Development: Methods and Protocols, pp. 121–147, 2010.
+28
+[23] M. H. Maathuis, D. Colombo, M. Kalisch, and P. Bühlmann, “Predicting causal effects in
+large-scale systems from observational data,” Nature Methods, vol. 7, no. 4, pp. 247–248,
+2010.
+[24] A. Rau, F. Jaffrézic, and G. Nuel, “Joint estimation of causal effects from observational
+and intervention gene expression data,” BMC systems biology, vol. 7, no. 1, p. 111, 2013.
+[25] H. Cho, B. Berger, and J. Peng, “Reconstructing causal biological networks through active
+learning,” PloS one, vol. 11, no. 3, p. e0150611, 2016.
+[26] P. Spirtes, C. Meek, and T. Richardson, “Causal inference in the presence of latent variables
+and selection bias,” in Proceedings of the Eleventh conference on Uncertainty in artificial
+intelligence. Morgan Kaufmann Publishers Inc., 1995, pp. 499–506.
+[27] P. Spirtes, “An anytime algorithm for causal inference.” in AISTATS. Citeseer, 2001.
+[28] T. Claassen, J. Mooij, and T. Heskes, “Learning sparse causal models is not np-hard,” arXiv
+preprint arXiv:1309.6824, 2013.
+[29] T. Richardson, “A discovery algorithm for directed cyclic graphs,” in Proceedings of
+the Twelfth international conference on Uncertainty in artificial intelligence. Morgan
+Kaufmann Publishers Inc., 1996, pp. 454–461.
+[30] S. Acid and L. M. de Campos, “Searching for bayesian network structures in the space
+of restricted acyclic partially directed graphs,” Journal of Artificial Intelligence Research,
+vol. 18, pp. 445–490, 2003.
+[31] J. Peters and P. Bühlmann, “Structural intervention distance (sid) for evaluating causal
+graphs,” arXiv preprint arXiv:1306.1043, 2013.
+29
+[32] D. Dor and M. Tarsi, “A simple algorithm to construct a consistent extension of a partially
+oriented graph,” Technicial Report R-185, Cognitive Systems Laboratory, UCLA, 1992.
+[33] S. Yadav, G. Shroff, E. Hassan, and P. Agarwal, “Business data fusion,” in Information
+Fusion (Fusion), 2015 18th International Conference on. IEEE, 2015, pp. 1876–1885.
+[34] L. Bottou, J. Peters, J. Quiñonero-Candela, D. X. Charles, D. M. Chickering, E. Portugaly,
+D. Ray, P. Simard, and E. Snelson, “Counterfactual reasoning and learning systems,” arXiv
+preprint arXiv:1209.2355, 2012.
+[35] A. Greenfield, A. Madar, H. Ostrer, and R. Bonneau, “Dream4: Combining genetic and
+dynamic information to identify biological networks and dynamical models,” PloS one,
+vol. 5, no. 10, p. e13397, 2010.
+[36] K. Sachs, O. Perez, D. Pe’er, D. A. Lauffenburger, and G. P. Nolan, “Causal protein-
+signaling networks derived from multiparameter single-cell data,” Science, vol. 308, no.
+5721, pp. 523–529, 2005.
+[37] M. Kalisch, M. Mächler, and D. Colombo, “pcalg: Estimation of cpdag/pag and causal
+inference using the ida algorithm,” UR L http://CRAN. R-project. org/package= pcalg. R
+package version, pp. 1–1, 2010.
+[38] M. Scutari, “bnlearn: Bayesian network structure learning, parameter learning and infer-
+ence,” R package version, vol. 3, 2012.
+[39] P. Spirtes, C. Glymour, and R. Scheines, “The tetrad project: Causal models and statistical
+data. pittsburgh,” 2004.
+[40] K. Yu, J. Li, and L. Liu, “A review on algorithms for constraint-based causal discovery,”
+arXiv preprint arXiv:1611.03977, 2016.
+30
+[41] A. Mahmood, “Structure learning of causal bayesian networks: A survey,” 2011.
+[42] M. H. Maathuis and P. Nandy, “A review of some recent advances in causal inference.”
+2016.
+[43] M. Kalisch and P. Bühlmann, “Causal structure learning and inference: a selective review,”
+Quality Technology & Quantitative Management, vol. 11, no. 1, pp. 3–21, 2014.
+31

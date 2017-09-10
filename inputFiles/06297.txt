@@ -1,0 +1,777 @@
+Employing Weak Annotations for Medical Image Analysis Problems
+Martin Rajchla,?, Lisa M. Kocha, Christian Lediga, Jonathan Passerat-Palmbacha, Kazunari Misawab, Kensaku Moric,
+Daniel Rueckerta
+aDept. of Computing, Imperial College London, UK
+bAichi Cancer Center, Nagoya, JP
+cDept. of Media Science, Nagoya University, JP
+Abstract
+To efficiently establish training databases for machine learning methods, collaborative and crowdsourcing platforms
+have been investigated to collectively tackle the annotation effort. However, when this concept is ported to the medical
+imaging domain, reading expertise will have a direct impact on the annotation accuracy. In this study, we examine the
+impact of expertise and the amount of available annotations on the accuracy outcome of a liver segmentation problem
+in an abdominal computed tomography (CT) image database. In controlled experiments, we study this impact for
+different types of weak annotations. To address the decrease in accuracy associated with lower expertise, we propose
+a method for outlier correction making use of a weakly labelled atlas. Using this approach, we demonstrate that weak
+annotations subject to high error rates can achieve a similarly high accuracy as state-of-the-art multi-atlas segmentation
+approaches relying on a large amount of expert manual segmentations. Annotations of this nature can realistically be
+obtained from a non-expert crowd and can potentially enable crowdsourcing of weak annotation tasks for medical
+image analysis.
+Keywords: Medical Image Segmentation, Weak Annotations, Expertise, Bounding Boxes, Continuous Max-Flow,
+Crowdsourcing
+1. Introduction
+In the recent past, collaborative and crowdsourcing
+platforms (Estelle?s-Arolas and Gonza?lez-Ladro?n-De-
+Guevara, 2012) have been investigated for their abil-
+ity to obtain large amounts of user interactions for the
+annotation of image databases. Particularly, the capac-
+ity to outsource simple human intelligence tasks to a
+crowd population and simultaneously draw from client
+computing resources for interfacing, are being increas-
+ingly appreciated in the imaging community (McKenna
+et al., 2012; Maier-Hein et al., 2014; Mavandadi et al.,
+2012). First studies employing collaborative (Haehn
+et al., 2014; Rajchl et al., 2016b) or crowd sourcing plat-
+forms (Maier-Hein et al., 2014; Albarqouni et al., 2016)
+via web interfaces have been proposed for biomedical
+image segmentation. Since such interfaces often have
+limited capacity to interact with image data, weak forms
+of annotations (e.g. bounding boxes, user scribbles,
+?Corresponding author.
+Email address: m.rajchl@imperial.ac.uk (Martin Rajchl)
+image-level tags, etc.) have been investigated to re-
+duce the required annotation effort. Recent studies have
+shown that placing bounding box annotations is approx-
+imately 15 times faster than creating pixel-wise man-
+ual segmentations (Lin et al., 2014; Papandreou et al.,
+2015).
+However, in contrast to annotating natural images (Lin
+et al., 2014; Russell et al., 2008) or recognising instru-
+ments in a surgical video sequence (Maier-Hein et al.,
+2014), the correct interpretation of medical images re-
+quires specialised training and experience (Nodine and
+Mello-Thoms, 2000; Gurari et al., 2015), and there-
+fore might pose a challenge for non-expert annotators,
+leading to incorrectly annotated data (Cheplygina et al.,
+2016). Nonetheless, considering the limited resources
+of available clinical experts and the rapid increase in in-
+formation of medical imaging data (e.g. through high-
+resolution, whole-body imaging, etc.) alternative ap-
+proaches are sought. Particular challenges arise, when
+trying to develop machine learning based approaches
+that can be scaled to very large datasets (i.e. population
+studies). Many of the currently available approaches re-
+Preprint submitted to arXiv.org August 22, 2017
+ar
+X
+iv
+:1
+70
+8.
+06
+29
+7v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+1 
+A
+ug
+ 2
+01
+7
+quire large amounts of labelled training data to deal with
+the variability of anatomy and potential pathologies.
+1.1. Related Work
+To reduce the annotation effort, many well-known stud-
+ies propose segmentation methods employing simple
+forms of user annotations to obtain voxel-wise segmen-
+tations (Boykov and Jolly, 2000; Rother et al., 2004;
+Rajchl et al., 2017; Koch et al., 2017). While adjust-
+ing hyperparameters can be considered an interaction,
+in this study we concentrate on simplified forms of pic-
+torial input (Olabarriaga and Smeulders, 2001), called
+weak annotations (WA). Such annotations have been ex-
+tensively used in the literature, particularly in the con-
+text of medical object segmentation problems. Boykov
+and Jolly (2000) used user-provided scribbles (SC) or
+brush strokes as input and hard constraints to an inter-
+active graphical segmentation problem. Similarly, Bax-
+ter et al. (2015), Baxter et al. (2017) and Rajchl et al.
+(2012) expressed this problem in a spatially continu-
+ous setting by using prior region ordering constraints
+and exploiting parallelism via GPU computing. The
+GrabCut algorithm (Rother et al., 2004) employs rect-
+angular regions (RR) as bounding boxes to both com-
+pute a colour appearance model and spatially constrain
+the search for an object. These spatial constraints fur-
+ther allow to reduce the computational effort (Pitiot
+et al., 2004). The segmentation platform ITK-SNAP1
+(Yushkevich et al., 2006) combines RR with SC and
+employs a pre-segmentation (PS) to initialise an active
+contour model.
+While the above object segmentation methods concen-
+trate on how to accurately compute segmentations based
+on WA, recent studies have examined how to efficiently
+acquire the required annotations. Collaborative an-
+notation platforms such as LabelMe2 (Russell et al.,
+2008) or (Lin et al., 2014) were proposed to distribute
+the effort of placing image annotations to a crowd
+of users. Such crowdsourcing approaches have been
+successfully used in proof-reading connectomic maps
+(Haehn et al., 2014), identification of surgical tools in
+laparoscopic videos (Maier-Hein et al., 2014), polyps
+from computed tomography (CT) colonography images
+(McKenna et al., 2012) or the identification of the fe-
+tal brain (Rajchl et al., 2016b). However, most studies
+concentrate on tasks that require little expertise of the
+crowd, as the objects to identify are either known from
+everyday life (Russell et al., 2008; Lin et al., 2014) or
+1http://www.itksnap.org/
+2http://labelme.csail.mit.edu/
+foreign to background context (Maier-Hein et al., 2014).
+Russell et al. (2008) and Lin et al. (2014) concentrated
+on object recognition tasks in natural images, the latter
+constrained to objects ”easily recognizable by a 4 year
+old”. Maier-Hein et al. (2014) asked users to identify a
+foreign surgical object in a video scene and Haehn et al.
+(2014) provided an automated pre-segmentation to be
+corrected by users. McKenna et al. (2012) compensated
+for the lack of expertise in reading the colonography
+images by improving image rendering, implementing
+a training module and using a large number of redun-
+dant users (i.e. 20 knowledge workers per task). Ex-
+pertise in the interpretation of medical images is largely
+acquired through massive amounts of case-reading ex-
+perience (Nodine and Mello-Thoms, 2000) and it has
+been shown that novices performed with lower accu-
+racy than an average expert in tasks such as screening
+mammograms for breast cancer (Nodine et al., 1999;
+Nodine and Mello-Thoms, 2000). In contrast to diag-
+nostic interpretation of medical images, automated seg-
+mentation pipelines merely require the identification of
+anatomical structures (i.e. it requires less expertise to
+identify the liver in a CT image than a lesion in the
+liver).
+1.2. Contributions
+In this study, we examine types of commonly employed
+WA and investigate the impact of reducing the annota-
+tion frequency (i.e. only annotating every k-th slice in a
+volume) and the expertise on the segmentation accuracy.
+For this purpose, we employ a well-known graphical
+segmentation method and provide weak image annota-
+tions as initialisation and constraint to the segmentation
+problem at hand. We address the problem of liver seg-
+mentation from a database of abdominal CT images and
+corresponding non-redundant annotations. It is of great
+importance for both planning for laparoscopic surgery
+and computed-assisted diagnosis (Wolz et al., 2012) and
+requires extensive manual annotation effort because of
+its high spatial resolution and large field of view. Fur-
+ther, we propose and evaluate how a weakly labelled
+atlas can be used for the detection and removal of in-
+correct annotations and achieve similar accuracy using
+weak annotations as a state-of-the-art fully-supervised
+automated segmentation method (Wolz et al., 2012).
+2. Methods
+To study their impact on accuracy, we simulate user an-
+notations from expert manual segmentations M, subject
+to different expertise levels and annotation frequency:
+2
+Expertise
+We assume that the task of placing an annotation itself
+is defined well enough to be handled by a pool of gen-
+eral users with any experience level. However, the cor-
+rect identification of anatomical structures might pose
+a challenge to non-expert users. We define expertise as
+the rate of correctly identifying an object of interest in a
+2D image slice extracted from a 3D volume. If an error
+occurs, the user annotates the wrong object or rates that
+the object is not visible in this slice. We define the error
+rate (ERR ? [0, 1]), i.e. the frequency of misidentifica-
+tion, as a measure of expertise. An annotation error is
+simulated by computing an annotation from another or-
+gan (e.g. the kidney, instead of the liver) or by setting
+the slice to background (i.e. the organ is not visible in
+this slice).
+Annotation Rate
+We collect an equal amount of annotations from each
+of the three slice directions d ? D at an annotation rate
+(AR ? [0, 1]). When computing the AR, we annotate
+every k-th slice, where k = AR?1. Note, that each slice
+was annotated at most once, i.e. annotations are non-
+redundant.
+2.1. Annotation strategies
+For all experiments, we simulate following forms of
+weak annotations from expert manual segmentations M:
+Brush strokes or scribbles (SC)
+Similarly to many interactive segmentation methods
+(Boykov and Jolly, 2000; Rajchl et al., 2012; Baxter
+et al., 2015), the user is asked to place a scribble or
+brush stroke into the object. We simulate placing scrib-
+ble annotations by the iterative morphological erosion
+of the manual segmentation M until a maximum of de-
+sired scribble size is reached. An example of such a
+generated SC label is depicted in Fig. 1 (green).
+Binary decision making (BD)
+The image is split into NBD = ds2 equally sized rectan-
+gular sub-regions, with the same number of splits (ds)
+per image dimension. For this type of weak annotation,
+a user is tasked to make a series of binary decisions on
+which sub-regions contain the object, such that all of
+the object is contained. We compute these weak anno-
+tations (BD) such that ?BD ? M , ?. Fig. 1 shows a
+BD (magenta) generated from M (blue) for ds = 4.
+Rectangular (bounding box) regions (RR)
+Similarly to (Rother et al., 2004), the user is asked to
+draw a tight rectangular region around the object. We
+compute a bounding box based on the maximum extent
+of M within the respective image slice. An example RR
+(cyan) computed from M (blue) is shown in Fig. 1.
+Merging pre-segmentations (PS)
+Inspired by recent work in (Haehn et al., 2014), a
+user merges regions computed from an automated pre-
+segmentation method. We use a multi-region max flow
+intensity segmentation with the Potts energy, according
+to (Yuan et al., 2010b):
+E(u) =
+?
+?L
+?
+?
+(DL(x)uL(x) + ?Potts|?uL(x)|)dx , (1)
+s.t. uL(x) ? 0 and
+?
+?L
+uL(x) = 1 (2)
+to obtain piecewise constant regions. The data fidelity
+term for each label L = 1, . . . ,NL is defined as the in-
+tensity L1-distance
+DL(x) = |I(x) ? lL| , (3)
+where lL denotes the L-th most frequent intensity ac-
+cording to the histogram of the image volume. For all
+experiments, we fix NL = 16. The GPU-accelerated
+solver was provided with the ASETS library (Rajchl
+et al., 2016a). After convergence, a discrete label map
+is calculated voxel-wise as arg maxl uL(x).
+To obtain connected individual segments, the ob-
+tained segmentation is subsequently partitioned via
+4-connected component analysis. Given such pre-
+segmentation (PS), the user is tasked to merge subre-
+gions, such that they contain the object of interest (i.e.
+the liver). We simulate the merging similar to BD, such
+that ?PS ? M , ?. A simulated PS annotation is shown
+in Fig. 1 in yellow and the corresponding M in blue.
+2.2. Annotations as Segmentation Priors
+To be employed as priors in a volume segmentation
+problem, the annotations from individual slice direc-
+tions d ? D need to be consolidated to account for vox-
+els x located on intersecting slices:
+The binary SC annotations from all slice directions d ?
+D are combined to a volume annotation S CVol
+S CVol(x) = ?Dd=1 S Cd(x) , (4)
+and employed as foreground samples S FG = S CVol.
+3
+Figure 1: Weak annotation types (top left to bottom right): image, expert manual segmentation (blue), scribbles (SC, green), binary decision making
+(BD, magenta), rectangular bounding box regions (RR, cyan) and merging of pre-segmentations (PS, yellow).
+Figure 2: Example pre-segmentation (PS) results on an abdominal CT volume: Top row (from left to right): CT slice images in transverse, coronal
+and sagittal direction. Bottom row: Corresponding PS segmentation labels after arg maxl uL(x), when minimising (1), using (3), NL = 16 and
+?Potts = 0.05.
+4
+All binary annotations Ad ? {BD,RR, PS } and all unan-
+notated slices Ud are similarly combined to volumes to
+establish S BG. Note, that Ad(x) = 1 denotes the user
+rated the location x as ”foreground” and Ud(x) = 1 de-
+notes, that the user has not seen this location.
+AVol(x) = ?Dd=1 Ad(x) ; UVol(x) = ?Dd=1 Ud(x) ; (5)
+The background samples S BG are computed as all vox-
+els x that are outside AVol and are annotated:
+S BG(x) = ¬ AVol(x) ? ¬UVol(x). (6)
+The resulting samples S FG and S BG can then be used
+to compute intensity models or to enforce spatial con-
+straints. For all experiments, we employ SC annota-
+tions as priors for foreground voxels and {BD, RR, PS}
+annotations as priors for background voxels. For each
+of these three combinations (e.g. SC and BD, etc.), we
+calculate S FG and S BG for each volume image to be seg-
+mented.
+2.3. Segmentation Problem
+The method employed to obtain a segmentation can be
+considered as a black box to be replaced by any spe-
+cialised pipeline that suits a specific problem. For our
+experiments, we employ a well-known interactive flow
+maximisation (Boykov and Jolly, 2000; Rajchl et al.,
+2012) approach to compute image segmentations from
+the input annotations A, subject to a certain AR and
+ERR. For this purpose, we use the continuous max-flow
+solver (Yuan et al., 2010a; Rajchl et al., 2016a) support-
+ing GPU acceleration and allowing us to tackle the com-
+putational load for our experiments. We find a solution
+by minimising an energy E(u) defined for the labelling
+or indicator function u at each voxel location x in the
+image I, s.t. u(x) ? [0, 1] as,
+E(u) =
+?
+?
+(Ds(x)u(x) + Dt(x)(1 ? u(x)) + ?|?u(x)|)dx ,
+(7)
+Here, the data fidelity terms Ds,t(x) are defined as the
+negative log-likelihood of the probabilities ?1,2, com-
+puted from normalised intensity histograms of the fore-
+ground (FG) and background (BG) region, respectively,
+Ds(x) = ?log(?1(I(x))) and Dt(x) = ?log(?2(I(x))) ,
+(8)
+as described in (Boykov and Jolly, 2001). Additionally,
+we employ a soft spatial constraint by setting the cost
+for regions annotated as FG and BG, to a minimum:
+Ds(x) = 0, ?x ? FG; Dt(x) = 0, ?x ? BG; (9)
+Consolidated volume annotations (see Section 2.2) are
+used to compute samples S FG and S BG of FG and BG,
+respectively. S FG and S BG are subsequently employed
+to compute ?1,2 in (8) and as spatial constraints in (9).
+After optimisation of the energy in (7), the resulting
+continuous labelling function u is thresholded at 0.5 to
+obtain a discrete segmentation result for the FG, as de-
+scribed in (Yuan et al., 2010a).
+2.4. Outlier Detection & Removal
+We propose a method for quality assessment to miti-
+gate the impact of annotation errors on the accuracy of
+the segmentation results (e.g. when using databases la-
+belled by crowds with low expertise). Note, that con-
+trary to other studies (McKenna et al., 2012; Lin et al.,
+2014), we do not require redundant annotations for out-
+lier detection. Instead, we propose to make use of re-
+dundant information in the flawed and weakly labelled
+atlas database and retrieve similar image slices and their
+annotations in the fashion of multi-atlas segmentation
+pipelines (Wolz et al., 2012; Aljabar et al., 2009).
+If spatial variability is accounted for (e.g. through regis-
+tration), we can retrieve slices from other atlas volumes
+and use their annotations to compute an agreement mea-
+sure to rate a given annotation. For this purpose, we bor-
+row from the concept of the SIMPLE method (Langerak
+et al., 2010), where an iteratively refined agreement is
+used to assess the quality of individual atlases in a multi-
+atlas segmentation approach.
+Weakly Labelled Atlas as Quality Reference
+We assume that S subjects si = {s1, . . . , sS } have
+been weakly (and potentially erroneously) annotated
+and aim to automatically detect the slices of each sub-
+ject si that have an annotation of insufficient quality (e.g.
+the wrong organ has been annotated or the organ was
+present, but not detected). In the following, the j-th slice
+of subject si in direction d is denoted by v
+j,d
+i . For each
+slice in the database v j,di , we first find a subset of the
+most similar spatially corresponding images v j,dq of the
+subjects sq in the weakly labelled atlas using a global
+similarity measure, such as the sum of squared differ-
+ences. We then calculate a consensus segmentation O?1
+from the annotations of these anatomically similar im-
+age slices using mean label fusion. For each of these
+selected atlas annotations, the overlap between the an-
+notation and the estimated consensus segmentation is
+calculated with an accuracy metric.
+5
+For this purpose, we use the Dice similarity coefficient
+(DSC) between the regions A and B as a measure of
+overlap:
+DS C =
+2|A| ? |B|
+|A| + |B| (10)
+Using the mean regional overlap µ1DSC between the atlas
+annotations and the consensus segmentation O?1, we can
+discard potentially inaccurately annotated atlas slices if
+their DSC with O?1 is less than this average µ1DSC. Fol-
+lowing (Langerak et al., 2010), we calculate another
+fusion estimate O?2 using the reduced subset of both
+anatomically similar and reasonably accurate annota-
+tions and calculate another mean DSC, µ2DSC, and reject
+the annotations corresponding to v j,di if its DSC with O?2
+is less than µ2DSC.
+This procedure is repeated for each annotation in the
+database. Note that the weakly labelled atlas can
+be built from the database itself so that no exter-
+nal/additional input is required. An illustration of the
+approach is provided in Fig. 3.
+Data: weak annotation for v j,di : wa
+j,d
+i ;
+corresponding WAs in the weakly labelled atlas Q:
+wa j,dq , q ? Q
+Result: v j,di is outlier: yes/no
+Q1 ? {p ? Q : |Q1| = Nsimilar and?
+q?Q1 ||v j,di ? v
+j,d
+q || ? min };
+i = 1;
+while i ? Niterations do
+O?i ?MajorityVote(wa j,dq ?q ? Qi);
+µi ? Average( Dice( O?i,wa j,dq ) ?q ? Qi);
+Qi+1 ? {p ? Qi : Dice(O?i,wa j,dq ) ? µi};
+i? i + 1
+end
+if Dice(wa j,di ,Q
+Niterations ) ? µNiterations then
+return yes;
+else
+return no;
+end
+Algorithm 1: Outlier detection using a weakly la-
+belled, flawed atlas database.
+3. Experiments
+Image Database
+The image database used in the experimental setup con-
+sists of 150 (114 ?, 36 ?) abdominal volume CT images
+with corresponding manual segmentations from expert
+raters. Available labelled anatomical regions include
+global similarity label fusion
+consensus
+ 1
+overlap metrics
+sub-atlas 1
+sub-atlas N
+weakly 
+labelled
+atlas 0
+consensus
+ N
+label fusion
+overlap metricsaccuracy 
+statistics
+outlier
+detection
+threshold
+weak 
+annotation
+overlap metric
+Figure 3: Schematic illustration of the outlier detection and removal
+approach.
+the liver, spleen, pancreas and the kidneys. All scans
+were acquired at the Nagoya University Hospital with
+a TOSHIBA Aquilion 64 scanner and obtained under
+typical clinical protocols. The volume images were ac-
+quired at an in-plane resolution of 512 x 512 voxels
+(spacing 0.55 to 0.82 mm) and contain between 238 and
+1061 slices (spacing 0.4 to 0.8 mm).
+Pre-processing & Generation of Weak Annotations
+Prior to the experiments, all volume image data were
+affinely registered using the NiftiReg library (Modat
+et al., 2010) (default parameters) to a random sub-
+ject to spatially normalize the images and to account
+for variability in size. Weak annotations are gener-
+ated for each slice in each direction d in all volume
+images of the database, subject to the annotation rate
+AR = {1, 0.5, 0.33, 0.25, 0.1, 0.05, 0.01} and the error
+rate ERR = {0, 0.05, 0.1, 0.25, 0.5}.
+Liver Segmentation with Weak Annotations
+The weak annotations are fused to compute S FG and
+S BG (see 2.2) to subsequently compute the data terms
+Ds,t(x) in (8) and the soft constraints in (9). A continu-
+ous max-flow segmentation (Yuan et al., 2010a), mini-
+mizing (7) is computed to obtain a segmentation result.
+The regularisation parameter ? = 4 in (7) and the pa-
+rameters ?Potts = 0.05 and NL = 16 in (1) were de-
+termined heuristically on a single independent dataset.
+For the outlier detection, Niterations was set to 2. All ex-
+periments were performed on an Ubuntu 14.04 desktop
+machine with a Tesla 40c (NVIDIA Corp., Santa Clara,
+CA) with 12 GB of memory.
+Experimental Setup
+20 consecutively acquired subject images are used as
+a subset to examine the impact of AR, ERR and type
+6
+of weak annotation on the mean segmentation accu-
+racy. An average DSC is reported as a measure of ac-
+curacy between the obtained segmentations and the ex-
+pert segmentations M for all the parameter combina-
+tions of ERR, AR and all examined annotation types
+(SC in combination with {BD, RR, PS}), resulting in
+2100 single volume segmentations results.
+Further, the proposed outlier detection (see Section 2.4)
+is employed using annotations from all 150 subjects.
+The annotations after outlier removal are used for re-
+peated segmentations, resulting in additional 2100 seg-
+mentations. A study on atlas selection (Aljabar et al.,
+2009) suggests an optimal subset size for brain segmen-
+tation to be 20. We increased Nsimilar of the globally
+similar atlases Q1 to 30, to account for the variation in
+abdominal soft tissue organs, such as the liver.
+A series of paired T-tests is computed to determine sig-
+nificant changes in accuracy at a p = 0.05 level between
+resulting DSC before and after outlier detection.
+4. Results
+Figure 4: Example segmentation results (from top left to bottom
+right): expert manual segmentation (magenta), segmentation with
+< 0.8 (blue), ? 0.85 (cyan), ? 0.9 (orange) and ? 0.95 accuracy
+according to DSC. The colour coding is chosen to reflect those of ac-
+curacy matrices in Fig. 6.
+Segmentation Accuracy
+Fig. 4 depicts example segmentations of transverse
+slices on a single subject as comparative visual results
+Figure 5: Surface rendering of example segmentation results. The
+colour coding are chosen to reflect those of accuracy matrices in Fig.
+6.
+with obtained DSC ranges. Visual inspection suggests
+that a DSC >0.9 can be considered an acceptable seg-
+mentation result. A DSC of lower than 0.8 can be con-
+sidered a segmentation failure. Mean accuracy results
+of all examined methods are shown in Fig. 6. The main
+contribution to a decrease in accuracy was observed to
+be high error rates. Without outlier correction, accept-
+able segmentation results could be obtained with all an-
+notation types, down to an AR of 25%. Using rectangu-
+lar regions, this accuracy can still be obtained when an-
+notating 1% of available slices, when the ERR is simul-
+taneously less than 5%. In a densely annotated database
+(i.e. AR = 100%) more than 10% of erroneous annota-
+tions lead to segmentation failure. This is particularly
+interesting for medical image analysis studies consider-
+ing a crowdsourcing approach with non-redundant an-
+notations of non-experts. This effect still persists to a
+degree, after outlier correction at the highest tested ERR
+of 50%.
+Performance after Outlier Correction
+The mean accuracy improves after the proposed outlier
+correction, however slight decreases in accuracy are ob-
+served at lower error rates. This is mainly due to the
+decreased number of available annotations after correc-
+tion. The differences in mean DSC after outlier removal
+range from ?0.05 to +0.94 (BD), ?0.0006 to +0.94
+(RR) and ?0.02 to +0.92 (PS). Statistically significant
+changes are visualised in Figure 6 (bottom row) and nu-
+merical ranges reported in Tab. 4.
+Table 1: Minimal and maximal changes in DSC accuracy after outlier
+removal, for all tested ERR and AR and each annotation type.
+ANN Type BD RR PS
+incr. N (DSC) 8 (+0.94) 18 (+0.94) 10 (+0.92)
+decr. N (DSC) 14 (-0.05) 3 (-0.0006) 5 (-0.04)
+7
+Figure 6: Top Row: Accuracy results for each annotation type, subject to AR and ERR, without outlier detection. Middle Row: Accuracy results
+with proposed outlier detection. Bottom Row: Results of paired T-tests between top and middle row (p <0.05). Increased and decreased mean
+accuracy are depicted in red and blue, respectively. Black elements show no significant difference.
+Table 2: Mean segmentation accuracy with decreasing annotation rate (AR) and ERR = 0. All results as DSC [%].
+Annotation Rate (AR) [%]
+Type 100 50 33 25 10 5 1
+BD 94.3 (0.8) 94.3 (1.2) 94.0 (1.4) 93.3 (2.2) 88.7 (3.7) 87.0 (4.0) 86.9 (3.7)
+RR 94.6 (0.8) 94.5 (0.8) 94.4 (0.8) 94.3 (0.8) 94.1 (0.9) 93.2 (1.2) 92.1 (1.9)
+PS 92.1 (1.4) 92.7 (1.4) 92.9 (1.4) 92.8 (1.8) 89.6 (4.0) 88.2 (4.8) 88.8 (4.1)
+5. Discussion
+In this study, we tested types of weak annotations to be
+used for liver segmentation from abdominal CTs. We
+8
+examined the effects of different expertise levels and
+annotation rates of crowd populations for their impact
+on the segmentation accuracy outcome and proposed a
+method to remove potential incorrect annotations. In
+the conducted experiments each of the slices was anno-
+tated at most once, reducing the effort associated with
+the acquisition of redundant annotations.
+Segmentation Accuracy
+While the max-flow segmentation was employed with-
+out any problem-specific adaptions, it yields compa-
+rably high accuracy to a state-of-the-art hierarchical
+multi-atlas approach described in (Wolz et al., 2012),
+where a mean DSC of 94.4% was reported for the seg-
+mentation of the liver. Comparable accuracy was ob-
+tained when employing RR annotations at AR = 10%
+and no errors present or for BD at AR = 50% and ERR
+= 10%. After the proposed outlier correction, using RR
+at an AR of 25%, errors of up to 25% yielded simi-
+larly high accuracy - a scenario realistic enough to be
+obtained by a non-expert crowd. Both BD and PS anno-
+tation types performed similarly robust to RR at higher
+annotation rates and yielded acceptable accuracy at AR
+down to 25% and ERR of up to 25% without outlier
+correction.
+Impact of Expertise and Annotation Rate
+An expected decrease in accuracy with both higher ERR
+and lower AR is observed for all annotation types. We
+report more robust behaviour of the RR annotations and
+at a wide range of ERR and at an AR of down to 5%. For
+BD and PS annotations, AR of less than 25% yielded in-
+sufficient accuracy, even at the highest expertise levels
+(i.e. ERR = 0). For all annotation types, the presence
+of errors has a larger impact at high AR, suggesting that
+the total amount of incorrectly annotated image slices
+is related with segmentation failure, rather than its rate.
+Without correction, high ERR were tolerated in annota-
+tion rates of 1-10%, however lead to segmentation fail-
+ure (i.e. DSC <0.8) at higher AR. This suggests that
+an increased number of annotations is not beneficial if
+performed at an high error rate.
+Outlier Correction
+The proposed weakly labelled atlas-based outlier de-
+tection approach performed well, yielding maximal im-
+provements of >0.9 DSC in accuracy, which is particu-
+larly observed in presence of high error rates (see Fig.
+6). Its application allows to obtain high quality (DSC
+>0.9) segmentations at the maximum tested ERR of
+50%. At lower ERR, small decreases in accuracy are
+found. These are associated with a decrease in AR due
+to outlier removal. This effect can be seen when no an-
+notation errors were present in the atlas prior to outlier
+correction (i.e. ERR = 0%). Fig. 6 nicely illustrates the
+existence of an upper accuracy bound (i.e. where ERR
+= 0%) and the comparable performance at higher ERR
+after correction.
+Conclusions
+We tested forms of weak annotations to be used in
+medical image segmentation problems and examined
+the effects of expertise and frequency of annotations in
+their impact on accuracy outcome. Resulting segmenta-
+tion accuracy was comparable to state-of-the-art perfor-
+mance of a fully-supervised segmentation method and
+the proposed outlier correction using a weakly labelled
+atlas was able to largely improve the accuracy outcome
+for all examined types of weak annotations. The robust
+performance of this approach suggests that weak an-
+notations from non-expert crowd populations could be
+used obtain accurate liver segmentations and the general
+approach can be readily adapted to other organ segmen-
+tation problems.
+Acknowledgements
+We gratefully acknowledge the support of NVIDIA
+Corporation with the donation of a Tesla K40 GPU
+used for this research. This work was supported by
+Wellcome Trust and EPSRC IEH award [102431] for
+the iFIND project and the Developing Human Con-
+nectome Project, which is funded through a Synergy
+Grant by the European Research Council (ERC) un-
+der the European Union’s Seventh Framework Pro-
+gramme (FP/2007-2013) / ERC Grant Agreement num-
+ber 319456.
+References
+Albarqouni, S., Baur, C., Achilles, F., Belagiannis, V., Demirci, S.,
+Navab, N., 2016. Aggnet: Deep learning from crowds for mitosis
+detection in breast cancer histology images. IEEE transactions on
+medical imaging 35, 1313–1321.
+Aljabar, P., Heckemann, R.A., Hammers, A., Hajnal, J.V., Rueckert,
+D., 2009. Multi-atlas based segmentation of brain images: atlas
+selection and its effect on accuracy. Neuroimage 46, 726–738.
+Baxter, J.S., Rajchl, M., McLeod, A.J., Yuan, J., Peters, T.M., 2017.
+Directed acyclic graph continuous max-flow image segmentation
+for unconstrained label orderings. International Journal of Com-
+puter Vision , 1–20.
+Baxter, J.S., Rajchl, M., Peters, T.M., Chen, E.C., 2015.
+Optimization-based interactive segmentation interface for multi-
+region problems, in: SPIE Medical Imaging, International Society
+for Optics and Photonics. pp. 94133T–94133T.
+9
+Boykov, Y., Jolly, M.P., 2000. Interactive organ segmentation using
+graph cuts, in: Medical Image Computing and Computer-Assisted
+Intervention–MICCAI 2000. Springer Berlin Heidelberg, pp. 276–
+286.
+Boykov, Y.Y., Jolly, M.P., 2001. Interactive graph cuts for optimal
+boundary & region segmentation of objects in nd images, in: Com-
+puter Vision, 2001. ICCV 2001. Proceedings. Eighth IEEE Inter-
+national Conference on, IEEE. pp. 105–112.
+Cheplygina, V., Perez-Rovira, A., Kuo, W., Tiddens, H.A., de Bruijne,
+M., 2016. Early experiences with crowdsourcing airway annota-
+tions in chest ct, in: International Workshop on Large-Scale An-
+notation of Biomedical Data and Expert Label Synthesis, Springer.
+pp. 209–218.
+Estelle?s-Arolas, E., Gonza?lez-Ladro?n-De-Guevara, F., 2012. Towards
+an integrated crowdsourcing definition. Journal of Information sci-
+ence 38, 189–200.
+Gurari, D., Theriault, D., Sameki, M., Isenberg, B., Pham, T.A., Pur-
+wada, A., Solski, P., Walker, M., Zhang, C., Wong, J.Y., et al.,
+2015. How to collect segmentations for biomedical images? a
+benchmark evaluating the performance of experts, crowdsourced
+non-experts, and algorithms, in: 2015 IEEE Winter Conference on
+Applications of Computer Vision, IEEE. pp. 1169–1176.
+Haehn, D., Beyer, J., Pfister, H., Knowles-Barley, S., Kasthuri, N.,
+Lichtman, J., Roberts, M., 2014. Design and evaluation of inter-
+active proofreading tools for connectomics. Computer Graphics,
+IEEE Transactions on .
+Koch, L.M., Rajchl, M., Bai, W., Baumgartner, C.F., Tong, T.,
+Passerat-Palmbach, J., Aljabar, P., Rueckert, D., 2017. Multi-atlas
+segmentation using partially annotated data: Methods and anno-
+tation strategies. IEEE Transactions on Pattern Recognition and
+Machine Intelligence .
+Langerak, T.R., van der Heide, U.A., Kotte, A.N., Viergever, M.A.,
+van Vulpen, M., Pluim, J.P., 2010. Label fusion in atlas-based seg-
+mentation using a selective and iterative method for performance
+level estimation (simple). Medical Imaging, IEEE Transactions on
+29, 2000–2008.
+Lin, T.Y., Maire, M., Belongie, S., Hays, J., Perona, P., Ramanan, D.,
+Dolla?r, P., Zitnick, C.L., 2014. Microsoft coco: Common objects
+in context, in: Computer Vision–ECCV 2014. Springer, pp. 740–
+755.
+Maier-Hein, L., Mersmann, S., Kondermann, D., Bodenstedt, S.,
+Sanchez, A., Stock, C., Kenngott, H.G., Eisenmann, M., Spei-
+del, S., 2014. Can masses of non-experts train highly accurate
+image classifiers?, in: Medical Image Computing and Computer-
+Assisted Intervention–MICCAI 2014. Springer International Pub-
+lishing, pp. 438–445.
+Mavandadi, S., Feng, S., Yu, F., Dimitrov, S., Yu, R., Ozcan, A., 2012.
+Biogames: A platform for crowd-sourced biomedical image anal-
+ysis and telediagnosis. GAMES FOR HEALTH: Research, Devel-
+opment, and Clinical Applications 1, 373–376.
+McKenna, M.T., Wang, S., Nguyen, T.B., Burns, J.E., Petrick, N.,
+Summers, R.M., 2012. Strategies for improved interpretation of
+computer-aided detections for ct colonography utilizing distributed
+human intelligence. Medical image analysis 16, 1280–1292.
+Modat, M., Ridgway, G.R., Taylor, Z.A., Lehmann, M., Barnes, J.,
+Hawkes, D.J., Fox, N.C., Ourselin, S., 2010. Fast free-form de-
+formation using graphics processing units. Computer methods and
+programs in biomedicine 98, 278–284.
+Nodine, C.F., Kundel, H.L., Mello-Thoms, C., Weinstein, S.P., Orel,
+S.G., Sullivan, D.C., Conant, E.F., 1999. How experience and
+training influence mammography expertise. Academic radiology
+6, 575–585.
+Nodine, C.F., Mello-Thoms, C., 2000. The nature of expertise in ra-
+diology. Handbook of Medical Imaging. SPIE .
+Olabarriaga, S.D., Smeulders, A.W., 2001. Interaction in the segmen-
+tation of medical images: A survey. Medical image analysis 5,
+127–142.
+Papandreou, G., Chen, L.C., Murphy, K., Yuille, A.L., 2015. Weakly-
+and semi-supervised learning of a dcnn for semantic image seg-
+mentation. arXiv preprint arXiv:1502.02734 .
+Pitiot, A., Delingette, H., Thompson, P.M., Ayache, N., 2004. Expert
+knowledge-guided segmentation system for brain mri. NeuroIm-
+age 23, S85–S96.
+Rajchl, M., Baxter, J.S., McLeod, A.J., Yuan, J., Qiu, W., Peters, T.M.,
+Khan, A.R., 2016a. Hierarchical max-flow segmentation frame-
+work for multi-atlas segmentation with kohonen self-organizing
+map based gaussian mixture modeling. Medical image analysis
+27, 45–56.
+Rajchl, M., Lee, M.C., Oktay, O., Kamnitsas, K., Passerat-Palmbach,
+J., Bai, W., Damodaram, M., Rutherford, M.A., Hajnal, J.V.,
+Kainz, B., et al., 2017. Deepcut: Object segmentation from bound-
+ing box annotations using convolutional neural networks. IEEE
+transactions on medical imaging 36, 674–683.
+Rajchl, M., Lee, M.C., Schrans, F., Davidson, A., Passerat-Palmbach,
+J., Tarroni, G., Alansary, A., Oktay, O., Kainz, B., Rueckert,
+D., 2016b. Learning under distributed weak supervision. arXiv
+preprint arXiv:1606.01100 .
+Rajchl, M., Yuan, J., Ukwatta, E., Peters, T., 2012. Fast interactive
+multi-region cardiac segmentation with linearly ordered labels, in:
+Biomedical Imaging (ISBI), 2012 9th IEEE International Sympo-
+sium on, IEEE Conference Publications. pp. 1409–1412.
+Rother, C., Kolmogorov, V., Blake, A., 2004. Grabcut: Interactive
+foreground extraction using iterated graph cuts, in: ACM transac-
+tions on graphics (TOG), ACM. pp. 309–314.
+Russell, B.C., Torralba, A., Murphy, K.P., Freeman, W.T., 2008. La-
+belme: a database and web-based tool for image annotation. Inter-
+national journal of computer vision 77, 157–173.
+Wolz, R., Chu, C., Misawa, K., Mori, K., Rueckert, D., 2012. Multi-
+organ abdominal ct segmentation using hierarchically weighted
+subject-specific atlases, in: Medical Image Computing and
+Computer-Assisted Intervention–MICCAI 2012. Springer Berlin
+Heidelberg, pp. 10–17.
+Yuan, J., Bae, E., Tai, X.C., 2010a. A study on continuous max-
+flow and min-cut approaches, in: Computer Vision and Pattern
+Recognition–CVPR 2010, IEEE. pp. 2217–2224.
+Yuan, J., Bae, E., Tai, X.C., Boykov, Y., 2010b. A continuous max-
+flow approach to potts model, in: Computer Vision–ECCV 2010.
+Springer Berlin Heidelberg, pp. 379–392.
+Yushkevich, P.A., Piven, J., Hazlett, H.C., Smith, R.G., Ho, S., Gee,
+J.C., Gerig, G., 2006. User-guided 3d active contour segmentation
+of anatomical structures: significantly improved efficiency and re-
+liability. Neuroimage 31, 1116–1128.
+10

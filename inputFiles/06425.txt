@@ -1,0 +1,1909 @@
+1
+SafePredict: A Meta-Algorithm for Machine
+Learning That Uses Refusals to Guarantee
+Correctness
+Mustafa A. Kocak, Student Member, IEEE, David Ramirez, Member, IEEE, Elza Erkip, Fellow, IEEE,
+and Dennis E. Shasha, Fellow, ACM
+Abstract—SafePredict is a novel meta-algorithm that works with any base prediction algorithm for online data to guarantee an
+arbitrarily chosen correctness rate, 1? , by allowing refusals. Allowing refusals means that the meta-algorithm may refuse to emit a
+prediction produced by the base algorithm on occasion so that the error rate on non-refused predictions does not exceed . The
+SafePredict error bound does not rely on any assumptions on the data distribution or the base predictor. When the base predictor
+happens not to exceed the target error rate , SafePredict refuses only a finite number of times. When the error rate of the base
+predictor changes through time SafePredict makes use of a weight-shifting heuristic that adapts to these changes without knowing
+when the changes occur yet still maintains the correctness guarantee. Empirical results show that (i) SafePredict compares favorably
+with state-of-the art confidence based refusal mechanisms which fail to offer robust error guarantees; and (ii) combining SafePredict
+with such refusal mechanisms can in many cases further reduce the number of refusals. Our software (currently in Python) is included
+in the supplementary material.
+F
+1 INTRODUCTION
+Machine learning and statistical inference are the pri-
+mary building blocks for systems that predict the future
+from the past. Prediction algorithms have been tailored to
+fit various applications as varied as analytics [1], health
+care [2], [3], and judicial decision making [4], [5]. One of
+the major concerns when utilizing prediction algorithms to
+automate risk-critical applications is reliability.
+To guarantee an error rate for an overall prediction
+system, a meta-algorithm should refuse to make a prediction
+when the meta-algorithm infers that the base prediction
+algorithm is likely enough to be in error. The implications
+of refusing to make a prediction may vary according to the
+application of interest. For example, in a medical diagnosis
+system, refusing to make a prediction may result in the
+collection of more information about the patient or a request
+to a human expert to make a decision based on a more
+thorough evaluation.
+Inspired by the prediction with expert advice framework
+[6], we propose SafePredict, an online meta-algorithm that
+accepts or refuses predictions of a base algorithm depending
+on the previous performance of the base algorithm. SafePre-
+dict asymptotically bounds the error to the desired level
+without any assumption on the data or the base predictor.
+When the error rate of the base predictor varies over time,
+SafePredict will adapt to those changes while preserving the
+error guarantee.
+• M. A. Kocak, D. Ramirez and E. Erkip are with the Department of Elec-
+trical and Computer Engineering, NYU Tandon School of Engineering,
+Brooklyn, NY, 11201.
+E-mail: {kocak, dar550, elza}@nyu.edu
+• D. E. Shasha is with Courant Institute of Mathematical Sciences New
+York University, New York, NY, 10012.
+E-mail: shasha@courant.nyu.edu
+1.1 Prior Work
+The idea of allowing meta-algorithms to refuse to make
+predictions to reduce the error rate was first introduced
+by Chow [7]. Chow mainly focused on the classification
+problem, where data points have an object-label pair in-
+dependently sampled from a fixed and known probability
+distribution. Chow showed that the optimum error-refuse
+trade-off is achieved by a classifier that refuses to predict
+when the posterior probability of the estimated label given
+the object is less than a certain threshold.
+The major challenge in applying Chow’s work is the
+need to know the data distribution, which is rarely available.
+The mainstream assumption is that the available data points
+are independently sampled from a fixed but unknown
+distribution. Given these data points, the most common
+approach is to estimate the underlying distribution and
+to use it in the Chow framework. Estimating probability
+distributions in high dimensional and complex datasets can
+be harder even than classification itself, see e.g. [8]. An al-
+ternative approach uses confidence-based refusals. One can
+train a classification algorithm with an arbitrary confidence
+score (e.g. distance to the decision boundary) and refuse to
+make a prediction for points with low confidence scores.
+Examples of this line of work are [9], [10], [11], [12].
+Although many practical applications of the refusal
+framework exist in the literature, e.g. [13], [14], [15], [16],
+theoretical analyses of the suggested methods are relatively
+rare. Some notable exceptions are found in Wegkamp et al.
+[17], [18], [19], El-Yaniv and Wiener [20], [21] and Cortes
+et al. [22] which approach the problem from a statistical
+learning theory perspective and suggest minimizing a linear
+combination of error and refuse probabilities. Alternatively,
+reliable agnostic learning, proposed by Kalai et al. [23],
+ar
+X
+iv
+:1
+70
+8.
+06
+42
+5v
+1 
+ [
+cs
+.L
+G
+] 
+ 2
+1 
+A
+ug
+ 2
+01
+7
+2
+posits an error threshold and searches for the least refusing
+predictor from a family of predictors that bounds the error
+to the error threshold, assuming such a predictor exists.
+The related work discussed so far assumes a batch setup,
+i.e. the algorithm is trained on a fixed set of data points
+which are independently and identically distributed (i.i.d.).
+For a more comprehensive literature review of refusal algo-
+rithms in the batch setup, please see [18], [22], [24], [25] and
+the references therein.
+In contrast to the batch setup, a meta-algorithm in the
+online learning framework observes the true outcome after
+a prediction and then modifies its future behavior. In the
+conformal prediction framework of Vovk et al. [26], a base
+algorithm generates confidence scores for each data point.
+Then the conformal predictor decides to predict or refuse
+based on these scores. A bound on the error probability and
+the independence between the error events are guaranteed
+under the assumptions that the data points are chosen from
+an exchangeable (essentially i.i.d.) distribution and the base
+predictor is invariant to the order of the observed data
+points. For recent developments regarding the classification
+with refusal problem in the conformal prediction framework
+we refer the reader to [27], [28], [29] and Chapter 3 of
+[26]. Unfortunately, in an online setting the probability of
+making errors on consecutive predictions may be correlated
+or the data sequence may have a non-stationary or even an
+adversarial distribution. Thus, any guarantees that might
+hold in the independent and identically distributed setting
+do not directly carry over.
+Another approach in the online setting starts with the
+KWIK (knows what it knows) framework [30] which re-
+moves all assumptions about the data distributions. Instead,
+KWIK assumes the existence of a perfect predictor (i.e.
+predictor is always correct) among a set of predictors and
+aims to find this perfect predictor with a minimum number
+of refusals. Sayedi et al. [31] extend this framework by
+allowing a fixed error budget k and characterizing the
+minimum number of refusals by keeping the number of
+errors below k. Finally, Zhang et al. [32] relax the perfect
+predictor assumption to an l-bias assumption (i.e. predictor
+makes at most l errors) and allow the algorithm to refuse in
+order to achieve an optimal error-refuse trade-off.
+1.2 Contributions
+This paper makes the following main contributions:
+1) The SafePredict online meta-algorithm can work with
+any base prediction algorithm to provide an asymptotic
+error guarantee on the non-refused predictions, without
+making any assumption about the data or the base
+algorithm.
+2) All the variants of SafePredict meta-algorithm refuse at
+most a finite number of times when the base predictor’s
+error rate is below the target error rate .
+3) Adaptive SafePredict meta-algorithm uses weight-
+shifting and other conventional adaptive procedures to
+track the error rate of the base predictor in changing
+environments, thus reducing the number of refusals
+while preserving the error guarantee.
+4) Experiments show that the above theoretical guaran-
+tees are achieved in practice and translate to better
+error performance than other refusal algorithms. The
+experiments also show that combining SafePredict with
+previous meta-algorithms can lead to yet fewer refusals
+in many cases.
+The rest of the paper is organized as follows. Section
+2 presents the problem and provides a brief introduction
+to the exponentially weighted average forecasting (EWAF)
+[33], [34] expert advice framework. Section 3 introduces
+SafePredict by recasting EWAF as a randomized refusal
+meta-algorithm and proves its theoretical properties. Section
+4 presents Adaptive SafePredict, a weight-shifting heuristic,
+to track changes in the error rate of the base algorithm and
+therefore reduce the number of refusals. Section 5 presents
+experiments on real and synthetic data. Section 6 concludes
+our work.
+1.3 Notation
+A summary of the notation introduced throughout the pa-
+per is given in Table 1. For each quantity, we provide the
+notation, a brief description and a reference to the section it
+is first introduced.
+TABLE 1: Summary of the Notation
+Not. Description Def. in Sec.
+?t, ?t Adaptivity parameters, ?t ? wP,t+1 ?
+?t.
+4
+ Target error rate. 2
+? Learning rate, ? > 0. 2.1
+?T Efficiency of the meta algorithm, T
+?/T . 2
+D Dummy predictor, always refuses,
+y?D,t = ? and lD,t =  for all t.
+3
+lt Expected loss at time t. 2.1
+LT Cumulative expected loss,
+?T
+t=1 lt. 2.1
+lP,t Loss of P at time t, assume lP,t ? [0, 1]. 2
+LP,T,t0 Partial cumulative loss of P from t0 to
+T ,
+?T
+t=t0+1
+lP,t. The third index drops
+if t0 = 0
+2
+L?P,T Expected cumulative loss for the meta-
+algorithm
+?T
+t=1 wP,tlP,t.
+2
+P Base predictor. 2
+Pi i
+th expert in the ensemble, has weight
+wPi,t and loss lPi,t.
+2.1
+T Time horizon. 2
+T ? Expected value of the number of (non-
+refused) predictions,
+?T
+t=1 wP,t.
+2
+V ? Variance of the number of (non-refused)
+predictions,
+?T
+t=1 wP,t(1? wP,t).
+2
+wD,t Weight of the dummy, also the probabil-
+ity of refusal, 1? wP,t.
+3
+wP,t Probability of making a prediction at
+time t.
+2
+y?P,t Prediction of P at time t. 2
+y?t Filtered prediction, y?t = y?P,t (predict)
+or y?t = ? (refuse) .
+2
+2 PROBLEM SETUP AND BACKGROUND
+This section introduces the mathematical formulation of
+online prediction problem with a refusing meta-algorithm
+and the prediction with expert advice framework.
+2.1 Problem Formulation
+We assume access to a base predictor that produces a
+label prediction on an observed object. We denote the base
+3
+predictor as P and a sequence of (object, label) pairs by
+(x1, y1), (x2, y2), . . . , (xT , yT ) where T is an arbitrary hori-
+zon. At each time t ? {1, . . . , T} the base predictor does the
+following
+1) Observes the object xt.
+2) Predicts the corresponding label y?P,t.
+3) Observes the true label yt, and suffers the loss lP,t.
+In our formulation, we stay agnostic to the data sequence
+(x1, y1), (x2, y2), . . . , (xT , yT ) and inner workings of the
+base predictor P . We assume only that the loss values are
+scaled to the unit interval, i.e. 0 ? lP,t ? 1 ? t.
+For example, in a traditional classification task, the labels
+yt are drawn from a finite set and 0-1 loss is used for the loss
+function, i.e. lP,t = 0 if y?P,t = yt and lP,t = 1 if y?P,t 6= yt.
+Once the base predictor P is chosen, our goal is to design
+a meta-algorithm M which decides to either follow the
+prediction made by P or refuse to make a prediction for
+each data point. We characterize this meta-algorithm by the
+following:
+• Parameter: Target error/loss rate,  ? (0, 1), is the
+average loss over time we can tolerate.
+• Input: In full generality, the input of M at time t
+consists of xi, y?P,i ? i ? {1, ..., t}, and yj , lP,j ? j ?
+{1, ..., t? 1}. Note these are all the observed quantities
+before the label yt is revealed.
+• Output: A randomized decision to predict (or refuse) at
+time t. We represent the output of M as a probability
+value wP,t ? [0, 1] that is used to decide the final
+prediction y?t as follows:
+y?t =
+{
+y?P,t with prob. wP,t
+? with prob. 1? wP,t
+,
+where ? denotes a refusal.
+A pictorial description of this general framework is pre-
+sented in Figure 1.
+We note that M makes a randomized decision at each
+time point and therefore the number of (non-refused) pre-
+dictions is a random variable. We compute the expected
+value T ? of this quantity as
+T ? =
+T?
+t=1
+wP,t.
+Because we ascribe no loss from refusing to predict, there-
+fore we define the expected cumulative loss of M as
+L?P,T =
+T?
+t=1
+wP,tlP,t.
+Finally, we define the error rate for this randomized meta al-
+gorithm by normalizing the cumulative expected loss via the
+expected number of non-refused predictions, i.e. L?P,T /T
+?.
+Our top priority is to guarantee that the error rate of non-
+refused predictions made by the meta-algorithm does not
+exceed the target error rate  as the number of predictions
+increases. Following nomenclature introduced by Tukey
+[35], see also [26], we call this property the validity of the
+algorithm. Our goal is to satisfy validity without making
+any assumptions on the data. An asymptotic definition for
+the validity is given below.
+Definition 2.1. A meta-algorithm M with a given target error 
+is called valid if
+lim sup
+T???
+L?P,T
+T ?
+? .
+Next, among valid algorithms we interpret the efficiency
+of an algorithm as the fraction of the predicted data points
+and define it as follows.
+Definition 2.2. Efficiency of a meta-algorithm M is denoted by
+?T = T
+?/T and M is called efficient if
+lim inf
+T??
+?T = 1.
+Though the discussion until now has defined validity
+and efficiency only asymptotically, we will derive explicit
+bounds on the excess error rate, i.e. L?P,T /T
+? ? . However,
+any non-trivial formal statement about the efficiency of M
+has to depend on the performance of the base predictor P .
+To keep this dependence minimal, we analyze the efficiency
+asymptotically for theoretical purposes for all predictors,
+though experiments show that the efficiency is high for
+reasonably good predictors.
+Fig. 1: The meta-algorithm, represented by M , makes a prediction
+equivalent to the recommendation of the base predictor P or refuses
+to do so for data point t while guaranteeing a target rate .
+For the sake of succinctness in the sequel, we introduce
+the following notation. First, we compute the variance V ?
+of the number of non-refused predictions with respect to
+the randomness of the meta-algorithm (i.e. wP,t) as
+V ? =
+T?
+t=1
+wP,t (1? wP,t) .
+Next, we denote the cumulative loss for any predictor P
+(typically for the base predictor) as
+LP,T =
+T?
+t=1
+lP,t.
+We also introduce a third sub-index t0 for any cumulative
+quantity to represent the corresponding sum is starting from
+t0 + 1, e.g. for the cumulative loss of P ,
+LP,T,t0 =
+T?
+t=t0+1
+lP,t.
+4
+2.2 Expert Advice and Exponentially Weighted Average
+Forecasting (EWAF)
+The prediction with expert advice framework pertains to
+an online prediction scenario in which one has access to
+a fixed set of experts (predictors). The goal is to combine
+these experts’ predictions such that the difference between
+the cumulative losses of the combined predictor and the best
+expert in the set is minimized. This difference is called regret,
+and the algorithms that guarantee a regret that grows sub-
+linearly with the number of predictions are defined as Han-
+nan consistent. The appeal of the expert advice algorithms
+is the fact that the consistency can be guaranteed even in
+an adversarial setup. For a comprehensive treatment of the
+expert advice algorithms, we refer the reader to [6].
+Exponentially weighted average forecasting (EWAF) was
+first introduced by Littlestone and Warmuth [33] and by
+Vovk [34] for the expert advice prediction framework. Our
+meta-algorithm builds on EWAF to provide means to meet
+any target error rate. Among various expert advice algo-
+rithms, we focus on EWAF due to the simplicity of its
+analysis and strong theoretical guarantees.
+Consider N predictors (experts) P1, P2, . . . , PN each
+making a prediction y?P1,t, . . . , y?PN ,t and each suffering a
+loss lP1,t, . . . , lPN ,t at time t. At each time t, EWAF outputs
+one of these predictions as the combined prediction. To do
+so, EWAF starts with an initial probability distribution over
+the experts (wP1,1, . . . , wPN ,1) and a learning rate ? > 0.
+At each time point t, this probability distribution is used
+to choose an expert and consequently, use the prediction
+of that expert. The probability distribution is updated after
+the true label and corresponding losses are revealed. By
+denoting the probability that the predictor Pi is chosen at
+time t with wPi,t, the prediction y?t is obtained by
+y?t = y?Pi,t with prob. wPi,t, i = 1, . . . , N.
+After the true label yt is revealed, we update these proba-
+bilities by multiplying them by an exponential factor that is
+scaled with the corresponding loss value and the learning
+rate, i.e.
+wPi,t+1 =
+wPi,te
+??lPi,t?N
+j=1 wPj ,te
+??lPj,t
+. (1)
+The pseudo-code of the EWAF algorithm is given in Al-
+gorithm 1. Given that EWAF randomly selects a predictor
+Algorithm 1 Exp. Weighted Avg. Forecasting (EWAF)
+Initial weights: (wP1,1, wP2,1, . . . , wPN ,1)
+Learning rate: ?
+1: for each t = 1, 2, . . . do
+2: Follow expert Pi with probability wPi,t.
+3: Update the weights :
+wPi,t+1 =
+wPi,te
+??lPi,t?N
+j=1 wPj ,te
+??lPj,t
+according to a known distribution, we can compute the
+expected loss for the combined prediction at time t as
+lt =
+N?
+i=1
+wPi,tlPi,t
+We denote the expected cumulative loss of the EWAF as
+LT =
+T?
+t=1
+lt
+and the cumulative loss of expert i, ? i as
+LPi,T =
+T?
+t=1
+lPi,t.
+The following well-known theorem establishes an upper
+bound to the expected loss for EWAF, implying that the
+regret of EWAF is bounded by O(
+?
+T logN).
+Theorem 2.1. (Theorem 2.2 [6]) For any learning rate ? > 0,
+and the initial weights (wP1,1, . . . , wPN ,1), we get the following
+bound for the expected cumulative loss of the EWAF
+LT ? LPi,T ?
+logwPi,1
+?
++
+?T
+8
+(2)
+for all i = 1, . . . , N .
+If we choose wPi,1 = 1/N for all i and minimize the right
+hand side (RHS) of the bound above with respective to ?, we get,
+LT ? LPi,T +
+?
+T logN
+2
+(3)
+which is achieved for ? =
+?
+8 log(N)/T .
+The bound given in eq. (3) is optimal in the sense that
+there exists a matching lower bound in the worst case (see
+Chapter 3.7 [6]). Since the bound on the total sum of the
+expected loss holds for any predictor, it follows that the
+bound holds for the predictor with the least cumulative loss.
+Therefore, the bound in eq. (3) limits how far EWAF is from
+optimality in terms of the sum of the expected loss.
+Applying the bound in eq. (3) is insufficient to establish
+the validity of our algorithm, since eq. (3) bounds regret only
+with O
+(?
+T
+)
+while validity requires a sub-linear bound
+with T ?. In Section 3.1 we present a refined analysis with
+an appropriate learning rate to establish validity.
+3 RELIABLE PREDICTION WITH REFUSALS
+We now introduce our meta-algorithm, SafePredict, which
+uses EWAF to convert any given base predictor P into a
+refusing one with a guaranteed error bound. Furthermore,
+we provide a theoretical analysis to establish the asymptotic
+validity and efficiency of SafePredict. Then, we employ the
+well-known doubling trick (see for instance Exercise 2.8 [6]
+or Theorem 7.7 [36]) to choose the learning rate and extend
+our validity analysis accordingly.
+In order to achieve validity, we introduce a trivial pre-
+dictor which can meet the target error rate by refusing to
+predict all the time. We refer to this particular predictor as
+the “dummy predictor” and denote it byD, i.e. y?D,t = ? ? t.
+We also assume that the predictor D suffers a constant loss
+ for each time t, i.e. lD,t =  and LD,t = t ? t.
+SafePredict is obtained by employing an instance of the
+EWAF algorithm that runs on the ensemble {D,P}, to
+decide either to refuse or predict. Therefore at each step,
+SafePredict follows the base predictor with probability wP,t
+5
+and computes the prediction probability for the next round
+after observing the corresponding loss of P as
+wP,t+1 =
+wP,te
+??lP,t
+wP,te??lP,t + wD,te??
+, (4)
+where wD,t = 1?wP,t stands for the dummy’s weight. The
+pseudo-code for SafePredict is given in Algorithm 2.
+Algorithm 2 SafePredict
+Base predictor: P ; Initial weight: wP,1 ? (0, 1)
+Learning rate: ? > 0; Target error rate:  ? (0, 1)
+1: for each t = 1, 2, . . . do
+2: Predict with probability wP,t, refuse otherwise, i.e.
+y?t =
+{
+y?P,t with prob. wP,t
+? otherwise
+3: Update the prediction probability:
+wP,t+1 =
+wP,te
+??lP,t
+wP,te??lP,t + wD,te??
+,
+Note that Algorithm 2 requires no assumptions (such as
+i.i.d. assumptions) about the input data. The algorithm takes
+only the loss values as input.
+3.1 Validity
+To bound the average loss of SafePredict one might be
+inclined to simply apply the bound presented in Theorem
+2.1 with N = 2, P1 = P , P2 = D, and the optimal learning
+rate to minimize the RHS of eq. (2) for i = 2, which results
+in
+L?P,T
+T ?
+? + 1
+T ?
+?
+T log(1/wD,1)
+2
+. (5)
+The problem with the bound in eq. (5) is that if the predic-
+tion probability decreases too quickly (i.e. for T ? 
+?
+T )
+the rightmost term can easily become vacuous, i.e. the
+excess error does not vanish. In particular, the bound is
+not sufficient to guarantee the validity of the algorithm
+for the case in which T ? the number of predictions made
+approaches infinity slower than
+?
+T where T is the number
+of data points presented, i.e. T ? = ? (1) and T ? = O
+(?
+T
+)
+.
+In the following theorem, we present a refined bound
+for SafePredict that suggests a learning rate that decreases
+with the variance of the number of predictions, i.e. V ?, and
+guarantees the validity of our algorithm.
+Theorem 3.1. For any P , ? > 0,  < 1/2, and 0 < wP,1 < 1,
+SafePredict satisfies
+L?P,T
+T ?
+? ? log (wD,1)
+?T ?
++
+(1? )2 ?V ?
+T ?
+. (6)
+Consequently, by choosing the learning rate ? to minimize the
+RHS of this bound, we get
+L?P,T
+T ?
+? + (1? ) 2
+?
+log (1/wD,1)V ?
+T ?
+(7)
+for ?? =
+?
+log(1/wD,1)/V ?
+1? .
+Before proving the statement given in the theorem, we
+define auxiliary quantities called “mix-loss” and “mixability
+gap”, and present two important results from [37] about
+EWAF in terms of these quantities.
+In the expert advice framework of Section 2.1, the mix-
+loss mt is an alternative way of averaging the expert losses
+lPi,t, ? i using the weights wPi,t, ? i. Formally, mix-loss is
+defined as
+mt = ?
+1
+?
+log
+(
+N?
+i=1
+wPi,te
+??lPi,t
+)
+or equivalently e??mt =
+?N
+i=1 wPi,te
+??lPi,t . Additionally,
+we denote the cumulative mix-loss as MT =
+?T
+t=1mt.
+One can bound the cumulative mix-loss in terms of the
+losses of the individual experts by the following lemma.
+Lemma 3.2. ( [37], Lemma 1) For the learning rate ? > 0, and
+the initial weights (wP1,1, . . . , wPN ,1), the cumulative mix-loss
+of the EWAF satisfies the following inequality
+MT ? LPi,T ?
+logwPi,1
+?
+(8)
+for all i = 1, . . . , N .
+The bound on the cumulative mix-loss can be used
+to bound the cumulative expected loss by defining the
+mixability gap as the difference between these two type of
+averages and bounding them with classical concentration
+inequalities. In particular, the mixability gap, ?t = lt ?mt,
+can be bounded using the following lemma.
+Lemma 3.3. ( [37], Lemma 4) The difference between the expected
+and mix losses obtained by EWAF algorithm is bounded by
+?t = lt ?mt ? ?
+?
+i
+wPi,t (lt ? lPi,t)
+2
+for all t.
+Armed with these two lemmas, we can continue with
+the proof of Theorem 3.1
+Proof of Theorem 3.1. By definition of ?t we have
+LT = MT +
+T?
+t=1
+?t.
+Then by applying Lemma 3.2. with Pi = D, we get
+T?
+t=1
+lt ? T ?
+log (wD,1)
+?
++
+T?
+t=1
+?t. (9)
+Next, we plug in the definition of the expected loss
+lt = wP,tlP,t +wD,t, and divide both sides by the expected
+number of predictions,
+T?
+t=1
+wP,tlP,t ?
+T?
+t=1
+(1? wD,t)?
+log (wD,1)
+?
++
+T?
+t=1
+?t
+L?P,T ? T ? ?
+log (wD,1)
+?
++
+T?
+t=1
+?t
+L?P,T
+T ?
+? ? log (wD,1)
+?T ?
++
+1
+T ?
+T?
+t=1
+?t. (10)
+6
+Finally, we obtain the desired result by bounding ?t:
+?t ? ?
+(
+wP,t (lt ? lP,t)2 + wD,t (lt ? )2
+)
+(11)
+= ?
+(
+wP,tw
+2
+D,t + wD,tw
+2
+P,t
+)
+(lP,t ? )2 (12)
+= ?wP,twD,t (lP,t ? )2 (13)
+? ?wP,twD,t (1? )2 (14)
+(11) follows from Lemma 3.3, while (12) and (13) follow from
+the definition of lt and wD,t + wP,t = 1, respectively.
+Then, by summing up both sides of eq. (14) over t, we
+get
+T?
+t=1
+?t ?
+?V ?
+(1? )2
+. (15)
+The desired result for the first part of the theorem, eq.
+(6), follows by plugging eq. (15) into eq. (10). Finally, the
+learning rate ? that minimizes the RHS of eq. (6) can be
+found by basic calculus, and by plugging in this optimal
+learning rate we obtain eq. (7).
+Note that the essential difference between the bounds
+in eq. (5) and (7) lies in the choice of the learning rate ?.
+While the optimal learning rate for the conventional use
+of EWAF is on the order of 1/
+?
+T , Theorem 3.1 suggests
+to choose ? to be on the order of 1/
+?
+V ?, which decreases
+much slower than 1/
+?
+T , and leads to a sufficient condition
+for the validity of our algorithm.
+Theorem 3.1 implies the excess error rate decreases with
+a rate
+?
+V ?/T ?, i.e. L?P,t/T
+? ?  = O
+(?
+V ?/T ?
+)
+. Since V ?
+is always less than or equal to T ?, this rate is bounded by
+1
+T ?
+?
+?
+V ?
+T ?
+? 1?
+T ?
+.
+Therefore our result implies that as more predictions are
+made (i.e. T ? increases) the bound becomes tighter and
+guarantees the validity of SafePredict algorithm.
+Corollary 3.3.1. For any P ,  < 1/2, 0 < wP,1 < 1,
+if one choose the learning rate ? in the order of 1/
+?
+V ?, i.e.
+? = ?
+(
+1/
+?
+V ?
+)
+, SafePredict is guaranteed to be valid.
+Unfortunately, selecting a learning rate ? that depends
+on V ? is infeasible because V ? is unknown a priori. In
+Section 3.3 we describe a practical method for choosing a
+learning rate without knowledge of the expected number of
+refusals while still satisfying eq. (7) up to a constant factor.
+Having shown the validity of our algorithm, we now move
+to the efficiency.
+3.2 Efficiency
+In this section, we study the efficiency of the SafePredict
+meta-algorithm given in Algorithm 2. In contrast with valid-
+ity which we addressed without requiring any assumptions
+on the base predictor, we must characterize the efficiency
+of a given algorithm with respect to the performance of
+the base predictor P . We show that SafePredict leads to
+efficient predictions if the base predictor P has an asymp-
+totic error rate smaller than the target error rate , i.e.
+limt?? LP,t/t < .
+The following lemma lower and upper bounds the prob-
+ability of making a prediction at time t + 1, i.e. wP,t+1, in
+terms of the cumulative loss of the base predictor P .
+Lemma 3.4. The probability of making a prediction at time t+ 1
+for SafePredict, namely wP,t+1, satisfies the following
+1? wD,1
+wP,1
+e?(LP,t?t) ? wP,t+1 ?
+wP,1
+wD,1
+e?(t?LP,t). (16)
+Proof. To prove the upper bound in eq. (16) we first note that
+the update rule given in eq. (4) can be written in terms of
+the mix-loss, and by induction we can obtain the prediction
+probability at time t + 1 in terms of the cumulative losses
+Mt and LP,t (see (17) and (18) below), i.e.
+wP,t+1 =
+wP,te
+??lP,t
+e??mt
+= wP,te
+?(mt?lP,t) (17)
+= wP,1e
+?(Mt?LP,t) (18)
+? wP,1e?(LD,t?log(wD,1)/??LP,t) (19)
+? wP,1
+wD,1
+e?(t?LP,t). (20)
+Next, (19) and (20) follows by applying Lemma 3.2 with
+Pi = D to bound the cumulative mix loss in terms of the
+cumulative loss of the dummy, LD,t = t.
+For the lower bound, we apply the same argument for
+wD,t+1 = 1? wP,t+1.
+Note that Lemma 3.4 implies that the probability of
+making a prediction decreases exponentially fast if the
+cumulative loss of the base predictor is increasing faster
+than the target error rate . Next, we exploit this fact to
+show that if the base predictor satisfies the desired error
+requirement (i.e. its average loss is already below ), our
+algorithm achieves a finite expected number of refusals.
+Theorem 3.5. If LP,T /T <  and ?T ? ? in the limit T ?
+?, then the expected number of refusals made by SafePredict is
+finite, i.e.
+T ? =
+??
+t=1
+wD,t < ?. (21)
+Proof. We first define ? = lim supT?? LP,T /T . Since 
+? < ,
+there exists a t0 <? such that for all t > t0:
+LP,t
+t
+? ? + ? 
+?
+2
+. (22)
+Then,
+??
+t=1
+wD,t =
+t0?
+t=1
+wD,t +
+??
+t=t0+1
+wD,t (23)
+? t0 +
+??
+t=t0+1
+(1? wP,t) (24)
+? t0 +
+1? wP,1
+wP,1
+??
+t=t0+1
+e?t(LP,t/t?) (25)
+? t0 + lim
+t???
+wD,1
+wP,1
+t??
+t=t0+1
+e?t(
+??)/2 (26)
+? t0 + lim
+t???
+wD,1
+wP,1
+e?(t0+1)(
+??)/2 ? e?t
+?(??)/2
+1? e?(??)/2
+(27)
+7
+? t0 +
+wD,1
+wP,1
+e?(t0+1)(
+??)/2
+1? e?(??)/2
+< ?, (28)
+where (24) follows from the fact that wD,t ? 1, (25)
+follows from Lemma 3.4, (26) follows from eq. (22), (27)
+follows from the sum of a geometric series and from the
+fact e?(
+??)/2 < 1, finally (28) follows from the hypothesis
+?T ??.
+Theorem 3.5. shows that SafePredict is efficient if the
+base predictor is already valid. Furthermore, the theorem
+shows the expected number of refusals is finite even over
+an infinite data stream. The following corollary strengthens
+the operational insight from the expected value to an almost
+sure statement.
+Corollary 3.5.1. If LP,t/t <  in the limit t ? ? and ? =
+?
+(
+T?1
+)
+, i.e. ?T ? ?, then SafePredict leads to an efficient
+predictor for P and , i.e.
+lim inf
+T??
+?T = lim inf
+T??
+1?
+?T
+t=1 wD,t
+T
+= 1.
+Furthermore, there exists a finite T0, such that the number of
+refusals are less than T0 almost surely.
+Proof. The first part of the corollary is a direct consequence
+of Theorem 3.5, and the second part follows from the Borel-
+Cantelli Lemma, see e.g. Theorem 3.9 from [38].
+Note that Corollary 3.5.1 depends on the assumption
+that the predictor P is able to (eventually) predict accurately
+enough to obtain a valid algorithm. Yet, if the predictor is
+highly inaccurate, i.e. lP,t >  with high probability, then
+SafePredict meta-algorithm will refuse almost all the time,
+as it should. The meta-algorithm does not need to know in
+advance how well the base predictor will behave to achieve
+this desirable outcome. Further, we can make SafePredict
+adaptive when the base predictor sometimes is valid and
+sometimes is not, as we show in Section 4.
+3.3 Choosing the Learning Rate
+Corollary 3.3.1 and 3.5.1 establish the validity and efficiency
+of SafePredict once the learning rate ? is chosen to be on
+the order of 1/
+?
+V ?, but V ? cannot be known a priori.
+One classical method of addressing the issue of estimating
+unknown quantities in an online scenario is known as the
+doubling trick (cf. Chapter 2.3 of [6] or Theorem 7.7 of [36]). In
+this subsection, we derive a validity bound using this trick.
+In general, the doubling trick starts with an initial es-
+timate of the unknown quantity and compares it with the
+observed value of this quantity at each time step. When
+the measured value exceeds the estimate, the estimate is
+doubled and the algorithm is reset.
+We use the doubling trick to choose ?. Specifically, we
+want to estimate V ? for a fixed horizon T . We start with an
+initial estimate of Vest (typically Vest = 1) and a running
+sum Vsum = 0. Then we invoke Theorem 3.1. by replacing
+V ? with Vest = 1, i.e. ? =
+?
+log (1/wD,1)/(1? ) and run
+Algorithm 2. At each time t we update Vsum by increment-
+ing it by wP,t+1wD,t+1 and check if it exceeds the current
+estimate. If it does, we do the following:
+1) Double the estimated value Vest ? 2Vest.
+2) Update the learning rate according to the new Vest, i.e.
+? ? ?/
+?
+2.
+3) Reset the prediction probability wP,t+1 ? wP,1.
+4) Reset the running sum Vsum ? 0.
+The complete pseudo-code for the modified algorithm is
+given in Algorithm 3.
+Algorithm 3 SafePredict with Doubling Trick
+Base predictor: P ; Initial weight: wP,1 ? (0, 1)
+Target error rate:  ? (0, 1)
+1: Initialize t = 1
+2: for each k = 1, 2, . . . do
+3: Reset wP,t = wP,1, Vsum = 0, and
+? =
+?
+log(1/wD,1)/(1? )2 /2k
+4: while Vsum ? 2k do
+5: Predict with probability wP,t, refuse otherwise,
+y?t =
+{
+y?P,t with prob. wP,t
+? otherwise
+6: Update the prediction probability:
+wP,t+1 =
+wP,te
+??lP,t
+wP,te??lP,t + wD,te??
+,
+7: Compute Vsum ? Vsum + wP,t+1wD,t+1
+8: Increment t by 1, i.e. t? t+ 1
+In the following theorem, we show that for SafePredict
+with doubling trick, given in Algorithm 3, the validity
+bound presented in Theorem 3.1 increases only by a con-
+stant multiplicative factor of
+?
+2/(
+?
+2? 1).
+Theorem 3.6. For any P ,  < 1/2, and 0 < wP,1 < 1,
+SafePredict with the doubling trick given in Algorithm 3 satisfies
+L?P,T
+T ?
+? + (1? ) 2
+?
+2?
+2? 1
+?
+log (1/wD,1)V ?
+T ?
+. (29)
+Proof. Denote the time for the Kth reset of the algorithm
+with TK , i.e. TK is the largest ? such that
+??
+t=1 wP,twD,t ?
+2K . Additionally, assume T0 = 0 and K? is the integer that
+satisfies TK??1 < T ? TK? .
+Then, we can rewrite the sum
+L?P,T ? T ? =
+T?
+t=1
+wP,t (lP,t ? )
+?
+K??
+K=1
+TK?
+t=TK?1+1
+wP,t (lP.t ? ) . (30)
+Next, we can bound each summand in the right hand-
+side using eq. (7) from Theorem 3.1, i.e. for all K we plug
+the estimated Vest = 2K value instead of V ? in the learning
+rate and the corresponding bound,
+TK?
+t=TK?1+1
+wP,t (lP,t ? ) ? (1? ) 2
+?
+2K log (1/wD,1).
+(31)
+Combining eq. (30) and (31), we obtain
+L?P,T ? T ? ? (1? ) 2
+K??
+K=1
+?
+2K log (1/wD,1)
+8
+= (1? ) 2
+?
+2K? log (1/wD,1)
+K??
+K=1
+?
+2K?K?
+? (1? ) 2
+?
+2?
+2? 1
+?
+2K? log (1/wD,1) (32)
+? (1? ) 2
+?
+2?
+2? 1
+?
+log (1/wD,1)V ? (33)
+where (32) follows from the sum of a geometric series and
+(33) follows from the definition of K?.
+Finally, the desired result is obtained by dividing both
+sides by T ?.
+Theorem 3.5 shows that the penalty paid for not know-
+ing the optimal ? is a constant factor in the validity bound.
+For efficiency, our results from Theorem 3.5 and Corollary
+3.5.1 still apply, and only finitely many refusals occur if
+the error rate of the base predictor is below . To see this,
+first, note that we simply run SafePredict by restarting the
+weights for increasingly sized blocks of data points. In each
+block our estimate of the learning rate is off by at most
+a constant factor of 2 from the suggested learning rate in
+Theorem 3.1. Therefore, the condition on the learning rate
+of Theorem 3.5 (i.e. ?T ? ?) is guaranteed to be satisfied
+and thus efficiency is guaranteed.
+4 ADAPTIVE SAFEPREDICT
+We now consider the practical scenario in which the error
+rate of the base predictor changes over time. Our meta-
+algorithm should reduce the probability of making a predic-
+tion when the base predictor suffers a large error and predict
+more often when the base predictor does well. Inspired
+by the Fixed Share algorithm [39], we introduce Adap-
+tive SafePredict, a weight-shifting extension to SafePredict.
+Adaptive SafePredict tracks changes in the error rate of the
+base predictor while preserving validity, thus improving
+efficiency even when there are periods of poor predictions.
+The base predictor can have a non-constant error rate
+for a variety of reasons. For example, most predictors have
+a high error rate at the beginning of the prediction task
+and the error rate decreases as they see more examples and
+learn from the mistakes. Alternatively, the underlying data
+distribution may abruptly change and thus the performance
+of the base predictor degrades significantly till the predictor
+learns the new data distribution. Such scenarios might lead
+to long sequences of bad predictions for the base algorithm
+P , and force the prediction probability to tend to zero.
+To make sure the prediction probability does not decrease
+too quickly due to a long sequence of bad predictions,
+we shift a small portion of the dummy’s “weight” (refusal
+probability) towards the base predictor. This weight shift
+allows Adaptive SafePredict to quickly recover when the
+base predictor performs well again.
+As an example, suppose P has a constant error rate 3
+for t ? T/2 and /2 for T/2 < t ? T . Ideally, we would
+like wP,t = 0 for t ? T/2 and wP,t = 1 for t > T/2 to
+achieve efficiency ?T = 1/2. However, Lemma 3.4 implies
+the probability of making a prediction decreases quickly till
+time T/2 and reaches ? e??T . Even though it starts to
+increase afterwards, at time T the probability of making a
+prediction is still bounded by ? e?(T?LP,T ) = e??3T/4,
+which is far below the ideal probability of 1.
+In the literature, there are various ways of making the
+generic EWAF adaptive against such changing environ-
+ments, see e.g. Chapter 5.2 of [6]. A particularly elegant
+and popular way among these techniques is called "sharing
+the weights" which leads to the fixed share algorithm [39].
+The fixed share algorithm simply adds a mixing step to the
+weight update rule in the EWAF. In particular, following
+the notation from Section 2.1, the fixed share update rule
+becomes
+wPi,t+1 =
+?
+N
++ (1? ?) wPi,te
+??li,t?N
+j=1 wPj ,te
+??lj,t
+for some ? ? [0, 1). The mixing step ensures that no
+weight falls below a predefined value ?/N , and guarantees
+a sub-linear regret against roughly ?T abrupt changes in
+the underlying statistics (e.g. the error rate). For a detailed
+analysis of the fixed share algorithm, please see [39], [40].
+In this section, we apply a similar idea to our problem
+and propose an adaptive version of the SafePredict. We
+modify the EWAF update rule eq. (4) to guarantee that the
+prediction probabilities do not get too small or too large, so
+that they can track the changes in the error rate efficiently
+while preserving the validity guarantees established in Sec-
+tion 3.1. To constrain the prediction probability at time t+ 1
+to lie within an arbitrary interval ?t ? wP,t+1 ? ?t, we
+modify our update rule as follows
+wP,t+1 = ?t + (?t ? ?t)
+wP,te
+??lP,t
+wP,te??lP,t + wD,te??
+.(34)
+We call ?t and ?t the adaptivity parameters and let them
+change with time for the sake of generality. In Algorithm
+4, we give the pseudo-code for Adaptive SafePredict with
+adaptivity parameters ?t and ?t.
+Algorithm 4 Adaptive SafePredict
+Base predictor: P ; Initial weight: wP,1 ? (0, 1)
+Learning rate: ? > 0; Target error rate:  ? (0, 1)
+Min. prediction prob.: ?1, . . . , ?T ? [0, 1)
+Max. prediction prob.: ?1, . . . , ?T ? (0, 1]
+1: for each t = 1, 2, . . . do
+2: Predict with probability wP,t, refuse otherwise, i.e.
+y?t =
+{
+y?P,t with prob. wP,t
+? otherwise
+3: Update the prediction probability:
+wP,t+1 = ?t + (?t ? ?t)
+wP,te
+??lP,t
+wP,te??lP,t + wD,te??
+In the rest of this section, we find a good setting for
+the adaptivity parameters that provides resilience against
+changes while preserving validity. In particular, we first ex-
+tend our analysis from Section 3.1 and observe that validity
+is preserved as long as ?t is on the order of 1/T , irrespective
+of the choice of ?t. By notingwP,t+1 is an increasing function
+of ?t, we choose ?t = 1 to maximize the efficiency of this
+adaptive algorithm (Alg. 4) under this restriction on ?t. In
+particular, we derive an upper bound to the probability of
+9
+refusal that depends only on the loss sequence of P starting
+from an arbitrary time point t0, i.e. LP,t,t0 instead of LP,t,
+that implies a boost in efficiency if P starts to make better
+predictions after t0.
+4.1 Validity
+To quantify the effect of the adaptivity parameters ?t, ?t
+on our validity guarantees, we first show that Adaptive
+SafePredict is equivalent to the usual EWAF with a larger
+set of experts. In particular, we consider a virtual ensemble,
+where each expert in the ensemble chooses to follow either
+the dummy predictor D, or the base predictor P . In the
+following lemma, we show that for an appropriately chosen
+set of initial weights, the EWAF on this virtual ensemble (i.e.
+Algorithm 1) becomes equivalent to Adaptive SafePredict as
+outlined in Algorithm 4. Next, we use this equivalence to
+extend our analysis from Section 3.
+Lemma 4.1. (Equivalence lemma) Suppose we have a base
+predictor P . Consider an ensemble of 2T experts, P =
+{P0, P1, . . . , P2T?1}, defined as follows:
+• Denote the tth bit of the binary expansion of integer i with
+bi,t, and define the notation x? = 1? x.
+• Fix the predictions and the losses of each expert Pi as follows:
+y?Pi,t =
+{
+? bi,t = 0
+y?P,t bi,t = 1
+and lPi,t =
+{
+ bi,t = 0
+lP,t bi,t = 1
+.
+• Set the initial weights for each expert as
+wPi,1 =w
+bi,1
+P,1w
+b?i,1
+D,1 . . .
+T?1?
+t=1
+?
+b?i,tbi,t+1
+t ??
+b?i,tb?i,t+1
+t ?
+bi,tbi,t+1
+t ??
+bi,tb?i,t+1
+t .
+Then the EWAF algorithm (Alg. 1) using the expert ensemble
+P with the learning rate ? is equivalent to Adaptive SafePredict
+(Alg. 4) using the base predictor P , in terms of the prediction
+probability
+wP,t =
+?
+i:bi,t=1
+wPi,t.
+Proof. The proof is in Supplementary Material.
+Because Lemma 4.1 reduces the adaptive algorithm to
+an instance of EWAF, we can obtain the following validity
+guarantee by modifying the proof of Theorem 3.1.
+Corollary 4.1.1. For any P , ? > 0,  < 1/2, 0 < wP,1 < 1,
+and 0 ? ?t, ?t,? 1, ?t Adaptive SafePredict meta-algorithm
+given in Algorithm 4 satisfies
+L?P,T
+T ?
+? ? log (wD,1?T )
+?T ?
++
+(1? )2 ?V ?
+T ?
+, (35)
+where ?T is defined as
+?T?1
+t=1 (1? ?t).
+By choosing the learning rate ? to minimize the RHS of this
+bound, we get
+L?P,T
+T ?
+? + (1? ) 2
+?
+log (1/(wD,1?T ))V ?
+T ?
+(36)
+for ?? =
+?
+log(1/(wD,1?T ))/V ?
+1? .
+Proof. The proof of the corollary follows from exactly the
+same steps given in the proof of Theorem 3.1, except instead
+of choosing Pi = D while applying Lemma 3.2 in eq. (9), we
+choose Pi = P0 from the equivalent virtual ensemble given
+in Lemma 4.1. Note that P0 always refuses and essentially
+identical to D, except its initial weight is
+wP0,1 = wD,1
+T?1?
+t=1
+(1? ?t) = wD,1?T .
+Corollary 4.1.2. For ?t = ? < 1/2 ?t, the validity bound given
+in eq. (36) becomes
+L?P,T
+T ?
+? + (1? ) 2
+?
+V ? (log (1/wD,1) + T?+ T?2)
+T ?
+.
+Thus setting ? = O (1/T ) is a sufficient condition to
+guarantee the validity of Adaptive SafePredict given in Alg. 4.
+Proof. Proof directly follows from setting ?t = ? in eq. (36)
+and using Taylor series expansion of ?T ,
+log (?T ) = (T ? 1) log(1? ?) ? ? T
+(
+?+ ?2
+)
+.
+Corollary 4.1.2 implies that by choosing ?t = ? =
+O (1/T ), we can preserve the same convergence rate for
+the excess error rate from Theorem 3.1, i.e. L?P,T /T
+? ?  =
+O
+(?
+V ?/T ?
+)
+. In other words, as long as ? is small, the
+whole effect of the weight shifting on our validity bound
+can be interpreted as starting with a smaller initial refusal
+probability, by reducing wD,1 by a multiplicative factor of
+?T ? e?T which is essentially a constant for ? = O (1/T ).
+Furthermore, note that the bound given in eq. (36) de-
+pends only on ?t and is totally agnostic to the choice of
+?t. Therefore, once ?t values are chosen to preserve the
+validity, i.e. on the order of 1/T , we are free to choose
+?t to maximize the prediction probability, and therefore
+efficiency, by choosing ?t = 1 at all time points t. In the
+next subsection, we analyze the efficiency of this special case
+and argue it provides resilience against changes in the data
+distribution.
+4.2 Weight-Shifting SafePredict
+In Section 3.2, we showed that the prediction probability
+of SafePredict increases or decreases exponentially quickly
+depending on the cumulative loss of the base predictor
+P . As mentioned in the beginning of Section 4, this may
+cause a high refusal rate when the performance of the base
+predictor deteriorates abruptly. In this section, we exploit a
+special case of Adaptive SafePredict to show that it provides
+resilience against changes in the data distribution while
+preserving the validity of the algorithm. This special case,
+obtained for ?t = ? = ? (1/T ) and ?t = 1, is called Weight-
+Shifting SafePredict.
+As motivated by Corollary 4.1.2, we first set ?t for
+all t equal to some constant ?, where ? is on the order
+of 1/T . This will guarantee validity. Next, we choose to
+maximize wP,t+1 over ?t in order to maximize the efficiency.
+Therefore, from eq. (34) we obtain ?t = 1, ? t. Note that
+this particular choice of adaptivity parameters simplifies the
+update rule given in eq. (34) to
+wP,t+1 = ?+ (1? ?)
+wP,te
+??lP,t
+wP,te??lP,t + wD,te??
+. (37)
+An intuitive way of looking at this rule is that at each time
+point we use the EWAF rule first and then shift an ? portion
+10
+of the weight of the dummy to towards the base predictor
+P , thus performing “weight shifting”.
+The following result implies an exponentially diminish-
+ing refusal probability in terms of the partial cumulative loss
+LP,t,t0 , for an arbitrary t0 < t, which implies that Weight-
+Shifting SafePredict can quickly recover to make predictions
+if the base predictor performs well starting time t0.
+Lemma 4.2. The probability of refusing to predict at time t+ 1,
+wD,t+1, by the using the Weight-Shifting SafePredict (Algorithm
+4 with ?t = 1 and ?t = ?, ? t) satisfies the following inequality
+wD,t+1 ?
+1? ?
+?
+e?(LP,t,t0?
+?(t?t0)) (38)
+for ? = + ?/?.
+Proof. First, write the update rule eq. (37) in terms of the
+probability of refusal by noting wD,t = 1? wP,t
+wD,t+1 = wD,t (1? ?)
+e??
+wP,te??lP,t + wD,te??
+= wD,t (1? ?) e?(mt?) (39)
+= wD,t0+1 (1? ?)
+t?t0 e?(
+?t
+?=t0+1
+m??(t?t0)) (40)
+? wD,t0+1e
+?(
+?t
+?=t0+1
+m???(t?t0)). (41)
+Where (39) follows by replacing the denominator with the
+definition of mix-loss from Section 3.1, (40) follows by
+recursing this update rule t ? t0 time, and the final step
+follows from the inequality 1? ? ? e?? for 0 ? ? ? 1 and
+? = + ?/?.
+By Lemma 4.1, the mix-loss suffered by Algorithm 4 is
+equal to the one suffered by the EWAF over the virtual
+ensemble described in the the lemma. Note that we can
+consider all the virtual experts that follow P from time t0+1
+to t as a single super-expert since they suffer the same loss
+sequence, namely lP,t0+1, . . . , lP,t, within this interval. By
+denoting this super expert as Q, we can compute its total
+weight at time t0 + 1 as
+wQ,t0+1 =
+?
+i:bi,t0+1=1
+wPi,t0+1 = wP,t0+1,
+where equality to wP,t0+1 again follows from the Lemma
+4.1. Then we can bound the sum in the eq. (41) using Lemma
+3.2 for virtual expert Q,
+t?
+?=t0+1
+m? ? LQ,t,t0 ?
+log(wQ,t0+1)
+?
+= LP,t,t0 ?
+log(wP,t0+1)
+?
+. (42)
+Finally, we conclude the proof by employing eq. (42) in eq.
+(41) and noting wP,t0+1 ? ? and wD,t0+1 ? 1? ?, i.e.
+wD,t+1 ? wD,t0+1e?(LP,t,t0?
+?(t?t0))?log(wP,t0+1)
+=
+wD,t0+1
+wP,t0+1
+e?(LP,t,t0?
+?(t?t0))
+? 1? ?
+?
+e?(LP,t,t0?
+?(t?t0)).
+We note that the dominant term of the RHS of eq. (38)
+is the exponential term since the preceding term (1 ? ?)/?
+for ? = ? (1/T ) increases only linearly with T . Therefore,
+Lemma 4.2 implies that if P starts to do well at time t0,
+i.e. if its error rate starting from t0 becomes less than the
+target rate , the prediction probability will increase to 1
+exponentially fast.
+Algorithm 5 Weight-Shifting SafePredict with Doub. Trick
+Base predictor: P ; Initial weight: wP,1 ? (0, 1)
+Target error rate:  ? (0, 1); Adaptivitiy Parameter: ? ? [0, 1)
+1: Initialize t = 1
+2: for each k = 1, 2, . . . do
+3: Reset wP,t = wP,1, Vsum = 0, and
+? =
+?
+? log
+(
+wD,1 (1? ?)T?1
+)
+/(1? )2 /2k
+4: while Vsum ? 2k do
+5: Predict with probability wP,t, refuse otherwise,
+y?t =
+{
+y?P,t with prob. wP,t
+? otherwise
+6: Update the prediction probability:
+wP,t+1 = ?+ (1? ?)
+wP,te
+??lP,t
+wP,te??lP,t + wD,te??
+7: Compute Vsum ? Vsum + wP,t+1wD,t+1
+8: Increment t by 1, i.e. t? t+ 1
+As in Section 3, the proposed learning rates for Adaptive
+SafePredict and therefore the Weight-Shifting SafePredict
+depend on V ?, and can be estimated using the doubling
+trick as described in Section 3.3. For the sake of com-
+pleteness, pseudo-code for the Weight-Shifting SafePredict
+with the doubling trick is given in Algorithm 5. We can
+also extend the validity bound given in Corollary 4.1.2 by
+following the same steps we used in the proof of Theorem
+3.6.
+Corollary 4.2.1. For any P ,  < 1/2, 0 < wP,1 < 1, and
+0 ? ? < 1 Weight-Shifting SafePredict with the doubling trick
+given in Algorithm 5 satisfies
+L?P,T
+T ?
+? + (1? ) 2
+?
+2V ??
+2? 1
+?
+log (1/wD,1) + T?+ T?2
+T ?
+.
+Note that for ? = 0, Algorithm 5 reduces to the original
+SafePredict (Alg. 3). As we increase ?, i.e. the adaptivity,
+the efficiency increases, since we increase the likelihood to
+make a prediction at each step. Furthermore, validity is
+guaranteed as long as ? is on the order of 1/T . In the next
+section, the impact of ? is numerically evaluated.
+5 EXPERIMENTS
+In this section, we investigate the performance of the pro-
+posed meta-algorithms on both synthetic and real data.1
+In Section 5.1, we randomly generate loss sequences and
+verify the validity of our algorithms empirically for various
+loss statistics and various degrees of adaptivity. The ex-
+periments show that the Weight-Shifting SafePredict boosts
+1. For the sake of reproducibility, Python scripts used to generate our
+results, tabulated results on the synthetic data, and the experiments on
+other data sets are provided in the supplementary material.
+11
+the number of predictions in changing environments while
+preserving the validity of the algorithm.
+In Section 5.2, we compare SafePredict with popu-
+lar confidence-based refusal methods on the well-known
+MNIST digit recognition dataset [41]. SafePredict increases
+the efficiency relative to other refusal mechanisms while
+guaranteeing validity.
+In the following, for the sake of brevity, we refer Weight-
+Shifting SafePredict (Alg. 5) as simply SafePredict by noting
+that ? = 0 corresponds to the original SafePredict (Alg. 3).
+5.1 Synthetic Data
+In this subsection, we generate a binary sequence of loss-
+values with varying error probabilities. The subsection ex-
+amines the validity and efficiency of SafePredict. In particu-
+lar, we restrict the adaptivity parameter of the SafePredict to
+have the form ? = k/T , in accordance with Corollary 4.1.2,
+and observe the trade-off in choosing the parameter k.
+Fig. 2: Efficiency Experiments on Synthetic Data: The efficiency
+(T ?/T ) of SafePredict with respect to increasing choices of ?. (top) If
+the base predictor has a constant error rate which is higher than the
+target, SafePredict almost always refuses. The number of predictions
+in this case increases with ?. (bottom) On the other hand, when
+the error rate of the base predictor fluctuates around the target, the
+efficiency of SafePredict increases as ? increases and achieves nearly
+the same efficiency as the oracle, which predicts if only if t ? . No
+matter what, asymptotic validity is preserved.
+Parameters: We fix the time horizon T = 50000, initial
+weight wP,1 = 0.5 and the target error rate  = 0.05. Then
+we evaluate our results for ? ? {0, 1/T, 5/T, 10/T}.
+Data Generation: To evaluate the performance of the
+meta-algorithm, we assume the existence of a base predictor
+P with a time varying error rate, and generate the loss se-
+quence corresponding to its predictions randomly. To model
+the changes in the error-rate we employ a simple change-
+point model. The statistical properties of the generated loss
+sequence lP,1, . . . , lP,T are characterized by the following
+three parameters: low error level (low), high error level
+(hi), and the number of change points (numChange). To
+generate a particular loss sequence, we first split the time
+horizon into numChange+1 non-overlapping, consecutive,
+equal length blocks. Then we assume the error rate of P to
+be constant within each block and alternates between low
+and hi for consecutive blocks. Formally, we generate each
+lP,t as an independent Bernoulli random variable as follows:
+lP,t =
+{
+1 with prob. t
+0 with prob. 1? t
+,
+where
+t =
+{
+low if dt(numChange+ 1)/T e is even
+hi otherwise
+.
+Results: We generate 12 distinct loss sequences with
+different numChange, low and hi values and evaluate the
+error rate and efficiency of Algorithm 5 for various values
+of ?. The complete numerical results are presented in the
+supplementary material, but the key observations about the
+efficiency of SafePredict are summarized in Figures 2 and 3.
+As a baseline for comparison, the results of an idealized
+oracle are also included. We assume the oracle has access to
+the true error rate of P , i.e. t, at each time point and decides
+to predict if and only if t ? . In other words, its prediction
+probability is equal to
+wP,t =
+{
+1 if t ? 
+0 otherwise .
+By contrast, in all our experiments, SafePredict does not
+know the number or location in time of the change points.
+So the oracle enjoys a significant advantage.
+These simulations reveal two main issues:
+1) Bound on Validity: Following Corollary 4.1.2, for all
+? = O (1/T ), the excess error rate is O
+(?
+V ?/T ?
+)
+. How-
+ever, the constants hidden by the big-oh notation increase
+with ?, and become significant when T ? is small. This
+effect can be observed most prominently in experiments
+where the error rate of the base algorithm is consistently
+higher than the target rate. In these cases, the oracle always
+refuses as it should whereas SafePredict refuses often but
+not always. Asymptotically, SafePredict is still valid, but for
+finite sequences its error rate may exceed the target. On the
+other hand, in the experiments where the base predictor
+achieves the target for significant periods of time, the excess
+error rate of SafePredict stays within 7% of the target error
+rate (below 0.0035 for  = 0.05) and the efficiency increases
+with ?, see Table 1 in Supplementary Material.
+2) Efficiency via adaptivity: As expected from the theoreti-
+cal analysis in Section 4 and empirically observed in Figure
+2, the efficiency of SafePredict increases with ?. SafePredict
+performs nearly as well as the oracle, even though the oracle
+knows the true error probabilities and SafePredict does
+not. However, as the number of change points increases,
+SafePredict must refuse more to be able to adapt to the
+changes, and therefore suffers a drop in efficiency. As can
+12
+Fig. 3: Synthetic Data, Evolution of Efficiency: Note ? = 0 corre-
+sponds to the original SafePredict (Alg. 3) and has no adaptivity. For
+? > 0, SafePredict can track the change points and boost efficiency.
+Larger ? implies better tracking. As the number of change points
+increases, SafePredict does a poorer job tracking the performance of
+the base predictor (relative to the oracle that knows the error rate),
+thus the efficiency drops. All the predictors in the figures are valid.
+be seen in Figure 3, the efficiency of SafePredict decreases
+with the number of change points while the tracking ability
+of SafePredict increases with ?, sometimes approaching the
+efficiency achieved by the oracle.
+5.2 Real Data: MNIST Dataset
+We now explore the validity and efficiency of SafePre-
+dict on the MNIST digit recognition dataset [41] with a
+random forest classifier as the base predictor. Results on
+other datasets from UCI repository [42] are presented in
+Supplementary material. We also compare SafePredict with
+a natural confidence-based refusal mechanism. This method
+is widely used in practice, e.g. [11], [43], [44], and similar
+methods are used as baselines in the literature, see e.g.
+[17], [45]. Furthermore, one can conveniently make a fair
+comparison with SafePredict since both are meta-algorithms
+that can be used on top of (almost) any predictor. Finally, we
+investigate a smart way of combining SafePredict with the
+confidence-based mechanism to improve the efficiency.
+The MNIST dataset consists of 70000 samples of hand-
+written digits where each sample is represented by a 784
+dimensional integer vector and labeled with a digit from 0 to
+9. We randomly permute the data and choose the first 10000
+data points to use in our experiments. An artificial change-
+point is introduced at t = 5000. We then choose a random
+label permutation and apply this permutation function to
+the last 5000 data points, i.e. the second half of the data
+points are effectively chosen from another distribution. We
+fix the target error rate as  = 0.08 in our experiments.
+Random forests are chosen due to their outstanding per-
+formance on a very broad set of tasks [46] and robustness to
+the choice of parameters. We used a Python implementation
+of Random Forests from the Scikit-learn package [47] with
+default parameters. In the scope of this experiment, we
+retrain the random forest once every 100 new data points
+in order to mitigate the computational burden.
+The confidence-based refusal method we consider in this
+paper starts with a base predictor that outputs a confidence
+score for each prediction, and a refusal threshold. The meta-
+algorithm decides to refuse if the confidence score does
+not exceed the threshold value. In our experiments, we
+computed confidence scores via predict_proba method for
+each prediction. Implementation details are available in the
+documentation of scikit-learn. As in the case of retraining
+the base predictors, we update the refusal threshold once
+every 100 data points. In particular, to update the threshold
+at time t we use cross-validation over the points up to and
+including t ? 1 and choose the smallest threshold (i.e. the
+one refuses the least) that gives an error rate smaller than 
+over the non-refused predictions in the validation sets.
+We show the results with SafePredict meta-algorithm
+(Alg. 5) with fixed parameters ? = 1/1000 (10/T ) and
+wP,1 = 0.5. SafePredict is used on top of random forests ei-
+ther by itself or in conjunction with the confidence-based re-
+fusal meta-algorithm. In the latter multi-meta-algorithm sce-
+nario, SafePredict use the losses suffered by the confidence-
+based algorithm as an input. When the confidence-based
+meta-algorithm refuses to make a prediction for data point
+at time t, SafePredict also refuses to predict and does not
+update the weights, i.e. ignores the data point at time t.
+Finally, we include an “amnesic adaptive" version of the
+combined meta-algorithm and base predictor that considers
+excessive refusals of SafePredict as a sign that adaptation is
+needed. To do so, the amnesic adaptive version monitors the
+fraction of the predictions made by the base predictor that
+are refused by SafePredict within the last epoch (i.e. 100 data
+points). If the fraction is larger than 0.5 the amnesic adaptive
+version ignores all data points from before the current epoch
+while both (i) training the base predictor (e.g. random forest)
+and (ii) any underlying confidence-based meta-algorithm.
+The evaluation of efficiency (T ?/T ) and error rate (L?P,T /T
+?)
+versus time is plotted for each of these predictors in Fig. 4.
+Experimental results lead to the following observations:
+1) Validity: As seen from the top subplot of Figure
+4, the confidence-based refusal mechanism fails to satisfy
+the validity requirement of keeping the error rate below 
+after the change point, i.e., t > 5000. The reason is that
+confidence-base refusal requires data points to be (at least
+approximately) exchangeable to deliver the required error
+guarantee and this assumption fails after the change point.
+On the other hand, SafePredict establishes validity because
+it makes no assumptions about data points.
+2) Efficiency: The robust validity of SafePredict relative
+to changes in the environment comes at a cost to effi-
+ciency. Generally, the confidence-based refusal method has
+a higher efficiency than SafePredict due to the nature of
+the refusal strategies (which follow from the stronger as-
+sumptions of the confidence-based methods). However, the
+13
+Fig. 4: MNIST Dataset: Efficiency is 1.0 for the base predictor but
+lower for the various refusing meta-algorithms. Validity is measured
+as a fraction of the target error rate. So the base predictor has a poor
+error rate (way over ). All the SafePredict variants rapidly approach
+a normalized error rate value of 1 though the error rate increases at
+the change point at time t = 5000. The confidence based competition
+cannot guarantee asymptotic validity. Two forms of adaptivity help
+reduce the number of refusals: weight-shifting especially with a high
+? value and amnesic adaptivity. Combining both leads to the highest
+efficiency while preserving validity.
+discrepancy in the efficiency can be mitigated by employ-
+ing the confidence-based mechanism as the base algorithm
+for SafePredict. This method implies a two-layered refusal
+mechanism, but as we discussed in Section 3.2 and 4.2, the
+second layer (SafePredict) will refuse seldom as long as
+the first layer (confidence-based algorithm) stays valid. As
+can be seen from Figure 4, this method (CBR+SafePredict)
+combines the best of confidence-based refusals and SafePre-
+dict by performing almost as efficiently as confidence-based
+refusals before the change point and preserving validity
+throughout.
+3) Amnesic Adaptivity: SafePredict on top of the
+confidence-based predictor remains valid throughout,
+but refusals increase after the change point, since the
+confidence-based mechanism is not valid anymore and thus
+causes excessive errors. In the amnesic adaptive variant,
+we use the excessive refusals to trigger an update of the
+base algorithm. Specifically, if the number of data points
+predicted by confidence-based predictor but refused by
+SafePredict is large, the amnesic approach concludes that
+the confidence-based algorithm is no longer well-calibrated,
+so earlier data points should be ignored. We denote this
+adaptive method as “Amnesic CBR+SP”. As seen in the
+plots, Amnesic CBR+SP gives the most favorable perfor-
+mance in our experiments by preserving validity thanks to
+SafePredict and achieving better efficiency after the change
+point by forcing the confidence-based algorithm to forget
+the previous data points.
+6 CONCLUSION
+We have introduced a meta-algorithm, SafePredict, that
+works with any base prediction algorithm and asymptot-
+ically guarantees an upper bound on the error rate for
+non-refused predictions. The error guarantee achieved by
+SafePredict does not depend on any assumption on the
+data or the base prediction algorithm. To achieve this, we
+refined the regret notion from the expert advice framework
+and recast the exponentially weighted average forecasting
+algorithm to be used as a method to manage refusals.
+To avoid too many refusals in changing environments,
+we introduced a weight-shifting heuristic that encourages
+predictions when the quality of the base predictor improves.
+We have also used an amnesic adaptation mechanism to
+further improve versatility in the face of occasional change
+points. Our experiments show that these methods establish
+validity even in challenging environments while refusing
+seldom when the base predictor does well.
+ACKNOWLEDGMENTS
+Work supported in part by NYU Seed Grant, NYU WIRE-
+LESS, and the National Science Foundation grants CNS-
+1302336, MCB-1158273, IOS-1339362, MCB-1412232.
+REFERENCES
+[1] E. Siegel, Predictive Analytics: The Power to Predict Who will Click,
+Buy, Lie, or Die. John Wiley & Sons, 2013.
+[2] S. Dua, U. R. Acharya, and P. Dua, Machine Learning in Healthcare
+Informatics. Springer, 2014.
+[3] B. Han, “Building a Better Disease Detective,” IEEE Spectr., vol. 52,
+no. 10, pp. 46–51, 2015.
+[4] T. Harbert, “The Law Machine,” IEEE Spectr., vol. 50, no. 11, pp.
+31–54, 2013.
+[5] T. Simonite, “How to Upgrade Judges with Machine Learning.”
+MIT Technology Review, Mar 2017.
+[6] N. Cesa-Bianchi and G. Lugosi, Prediction, Learning, and Games.
+Cambridge University Press, 2006.
+[7] C. Chow, “On Optimum Recognition Error and Reject Trade-off,”
+IEEE Trans. Inf. Theory, vol. 16, no. 1, pp. 41–46, 1970.
+[8] J. H. Friedman, “On Bias, Variance, 0/1-Loss, and the Curse-
+of-Dimensionality,” Data Mining and Knowledge Discovery, vol. 1,
+no. 1, pp. 55–77, 1997.
+[9] M. E. Hellman, “The Nearest Neighbor Classification Rule with a
+Reject Option,” IEEE Trans. on Systems Science and Cybern., vol. 6,
+no. 3, pp. 179–185, 1970.
+[10] T. C. Landgrebe, D. M. Tax, P. Paclík, and R. P. Duin, “The Interac-
+tion Between Classification and Reject Performance for Distance-
+Based Reject-Option Classifiers,” Pattern Recognition Lett., vol. 27,
+no. 8, pp. 908–917, 2006.
+[11] C. De Stefano, C. Sansone, and M. Vento, “To Reject or Not
+to Reject: That is the Question-an Answer in Case of Neural
+Classifiers,” IEEE Trans. Syst. Man Cybern. C, Appl. Rev., vol. 30,
+no. 1, pp. 84–94, 2000.
+[12] M. Li and I. K. Sethi, “Confidence-based Classifier Design,” Pattern
+Recognition, vol. 39, no. 7, pp. 1230–1240, 2006.
+[13] W. J. Scheirer, L. P. Jain, and T. E. Boult, “Probability Models
+for Open Set Recognition,” IEEE Trans. Pattern Anal. Mach. Intell.,
+vol. 36, no. 11, pp. 2317–2324, 2014.
+[14] M. Golfarelli, D. Maio, and D. Malton, “On the Error-Rreject
+Trade-off in Biometric Verification Systems,” IEEE Trans. Pattern
+Anal. Mach. Intell., vol. 19, no. 7, pp. 786–796, 1997.
+[15] G. Fumera, I. Pillai, and F. Roli, “Classification with Reject Option
+in Text Categorisation Systems,” in 12th Int. Conf. on Image Anal.
+and Process. IEEE, 2003, pp. 582–587.
+14
+[16] M. C. Campi, “Classification with Guaranteed Probability of Er-
+ror,” Mach. Learning, vol. 80, no. 1, pp. 63–84, 2010.
+[17] P. L. Bartlett and M. H. Wegkamp, “Classification with a Reject
+Option Using a Hinge Loss,” J. of Mach. Learning Research, vol. 9,
+pp. 1823–1840, Aug, 2008.
+[18] R. Herbei and M. H. Wegkamp, “Classification with Reject Op-
+tion,” Canadian J. of Stat., vol. 34, no. 4, pp. 709–721, 2006.
+[19] M. Yuan and M. Wegkamp, “Classification Methods with Reject
+Option Based on Convex Risk Minimization,” J. of Mach. Learning
+Research, vol. 11, no. Jan, pp. 111–130, 2010.
+[20] R. El-Yaniv and Y. Wiener, “On the Foundations of Noise-Free
+Selective Classification,” J. of Mach. Learning Research, vol. 11, no.
+May, pp. 1605–1641, 2010.
+[21] Y. Wiener and R. El-Yaniv, “Agnostic Selective Classification,” in
+Advances in Neural Inform. Process. Syst., 2011, pp. 1665–1673.
+[22] C. Cortes, G. DeSalvo, and M. Mohri, “Learning with Rejection,”
+in Int. Conf. on Algorithmic Learning Theory. Springer, 2016, pp.
+67–82.
+[23] A. T. Kalai, V. Kanade, and Y. Mansour, “Reliable Agnostic Learn-
+ing,” J. of Comput. and Syst. Sci., vol. 78, no. 5, pp. 1481–1495, 2012.
+[24] Y. Wiener, Theoretical Foundations of Selective Prediction, ser. PhD
+dissertation. Technion-Israel Inst. of Technology, Faculty of
+Comput. Sci., 2013.
+[25] C. Zhang, W. Wang, and X. Qiao, “On Reject and Refine Options in
+Multicategory Classification,” J. of the Amer. Statistical Assoc., 2017.
+[26] V. Vovk, A. Gammerman, and G. Shafer, Algorithmic Learning in a
+Random World. Springer Sci. & Bus. Media, 2005.
+[27] C. Denis and M. Hebiri, “Consistency of Plug-in Confidence Sets
+for Classification in Semi-supervised Learning,” arXiv preprint
+arXiv:1507.07235, 2015.
+[28] M. A. Kocak, E. Erkip, and D. E. Shasha, “Conjugate Conformal
+Prediction for Online Binary Classification,” in 32nd Conf. on
+Uncertainty in Artificial Intell., 2016, pp. 347–356.
+[29] J. Lei et al., “Classification with Confidence,” Biometrika, vol. 101,
+no. 4, pp. 755–769, 2014.
+[30] L. Li, M. L. Littman, and T. J. Walsh, “Knows What it Knows: a
+Framework for Self-Aware Learning,” in 25th Int. Conf. on Mach.
+Learning. ACM, 2008, pp. 568–575.
+[31] A. Sayedi, M. Zadimoghaddam, and A. Blum, “Trading off Mis-
+takes and Don’t-Know Predictions,” in Advances in Neural Inform.
+Process. Syst., 2010, pp. 2092–2100.
+[32] C. Zhang and K. Chaudhuri, “The Extended Littlestone’s Dimen-
+sion for Learning with Mistakes and Abstentions,” arXiv preprint
+arXiv:1604.06162, 2016.
+[33] N. Littlestone and M. K. Warmuth, “The Weighted Majority Algo-
+rithm,” in 30th Annu. Symp. on Found. of Comput. Sci. IEEE, 1989,
+pp. 256–261.
+[34] V. Vovk, “Aggregating Strategies,” in Conf. on Computational Learn-
+ing Theory, 1990.
+[35] J. W. Tukey, “Sunset Salvo,” The Amer. Statistician, vol. 40, no. 1,
+pp. 72–76, 1986.
+[36] M. Mohri, A. Rostamizadeh, and A. Talwalkar, Foundations of
+Machine Learning. MIT Press, 2012.
+[37] S. De Rooij, T. Van Erven, P. D. Grünwald, and W. M. Koolen,
+“Follow the Leader if You can, Hedge if You must.” J. of Mach.
+Learning Research, vol. 15, no. 1, pp. 1281–1316, 2014.
+[38] K. Krickeberg, Probability Theory, ser. Adiwes Int. Series. Addison-
+Wesley Publishing Company, 1965.
+[39] M. Herbster and M. K. Warmuth, “Tracking the Best Expert,”
+Mach. Learning, vol. 32, no. 2, pp. 151–178, 1998.
+[40] D. Adamskiy, W. M. Koolen, A. Chernov, and V. Vovk, “A Closer
+Look at Adaptive Regret,” in Int. Conf. on Algorithmic Learning
+Theory. Springer, 2012, pp. 290–304.
+[41] Y. LeCun and C. Cortes, “MNIST Handwritten Digit Database,”
+2010. [Online]. Available: http://yann.lecun.com/exdb/mnist/
+[42] M. Lichman, “UCI Machine Learning Repository,” 2013. [Online].
+Available: http://archive.ics.uci.edu/ml
+[43] B. Zhang, Y. Zhou, and H. Pan, “Vehicle Classification with Confi-
+dence by Classified Vector Quantization,” IEEE Intell. Transp. Syst.
+Mag., vol. 5, no. 3, pp. 8–20, 2013.
+[44] B. Hanczar and E. R. Dougherty, “Classification with Reject Option
+in Gene Expression Data,” Bioinformatics, vol. 24, no. 17, pp. 1889–
+1895, 2008.
+[45] C. Cortes, G. DeSalvo, M. Mohri, and S. Yang, “On-line Learning
+with Abstention,” arXiv preprint arXiv:1703.03478, 2017.
+[46] M. Fernández-Delgado, E. Cernadas, S. Barro, and D. Amorim,
+“Do We Need Hundreds of Classifiers to Solve Real World Classi-
+fication Problems,” J. of Mach. Learning Research, vol. 15, no. 1, pp.
+3133–3181, 2014.
+[47] F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion,
+O. Grisel, M. Blondel, P. Prettenhofer, R. Weiss, V. Dubourg et al.,
+“Scikit-learn: Machine Learning in Python,” J. of Mach. Learning
+Research, vol. 12, pp. 2825–2830, Oct, 2011.
+Mustafa A. Kocak is a Ph.D. candidate at NYU
+Tandon School of Engineering, with ECE de-
+partment. His research interests include statisti-
+cal learning theory, information theory and wire-
+less communications. Kocak received a B.Sc.
+in electrical engineering from Bilkent University,
+Ankara,Turkey. He is a student member of IEEE.
+Contact him at kocak@nyu.edu.
+David Ramirez received a B.S. with honors in
+Engineering Physics from Tecnologico de Mon-
+terrey (ITESM), and M.S. and Ph.D. degrees in
+Electrical and Computer Engineering from Rice
+University. He is currently a Postdoctoral Re-
+searcher at New York University and a Visiting
+Postdoctoral Researcher at Princeton University.
+His research interests are in wireless networks,
+communication theory, & optimization.
+Elza Erkip received the B.S. degree in Elec-
+trical and Electronics Engineering from Middle
+East Technical University, Ankara, Turkey, and
+the M.S. and Ph.D. degrees in Electrical Engi-
+neering from Stanford University, Stanford, CA,
+USA. Currently, she is a Professor of Electrical
+and Computer Engineering with New York Uni-
+versity Tandon School of Engineering, Brooklyn,
+NY, USA. Her research interests are in informa-
+tion theory, communication theory, and wireless
+communications.
+Dr. Erkip is a member of the Science Academy Society of Turkey
+and is among the 2014 and 2015 Thomson Reuters Highly Cited Re-
+searchers. She received the NSF CAREER award in 2001 and the
+IEEE Communications Society WICE Outstanding Achievement Award
+in 2016. Her paper awards include the IEEE Communications Society
+Stephen O. Rice Paper Prize in 2004, and the IEEE Communications
+Society Award for Advances in Communication in 2013. She has been
+a member of the Board of Governors of the IEEE Information Theory
+Society since 2012 where she is currently the First Vice President. She
+was a Distinguished Lecturer of the IEEE Information Theory Society
+from 2013 to 2014.
+Dennis E. Shasha is a Professor of Computer
+Science at the Courant Institute of New York
+University. His research interests include data
+science, biological computing, wireless commu-
+nication and concurrent data structures. Shasha
+received a PhD in applied math from Harvard
+University. He is an ACM Fellow and the recipient
+of an INRIA Internaional Chair. He is co-editor in
+chief of Information Systems, and is or has been
+the puzzle columnist for CACM and Scientific
+American. Contact shasha@cims.nyu.edu

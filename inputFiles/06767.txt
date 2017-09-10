@@ -1,0 +1,702 @@
+Seeing Through Noise:
+Speaker Separation and Enhancement using Visually-derived Speech
+Aviv Gabbay Ariel Ephrat Tavi Halperin Shmuel Peleg
+The Hebrew University of Jerusalem
+Jerusalem, Israel
+Abstract
+When video is recorded in a studio, sound is clear of ex-
+ternal noises and unrelated sounds. However, most video
+is not shot at studios. Voice of people shot in family events
+is mixed with music and with other voices. Video confer-
+ences from home or office are often disturbed by other peo-
+ple, ringing phones, or barking dogs. TV reporting from
+city streets is mixed with traffic noise, sound of winds, etc.
+We propose to use visual information of face and mouth
+movements as seen in the video to enhance the voice of a
+speaker, and in particular eliminate sounds that do not re-
+late to the face movements. The method is based on spec-
+tral information of speech as predicted by a video-to-speech
+system.
+Without visual information, the task of isolating a spe-
+cific human voice while filtering out other voices or back-
+ground noise is known as the cocktail party problem. This
+problem is solvable when N voices are recorded by N mi-
+crophones. We address the challenging single microphone
+case, and show that visual information of the speaker can
+help solve this problem.
+1. Introduction
+Speaker separation and speech enhancement are funda-
+mental problems in speech processing, and have been the
+subject of extensive research over the years [4, 5, 10, 22],
+especially recently since neural networks were used suc-
+cessfully for this task [6]. A common approach for these
+problems is to train a neural network to separate audio mix-
+tures into their sources, leveraging on the network’s abil-
+ity to learn unique speech characteristics as spectral bands,
+pitches, chirps, etc [18]. The main difficulty of audio-
+only approaches is their inability to separate similar human
+voices (typically same-gender voices).
+We present a method for speech separation and isola-
+tion using audio-visual inputs. In this case, a video show-
+ing the face of the speaker is available in addition to the
+sound track. We first describe the case of separating a mixed
+speech of two visible speakers, and continue with the iso-
+lation of the speech of a single visible speaker from back-
+ground sounds. This work builds upon recent advances in
+machine speechreading, which has the ability to learn audi-
+tory speech signals based on visual face motion.
+1.1. Related work
+Audio-Only Speech Separation Previous methods for
+single-channel, or monaural, speech separation usually use
+only audio signal as input. One of the main approaches
+is spectrographic masking, in which the separation model
+finds a matrix containing time-frequency (TF) components
+dominated by each speaker [26, 19]. The mask can be ei-
+ther binary or soft [26]. Isik et al. [18] tackle the single-
+channel multi-speaker separation using a method known as
+deep clustering, in which discriminatively-trained speech
+embeddings are used as the basis for clustering, and sub-
+sequently separating, speech.
+Audio-Visual Speech Processing Recent research in
+audio-visual speech processing makes extensive use of neu-
+ral networks. The work of Ngiam et al. [23] is a seminal
+work in this area. Neural networks with visual input have
+been used for lipreading [2, 7], sound prediction [24] and
+for learning unsupervised sound representations [3].
+Work has also been done on audio-visual speech en-
+hancement and separation. Kahn and Milner [21, 20] use
+hand-crafted visual features to derive binary and soft masks
+for speaker separation. Hou et al. [17] propose deep con-
+volutional neural network (CNN)-based models to enhance
+noisy speech. Their network does not output a mask, but a
+spectrogram representing the enhanced speech.
+2. Visually-derived Speech Generation
+Different approaches exist for generation of intelligible
+speech from silent video frames of a speaker [12, 11, 9].
+In Sec. 2.1 we describe a prior work in this topic, and in
+Sec. 2.2 we introduce a new approach.
+1
+ar
+X
+iv
+:1
+70
+8.
+06
+76
+7v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+2 
+A
+ug
+ 2
+01
+7
+2.1. Vid2speech
+In [11], Ephrat et al. generate mel-scale spectrograms
+representing speech from a sequence of silent video frames
+of a speaking person. Their model takes two inputs: a clip
+of K consecutive video frames, and a “clip” of (K ? 1)
+consecutive dense optical flow fields corresponding to the
+motion in (u, v) directions for pixels of consecutive frames.
+Their architecture consists of a dual-tower Residual neu-
+ral network (ResNet) [16] which takes the aforementioned
+inputs and encodes them into a latent vector representing
+the visual features. The latent vector is fed into a series of
+two fully connected layers followed by a post-processing
+network which aggregates multiple consecutive mel-scale
+spectrogram predictions, and maps them to a linear-scale
+spectrogram representing the final speech prediction.
+2.2. VGG-Face descriptor-based speech generation
+Learning meaningful face features from scratch is dif-
+ficult when lacking a large face dataset with many unique
+identities. Parkhi et al. [25] built a large face dataset con-
+sisting of over 2.6 million images of 2,622 unique identi-
+ties. In the VGG-Face project, the VGG-16 [28] network is
+trained on this face dataset to recognize faces, and the final
+network’s weights are available online [1]. Layer activa-
+tions from VGG-Face are often used as face descriptors for
+other face-related tasks.
+In this section we’ll describe a new approach for gener-
+ating speech from silent video frames. Instead of feeding
+a voice generation system with raw video frames, only de-
+scriptors based on VGG-Face [1] will be used for speech
+generation. This parameter reduction substantially acceler-
+ates training. In some cases it even proved to give better
+results.
+We use the pre-trained VGG-Face network to generate
+face descriptors of a speaker as a preliminary step. The last
+3 fully connected VGG layers are omitted, giving a descrip-
+tor length of 512, a common approach to extracting a face
+descriptor from VGG.
+The sequence of descriptors from each frame is fed as in-
+put into another neural network mapping it to the predicted
+speech spectrogram, as seen in Fig.1. The number of frames
+in a batch depends on the dataset. In our experiments we
+selected number of frames which whose duration is 330ms.
+The network has 3 fully connected layers of 1024 neurons
+each and an output layer representing the speech mel-scaled
+spectrogram. The spectrogram comprises 128 frequencies
+from 0 to 4 kHz (human voice frequency band ranges from
+approximately 300 Hz to 3400 Hz).
+3. Audio-Visual Speech Enhancement
+Our approach is based on the idea of decomposing the
+mixed audio signal (comprising two or more competing
+Figure 1: The proposed video-to-speech model based on
+VGG-Face. Each frame is fed into a pre-trained VGG net-
+work generating a descriptor of 512 features. The descrip-
+tors are concatenated and given as input into 3 fully con-
+nected layers of 1024 neurons each and an output layer rep-
+resenting the speech spectrogram.
+signals) into a spectrogram in order to assign each time-
+frequency (TF) element to its respective source. These as-
+signments are used as a masking function to extract the
+dominant parts of each source. The masked spectrograms
+are subsequently reconstructed into the estimated source
+signals.
+The assignment operation is facilitated by obtaining
+speech spectral information of each speaking person us-
+ing the two different video-to-speech methods mentioned
+in Sec. 2, Vid2speech and VGG-Face.
+Since the video-to-speech methods do not generate a per-
+fect speech signal, we use their predicted speech only to
+generate masks which can be used to isolate appropriate
+components of the noisy mixture, as will be described later.
+3.1. Separating Two Speakers
+In this scenario, there are two speakers (D1, D2) facing
+a camera with a single microphone. We assume that the
+speakers are known, and that we can train in advance two
+separate video-to-speech model, (N1,N2). N1 is trained us-
+ing the audio-visual dataset of speakerD1, andN2 is trained
+using the audio-visual dataset of speaker D2.
+Given a new sequence of video frames, along with a syn-
+chronized sound track having the mixed voices of speakers
+D1 and D2, the separation process is as follows. The pro-
+cess is shown in Fig. 2 and in Fig. 3.
+1. The faces of speakersD1 andD2 are detected in the in-
+put video using a face detection method such as Viola
+and Jones [30].
+2
+Figure 2: Voice separation system diagram. The input
+consists of synchronized video and sound streams. The
+video shows two speaking persons, and the sound includes
+their combined voices. The input sound is converted into a
+time-frequency sound representation, e.g. mel-scale spec-
+trogram. Video-based synthesized speech is generated for
+the two speakers in the video by a module like Vid2speech
+(Sec. 2), also represented by mel-scale spectrogram. A
+speaker separation process described in Sec. 3.1 creates two
+mel-scale spectrograms of two voices of the two speakers,
+which subsequently are turned into two separate auditory
+speech signals.
+2. The speech mel-scaled spectrogram S1 of speaker D1
+is predicted using network N1 with the face-cropped
+frames as input.
+3. The speech mel-scaled spectrogram S2 of speaker D2
+is predicted using network N2 with the face-cropped
+frames as input.
+4. The mixture mel-scaled spectrogram C is generated
+directly from the audio input.
+5. The mixture spectrogram C is split into two individual
+spectrograms P1 and P2, guided by the visually pre-
+dicted spectrograms S1 and S2, as follows:
+For each (t, f), if S1(t, f) > S2(t, f) then
+P1(t, f) = C(t, f) and P2(t, f) = 0,
+otherwise
+P1(t, f) = 0 and P2(t, f) = C(t, f).
+6. The separated speech of each person is reconstructed
+from the corresponding mel-scaled spectrogram, P1 or
+Initialize 
+P1(t,f)=P2(t,f)=0.
+ 
+For all t,w 
+Compare 
+S1(t,f)>S2(t,f)
+Representation 
+(Spectrogram, 
+LPC, etc)    S2
+Representation 
+(Spectrogram, 
+LPC, etc)    C
+Representation 
+(Spectrogram, 
+LPC, etc)    S1
+P2(t,f)=C(t,f)P1(t,f)=C(t,f)
+Yes No
+Representation 
+(Spectrogram, 
+LPC, etc)    P1
+Representation 
+(Spectrogram, 
+LPC, etc)    P2
+Figure 3: A module that separates the incoming mixed
+voices into two separate voices based on visually-derived
+speech using a binary mask. The input consists of TF repre-
+sentation C(t, f) of the mixed incoming sound, and two TF
+representations Si(t, f) of the two visually-derived synthe-
+sized sounds. Each output P1(t, f) and P2(t, f), represents
+the TF representation of the speech of one person. Initially,
+we set P1(t, f) = P2(t, f) = 0 for all (t, f). We then com-
+pare S1 and S2 for all (t, f), and when S1(t, f) > S2(t, f)
+we set the output P1(t, f) = C(t, f), otherwise we set
+P2(t, f) = C(t, f).
+P2, constructed in the previous step.
+It should be noted that this simple separation method,
+where “winner takes all”, can be modified. For exam-
+ple, instead of the binary decision used in Step 5 above,
+a softmax function can be used as follows:
+Two masks, F1 and F2, are computed from the visually
+predicted spectrograms such that F1(t, f) + F2(t, f) = 1:
+F1(t, f) =
+eS1(t,f)
+2?
+i=1
+eSi(t,f)
+(1)
+F2(t, f) =
+eS2(t,f)
+2?
+i=1
+eSi(t,f)
+(2)
+The individual mel-scaled spectrograms for the two
+speakers can be generated from the mixture spectrogram C
+using the following masks:
+P1 = C × F1, P2 = C × F2,
+where × denotes element-wise multiplication.
+3.2. Speech Enhancement of a Single Speaker
+In the speech enhancement scenario one speaker (D) is
+facing the camera, and his voice is recorded with a single
+microphone. Voices of other (unseen) speakers, or some
+background noise, is also recorded. The task is to separate
+3
+Figure 4: Voice isolation system diagram. The input con-
+sists of synchronized video and sound streams. The input
+sound is converted into a TF sound representation C, e.g.
+mel-scale spectrogram. The input video is used by a mod-
+ule like Vid2Speech to generate a mel-scale spectrogram S
+of video-based synthesized speech. An isolation process
+described in Fig. 5 turns these two representations into a
+representation of an isolated sound P , which subsequently
+is turned into a cleaner auditory speech signal.
+the voice of the speaker from the background noise. We as-
+sume that the speaker is previously known, and that we can
+train a network (N ) of a video-to-speech model mentioned
+above on the audio-visual dataset of this speaker.
+Given a new sequence of video frames of same speaker,
+along with a synchronized noisy sound track, the process to
+isolate the speaker’s sound is as follows. A diagram of this
+process is shown in Fig. 4 and in Fig. 5.
+1. The face of speaker D is detected in the input video
+using a face detection method such as that of Viola and
+Jones [30].
+2. The speech mel-scale spectrogram S of the speaker D
+is predicted using network N with the face-cropped
+frames as input.
+3. The mixture mel-scale spectrogram C is generated di-
+rectly from the audio input.
+For all t,f 
+Compare 
+S(t,f)>T(t,f)
+Representation 
+(Spectrogram, 
+LPC, etc)    C
+Representation 
+(Spectrogram, 
+LPC, etc)    S
+P(t,f)=0P(t,f)=C(t,f) Yes No
+Representation 
+(Spectrogram, 
+LPC, etc)    P
+Figure 5: A module that filters the time-frequency represen-
+tation C(t, f) of the the noisy incoming speech based on
+a time-frequency representation S(t, f) of the video-based
+synthesized speech. For each (t, f), when S(t, f) exceeds
+a threshold T (t, f) the output P is P (t, f) = C(t, f), oth-
+erwise P (t, f) = 0. The threshold T (t, f) can be uniform
+for all (t, f), or can be different for each (t, f).
+4. A separation mask F is constructed using thresholding
+where ? is the desired threshold: For each (t, f) in the
+spectrogram, we compute:
+F (t, f) =
+{
+1 S(t, f) > ?
+0 otherwise
+(3)
+The threshold ? can be determined in advance, or can
+be learned during training.
+5. The isolated mel-scaled spectrogram is filtered by the
+following masking: P = C × F , where × denotes
+element-wise multiplication.
+6. The speaker’s clean voice is reconstructed from the
+predicted mel-scale spectrogram P .
+As in the voice separation case, it should be noted that
+the voice isolation method can be modified and similar re-
+sults will be obtained. For example, instead of a binary de-
+cision based on a threshold ? as in Step 4 above, the mask F
+can have continuous values between zero and one as given
+by a softmax, or another similar function.
+4. Experiments
+4.1. Datasets
+GRID Corpus We performed our base experiments on
+the GRID audio-visual sentence corpus [8], a large dataset
+of audio and video (facial) recordings of 1,000 sentences
+4
+Figure 6: Frame samples from GRID (left) and TCD-
+TIMIT (right) datasets.
+Command Color Preposition Letter Digit Adverb
+bin blue at A-Z 0-9 again
+lay green by minus W now
+place red in please
+set white with soon
+Table 1: GRID sentence grammar.
+spoken by 34 people (18 male, 16 female). Each sentence
+consists of a sequence of six words in the form shown in
+Table 1, e.g. “Place green at H 7 now”. A total of 51 differ-
+ent words are contained in the GRID corpus. Videos have a
+fixed duration of 3 seconds at a frame rate of 25 FPS with a
+resolution of 720×576 pixels, resulting in sequences com-
+prising 75 frames.
+TCD-TIMIT In order to better demonstrate the capability
+of our method, we also perform experiments on the TCD-
+TIMIT dataset [15]. This dataset consists of 60 volunteer
+speakers with around 200 videos each, as well as three lip-
+speakers, people specially trained to speak in a way that
+helps the deaf understand their visual speech. The speak-
+ers are recorded saying various sentences from the TIMIT
+dataset [13], and are recorded using both front-facing and
+30 degree cameras.
+Our experiments on this dataset show how unintelligible
+video-to-speech predictions can still be exploited to produce
+high quality speech signals using our proposed methods.
+4.2. Technical Details
+Preprocessing These video clips and their corresponding
+audio tracks are preprocessed as described in [11].
+Mixing model Testing our proposed methods requires an
+audio-visual dataset of multiple persons speaking simulta-
+neously in front of a camera and a single microphone. Lack-
+ing a dataset of this kind, we use the datasets described
+above while generating artificial instantaneous audio mix-
+tures from the speech signals of several speakers, assuming
+the speakers are hypothetically sitting next to each other.
+Given audio signals s1(t), ..., sn(t) of the same length and
+sample rate, their mixture signal is assumed to be
+n?
+i=1
+si(t).
+Audio spectrogram manipulation Generation of spec-
+trogram is done by applying short-time-Fourier-transform
+(STFT) to the waveform signal. Mel-scale spectrogram is
+computed by multiplying the spectrogram by a mel-spaced
+filterbank. Waveform reconstruction is done by multiplying
+the mel-scale spectrogram by the pseudo-inverse of the mel-
+spaced filterbank followed by applying the inverse STFT.
+The phase information is recovered using the Griffin-Lim
+algorithm [14].
+4.3. Performance Evaluation
+The results of our experiments are evaluated using objec-
+tive quality measurements commonly used for speech sepa-
+ration and enhancement. Needless to say, in addition to the
+measurements we will describe next, we assessed the intel-
+ligibility and quality of our results using informal human
+listening. We strongly encourage readers to watch and lis-
+ten to the supplementary video available on our project web
+page 1 which conclusively demonstrates the effectiveness of
+our approach.
+Enhancement evaluation We use the Perceptual evalua-
+tion of speech quality (PESQ) [27] which is an objective
+method for end-to-end speech quality assessment originally
+developed for narrow-band telephone networks and speech
+codecs. Although it is not perfectly suitable to our task, we
+use it for rough comparison.
+Separation evaluation We use the BSS Eval toolbox [29]
+to measure the performance of our source separation meth-
+ods providing the original source signals as ground truth.
+The measures are based on the decomposition of each es-
+timated source signal into a number of contributions corre-
+sponding to the target source, interference from unwanted
+sources and artifacts. The evaluation consists of three dif-
+ferent objective scores: SDR (Source to Distortion Ratio),
+SIR (Source to Interferences Ratio) and SAR (Source to Ar-
+tifacts Ratio).
+Ideal mask Knowing the ground truth of the source sig-
+nals, we can set up a benchmark for our methods known
+as the “ideal mask”. Using the spectrograms of the source
+signals as the ideal predictions by a video-to-speech system
+we can estimate a performance ceiling of each approach.
+We will refer to this baseline later evaluating the results.
+1Examples of speech separation and enhancement can be found at
+http://www.vision.huji.ac.il/speaker-separation
+5
+PESQ ? = 50 60 70
+Enhancement using vid2speech 2.02 2.00 1.87
+Enhancement using VGG-Face 1.96 1.98 1.80
+Ideal enhancement 2.22 2.34 2.27
+Table 2: Comparison of the enhancement quality using dif-
+ferent video-to-speech models. ? represents threshold in
+dB.
+SDR SIR SAR
+softmax
+Separation using vid2speech -7.66 12.93 -7.19
+Separation using VGG-Face -7.36 10.46 -6.48
+Ideal separation -6.74 18.74 -6.64
+binary
+Separation using vid2speech -7.06 13.06 -6.60
+Separation using VGG-Face -7.96 10.60 -7.02
+Ideal separation -6.65 18.66 -6.54
+Table 3: Comparison of the separation quality using differ-
+ent video-to-speech models, broken down by type of mask,
+binary and softmax.
+4.4. Results
+In the following experiments, we will refer to the speak-
+ers from the GRID corpus by their IDs in the dataset: 2, 3
+and 5 (all male).
+Speech enhancement In this experiment we trained a net-
+work of one of the video-to-speech models mentioned in 2
+on the audio-visual data of speaker 2. Then, we synthesized
+mixtures of unseen samples from speaker 2 and speaker 3
+and applied speech enhancement to denoise the sentences
+spoken by speaker 2. The training data consisted of ran-
+domly selected sentences, comprising 80% of the samples
+of speaker 2 (40 minutes length in total). The results are
+summarized in Table 2.
+Speech separation In this experiment we trained two of
+the video-to-speech models mentioned in 2 on the audio-
+visual data of speakers 2 and 3, separately. Then, we syn-
+thesized mixtures of unseen sentences from speakers 2 and
+3, and applied speech separation. The training data con-
+sisted of randomly selected sentences, comprising 80% of
+the samples of each of the speakers (40 minutes length in
+total). The results are summarized in Table 3. Examples of
+the separated spectrograms are shown in Fig. 7.
+PESQ
+Raw vid2speech predictions 1.41
+Source separation using vid2speech 2.06
+Table 4: Comparison of the quality of the target sources
+from the TCD-TIMIT dataset. Applying our source sep-
+aration using the vid2speech raw predictions improves the
+quality of the target sources.
+Source separation vs. Raw speech predictions A na??ve
+approach to source separation would be to use the raw
+speech predictions generated by a video-to-speech model
+as the separated signals without applying any of our sepa-
+ration methods. This approach leads to reasonable results
+when dealing with a constrained-vocabulary dataset such as
+GRID. However, it usually generates low quality and mostly
+unintelligible speech predictions when dealing with a more
+complicated dataset such as TCD-TIMIT, which contains
+sentences from a larger vocabulary. In this case, our separa-
+tion methods have real impact, and the final speech signals
+sound much better than the raw speech predictions. The
+results of our experiment on the TCD-TIMIT dataset are
+summarized in Table 4.
+Hypothetical same-speaker separation In order to em-
+phasize the power of exploiting visual information in speech
+separation, we conducted a non-realistic experiment of sep-
+arating two overlapping sentences spoken by the same per-
+son (given the corresponding video frames separately). The
+experiment was performed in a similar fashion to the pre-
+vious one, replacing speaker 3 with another instance of
+speaker 2. The results were similar to those summarized
+in Table 3.
+5. Generalizations
+5.1. Multi-speaker speech separation
+In section 3.1 we described the separation method of two
+speaking persons. This can be easily generalized to a sep-
+aration method of n speaking persons. Training n differ-
+ent networks separately as well, as constructing n masks is
+straightforward.
+5.2. Speaker independent
+Both enhancement and separation methods are based on
+speech predictions of a video-to-speech system. Attempts
+to predict speech of an unknown speaker using a system
+trained on a different speaker usually lead to bad results.
+Here is where transfer learning comes into play. The trained
+model of one speaker is fine-tuned to a new speaker’s facial
+and vocal properties. This can be done by freezing the con-
+6
+512
+1024
+2048
+4096
+8192
+Hz
+512
+1024
+2048
+4096
+8192
+Hz
+(a) Spectrograms of two source voices.
+512
+1024
+2048
+4096
+8192
+Hz
+(b) Spectrogram of the mixed voices.
+512
+1024
+2048
+4096
+8192
+Hz
+512
+1024
+2048
+4096
+8192
+Hz
+(c) Spectrograms of the separated voices.
+Figure 7: Spectrograms of the voices in the separation pro-
+cess, using vid2speech and softmax. In the spectrogram
+plots, horizontal axis represents time, vertical axis repre-
+sents frequency, and intensity represents amplitude.
+volutional layers and training the rest of the network using
+significantly less data.
+Speech separation of unknown speakers In this experi-
+ment, we attempted to separate the speech of two unknown
+speakers, 3 and 5. First, we trained a vid2speech network
+using the architecture of [12] on the audio-visual data of
+speaker 2. The training data consisted of randomly selected
+sentences, comprising 80% of the samples of speaker 2 (40
+minutes length in total).
+Before predicting the speech of each one of the speak-
+ers as required in the separation methods, we fine-tuned a
+network using 10% of the samples of the actual speaker (5
+minutes length in total). Then, we applied the speech sep-
+aration process to the synthesized mixtures of unseen sen-
+tences. The results are summarized in Table 5, along with a
+comparison to separation using VGG-Face as a baseline.
+6. Concluding remarks
+This work has shown that high-quality single-channel
+speech separation and enhancement can be performed by
+SDR SIR SAR
+Separation using vid2speech-like -7.32 11.41 -6.60
+Separation using VGG-Face -7.91 8.57 -6.86
+Table 5: Comparison of the separation quality of unknown
+speakers using transfer learning and a softmax mask.
+exploiting visual information. Compared to audio-only
+techniques mentioned in section 1.1, our method is not af-
+fected by the issue of similar speech vocal characteristics
+as commonly observed in same-gender speech separation,
+since we gain the disambiguating power of visual informa-
+tion.
+The work described in this paper can serve as a basis
+for several future research directions. These include using
+a less constrained audio-visual dataset consisting of real-
+world multi-speaker and noisy recordings. Another inter-
+esting point to consider is improving the performance of
+voice recognition systems using our enhancement methods.
+Implementing a similar speech enhancement system in an
+end-to-end manner may be a promising direction as well.
+Acknowledgment. This research was supported by Israel
+Science Foundation and by Israel Ministry of Science and
+Technology.
+References
+[1] Vgg-face implementation with keras framework. Avail-
+able from https://github.com/rcmalli/
+keras-vggface.
+[2] Y. M. Assael, B. Shillingford, S. Whiteson, and N. de Fre-
+itas. Lipnet: Sentence-level lipreading. arXiv preprint
+arXiv:1611.01599, 2016.
+[3] Y. Aytar, C. Vondrick, and A. Torralba. Soundnet: Learn-
+ing sound representations from unlabeled video. In NIPS’16,
+pages 892–900, 2016.
+[4] A. W. Bronkhorst. The cocktail party phenomenon: A re-
+view of research on speech intelligibility in multiple-talker
+conditions. Acta Acustica united with Acustica, 86(1):117–
+128, January 2000.
+[5] D. S. Brungart, P. S. Chang, B. D. Simpson, and D. Wang.
+Isolating the energetic component of speech-on-speech
+masking with ideal time-frequency segregation. The Jour-
+nal of the Acoustical Society of America, 120(6):4007–4018,
+2006.
+[6] Z. Chen. Single Channel auditory source separation with
+neural network. PhD thesis, Columbia University of, 2017.
+[7] J. S. Chung, A. Senior, O. Vinyals, and A. Zisser-
+man. Lip reading sentences in the wild. arXiv preprint
+arXiv:1611.05358, 2016.
+[8] M. Cooke, J. Barker, S. Cunningham, and X. Shao. An
+audio-visual corpus for speech perception and automatic
+7
+speech recognition. The Journal of the Acoustical Society
+of America, 120(5):2421–2424, 2006.
+[9] T. L. Cornu and B. Milner. Generating intelligible audio
+speech from visual speech. In IEEE/ACM Transactions on
+Audio, Speech, and Language Processing, 2017.
+[10] Y. Ephraim and D. Malah. Speech enhancement using a
+minimum-mean square error short-time spectral amplitude
+estimator. IEEE Trans. on Acoustics, Speech, and Signal
+Processing, 32(6):1109–1121, 1984.
+[11] A. Ephrat, T. Halperin, and S. Peleg. Improved speech re-
+construction from silent video. In ICCV 2017 Workshop on
+Computer Vision for Audio-Visual Media, 2017.
+[12] A. Ephrat and S. Peleg. Vid2speech: speech reconstruction
+from silent video. In 2017 IEEE International Conference on
+Acoustics, Speech and Signal Processing (ICASSP). IEEE,
+2017.
+[13] J. S. Garofolo, L. F. Lamel, W. M. Fisher, J. G. Fiscus, and
+D. S. Pallett. Darpa timit acoustic-phonetic continous speech
+corpus cd-rom. nist speech disc 1-1.1. NASA STI/Recon tech-
+nical report n, 93, 1993.
+[14] D. Griffin and J. Lim. Signal estimation from modified short-
+time fourier transform. IEEE Transactions on Acoustics,
+Speech, and Signal Processing, 32(2):236–243, 1984.
+[15] N. Harte and E. Gillen. Tcd-timit: An audio-visual corpus
+of continuous speech. IEEE Transactions on Multimedia,
+17(5):603–615, 2015.
+[16] K. He, X. Zhang, S. Ren, and J. Sun. Deep residual learning
+for image recognition. In CVPR’16, pages 770–778, 2016.
+[17] J.-C. Hou, S.-S. Wang, Y.-H. Lai, J.-C. Lin, Y. Tsao, H.-
+W. Chang, and H.-M. Wang. Audio-visual speech enhance-
+ment based on multimodal deep convolutional neural net-
+work. arXiv preprint arXiv:1703.10893, 2017.
+[18] Y. Isik, J. L. Roux, Z. Chen, S. Watanabe, and J. R. Hershey.
+Single-channel multi-speaker separation using deep cluster-
+ing. arXiv preprint arXiv:1607.02173, 2016.
+[19] Z. Jin and D. Wang. A supervised learning approach to
+monaural segregation of reverberant speech. IEEE Trans. on
+Audio, Speech, and Language Processing, 17(4):625–638,
+2009.
+[20] F. Khan. Audio-visual speaker separation. PhD thesis, Uni-
+versity of East Anglia, 2016.
+[21] F. Khan and B. Milner. Speaker separation using visually-
+derived binary masks. In Auditory-Visual Speech Processing
+(AVSP) 2013, 2013.
+[22] P. C. Loizou. Speech Enhancement: Theory and Practice.
+CRC Press, Inc., Boca Raton, FL, USA, 2nd edition, 2013.
+[23] J. Ngiam, A. Khosla, M. Kim, J. Nam, H. Lee, and A. Y.
+Ng. Multimodal deep learning. In ICML’11, pages 689–696,
+2011.
+[24] A. Owens, P. Isola, J. McDermott, A. Torralba, E. H. Adel-
+son, and W. T. Freeman. Visually indicated sounds. In
+CVPR’16, pages 2405–2413, 2016.
+[25] O. M. Parkhi, A. Vedaldi, A. Zisserman, et al. Deep face
+recognition. In BMVC, volume 1, page 6, 2015.
+[26] A. M. Reddy and B. Raj. Soft mask methods for single-
+channel speaker separation. IEEE Trans. Audio, Speech, and
+Language Processing, 15(6):1766–1776, 2007.
+[27] A. W. Rix, J. G. Beerends, M. P. Hollier, and A. P. Hek-
+stra. Perceptual evaluation of speech quality (pesq)-a new
+method for speech quality assessment of telephone networks
+and codecs. In Acoustics, Speech, and Signal Processing,
+2001. Proceedings.(ICASSP’01). 2001 IEEE International
+Conference on, volume 2, pages 749–752. IEEE, 2001.
+[28] K. Simonyan and A. Zisserman. Very deep con-
+volutional networks for large-scale image recognition.
+arXiv:1409.1556, 2014.
+[29] E. Vincent, R. Gribonval, and C. Fe?votte. Performance
+measurement in blind audio source separation. IEEE
+transactions on audio, speech, and language processing,
+14(4):1462–1469, 2006.
+[30] P. Viola and M. J. Jones. Robust real-time face detection.
+International journal of computer vision, 57(2):137–154,
+2004.
+8

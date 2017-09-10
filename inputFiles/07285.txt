@@ -1,0 +1,1075 @@
+Area Protection in Adversarial Path-Finding Scenarios with Multiple
+Mobile Agents on Graphs
+a theoretical and experimental study of target-allocation strategies for defense
+coordination
+Marika Ivanova?1, Pavel Surynek2
+1University of Bergen, Realfagbygget, Alle?gaten 41, 5020 Bergen, Norway
+2National Institute of Advanced Industrial Science and Technology (AIST), 2-3-26, Aomi, Koto-ku, Tokyo 135-0064, Japan
+marika.ivanova@uib.no, pavel.surynek@aist.go.jp
+Keywords: graph-based path-finding, area protection, area invasion, asymmetric goals, mobile agents, agent navigation,
+defensive strategies, adversarial planning
+Abstract: We address a problem of area protection in graph-based scenarios with multiple agents. The problem consists
+of two adversarial teams of agents that move in an undirected graph shared by both teams. Agents are placed
+in vertices of the graph; at most one agent can occupy a vertex; and they can move into adjacent vertices in
+a conflict free way. Teams have asymmetric goals: the aim of one team - attackers - is to invade into given
+area while the aim of the opponent team - defenders - is to protect the area from being entered by attackers by
+occupying selected vertices. We study strategies for allocating vertices to be occupied by the team of defenders
+to block attacking agents. We show that the decision version of the problem of area protection is PSPACE-hard
+under the assumption that agents can allocate their target vertices multiple times. Further we develop various
+on-line vertex-allocation strategies for the defender team in a simplified variant of the problem with single
+stage vertex allocation and evaluated their performance in multiple benchmarks. The success of a strategy is
+heavily dependent on the type of the instance, and so one of the contributions of this work is that we identify
+suitable vertex-allocation strategies for diverse instance types. In particular, we introduce a simulation-based
+method that identifies and tries to capture bottlenecks in the graph, that are frequently used by the attackers.
+Our experimental evaluation suggests that this method often allows a successful defense even in instances
+where the attackers significantly outnumber the defenders.
+1 INTRODUCTION
+In this work we study an Area Protection Problem
+Figure 1: A motivation example of an adversarial path-
+finding scenario
+(APP) with multiple mobile agents moving in a con-
+flict free way. APP can be regarded as a modification
+of known problem of Adversarial Cooperative Path
+Finding (ACPF) (Ivanova? and Surynek, 2014) where
+two teams of agents compete in reaching their target
+positions. Unlike ACPF, where the goals of teams of
+agents are symmetric, the adversarial teams in APP
+have different objectives. The first team of attackers
+contains agents whose goal is to reach a pre-defined
+target location in the area being protected by the sec-
+ond team of defenders. Each attacker has a unique
+target in the protected area and each target is assigned
+to exactly one attacker. The opponent team of defend-
+ers tries to prevent the attackers from reaching their
+targets by occupying selected locations so that they
+cannot be passed by attackers.
+The common feature of APP and ACPF is that
+once a location is occupied by an agent it cannot be
+entered by another agent until it is first vacated by the
+agent which occupies it (opposing agent cannot push
+it out). This property is exploited both in competition
+ar
+X
+iv
+:1
+70
+8.
+07
+28
+5v
+1 
+ [
+cs
+.A
+I]
+  2
+4 
+A
+ug
+ 2
+01
+7
+for reaching goals in ACPF so that a team of agents
+may try to slow down the opponent by occupation of
+certain locations as well as in APP where this is a key
+tool for the team of defenders.
+APP has many real-life motivations from the do-
+mains of access denial operations both in civil and
+military sector, robotics with adversarial teams of
+robots or other type of penetrators (Agmon et al.,
+2011), and computer games (see Figure 1).
+Our contribution consists in analysis of computa-
+tional complexity of APP. Particularly we show that
+APP is PSPACE-hard. Next we contribute by sug-
+gesting several on-line solving algorithms for the de-
+fender team that allocate suitable vertices to be oc-
+cupied so that attacker agents cannot pass into the
+protected area. We identified suitable vertex alloca-
+tion strategies for diverse types of APP instances and
+tested them thoroughly.
+1.1 Related Works
+Movements of agents at low reactive level are as-
+sumed to be planned by some cooperative path-
+finding - CPF (multi-agent path-finding - MAPF) (Sil-
+ver, 2005; Ryan, 2008; Wang and Botea, 2011) algo-
+rithm where agents of own team cooperate while op-
+posing agents are considered as obstacles. In CPF the
+task is to plan movement of agents so that each agent
+reaches its unique target in a conflict free manner.
+There exist multiple CPF algorithms both com-
+plete and incomplete as well as optimal and sub-
+optimal under various objective functions. It is known
+that any known optimization version of CPF is an
+NP-hard problem (Ratner and Warmuth, 1990; Yu
+and LaValle, 2013). Many efficient optimal algo-
+rithms that introduce advanced search space trans-
+formations like CBS (Sharon et al., 2015) or ICTS
+(Sharon et al., 2013) and compilation based methods
+that cast CPF to a different formalism (Surynek et al.,
+2016) have been introduced recently. However scal-
+ability of these optimal algorithms is limited which
+makes them unsuitable in our reactive setup where
+massive numbers of agents is expected.
+Suboptimal CPF algorithms include rule-based
+polynomial time methods and search-based algo-
+rithms. Rule-based algorithms like BIBOX (Surynek,
+2014) and Push-and-Swap (Luna and Bekris, 2011;
+de Wilde et al., 2014) guarantee finding solution in
+polynomial time. These algorithms scale up well for
+large number of agents and large graphs however so-
+lutions generated by them are usually very far from
+the optimum with respect to any common objective.
+A good compromise between optimal and
+rule-based algorithms is represented by subopti-
+mal/incomplete search based methods which are de-
+rived from the standard A* algorithm. These meth-
+ods include LRA*, CA*, HCA*, and WHCA* (Silver,
+2005). They provide solutions where individual paths
+of agents tend to be close to respective shortest paths
+connecting agents’ locations and their targets. Con-
+flict avoidance among agents is implemented via a so
+called reservation table in case of CA*, HCA*, and
+WHCA* while LRA* relies on replanning whenever a
+conflict occurs. Since our setting in APP is inherently
+suitable for a replanning algorithm LRA* is a candi-
+date for underlying CPF algorithm for APP. Moreover
+LRA* is scalable for large number of agents.
+Aside from CPF algorithms, systems with mobile
+agents that act in the adversarial manner represent an-
+other related area. These studies often focus on pa-
+trolling strategies that are robust with respect to var-
+ious attackers trying to penetrate through the patrol
+path (Elmaliach et al., 2009). Theoretical works re-
+lated to APP also include studies on pursuit evasion
+(Vidal et al., 2002) or predator-prey (Haynes and Sen,
+1995) problems. The major difference between these
+works and the concept of APP is that we consider rel-
+atively higher number of agents and our agents are
+more limited in their abilities.
+1.2 The Target Allocation Problem
+It this paper we specifically focus on a sub-problem
+called target allocation problem. The defenders are
+initially not assigned to any targets and don’t have any
+information about the intended target of any attacker.
+However, the defenders have a full knowledge of all
+target locations in the protected area. The task in this
+setting is to allocate each defender agent to some lo-
+cation in the graph so that via its occupation defenders
+try to optimize a given objective function.
+We assume that both teams use the same coopera-
+tive path-finding (CPF) algorithm for reaching tem-
+porarily selected targets. Generally, targets can be
+reassigned multiple times to defender agents in the
+course of area protection. However, it is assumed
+that target reassignment does not occur often. After
+assigning defender agents their target locations they
+will proceed to their targets via given CPF algorithm.
+If a target location is reached by a defender agent
+the agent stops there and continue in occupation of
+the target location until a new target is assigned to
+the agent. Attacker agents have their fixed targets in
+the protected area however they are free to select any
+temporary target which allows them to move freely in
+principle.
+Our effort is to design a target allocation strategy
+for the defending team, so the success is measured
+from the defenders’ perspective. The following ob-
+jective functions can be pursued:
+1. maximize the number of target locations that are
+not captured by the corresponding attacker
+2. maximize the number of target locations that are
+not captured by the corresponding attacker within
+a given time limit
+3. maximize the sum of distances between the at-
+tackers and their corresponding targets
+4. minimize the time spent at captured targets
+2 PRELIMINARIES
+In APP, we model the environment by an undi-
+rected unweighted graph G = (V,E). In this work
+we restrict the instances to 4-connected grid graphs
+with possible obstacles. The team of attackers and
+defenders is denoted by A = {a1, . . . ,am} and D =
+{d1, . . .dn}, respectively. Continuous time is divided
+into discrete time steps. At each time step agents are
+placed in vertices of the graph so that at most one
+agent is placed in each vertex. Let ?t : A?D?V be
+a uniquely invertible mapping denoting configuration
+of agents at time step t. Agents can wait or move in-
+stantaneously into adjacent vertex between successive
+time steps to form the next configuration ?t+1. Abid-
+ing by the following movement rules ensures prevent-
+ing conflicts:
+• An agent can move to an adjacent vertex only if
+the vertex is empty, or is being left at the same
+time step by another agent
+• A pair of agents cannot swap across a shared edge
+• No two agents enter the same adjacent vertex at
+the same time
+We do not assume any specific order in which
+agents perform their conflict free actions at each time
+step. However, our experimental implementation
+moves all attacking agents prior to moving all de-
+fender agents at each time step.
+The mapping ?A : A ? V assigns a unique tar-
+get to each attacker. The task in APP is to move
+defender agents so that area specified by ?A is pro-
+tected. This task can be equivalently specified as a
+search for strategy of target assignments for the de-
+fender team. That is, we are trying to find an injective
+mapping ?Dt : D?V which specifies where defender
+agents should proceed via given path-finding algo-
+rithm at time step t as a response to previous attackers
+movements. The superscripts A and D is sometimes
+dropped when there is no danger of confusion. Let us
+note that target reassignment can be done at each time
+step which is equivalent to full control of movements
+of defender agents at each time step.
+Formally, we state the APP as a decision problem
+and an optimization problem as follows:
+Definition 1. The decision APP problem: Given an
+instance ? = (G,A,D,?0,?A) of APP, is there a strat-
+egy of target allocations ?Dt : D ? V such that the
+team D of defenders is able to prevent agents from
+the team of attackers from reaching their targets by
+moving defending agents towards ?Dt .
+In many instances it is not possible to protect all
+targets. We are therefore also interested in the opti-
+mization variant of the APP problem:
+Definition 2. The optimization problem Given an in-
+stance ? = (G,A,D,?0,?A) of APP, the task is to find
+a strategy of target allocations ?Dt : D? V such that
+the team D of defenders minimizes the number of at-
+tackers that reach their target by moving defending
+agents towards ?Dt .
+3 THEORETICAL PROPERTIES
+APP is a computationally challenging problem as
+shown in the following analysis. In order to study
+theoretical complexity of APP we need to consider
+the decision variant of APP. Many game-like prob-
+lems are PSPACE-hard, and APP is not an exception.
+We reduce the known problem of checking validity of
+Quantified Boolean Formula (QBF) to it.
+The technique of reduction of QBF to APP is in-
+spired by a similar reduction of QBF to ACPF from
+which we borrow several technical steps and lemmas
+(Ivanova? and Surynek, 2014). We describe the reduc-
+tion from QBF using the following example. Con-
+sider a QBF formula in prenex normal form
+? = ?x?a?y?b?z?c
+(b? c? x)? (¬a?¬b? y)?
+(a?¬x? z)? (¬c?¬y?¬z) (1)
+This formula is reduced to an APP instance depicted
+in Fig. 5. Let n and m be the number of variables and
+clauses, respectively. The construction contains three
+types of gadgets.
+For an existentially quantified variable x we con-
+struct a diamond-shape gadget consisting of two par-
+allel paths of length m+2 joining at its two endpoints.
+There are 4 paths connected to the diamond at spe-
+cific vertices as depicted in Fig. 2. The gadget further
+contains three attackers and two defenders with initial
+positions at the endpoints of the four joining paths.
+tx1 t2x txm-1 txm
+fx1 f2x fxm-1 fxm
+ax2
+ax1
+ax3
+?(a
+x1 )
+dx1 dx2
+?(a x
+2)
+?(
+a x3
+)
+Figure 2: An existentially quantified variable gadget.
+The vertices in red circles are targets of specified at-
+tackers. The only chance for defenders dx1 and dx2 to
+prevent attackers ax3 and ax1 from reaching their tar-
+gets is to advance towards the diamond and occupy
+?A(ax3) by dx2 and either ?A(ax1) or ?A(ax2) by dx1.
+For every universally quantified variable a there
+is a similar gadget with a defender da1 and an attacker
+aa1 whose target ?A(aa1) lies at the leftmost vertex of
+the diamond structure (see Fig. 3). The defender has
+to rush to the attacker’s target and occupy it, because
+otherwise the target would be captured by the attacker.
+ta1 t2a tam-1 tam
+fa1 fam-1 fam
+da1 aa1?
+(aa1
+) fa2
+Figure 3: A universally quantified variable gadget.
+Moreover, there is a gadget in two parts for each
+clause C, depicted in Fig. 4. It contains a simple path
+p of length bn/2c+1 with a defender dC placed at one
+endpoint. This length of p is chosen in order to ensure
+a correct time of dC’s entering to a variable gadget, so
+that gradual assignment of truth values is simulated.
+E. g. if a variable occurring in C stands in the second
+?? pair of variables in the prefix (the first and last pair
+is incomplete), then p is connected to the correspond-
+ing variable gadget at its second vertex. The second
+part of the clause is a path of length k, with one end-
+point occupied by attacker aC whose target ?A(aC) is
+located at the other endpoint. The length k is selected
+in a way that the target ?A(aC) can be protected if the
+defender dC arrives there on time, which can happen
+only if it uses the shortest path to this target. If dC is
+delayed by even one step, the attacker aC can capture
+its target. These two parts of the clause gadget are
+connected through variable gadgets.
+dC
+n/2+1k
+aC?(aC)
+Figure 4: A clause gadget.
+The connection by edges and paths between vari-
+able and clause gadgets is designed in a way that
+allows the agents to synchronously enter one of the
+paths of the relevant variable gadget. A gradual evalu-
+ation of variables according to their order in the prefix
+corresponds to the alternating movement of agents. A
+defender dC from clause C moves along the path of
+its gadget, and every time it has the opportunity to en-
+ter some variable gadget, the corresponding variable
+is already evaluated.
+If there is a literal in ? that occurs in multiple
+clauses, setting its value to true causes satisfaction of
+all the clauses containing it. This is indicated by a si-
+multaneous entering of affected agents to the relevant
+path. Each clause defender dC has its own vertex in
+each gadget of a variable present in C, at which dC can
+enter the gadget. This allows a collision-free entering
+of multiple defenders into one path of the gadget.
+Theorem 1. The decision problem whether there ex-
+ists a winning strategy for the team of defenders, i.e.
+whether it is possible to prevent all attackers from
+reaching their targets, in a given APP instance is
+PSPACE-hard.
+Proof. Suppose ? to be valid. To better understand
+validity of ? we can intuitively ensure that variables
+are assigned gradually according to their order in the
+prefix. For every choice of value of the next ?-
+variable there exists a choice of value for the corre-
+sponding ?-variable so that eventually the last assign-
+ment finishes a satisfying valuation of ?. The strategy
+of assigning ? variables can be mapped to a winning
+strategy for defenders in the APP instance constructed
+from ?. Every satisfying valuation guides the defend-
+ers towards vertices resulting in a position where all
+targets are defended. Every time a variable is valu-
+ated, another agent in the constructed APP instance is
+ready to enter the upper path, if the variable is evalu-
+ated as true, or the lower path, otherwise. When the
+evaluated variable x is existentially quantified, the de-
+fender dx1 enters the upper or lower path. In case of
+universally quantified variable a, the entering agent is
+the attacker aa1. Since the valuation satisfies ?, every
+clause C j has at least one variable q causing the satis-
+faction of C j. That is modeled by the situation where
+defenders dq1 and dC j meet each other in one of the
+diamond’s paths, which enables either the defender
+dq2 (in case q is existentially quantified) or dq1 (in
+case q is universally quantified) to advance towards
+the target ?A(dC1). The situation for an existentially
+quantified variable is explained by Fig. 6.
+Whenever there exists a winning strategy for the
+constructed APP instance, the defenders must arrive
+in all targets on time. This is possible only if variable
+agents and clause agents meet on one of the paths in
+a diamond gadget, and only if all defenders use the
+ax2
+ax1ax3
+dx1
+dx2
+ay2
+ay1
+ay3
+dy1
+dy2
+az2dz1 dz2
+az1
+az3
+aa1da1
+db1
+ab1
+ac1
+dc1
+dC1
+dC2
+dC3
+dC4
+9
+7
+5
+4
+1
+2
+2
+6
+3
+2
+1
+1
+?(ax3)
+?(ax1)
+?(ax2)
+?(a
+y3 )
+?(ay1)
+?(ay2)
+?(a
+z3
+)
+?(az1)
+?(az2)
+?(a
+a1
+)
+?(ab1)
+?(ac1)
+?(
+a C
+1)
+?(
+a C
+2)
+?(a
+C3 )
+?(a
+C4
+)
+Figure 5: A reduction from TQBF to APP. Black points rep-
+resent unoccupied vertices. If two points are connected by
+a line without any label, it means there is an edge between
+them. A line with a label k indicates that the two points are
+connected by a path of k internal vertices. Initial positions
+of attackers and defenders are represented by red and green
+nodes, respectively. A red circle around a node means that
+the node is a target of some attacker. In order to simplify
+the drawing, we do not fully display the second part of the
+clause gadget. Instead, there is a red number near the target
+of a clause gadget that indicates the distance of the attacker
+aiming to that target. A vertex with an agent is labeled by
+the agent’s name. Labels of targets specify the associated
+agents.
+shortest possible paths. The variable agents’ selec-
+tion of upper or lower paths determines the evalua-
+tion of corresponding variables. An advancement of
+variable and clause defenders that leads to meeting of
+the defenders at adjacent vertices, and a subsequent
+protection of targets indicates that the corresponding
+variable causes satisfaction of the clause.
+1
+k+3
+a
+b
+b
+a c
+a
+b
+c
+d
+e
+f
+e
+d
+f
+e
+ 
+?A(f) 
+f
+d
+b
+cd
+e
+f
+a
+c
+?A(d) 
+?A(e) 
+k
+k+1 k+1
+k+1
+k+
+1
+2
+1
+?A(g) 
+Figure 6: An example of agents’ advancement at an exis-
+tential variable clause. It is defenders’ turn in each of the
+four figures. The top left figure shows the initial position of
+the agents. The value k depends on the order of the corre-
+sponding variable in the prefix. When the agents reach the
+positions in the second figure, the corresponding variable is
+about to be evaluated which is analogous to defender a en-
+tering one of the paths, which prevents the attackers d and
+e from exchanging their position and reaching the targets.
+If a moves to the upper path, as happens in the third figure,
+the agent c from a clause gadget has the opportunity to en-
+ter the upper path where the two defenders meet. Attacker e
+can enter the target ?A(d), which is nevertheless not its in-
+tended goal. Finally, the defenders can protect all targets by
+a train-like movement resulting in the position in the last fig-
+ure. Also note the gradual approaching of the undisplayed
+attacker to the target represented by the red number.
+4 TARGET ALLOCATION
+Solving APP in practice is a challenging problem
+due to its high computational complexity. As already
+mentioned in the section 1, solving approaches can
+be divided into two basic categories: single-stage and
+multi-stage. In single stage methods, targets are as-
+signed to defenders only once at the beginning, as
+opposed to multi-stage methods, where the targets
+can be reassigned any time during the agents’ course.
+Once all defenders are allocated to some targets, they
+try to get to the desired locations using the LRA* al-
+gorithm modified for the environment with adversar-
+ial team. This section focuses merely on the single-
+stage methods.
+We describe several simple target allocation
+strategies and discuss their properties. The first two
+methods always allocate one defender to one target.
+The advantage of this approach is that if a defender
+manages to captures a target, it will never be taken by
+the attacker. This can be useful in scenarios where
+the number of defenders is similar to the number of
+attackers. Unfortunately, such a strategy would not
+be very successful in instances where attackers sig-
+nificantly outnumber defenders.
+4.1 Random Allocation
+For the sake of comparison, we consider a strategy,
+where each defender is allocated to a random target
+of an attacker. Neither the agent location nor the un-
+derlying grid graph structure is exploited.
+4.2 Greedy Allocation
+A greedy strategy is slightly improved approach. The
+basic variant referred to as greedy takes the defenders
+one by one and allocates it to the closest target. An-
+other variant called strict greedy starts with a calcu-
+lation of distances between every defender and every
+target, and stores these values in an appropriate data
+structure. Subsequently, we iteratively select the pair
+(defender, target) with the shortest distance, and all
+entries containing the selected attacker and target are
+removed from the data structure. This is repeated un-
+til there are no available defenders or no unassigned
+targets left.
+4.3 Bottleneck Simulation Allocation
+Simple target allocation strategies do not exploit the
+structure of underlying graph in any way. Hence nat-
+ural next step is to occupy by defenders those ver-
+tices that would divert attackers from the protected
+area as much as possible with the help of graph struc-
+ture. The aim is to successfully defend the targets
+even with small number of defenders. As our domain
+are 4-connected grids with obstacles we can take ad-
+vantage of the obstacles already occurring in the grid
+and use them as addition to vertices occupied by de-
+fenders. Figure 7 illustrates a grid where the defend-
+ers could easily protect the target area even though
+they are outnumbered by the attackers. Intuitively as
+seen in the example, hard to overcome obstacle for at-
+tacking team would arise if a bottleneck on expected
+trajectories of attackers is blocked. We aim to iden-
+tify strategic bottlenecks and block them by defend-
+ers. The first naive idea assumes that a bottleneck is
+a gap between two obstacles laying opposite to each
+other, and it is possible to identify them by an ex-
+cessive search of the map. It is easy to see that this
+approach suffers of insufficient robustness. Not only
+it assumes a map with orthogonal obstacles similar to
+the one in Fig. 9a but also it does not consider whether
+Figure 7: An example of bottleneck blocking
+the bottleneck is actually passed by any attackers. Fig.
+8 shows an example of a bottleneck identifiable by the
+excessive search (left), and a bottleneck that cannot be
+discovered by this method (right).
+We suggest the following strategy exploiting bot-
+tlenecks in the underlying grid.
+(a) (b)
+Figure 8: Examples of bottlenecks
+In order to discover bottlenecks of general shape,
+we develop the following simulation strategy. The
+basic idea is that as attackers move towards the tar-
+gets, they enter vertices close to a bottleneck more of-
+ten than other vertices. This observation suggests to
+simulate the movement of the attackers and find fre-
+quently visited vertices. As defenders do not share the
+knowledge about paths being followed by attackers,
+frequently visited vertices are determined by a simu-
+lation in which paths of attackers are estimated.
+There can be several vertices with the highest fre-
+quency of visits, so the final vertex is selected by an-
+other criterion. The closer a vertex is to the defend-
+ers, the better chance the defenders have to capture it
+before the attackers pass through it, so in our imple-
+mentation, we use the distance from an approximate
+location of defenders in order to select one vertex of
+maximum frequency.
+After obtaining such a frequently visited vertex,
+we then search its vicinity. If we find out that there is
+indeed a bottleneck, its vertices are assigned to some
+defenders as their new targets. Under the assumption
+that the bottleneck is blocked by defenders, the paths
+of attackers may substantially change. For that reason
+we estimate the paths again and find the next frequent
+vertex of which vicinity is explored. The whole pro-
+cess is repeated until all available defenders are al-
+located to a target, or until no more bottlenecks are
+found. The high-level description of this procedure
+is expressed by Alg. 1 The input of the algorithm is
+the graph G and sets D and A of defenders and attack-
+ers, respectively. During the initialization phase, we
+Data: G = (V,E), D, A
+Result: Target allocation ?D
+Tavailable = {?(a) : a ? A};
+Davailable = D;
+F = /0;
+??A = Random guess of ?A;
+while Davailable 6= /0 do
+for a ? A do
+pa = shortestPath(?0(a),??A(a),G,F);
+end
+f (v) = |{pa : a ? A? v ? pa}|;
+w ? argmaxv?V f (v);
+B =searchVicinity(w);
+if B 6= /0 then
+D? ? Davailable, |D?|= |B|;
+assignToDefenders(B, D’);
+Davailable = Davailable \D?;
+F = F ?B
+else
+break ;
+end
+end
+assignToDefenders(Tavailable,Davailable);
+Algorithm 1: Bottleneck simulation procedure
+create the set Davailable of defenders that are not yet
+allocated to any target. Next, we create the set F of
+so called forbidden nodes. The following step takes
+attackers one by one and every time makes a random
+guess which target is an agent aiming for, resulting
+in the mapping ??. The algorithm then iterates while
+there are available defenders. In each iteration, we
+construct a shortest path from each agent a between
+its initial position ?0(a) and its estimated target loca-
+tion ??(a). A vertex w from among the vertices con-
+tained in the highest number of paths is then selected,
+and its surroundings is searched for bottlenecks. If a
+bottleneck is found, the set of vertices B is determined
+in order to block the bottleneck. The set D? contains
+a sufficient number of defenders that are allocated to
+the vertices in B. Agents from D? are no longer avail-
+able, and also vertices from B are now forbidden, so
+the paths in the following iterations will avoid them.
+If no bottleneck is found, it is likely that the agents
+have a lot of freedom for movement and blocking bot-
+tlenecks is not a suitable strategy for such an instance.
+The loop is left and the remaining available agents are
+assigned to random targets from Tavailable.
+The search of the close vicinity of a frequently
+used vertex w is carried out by an expanding square
+centered at w. We start with distance 1 from w and
+gradually increase this value1 up to a certain limit. In
+1From the grid perspective, two locations are considered
+every iteration we identify the obstacles in the fringe
+of the square and keep them together with obstacles
+discovered in previous iterations. Then we check
+whether the set of obstacles discovered so far forms
+more than one connected components. If that is the
+case, it is likely that we encountered a bottleneck.
+We then find the shortest path between one connected
+component of obstacles and the remaining compo-
+nents. This shortest path is believed to be a bottle-
+neck in the map, and its vertices are assigned to the
+available defenders as their new targets.
+In order to discover subsequent bottlenecks in the
+map, we assume that the previously found bottlenecks
+are no longer passable. They are marked as forbidden
+and in the next iteration, the estimated paths will not
+pass through them. The procedure findShortestPaths
+returns the shortest path between given source and tar-
+get, that does not contain any vertices from the set F
+of forbidden locations.
+In this basic form, the algorithm is prone to find-
+ing ”false” bottlenecks in instances with an indented
+map that contains for example blind alleys. It is possi-
+ble to avoid undesired assigning vertices of false bot-
+tlenecks to defenders by running another simulation
+which excludes these vertices. If the updated paths are
+unchanged from the previously found ones, it means
+that blocking of the presumed bottleneck does not af-
+fect the attackers movement towards the targets, and
+so there is no reason to block such a bottleneck.
+5 EXPERIMENTAL EVALUATION
+Experimental evaluation is focused on competitive
+comparison of suggested target allocation strategies
+with respect to the objective 2. - maximization of the
+number of locations not captured by attackers within
+a given time limit.
+Our hypothesis is that random strategy would per-
+form as worst since it is completely uninformed. Bet-
+ter results are expected from shortest path and greedy
+strategy but all these simple strategies are expected to
+be outperformed by advanced bottleneck strategies.
+We implemented all suggested strategies in Java
+as an experimental prototype. In our testing scenarios
+we use maps of different structure with various initial
+configurations of attackers and defenders. Our choice
+of testing scenarios is focused on comparing differ-
+ent performance of various strategies and discovering
+to be in distance 1 from each other if they share at least one
+point. Hence, a location that does not lie on the edge of the
+map has 8 neighbors.
+what factors have the most significant impact on their
+success.
+As the following sections show, different strate-
+gies are successful in different types of instances. It
+is therefore important to design the instances with a
+sufficient diversity, in order to capture strengths and
+weaknesses of individual strategies.
+5.1 Instance generation and types
+The instances used in the practical experiments are
+generated using a pseudo random generator, but in
+a controlled manner. An instance is defined by its
+map, the ratio |A| : |D| and locations of individual de-
+fenders, attackers and their targets. These three en-
+tries form an input of the instance generation pro-
+cedure. Further, we select rectangular areas inside
+which agents of both teams and the attackers’ targets
+are placed randomly. We use 5 different maps, where
+the first and most basic map is empty, i. e. does not
+contain any obstacles. Every next type has a more
+complicated obstacle structure.
+(a) Orthogonal rooms (b) Ruins
+(c) Waterfront (d) Dark forest
+Figure 9: Maps
+Orthogonal rooms. The first non-empty map de-
+picted in Fig. 9a resembles a top view of a house.
+Doors between the rooms are bottlenecks that often
+have to be passed by a large number of agents. This
+map is designed so that any two obstacle pieces that
+form an obstacle lie on a straight line, which makes
+them easily detectable.
+Ruins. This map also resembles a top view of a
+house, but with damaged walls. Unlike Orthogonal
+rooms, this map also contains bottlenecks of which
+walls are dislocated and are therefore harder to recog-
+nize, as apparent from the following Fig. 9b.
+Waterfront. The next map is even more cluttered.
+It contains completely irregular obstacles that form
+disorganized islands connected by bridges, as seen in
+Fig. 9c. This map is taken from (Sturtevant, 2012).
+Dark forest. The last and most jumbled map de-
+picted in Fig. 9d was used in WarCraft and is also
+taken from (Sturtevant, 2012). It contains irregular
+obstacles representing inaccessible forest cover.
+In the main set of experiments, each map is popu-
+lated with agents of 3 different |D| : |A| ratios, namely
+1 : 1, 1 : 2 and and 1 : 10, with fixed number of at-
+tackers |A|= 100. Each of these scenarios are further
+divided into two types reflecting a relative positions
+of attackers and defenders. The type overlap assumes
+that the rectangular areas for both attackers and de-
+fenders have an identical location on the map. On
+the other hand, the teams in the type separated have
+completely distinct initial areas. Finally, the maxi-
+mum number of moves of the agents is set to 150 for
+each team.
+Note that the individual instances are never com-
+pletely fair to both teams. It is therefore impossible to
+make a conclusion about a success rate of a strategy
+by comparing its performance on different maps. The
+comparison should always be made by inspecting the
+performance in one type of instance, where we can
+see the relative strength of the studied algorithms.
+5.2 Experiments on simple maps
+The experiments comparing random, shortest path
+and greedy strategy confirm the expected outcome
+that the random strategy is always worse then the
+other two methods. This set of experiments is con-
+ducted on instances with an empty map containing
+100 agents in each team. Methods that exploit the
+structure of obstacles in the map are not included be-
+cause they are not relevant in this settings.
+The Fig. 10 depicts scenarios where the rectan-
+gular areas of placement of the teams are adjacent to
+each other and lie on the left side of the empty map.
+The area that contains targets is initially located so
+that it partially overlaps both teams areas. It is then
+gradually dragged to the right end of the map. The
+distance between the agent areas and the target is rep-
+resented by the x-axis. Each entry in the graph is an
+average value from 10 runs with different random lo-
+cation of agents and targets in their corresponding ar-
+eas. A similar experiments with results shown in Fig
+11 were run an empty map with the targets located in
+ 50
+ 55
+ 60
+ 65
+ 70
+ 75
+ 80
+ 0  10  20  30  40  50  60  70  80
+Nu
+m
+be
+r o
+f a
+ge
+nt
+s t
+ha
+t r
+ea
+ch
+ed
+ th
+ei
+r t
+ar
+ge
+t
+Distance of the target area
+Random
+Greedy
+Greedy2
+Figure 10: Empty map, simple strategies, teams together
+the center, and the both teams were moving away in
+opposite directions. Possibly a less intuitive finding
+ 50
+ 55
+ 60
+ 65
+ 70
+ 75
+ 80
+ 0  5  10  15  20  25  30  35  40
+Nu
+m
+be
+r o
+f a
+ge
+nt
+s t
+ha
+t r
+ea
+ch
+ed
+ th
+ei
+r t
+ar
+ge
+t
+Distance of the target area
+Random
+Greedy
+Greedy2
+Figure 11: Empty map, simple strategies, teams opposite
+is that the greedy strategy almost always outperforms
+the strict greedy strategy. By inspecting individual
+simulation courses, a possible explanation to this be-
+havior is that the strictly greedy strategy successfully
+captures the closest targets with the closest defenders,
+but impede defenders in the next frontlines, because
+they have to bypass them. This delay gives more
+chances to attackers to reach their targets. The fol-
+ 0
+ 10
+ 20
+ 30
+ 40
+ 50
+ 60
+ 50  60  70  80  90  100  110  120  130  140  150
+Nu
+m
+be
+r o
+f a
+ge
+nt
+s a
+t t
+ar
+ge
+t
+Time step
+Random
+Greedy
+Heuristic
+Simulation
+Figure 12: A single instance on the map Orthogonal rooms.
+lowing set of experiments compares random, greedy,
+and simulation strategy in different instance settings.
+An example of one run, where we compare 4 different
+strategies is demonstrated in Fig. 12. We can see how
+many attackers gradually reach their targets when dif-
+ferent target allocation strategies are used in a single
+instance. The map Orthogonal rooms with overlap-
+ping teams was used in this particular example.
+Each entry in Tab. 1 is an average number of at-
+tackers that reached their targets at the end of the time
+limit. The average value is calculated for 10 runs in
+each settings, always with a different random seed.
+Random and greedy strategies have very similar re-
+sults in all positions and team ratios. It is apparent
+and not surprising that with decreasing |D| : |A| ratio,
+the strength of these strategies decreases. The simu-
+lation strategy gives substantially better results in all
+settings. Also note that in case of overlapping teams,
+the simulation strategy scores similarly in all |D| : |A|
+ratios. Tab. 2 contains results of an analogous ex-
+Table 1: Average number of agents that eventually reached
+their target in the map Orthogonal rooms
+Team
+position |D| : |A| RND GRD SIM
+Overlapped
+1:1 40.4 49.2 21.0
+1:2 56.7 56.5 20.8
+1:10 67.8 64.7 24.7
+Separated
+1:1 39.0 40.7 10.3
+1:2 57.7 50.1 13.3
+1:10 78.5 69.9 30.2
+periment conducted on the map Ruins. The random
+strategy performs well with in instances with hight
+number of attackers. The dominance of the simula-
+tion strategy is apparent here as well.
+Table 2: Average number of agents that eventually reached
+their target in the map Ruins.
+Team
+position |D| : |A| RND GRD SIM
+Overlapped
+1:1 36.8 49.4 17.7
+1:2 80.0 63.5 33.0
+1:10 92.5 88.9 58.2
+Separated
+1:1 9.5 33.6 11.8
+1:2 47.6 34.4 11.8
+1:10 85.6 85.9 14.7
+5.3 Experiments on complex maps
+Maps Waterfront and Dark forest contain very irreg-
+ular obstacles and many bottlenecks, and are there-
+fore very challenging environments for all strategies.
+In the Dark forest map, random and greedy methods
+are more suitable than the simulation strategy in in-
+stances with equal team sizes, as oppose to the scenar-
+ios with lower number of defenders, where the bottle-
+neck simulation strategy clearly leads. In the sepa-
+rated scenario, the simulation strategy is even worse
+in all tested ratios (see Tab. 3 and Tab. 4). This be-
+havior can be explained by the fact that occupying all
+relevant bottlenecks in such a complex map is harder
+than occupying targets in the protected area. In con-
+trast, bottlenecks in the Waterfront map have more
+favourable structure, so that those relevant for the area
+protection can be occupied more easily.
+Table 3: Average number of agents that eventually reached
+their target in the map Waterfront
+Team
+position |D| : |A| RND GRD SIM
+Overlapped
+1:1 32.0 41.7 37.1
+1:2 60.6 63.8 39.8
+1:10 77.8 72.9 51.7
+Separated
+1:1 15.8 19.3 10.7
+1:2 46.4 37.6 9.8
+1:10 75.3 65.5 14.9
+Table 4: Average number of agents that eventually reached
+their target in the map Dark forest
+Team
+position |D| : |A| RND GRD SIM
+Overlapped
+1:1 21.6 37.9 48.8
+1:2 53.7 42.6 37.8
+1:10 60.9 51.9 38.4
+Separated
+1:1 35.3 35.9 61.5
+1:2 40.6 41.3 59.6
+1:10 65.1 67.0 66.0
+CONCLUDING REMARKS
+We have shown the lower bound for computa-
+tional complexity of the APP problem, namely that it
+is PSPACE-hard. Theoretical study of ACPF (Ivanova?
+and Surynek, 2014) showing its membership in EX-
+PTIME suggests that the same upper bound holds
+for APP but it is still an open question if APP is
+in PSPACE. In addition to complexity study we de-
+signed several practical algorithms for APP under the
+assumption of single-stage vertex allocation. Per-
+formed experimental evaluation indicates that our
+bottleneck simulation algorithm is efficient even in
+case when defenders are outnumbered by attacking
+agents. Surprisingly, our simple random and greedy
+algorithms turned out to successfully block attacking
+agents provided there are enough defenders.
+For future work we plan to design and evaluate
+algorithms under the assumption of multi-stage ver-
+tex allocation. As presented algorithms have multiple
+parameters we also aim on optimization of these pa-
+rameters.
+REFERENCES
+Agmon, N., Kaminka, G. A., and Kraus, S. (2011). Multi-
+robot adversarial patrolling: Facing a full-knowledge
+opponent. J. Artif. Intell. Res., 42:887–916.
+de Wilde, B., ter Mors, A., and Witteveen, C. (2014). Push
+and rotate: a complete multi-agent pathfinding algo-
+rithm. J. Artif. Intell. Res., 51:443–492.
+Elmaliach, Y., Agmon, N., and Kaminka, G. A. (2009).
+Multi-robot area patrol under frequency constraints.
+Ann. Math. Artif. Intell., 57(3-4):293–320.
+Haynes, T. and Sen, S. (1995). Evolving beharioral strate-
+gies in predators and prey. In Proc. of Adaption
+and Learning in Multi-Agent Systems, IJCAI’95 Work-
+shop, pages 113–126.
+Ivanova?, M. and Surynek, P. (2014). Adversarial coopera-
+tive path-finding: Complexity and algorithms. In 26th
+IEEE International Conference on Tools with Artifi-
+cial Intelligence, ICTAI 2014, pages 75–82.
+Luna, R. and Bekris, K. E. (2011). Push and swap: Fast co-
+operative path-finding with completeness guarantees.
+In IJCAI 2011, Proc. of the 22nd International Joint
+Conference on AI, pages 294–300.
+Ratner, D. and Warmuth, M. K. (1990). Nxn puzzle
+and related relocation problem. J. Symb. Comput.,
+10(2):111–138.
+Ryan, M. R. K. (2008). Exploiting subgraph structure
+in multi-robot path planning. J. Artif. Intell. Res.,
+31:497–542.
+Sharon, G., Stern, R., Felner, A., and Sturtevant, N. R.
+(2015). Conflict-based search for optimal multi-agent
+pathfinding. Artif. Intell., 219:40–66.
+Sharon, G., Stern, R., Goldenberg, M., and Felner, A.
+(2013). The increasing cost tree search for optimal
+multi-agent pathfinding. Artif. Intell., 195:470–495.
+Silver, D. (2005). Cooperative pathfinding. In Proc. of the
+1st Artificial Intelligence and Interactive Digital En-
+tertainment Conference, 2005, pages 117–122.
+Sturtevant, N. (2012). Benchmarks for grid-based pathfind-
+ing. Transactions on Computational Intelligence and
+AI in Games, 4(2):144 – 148.
+Surynek, P. (2014). Solving abstract cooperative path-
+finding in densely populated environments. Compu-
+tational Intelligence, 30(2):402–450.
+Surynek, P., Felner, A., Stern, R., and Boyarski, E. (2016).
+Efficient SAT approach to multi-agent path finding un-
+der the sum of costs objective. In ECAI 2016 - 22nd
+European Conference on AI, pages 810–818.
+Vidal, R., Shakernia, O., Kim, H. J., Shim, D. H., and Sas-
+try, S. (2002). Probabilistic pursuit-evasion games:
+theory, implementation, and experimental evaluation.
+IEEE Trans. Robotics and Autom., 18(5):662–669.
+Wang, K. C. and Botea, A. (2011). MAPP: a scalable multi-
+agent path planning algorithm with tractability and
+completeness guarantees. J. Artif. Intell. Res., 42:55–
+90.
+Yu, J. and LaValle, S. M. (2013). Structure and intractability
+of optimal multi-robot path planning on graphs. In
+Proc. of the 27th AAAI Conference on AI, 2013.

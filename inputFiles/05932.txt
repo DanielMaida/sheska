@@ -1,0 +1,3441 @@
+Fundamental Limits of Weak Recovery
+with Applications to Phase Retrieval
+Marco Mondelli? and Andrea Montanari†
+August 22, 2017
+Abstract
+In phase retrieval we want to recover an unknown signal x ? Cd from n quadratic measurements of
+the form yi = |?ai,x?|2 + wi where ai ? Cd are known sensing vectors and wi is measurement noise.
+We ask the following weak recovery question: what is the minimum number of measurements n needed
+to produce an estimator x?(y) that is positively correlated with the signal x? We consider the case of
+Gaussian vectors ai. We prove that –in the high-dimensional limit– a sharp phase transition takes place,
+and we locate the threshold in the regime of vanishingly small noise. For n ? d? o(d) no estimator can
+do significantly better than random and achieve a strictly positive correlation. For n ? d+ o(d) a simple
+spectral estimator achieves a positive correlation. Surprisingly, numerical simulations with the same
+spectral estimator demonstrate promising performances with realistic sensing matrices as well. Spectral
+methods are used to initialize non-convex optimization algorithms in phase retrieval, and our approach
+can boost performances in this setting as well.
+Our impossibility result is based on classical information-theory arguments. The spectral algorithm
+computes the leading eigenvector of a weighted empirical covariance matrix. We obtain a sharp charac-
+terization of the spectral properties of this random matrix using tools from free probability and general-
+izing a recent result by Lu and Li. Both the upper and lower bound generalize beyond phase retrieval to
+measurements yi produced according to a generalized linear model.
+1 Introduction
+In this work, we consider the problem of recovering a signal x of dimension d, given n generalized linear
+measurements. More specifically, the measurements are drawn independently according to the conditional
+distribution
+yi ? p(y | ?x,ai?), i ? {1, . . . , n}, (1)
+where ?·, ·? denotes the inner product, {ai}1?i?n is a set of known sensing vector, and p(· | ?x,ai?)
+is a known probability density function. This model appears in many problems in signal processing and
+statistical estimation, e.g., photon-limited imaging [UE88, YLSV12], signal recovery from quantized mea-
+surements [RG01], and phase retrieval [Fie82, SEC+15]. For the problem of phase retrieval, the model (1)
+is specialized to
+yi = |?x,ai?|2 + wi, i ? {1, . . . , n} , (2)
+?Department of Electrical Engineering, Stanford University
+†Department of Electrical Engineering and Department of Statistics, Stanford University
+1
+ar
+X
+iv
+:1
+70
+8.
+05
+93
+2v
+1 
+ [
+st
+at
+.M
+L
+] 
+ 2
+0 
+A
+ug
+ 2
+01
+7
+wherewi is noise. Applications of phase retrieval arise in several areas of science and engineering, including
+X-ray crystallography [Mil90,Har93], microscopy [MISE08], astronomy [FD87], optics [Wal63], acoustics
+[BCE06], interferometry [DJ17], and quantum mechanics [Cor06].
+Popular methods to solve the phase retrieval problem are based on semi-definite programming relax-
+ations [CESV15, CLS15a, CSV13, WdM15]. However, these algorithms rapidly become prohibitive from a
+computational point of view when the dimension d of the signal increases, which makes them impractical
+in most of the real-world applications. For this reason, several algorithms have been developed in order
+to solve directly the non-convex least-squares problem, including the error reduction schemes dating back
+to Gerchberg-Saxton and Fienup [Ger72, Fie82], alternating minimization [NJS13], approximate message
+passing [SR15], Wirtinger Flow [CLS15b], iterative projections [LGL15], the Kaczmarz method [Wei15],
+and a number of other approaches [CC17, ZL16, CLM16, WGE16, WG16, Sol17, DR17]. These techniques
+are iterative and they require an initialization step. The goal of the initialization step is to provide a solution
+x? that is positively correlated with the unknown signal x. To do so, spectral methods are widely employed:
+the estimate x? is given by the principal eigenvector of a suitable matrix constructed from the data. A similar
+stategy (initialization step followed by an iterative algorithm) has proven successful for many other estima-
+tion problems, e.g., matrix completion [KMO10, JNS13], blind deconvolution [LLJB17, LLSW16], sparse
+coding [AGMM15] and joint alignment from pairwise noisy observations [CC16].
+We focus on a regime in which both the number of measurement n and the dimension of the signal d
+tend to infinity, but their ratio n/d tends to a positive constant ?. The weak recovery problem requires to
+provide an estimate x?(y) that has a positive correlation with the unknown vector x:
+lim inf
+n??
+E
+{
+|?x?(y),x?|
+?x?(y)? ?x?
+}
+> , (3)
+for some  > 0.
+In this paper, we consider either x ? Rd or x ? Cd and assume that the measurement vectors ai are
+standard Gaussian (either real or complex). In the general setting of model (1), we present two types of
+results:
+1. We develop an information-theoretic lower bound ?`: for ? < ?`, no estimator can output non-trivial
+estimates. In other words, the weak recovery problem cannot be solved.
+2. We establish an upper bound ?u based on a spectral algorithm: for ? > ?u, we can achieve weak
+recovery (cf. Eq. (3)) by letting x? be the principal eigenvector of a matrix suitably constructed from
+the data.
+The values of the thresholds ?` and ?u depend on the conditional distribution p(· | ?x,ai?). For the special
+case of phase retrieval (see (2)), we evaluate these bounds and we show that they coincide in the limit of
+vanishing noise.
+Theorem. Let x ? Cd be such that ?x?2 = d, and assume that {ai}1?i?n ?i.i.d. CN(0, Id/d). Let y ? Rn
+be given by (2), with {wi}1?i?n ? N(0, ?2), and n, d?? with n/d? ? ? (0,+?). Then,
+• For ? < 1, no algorithm can provide non-trivial estimates on x;
+• For ? > 1, there exists ?0(?) > 0 and a spectral algorithm that returns an estimate x? that satisfies
+(3), for any ? ? [0, ?0(?)].
+2
+The lower bound is proved by estimating the conditional entropy H(X|Y ) via the second moment
+method.
+As in earlier work (see Section 1.1), the spectral algorithm computes the eigenvector corresponding to
+the largest eigenvalue of a matrix of the form:
+Dn =
+1
+n
+n?
+i=1
+T (yi)aia?i , (4)
+where T : R ? R is a pre-processing function. For ? large enough (and a suitable choice of T ), we
+expect the resulting eigenvector x?(y) to be positively correlated with the true signal x. The recent paper
+[LL17] computed exactly the threshold value ?u, under the assumption that the measurement vectors are real
+Gaussian, and T is non-negative.
+Here we generalize the result of [LL17] by removing the assumption that T (y) ? 0 and by considering
+the complex case. Armed with this result, we compute the optimal1 pre-processing function T ?? (y) for the
+general model (1). Our upper bound ?u is the phase transition location for this optimal spectral method. In
+the case of phase retrieval (as ? ? 0), this pre-processing function is given by
+T ?? (y) =
+y ? 1
+y +
+?
+? ? 1
+, (5)
+and achieves weak recovery for any ? > ?u = 1. In the limit ? ? 1, this converges to the limiting function
+T ?(y) = 1? (1/y).
+While the expression (5) is remarkably simple, it is somewhat counter-intuitive. Earlier methods [CLS15b,
+CC15,LL17] use T (y) ? 0 and try to extract information from the large values of yi. The function (5) has a
+large negative part for small y, in particular when ? is close to 1. Furthermore, it extracts useful information
+from data points with yi small.
+Our analysis applies to Gaussian measurement matrices. However, the proposed spectral method works
+well also on real images and realistic measurement matrices. To illustrate this fact, in Figure 1 we test our
+algorithm on a digital photograph of the painting “The birth of Venus” by Sandro Botticelli. We consider a
+type of measurements that falls under the category of coded diffraction patterns (CDP) [CLS15a,CC17]: the
+measurement matrix is given by the product of ? copies of a Fourier matrix and a diagonal matrix with entries
+i.i.d. and uniform in {1,?1, i,?i}, where i denotes the imaginary unit. We compare our method with the
+truncated spectral initialization proposed in [CC17], which consists in discarding the measurements larger
+than an assigned threshold and leaving the others untouched. The proposed choice of the pre-processing
+function allows to recover a good estimate of the original image already when ? = 4, while the truncated
+spectral initialization of [CC17] requires ? = 12 to obtain similar results. As mentioned above, these esti-
+mates are to be used as initializations in a non-convex optimization algorithm that improve the reconstruction
+error.
+The rest of the paper is organized as follows. In Section 2, after introducing the necessary notation,
+we define formally the general problem. We then state our general information-theoretic lower bound and
+the spectral upper bound for the case of complex signal x and complex measurement vectors ai. The
+main results for the real case are stated in Section 3. In Sections 4 and 5, we present the proof of the
+information-theoretic lower bound and of the spectral upper bound, respectively. In Section 6, we present
+some numerical results that illustrate the behavior of the proposed spectral method for the phase retrieval
+problem. The proofs of some intermediate lemmas and corollaries are provided in the various appendices.
+1Here optimality is understood with respect to the weak recovery threshold.
+3
+(a) Original image.
+(b) proposed – ? = 4. (c) truncated – ? = 4.
+(d) proposed – ? = 6. (e) truncated – ? = 6.
+(f) proposed – ? = 12. (g) truncated – ? = 12.
+Figure 1: Performance comparison between the proposed spectral method and the truncated spectral initial-
+ization of [CC17] for the recovery of a digital photograph from coded diffraction patterns.
+4
+1.1 Related work
+Precise asymptotic information on high-dimensional regression problems has been obtained by several
+groups in recent years [DMM11,BM12,OTH13,BLM15,DM16,Kar13,SC16,ZK16]. In particular, information-
+theoretically optimal estimation was considered for compressed sensing [DJM13], and random linear esti-
+mation [RP16, BMDK17]. Minimax optimal estimation is considered, among others, in [DMM11, SC16,
+VJ17].
+The performance of the spectral methods for phase retrieval was first considered in [NJS13]. In the
+present notation, [NJS13] used T (y) = y and proves that there exists a constant c1 such that weak recovery
+can be achieved for n > c1 · d · log3 d. The same paper also gives an iterative procedure to improve over the
+spectral method, but the bottleneck is in the spectral step. The sample complexity of weak recovery using
+spectral methods was improved to to n > c2 · d · log d in [CSV13] and then to n > c3 · d in [CC17], for
+some constants c2 and c3. Both of these papers also prove guarantees for exact recovery by suitable descent
+algorithms. The guarantees on the spectral initialization are proved by matrix concentration inequalities, a
+technique that typically does not return exact threshold values.
+As previously mentioned, our analysis of spectral methods builds on the recent work of Lu and Li
+[LL17] that compute the exact spectral threshold for a matrix of the form (4) with T (y) ? 0. Here we
+generalize this result to signed pre-processing functions T (y), and construct a function of this type that
+achieves the information-theoretic threshold for phase retrieval. Our proof indeed implies that non-negative
+pre-processing functions lead to an unavoidable gap with respect to the ideal threshold.
+Finally, while this paper was under completion, two works appeared that address related problems.
+In [BKM+17], the authors characterize the information-theoretically optimal estimation error for a broad
+class of models of the form (1). Note however that this analysis does not prove –in general– the existence of
+an efficient estimation algorithm (for instance in the case of phase retrieval). The paper [DL17] studies the
+PhaseMax approach to phase retrieval and uses the non-rigorous replica method from statistical physics to
+derive exact thresholds for this approach.
+2 Main Results: Complex Case
+2.1 Notation and System Model
+We use [n] as a shortcut for {1, . . . , n}. We use upper-case letters (e.g., X,Y, Z, . . .) to denote random
+variables and lower-case letters (e.g., x, y, z, . . .) to denote their values. We use boldface to refer to vectors
+and matrices. Given a vector x, we denote by ?x?2 its `2 norm. Given a matrix A, we denote by ?A?F
+its Frobenius norm, by ?A?op its operator norm, by AT its transpose, and by A? its conjugate transpose.
+Given two vectors x,y ? Cd, we denote by ?x,y? =
+?d
+i=1 xiy
+?
+i their scalar product. We take logarithms
+in the natural basis and we measure entropies in nats. Given c ? C, we denote by <(c) and =(c) its real and
+imaginary part, respectively. We use P?? and a.s.?? to denote the convergence in probability and the almost
+sure convergence, respectively.
+Let X ? Cd be chosen uniformly at random on the d-dimensional complex sphere with radius
+?
+d, i.e.,
+X ? Unif(
+?
+dSd?1C ). (6)
+Let the sensing vectors {Ai}1?i?n, with Ai ? Cd, be independent and identically distributed according
+to a circularly-symmetric complex normal distribution with variance 1/d, i.e.,
+{Ai}1?i?n ?i.i.d. CN(0, Id/d). (7)
+5
+Given gi = ?x,ai?, the vector of measurements Y ? Rn is obtained by drawing each component
+independently according to the following distribution:
+Yi ? p(y | |gi|), i ? [n]. (8)
+For the special case of phase retrieval, the measurements are given by the squared scalar product corrupted
+by additive Gaussian noise with variance ?2, i.e.,
+pPR(y | |gi|) =
+1
+?
+?
+2?
+exp
+(
+?(y ? |gi|
+2)2
+2?2
+)
+. (9)
+Let ?n = n/d and assume that, as n??, ?n ? ? for some ? ? (0,?).
+2.2 Information-Theoretic Lower Bound
+The main result of this section establishes the following: there is a critical value ?` such that, for any
+? < ?`, the optimal estimator has the same performance as a trivial estimator that does not have access to
+any measurement. The value of ?` depends on the distribution (8) of the measurements and we provide an
+expression to compute it.
+In order to state formally the result, we need to introduce a few definitions. Consider the function
+f : [0, 1]? R, given by
+f(m) =
+?
+R
+EG1,G2 {p(y | |G1|)p(y | |G2|)}
+EG {p(y | |G|)}
+dy, (10)
+with
+G ? CN(0, 1), (G1, G2) ? CN
+(
+0,
+[
+1 c
+c? 1
+])
+, (11)
+and m = |c|2. Note that the RHS of (10) depends only on m = |c|2. Indeed, by applying the transforma-
+tion (G1, G2) ? (ei?1G1, ei?2G2), f(m) does not change, but the correlation coefficient c is mapped into
+cei(?1??2). A more explicit formula for f(m) is provided by Lemma 4 in Appendix A. Furthermore, set
+F?(m) = ? log f(m) + log(1?m). (12)
+Note that, when m = 0, G1 and G2 are independent. Hence, f(0) = 1, which implies that F?(0) = 0 for
+any ? > 0. We define the information-theoretic threshold ?` as the largest value of ? such that the maximum
+of F?(m) is attained at m = 0, i.e.,
+?` = sup{? | F?(m) < 0 for m ? (0, 1]}. (13)
+Let us now define the error metric. The setting is the following: we observe the vector of nmeasurements
+y and, given a new sensing vector an+1, we want to estimate some function ?(|?x,an+1?|) given by
+?(|?x,an+1?|) =
+?
+R
+?(y)p(y | |?x,an+1?|) dy. (14)
+Then, the minimum mean square error is defined as
+MMSE(?n) = E
+{(
+?(|?X,An+1?|)? E
+{
+?(|?X,An+1?|)
+??Y , {Ai}1?i?n})2}, (15)
+6
+where E {?(|?X,An+1?|) | Y , {Ai}1?i?n} represents the optimal estimator of the quantity ?(|?X,An+1?|)
+and the expectation of the square error is to be intended over all the randomness of the system, i.e., over
+X , An+1, Y , and {Ai}1?i?n. Note that this error metric depends on the choice of the function ?. Fur-
+thermore, observe that, if we do not have access to the vector of measurements Y , the trivial estimator
+E {?(|?X,An+1?|)} has a mean square error given by
+E
+{(
+?(|?X,An+1?|)? E
+{
+?(|?X,An+1?|)
+})2}
+= Var
+{
+?(|?X,An+1?|)
+}
+. (16)
+At this point we are ready to state our main result, which is proved in Section 4.1.
+Theorem 1 (Information-Theoretic Lower Bound for General Complex Sensing Model). Let X , {Ai}1?i?n+1,
+and Y be distributed according to (6), (7), and (8), respectively. Let n/d? ? and define ?` as in (13). Fur-
+thermore, assume that the function ? that appears in (14) is bounded. Then, for any ? < ?`, we have
+that
+lim
+n??
+MMSE(?n) = Var
+{
+?(|?X,An+1?|)
+}
+. (17)
+Let us point out that the requirement that the function ? is bounded can be relaxed when the tails of the
+distribution of Y are sufficiently light (e.g., sub-Gaussian). Indeed, this is what happens for the special case
+of phase retrieval, which is considered immediately below.
+For the special case of phase retrieval, a more explicit error metric is given by the matrix minimum
+mean square error, defined as
+MMSEPR(?n) =
+1
+d2
+E
+{???XX? ? E{XX? | Y , {Ai}1?i?n}???2
+F
+}
+. (18)
+Indeed, the vector X can be recovered only up to a sign change, since we observe a function of the scalar
+products |?X,Ai?|. Clearly, MMSE(?n) ? [0, 1] and MMSE(?n) = 1 implies that the optimal estimator
+coincides with the trivial estimator that outputs the all-0 vector.
+The corollary below provides the exact value of ?` for the case of phase retrieval and it is proved in
+Appendix A.
+Corollary 1 (Information-Theoretic Lower Bound for Phase Retrieval). Let X , {Ai}1?i?n, and Y be
+distributed according to (6), (7), and (9), respectively. Let n/d? ?. Then, for any ? < 1, we have that
+lim
+??0
+lim
+n??
+MMSEPR(?n) = 1. (19)
+2.3 Upper Bound via Spectral Method
+The main result of this section establishes the following: there is a critical value ?u such that, for any ? > ?u,
+the principal eigenvector of a suitably constructed matrix, call it Dn, provides an estimate x? that satisfies
+(3).
+The threshold ?u is defined as
+?u =
+1?
+R
+(
+EG
+{
+p(y | |G|)(|G|2 ? 1)
+})2
+EG {p(y | |G|)}
+dy
+, (20)
+7
+with G ? CN(0, 1). Given the measurements {yi}1?i?n, we construct the matrix Dn as
+Dn =
+1
+n
+n?
+i=1
+T (yi)aia?i , (21)
+where T : R? R is a pre-processing function.
+At this point we are ready to state our main result, which is proved in Section 5.
+Theorem 2 (Spectral Upper Bound for Complex General Sensing Model). Let X , {Ai}1?i?n, and Y be
+distributed according to (6), (7), and (8), respectively. Let n/d ? ? and define ?u as in (20). Let X? be the
+principal eigenvector of the matrix Dn defined in (21). For any ? > ?u, set the pre-processing function T
+to the function T ?? given by
+T ?? (y) =
+?
+?u · T ?(y)?
+? ? (
+?
+? ?
+?
+?u)T ?(y)
+, (22)
+where
+T ?(y) = 1? EG {p(y | |G|)}
+EG {p(y | |G|) · |G|2}
+. (23)
+Then, we have that, almost surely,
+lim
+n??
+|?X?,X?|
+?X?? ?X?
+> , (24)
+for some  > 0.
+The corollary below provides the exact value of ?u and an explicit expression for T ?? (y) for the case of
+phase retrieval. Its proof is contained in Appendix B. Note that, for phase retrieval, ?u = ?` = 1, i.e., the
+spectral upper bound matches the information-theoretic lower bound.
+Corollary 2 (Spectral Upper Bound for Phase Retrieval). Let X , {Ai}1?i?n, and Y be distributed ac-
+cording to (6), (7), and (9), respectively. Let n/d ? ?. Let X? be the principal eigenvector of the matrix
+Dn defined in (21). For any ? > 1, set the pre-processing function T to the function T ?? given by (with
+y+ ? max(0, y)):
+T ?? (y) =
+y+ ? 1
+y+ +
+?
+? ? 1
+. (25)
+Then, we have that, almost surely,
+lim
+??0
+lim
+n??
+|?X?,X?|
+?X?? ?X?
+> , (26)
+for some  > 0.
+Notice that this statement is stronger than the claim that ?u(?2) ? 1 as ?2 ? 0, where ?u(?2) is the
+spectral threshold at noise level ?2. Indeed it requires proving that the scalar product |?x?,x?| stays bounded
+away from 0, as ?2 ? 0. Furthermore, this is achieved with pre-processing function (25) that does not
+require to estimate ?, which can be challenging with real data.
+8
+3 Main Results: Real Case
+Let us now briefly discuss what happens in the real case. Let X ? Rd be chosen uniformly at random on
+the d-dimensional real sphere with radius
+?
+d, i.e.,
+X ? Unif(
+?
+dSd?1R ). (27)
+Let the sensing vectors {Ai}1?i?n, with Ai ? Rd being independent and identically distributed according
+to a normal distribution with zero mean and variance 1/d, i.e.,
+{Ai}1?i?n ?i.i.d. N(0, Id/d). (28)
+Given gi = ?x,ai?, the vector of measurements Y ? Rn is obtained by drawing each component indepen-
+dently according to the following distribution:
+Yi ? p(y | gi), i ? [n]. (29)
+We can define ‘real’ phase retrieval model, whreby the measurements are given by the squared scalar
+product corrupted by additive Gaussian noise with variance ?2, i.e.,
+pPR(y | gi) =
+1
+?
+?
+2?
+exp
+(
+?(y ? g
+2
+i )
+2
+2?2
+)
+. (30)
+We first present the information-theoretic lower bound. Consider the function f : [?1, 1] ? R, given
+by
+f(m) =
+?
+R
+EG1,G2 {p(y | G1)p(y | G2)}
+EG {p(y | G)}
+dy, (31)
+with
+G ? N(0, 1), (G1, G2) ? N
+(
+0,
+[
+1 m
+m 1
+])
+. (32)
+Furthermore, set
+F?(m) = ? log f(m) +
+1
+2
+log(1?m2). (33)
+Again, F?(0) = 0 for any ? > 0. We define the information-theoretic threshold ?` as the largest value of ?
+such that the maximum of F?(m) is attained at m = 0, i.e.,
+?` = sup{? | F?(m) < 0 for m ? [?1, 1] \ {0}}. (34)
+As for the error metric, we observe the vector of n measurements y and, given a new sensing vector
+an+1, we want to estimate some function ?(?x,an+1?) given by
+?(?x,an+1?) =
+?
+R
+?(y)p(y | ?x,an+1?)dy. (35)
+Then, the minimum mean square error is defined as
+MMSE(?n) = E
+{(
+?(?X,An+1?)? E
+{
+?(?X,An+1?)
+??Y , {Ai}1?i?n})2}. (36)
+9
+Recall that, if we do not have access to the vector of measurements y, the trivial estimator E {?(?X,An+1?)}
+has a mean square error given by
+E
+{(
+?(?X,An+1?)? E
+{
+?(?X,An+1?)
+})2}
+= Var
+{
+?(?X,An+1?)
+}
+. (37)
+At this point we are ready to state the information-theoretic lower bound, which is proved in Section
+4.2.
+Theorem 3 (Information-Theoretic Lower Bound for Real General Sensing Model). Let X , {Ai}1?i?n+1,
+and Y be distributed according to (27), (28), and (29), respectively. Let n/d ? ? and define ?` as in (34).
+Furthermore, assume that the function ? that appears in (35) is bounded. Then, for any ? < ?`, we have
+that
+lim
+n??
+MMSE(?n) = Var
+{
+?(?X,An+1?)
+}
+. (38)
+Remark 1 (Information-Theoretic Lower Bound for Real Phase Retrieval). For the special case of phase
+retrieval, a more explicit error metric is given by the matrix minimum mean square error, defined as
+MMSEPR(?n) =
+1
+d2
+E
+{???XXT ? E{XXT | Y , {Ai}1?i?n}???2
+F
+}
+. (39)
+By calculations similar to those in Lemma 5 contained in Appendix A, one can prove that, if the distribution
+p(· | G) appearing in (31) is given by (30), then
+lim
+??0
+?`(?
+2) = 1/2. (40)
+Consequently, by following a proof analogous to that of Corollary 1 in Appendix A, we conclude that, for
+any ? < 1/2,
+lim
+??0
+lim
+n??
+MMSEPR(?n) = 1. (41)
+Let us now move to the spectral upper bound. The threshold ?u is defined as
+?u =
+1?
+R
+(
+EG
+{
+p(y | G)(G2 ? 1)
+})2
+EG {p(y | G)}
+dy
+, (42)
+with G ? N(0, 1). Given the measurements {yi}1?i?n, we construct the matrix Dn as
+Dn =
+1
+n
+n?
+i=1
+T (yi)aiaTi , (43)
+where T : R? R is a pre-processing function.
+The proof of the following spectral upper bound is discussed in Remark 6 at the end of Section 5.
+Theorem 4 (Spectral Upper Bound for Real General Sensing Model). Let X , {Ai}1?i?n, and Y be dis-
+tributed according to (27), (28), and (29), respectively. Let n/d? ? and define ?u as in (42). Let X? be the
+principal eigenvector of the matrix Dn defined in (43). For any ? > ?u, set the pre-processing function T
+to the function T ?? given by
+T ?? (y) =
+?
+?u · T ?(y)?
+? ? (
+?
+? ?
+?
+?u)T ?(y)
+, (44)
+10
+where
+T ?(y) = 1? EG {p(y | G)}
+EG {p(y | G) ·G2}
+. (45)
+Then, we have that, almost surely,
+lim
+n??
+|?X?,X?|
+?X?? ?X?
+> , (46)
+for some  > 0.
+Remark 2 (Spectral Upper Bound for Real Phase Retrieval). By calculations similar to those in Lemma 6
+contained in Appendix B, one can prove that, if the distribution p(· | G) appearing in (31) is given by (30),
+then
+lim
+??0
+?u(?
+2) = 1/2. (47)
+Furthermore, by following a proof analogous to that of Corollary 2 in Appendix B, one can prove the
+following result. For any ? > 1/2, set the pre-processing function T to the function T ?? given by (with
+y+ = max(y, 0))
+T ?? (y) =
+y+ ? 1
+y+ +
+?
+2? ? 1
+. (48)
+Then, we have that, almost surely,
+lim
+??0
+lim
+n??
+|?X?,X?|
+?X?? ?X?
+> , (49)
+for some  > 0. Note that, for real phase retrieval, the spectral upper bound matches the information-
+theoretic lower bound.
+4 Proof of Theorems 1 and 3: Information-Theoretic Lower Bound
+4.1 Complex Case
+The crucial point of the proof consists in the computation of the conditional entropy H(Y | A), which
+is contained in Lemma 1. Then, we use this result to compute the mutual information for the considered
+model. Finally, we provide the proof of Theorem 1.
+Lemma 1 (Conditional Entropy). Let X ? Unif(
+?
+dSd?1C ), A = (A1, . . . ,An) with {Ai}1?i?n ?i.i.d.
+CN(0, Id/d), and Y = (Y1, . . . , Yn) with Yi ? p(· | |Gi|) and Gi = ?X,Ai?. Let n/d ? ? and define ?`
+as in (13). Then, for any ? < ?`, we have that
+lim
+n??
+1
+n
+H(Y | A) = H(Y1). (50)
+Proof. We divide the proof into two steps. The first step consists in showing that
+? 1
+n
+???
+Rd
+EA
+{
+(p(y | A))2
+}
+EA {p(y | A)}
+dy ? 1
+?? ? 1
+n
+H(Y | A)?H(Y1) ? 0, (51)
+which holds for all n ? N and for all ? > 0. The proof of (51) does not require any assumption on the
+distribution of X and on the distribution of {Ai}1?i?n (as long as the vectors {Ai}1?i?n are independent).
+11
+The second step consists in showing that
+lim
+n?+?
+1
+n
+???
+Rd
+EA
+{
+(p(y | A))2
+}
+EA {p(y | A)}
+dy ? 1
+?? = 0. (52)
+It is clear that (51) and (52) imply the thesis.
+First step. By definition of conditional entropy, we have that
+1
+n
+H(Y | A) = 1
+n
+?
+EA {?p(y | A) log p(y | A)} dy. (53)
+By using the definition of Yi and the fact that they are independent, we can rewrite EA {p(y | A)} as
+follows:
+EA {p(y | A)} = EA,X {p(y | A,X)}
+= EA,X
+{
+n?
+i=1
+p(yi | |?X,Ai?|)
+}
+=
+n?
+i=1
+EGi {p(yi | |Gi|)} ,
+(54)
+where we set Gi = ?X,Ai?.
+Let us now give an upper bound on the RHS of (53):
+1
+n
+?
+Rd
+EA {?p(y | A) log p(y | A)} dy
+(a)
+? 1
+n
+?
+Rd
+?EA {p(y | A)} logEA {p(y | A)} dy
+(b)
+=
+1
+n
+?
+Rd
+?
+n?
+i=1
+EGi {p(yi | |Gi|)}
+n?
+j=1
+logEGj {p(yj | Gj)} dy
+=
+1
+n
+n?
+i=1
+?
+R
+?EGi {p(yi | |Gi|)} logEGi {p(yi | |Gi|)} dyi
+= H(Y1),
+where in (a) we apply Jensen’s inequality as the function g(x) = ?x log x is concave, and in (b) we use
+(54). This immediately implies that
+1
+n
+H(Y | A)?H(Y1) ? 0. (55)
+Note that the upper bound (55) is based on the inequality
+EA {?p(y | A) log p(y | A)} ? (?EA {p(y | A)} logEA {p(y | A)}) ? 0.
+12
+Let us now find a lower bound to this quantity:
+EA {?p(y | A) log p(y | A)} ? (?EA {p(y | A)} logEA {p(y | A)})
+= EA
+{
+?p(y | A) log p(y | A)
+EA {p(y | A)}
+}
+(a)
+= EA {p(y | A)}EZ {?Z logZ}
+(b)
+= EA {p(y | A)}EZ {?Z logZ + Z ? 1}
+(c)
+? ?EA {p(y | A)}EZ
+{
+(Z ? 1)2
+}
+(d)
+= ?EA {p(y | A)}
+(
+EZ
+{
+Z2
+}
+? 1
+)
+= ?
+??EA
+{
+(p(y | A))2
+}
+EA {p(y | A)}
+? EA {p(y | A)}
+?? ,
+(56)
+where in (a) we set Z = p(y | A)/EA {p(y | A)}, in (b) we use that EZ {Z} = 1, in (c) we use that
+?z log z + z ? 1 ? ?(z ? 1)2 for any z ? 0, and in (d) we use again that EZ {Z} = 1. Therefore,
+1
+n
+H(Y | A)?H(Y1) =
+1
+n
+?
+(EA {?p(y | A) log p(y | A)} ? (?EA {p(y | A)} logEA {p(y | A)})) dy
+(a)
+? ? 1
+n
+?
+Rd
+??EA
+{
+(p(y | A))2
+}
+EA {p(y | A)}
+? EA {p(y | A)}
+?? dy,
+(b)
+= ? 1
+n
+???
+Rd
+EA
+{
+(p(y | A))2
+}
+EA {p(y | A)}
+dy ? 1
+?? ,
+where in (a) we use (56) and in (b) we use that the integral of p(y | A) is 1. This concludes the proof of
+(51).
+Second step. As X ? Unif(
+?
+dSd?1C ) and Ai ? CN(0, Id/d), we have that
+{Gi}1?i?n ?i.i.d. CN (0, 1) .
+Let us rewrite the quantity EA
+{
+(p(y | A))2
+}
+as follows:
+EA
+{
+(p(y | A))2
+}
+= EA
+???
+(
+EX
+{
+n?
+i=1
+p(yi | |?X,Ai?|)
+})2???
+(a)
+= EA
+{
+EX1,X2
+{
+n?
+i=1
+p(yi | |?X1,Ai?|) · p(yi | |?X2,Ai?|)
+}}
+(b)
+= EC
+{
+n?
+i=1
+EGi,1,Gi,2 {p(yi | |Gi,1|) · p(yi | |Gi,2|)}
+}
+,
+(57)
+13
+where in (a) X1 and X2 are independent, and in (b) we set Gi,1 = ?X1,Ai?, Gi,2 = ?X2,Ai?, and
+C =
+?X1,X2?
+?X1? ?X2?
+.
+Then, given C = c, as X1,X2 ?i.i.d. Unif(
+?
+dSd?1C ) and Ai ? CN(0, Id/d), we have that
+{(Gi,1, Gi,2)}1?i?n ?i.i.d. CN
+(
+0,
+[
+1 c
+c? 1
+])
+.
+Hence,
+1
+n
+?
+Rd
+EA
+{
+(p(y | A))2
+}
+EA {p(y | A)}
+dy
+(a)
+=
+1
+n
+?
+Rd
+EC
+{
+n?
+i=1
+EGi,1,Gi,2 {p(y | |Gi,1|)p(y | |Gi,2|)}
+EGi {p(y | |Gi|)}
+}
+dy
+=
+1
+n
+EC
+{
+n?
+i=1
+?
+R
+EGi,1,Gi,2 {p(y | |Gi,1|)p(y | |Gi,2|)}
+EGi {p(y | |Gi|)}
+dyi
+}
+(b)
+=
+1
+n
+EM {(f(M))n}
+(c)
+=
+d? 1
+n
+? 1
+0
+(f(m))n(1?m)d?2 dm,
+where in (a) we use (54) and (57), in (b) we use the fact that f depends only on m = |c|2, which is
+clear from the explicit expression provided by Lemma 4 contained in Appendix A, and in (c) we use that
+M ? Beta(1, d? 1) by Lemma 7 contained in Appendix C.
+Set d? = d? 2 and ??n = n/d?. Thus,? 1
+0
+(f(m))n(1?m)d?2 dm =
+? 1
+0
+exp
+(
+n · F??n(m)
+)
+dm, (58)
+where F??n(m) is given by (12). Define
+F??(m) = ?max(log f(m), 0) + log(1?m). (59)
+As ? < ?` and n/d? ? ?, there exists ?? ? (?, ?`) such that ??n < ?? for n sufficiently large. As F??n(m) ?
+F???n(m) and F??(m) is non-decreasing in ?, we have that? 1
+0
+exp
+(
+n · F??n(m)
+)
+dm ?
+? 1
+0
+exp
+(
+n · F???(m)
+)
+dm. (60)
+Note that F???(m) < 0 if and only if F??(m) < 0. Thus, by definition of ?`, we have that F???(m) < 0 for
+m ? (0, 1] when n is sufficiently large. Furthermore, F???(0) = 0 and F??? is a continuous function. As a
+result, by Lemma 9, the integral in (60) tends to 0 as n?? and the claim immediately follows.
+Remark 3 (Mutual Information). An immediate consequence of Lemma 1 is that one can compute the
+mutual information I(X;Y ,A) for any ? < ?`:
+lim
+n?+?
+1
+n
+I(X;Y ,A) = H (EG {p(· | |G|)})? EG {H(p(· | |G|))} , (61)
+where G ? CN(0, 1).
+14
+Proof of Theorem 1. Define Y1:n = (Y1, . . . , Yn) and A1:n = (A1, . . . ,An). We divide the proof into two
+steps. The first step consists in showing that the mutual information between the next observation Yn+1 and
+the previous observations Y1:n tends to 0. More formally, we will prove that
+I(Yn+1;Y1:n,A1:n | An+1) = on(1). (62)
+The second step consists in showing that the estimate obtained on ?(|?X,An+1?|) given the observa-
+tions Y1:n is similar to the estimate on ?(|?X,An+1?|) when no observation is available. This means that
+the observations Y1:n do not provide any help. More formally, we will prove that
+EY1:n,A1:n+1
+{(
+E
+{
+?(|?X,An+1?|)
+}
+? E
+{
+?(|?X,An+1?|)
+??Y1:n,A1:n})2} = on(1), (63)
+where ? is defined in (14).
+Furthermore, we have that
+E
+{(
+?(|?X,An+1?|)? E
+{
+?(|?X,An+1?|)
+??Y1:n,A1:n})2}
+?
+(
+E
+{
+?(|?X,An+1?|)
+}
+? E
+{
+?(|?X,An+1?|)
+??Y1:n,A1:n})2
+= E
+{(
+?(|?X,An+1?|)? E
+{
+?(|?X,An+1?|)
+})2}
+= Var
+{
+?(|?X,An+1?|)
+}
+.
+(64)
+By applying (63) and (64), the proof of Theorem 1 follows.
+First step. By using the chain rule of entropy and that Yi is independent from Ai+1:n+1, we obtain that
+1
+n+ 1
+H(Y1:n+1 | A1:n+1) =
+1
+n+ 1
+n+1?
+i=1
+H(Yi | Y1:i?1,A1:n+1)
+=
+1
+n+ 1
+n+1?
+i=1
+H(Yi | Y1:i?1,A1:i).
+The sequence an = H(Yn | Y1:n?1,A1:n) is decreasing, as conditioning reduces entropy. Hence an has a
+limit, and this limit must be equal to H(Y1) by Lemma 1. Since the Yi are i.i.d., we obtain that
+H(Yn+1 | Y1:n,A1:n+1) = H(Yn+1) + on(1).
+By using again that conditioning reduces entropy, we also obtain that
+H(Yn+1 | An+1) = H(Yn+1) + on(1).
+By putting these last two equations together, we deduce that (62) holds.
+15
+Second step. Given two probability distributions p and q, let DKL(p||q) and ?p? q?TV denote their
+Kullback-Leibler divergence and their total variation distance, respectively. Then,
+I(Yn+1;Y1:n,A1:n | An+1)
+= EY1:n,A1:n+1 {DKL(p(yn+1 | Y1:n,A1:n+1)||p(yn+1 | An+1))}
+(a)
+? 1
+2
+· EY1:n,A1:n+1
+{
+(?p(yn+1 | Y1:n,A1:n+1)? p(yn+1 | An+1))?TV)
+2
+}
+(b)
+? 1
+2K2
+· EY1:n,A1:n+1
+{(?
+R
+p(yn+1 | Y1:n,A1:n+1)?(yn+1) dyn+1
+?
+?
+R
+p(yn+1 | An+1)?(yn+1) dyn+1
+)2}
+(c)
+=
+1
+2K2
+· EY1:n,A1:n+1
+{(?
+Cd
+p(x | Y1:n,A1:n)
+?
+R
+p(yn+1 | x,Y1:n,A1:n+1)?(yn+1) dyn+1 dx
+?
+?
+Cd
+p(x)
+?
+R
+p(yn+1 | x,An+1)?(yn+1) dyn+1 dx
+)2}
+(d)
+=
+1
+2K2
+· EY1:n,A1:n+1
+{
+(E {?(|?X,An+1?|)} ? E {?(|?X,An+1?|) | Y1:n,A1:n})2
+}
+.
+(65)
+where in (a) we use Pinsker’s inequality, in (b) we use that ? is bounded and we set ???? = K, in (c) we
+use that X and An+1 are independent, and in (d) we use the definition (14). By combining (62) and (65),
+(63) immediately follows.
+4.2 Real Case
+The proof is very similar to the one provided in Section 4.1 for the complex case. In particular, the crucial
+point consists in showing that
+lim
+n??
+1
+n
+H(Y | A) = H(Y1), (66)
+where X ? Unif(
+?
+dSd?1R ), A = (A1, . . . ,An) with {Ai}1?i?n ?i.i.d. N(0, Id/d), and Y = (Y1, . . . , Yn)
+with Yi ? p(· | Gi) and Gi = ?X,Ai?. Then, the proof of Theorem 3 follows similar passages as the proof
+of Theorem 1.
+In order to prove (66), we show that (51) and (52) hold. The proof of (51) follows the same passages
+as the first step of the proof of Lemma 1, hence it is omitted. The proof of (52) is slightly different and we
+detail what changes in the remaining part of this section.
+Similarly to (54), we have that
+EA {p(y | A)} =
+n?
+i=1
+EGi {p(yi | Gi)} ,
+where Gi = ?X,Ai? ? N(0, 1). Furthermore, similarly to (57), we also have that
+EA
+{
+(p(y | A))2
+}
+= EM
+{
+n?
+i=1
+EGi,1,Gi,2 {p(yi | Gi,1) · p(yi | Gi,2)}
+}
+,
+16
+where Gi,1 = ?X1,Ai?, Gi,2 = ?X2,Ai?, and we define
+M =
+?X1,X2?
+?X1? ?X2?
+.
+Then, given M = m, as X1,X2 ?i.i.d. Unif(
+?
+dSd?1R ) and Ai ? N(0, Id/d), we have that
+{(Gi,1, Gi,2)}1?i?n ?i.i.d. N
+(
+0,
+[
+1 m
+m 1
+])
+.
+Hence,
+1
+n
+?
+Rd
+EA
+{
+(p(y | A))2
+}
+EA {p(y | A)}
+dy
+(a)
+=
+1
+n
+EM {(f(M))n}
+(b)
+=
+1
+n
+?(d2)?
+??(d?12 )
+? 1
+?1
+(f(m))n(1?m2)
+d?3
+2 dm,
+(67)
+where in (a) we use the definition (33) of f and in (b) we plug in the distribution ofM obtained from Lemma
+8 contained in Appendix C. Note that
+lim
+d??
+?(d2)
+d
+2 · ?(
+d?1
+2 )
+= 1.
+Therefore, by showing that the integral in the RHS of (67) tends to 0, the claim immediately follows.
+Set d? = d? 3 and ??n = n/d?. Thus,? 1
+?1
+(f(m))n(1?m2)
+d?3
+2 dm =
+? 1
+?1
+exp
+(
+n · F??n(m)
+)
+dm, (68)
+where F??n(m) is defined in (33). Define
+F??(m) = ?max(log f(m), 0) +
+1
+2
+log(1?m2). (69)
+As ? < ?` and n/d? ? ?, there exists ?? ? (?, ?`) such that ??n < ?? for n sufficiently large. As F??n(m) ?
+F???n(m) and F??(m) is non-decreasing in ?, we have that? 1
+0
+exp
+(
+n · F??n(m)
+)
+dm ?
+? 1
+0
+exp
+(
+n · F???(m)
+)
+dm. (70)
+Note that F???(m) < 0 if and only if F??(m) < 0. Thus, by definition of ?`, we have that F???(m) < 0 for
+m 6= 0 when n is sufficiently large. Furthermore, F???(0) = 0 and F??? is a continuous function. As a result,
+by Lemma 9, the integral in (70) tends to 0 as n?? and the claim immediately follows.
+5 Proof of Theorems 2 and 4: Spectral Upper Bound
+We will consider the complex case. The proof for the real case is essentially the same and it is briefly
+discussed in Remark 6 at the end of this section.
+17
+A crucial ingredient of the proof consists in Lemma 2, which is a generalization of Theorem 1 of [LL17].
+Before stating this result, we need some definitions. Let G ? CN(0, 1), Y ? p(· | |G|), and Z = T (Y ).
+Assume that Z has bounded support and let ? be the supremum of this support, i.e.,
+? = inf{z : P(Z ? z) = 1}. (71)
+For ? ? (?,?) and ? ? (0,?), define
+?(?) = ? · E
+{
+Z · |G|2
+?? Z
+}
+, (72)
+and
+??(?) = ?
+(
+1
+?
++ E
+{
+Z
+?? Z
+})
+. (73)
+Note that ?(?) is a monotone non-increasing function and that ??(?) is a convex function. Let ??? be the
+point at which ?? attains its minimum, i.e.,
+??? = arg min
+???
+??(?). (74)
+For ? ? (?,?), define also
+??(?) = ??(max(?, ???)). (75)
+Lemma 2 (Generalization of Theorem 1 of [LL17]). Let X , {Ai}1?i?n, and Y be distributed according to
+(6), (7), and (8), respectively, and let n/d? ?. LetG ? CN(0, 1) and define Z = T (Y ) for Y ? p( · | |G|).
+Assume that Z satisfies P(Z = 0) < 1 and that it has bounded support. Let ? be defined in (71). Assume
+further that, as ? approaches ? from the right, we have
+lim
+???+
+E
+{
+Z
+(?? Z)2
+}
+= lim
+???+
+E
+{
+Z · |G|2
+?? Z
+}
+=?. (76)
+Let x? be the principal eigenvector of the matrix Dn, defined as in (21). Then, the following results hold:
+(1) The equation
+??(?) = ?(?) (77)
+admits a unique solution, call it ??? , for ? > ? .
+(2) As n??,
+|?X?,X?|2
+?X??2 ?X?2
+a.s.??
+???????
+0, if ???(?
+?
+?) ? 0,
+???(?
+?
+?)
+???(?
+?
+?)? ??(???)
+, if ???(?
+?
+?) > 0,
+(78)
+where ??? and ?
+? denote the derivatives of these two functions.
+(3) Let ?Dn1 ? ?
+Dn
+2 denote the two largest eigenvalues of Dn. Then, as n??,
+?Dn1
+a.s.?? ??(???),
+?Dn2
+a.s.?? ??(???).
+(79)
+18
+Before proceeding with the proof, we discuss these results in more detail and we describe in what sense
+Lemma 2 provides a generalization of Theorem 1 of [LL17].
+Remark 4 (Two different regimes). The results of Lemma 2 imply that, according to the value of ?, we can
+distinguish between two possible regimes.
+On the one hand, suppose that ?(???) > ??(???). Recall that ?(?) is non-increasing and that ??? is
+the point in which ??(?) attains its minimum. Thus, ??? < ??? , which implies that ?
+?
+?(?
+?
+?) > 0 and that
+??(?
+?
+?) > ??(???). This means that the scalar product |?x?,x?| is bounded away from zero and that there is
+a strictly positive gap between the two largest eigenvalues of Dn. In this regime, the spectral method that
+outputs x? solves the weak recovery problem and (24) holds for some  > 0.
+On the other hand, suppose that ?(???) ? ??(???). Thus, ??? ? ??? , which implies that ???(???) ? 0 and
+that ??(???) = ??(???). In words, this means that the scalar product |?x?,x?| converges to zero and that there
+is no strictly positive gap between the two largest eigenvalues of Dn. In this regime, the spectral method
+that outputs x? does not solve the weak recovery problem.
+Remark 5 (Lemma 2 and Theorem 1 of [LL17]). Lemma 2 generalizes Theorem 1 of [LL17] in the following
+two regards:
+• X and {Ai}1?i?n are complex vectors, while Theorem 1 of [LL17] considers the real case;
+• Z can also be negative, while Theorem 1 of [LL17] assumes that Z ? 0.
+The first generalization does not require additional work as the whole argument of [LL17] generalizes
+in the natural way to the complex case: Gaussian random variables become circularly-symmetric com-
+plex Gaussian random variables, transposes of vectors and matrices become conjugate transposes, squares
+become modulus squares, and so on.
+On the contrary, the second generalization is more challenging, as it requires the result of Lemma 3,
+which is stated below and proved in Appendix D.
+As a final observation, let us point out that Theorem 1 of [LL17] assumes also that E
+{
+Z · |G|2
+}
+>
+E {Z}. A careful check shows that this hypothesis is never used in the proof of that theorem, but it is
+required only in the proof of some additional results of [LL17].
+Lemma 3 (Generalization of [BGN11, BY12] to non-PSD matrices). Consider the random matrix
+Sn =
+1
+n
+UMnU
+?, (80)
+where the entries of U ? C(d?1)×n are ?i.i.d. CN(0, 1), and Mn ? Cn×n is independent of U . Let ?Mn1
+denote the largest eigenvalue of Mn. Assume that the empirical spectral measure of the eigenvalues of Mn
+almost surely converges weakly to the probability distributionH , whereH is the law of the random variable
+Z. Let ?H be the support of H and let ? be the supremum of ?H . Assume also that, as n??,
+?Mn1
+a.s.?? ?? 6? ?H . (81)
+Let n/d ? ?, denote by ?Sn1 the largest eigenvalue of the matrix (80), and define ?? as in (73). Then, as
+n??,
+?Sn1
+a.s.?? ??(??), if ???(??) > 0,
+?Sn1
+a.s.?? min
+?>?
+??(?), if ???(??) ? 0.
+(82)
+19
+Proof of Lemma 2. In this proof, we follow closely the approach detailed in Section III of [LL17]. In the
+proof, we use a convention for the normalization of X and of {Ai}1?i?n that is different (although equiva-
+lent) from the one in the previous sections, namely ?X? = 1 and Ai ? CN(0, Id). First of all, let us write
+the matrix Dn defined in (21) as
+Dn =
+1
+n
+AZA?, (83)
+where A = [A1, . . . ,An], Z is a diagonal matrix with entries Zi = T (Yi) for i ? [n], the random variables
+Yi are independent and distributed according to p(· | |Gi|), and {Gi}1?i?n ?i.i.d. CN(0, 1). As the sensing
+vectors {Ai}1?i?n are drawn from the circularly-symmetric complex normal distribution, we can assume
+without loss of generality that X = e1, where e1 is the first element of the canonical basis of Cd.
+Consider a matrix U ? C(d?1)×n independent of {Gi}1?i?n and Z. Let the elements of U be ?i.i.d.
+CN(0, 1). Define
+Pn =
+1
+n
+UZU?, (84)
+and
+qn =
+1
+n
+Uv, (85)
+where v = [Z1G1, . . . , ZnGn]?. Then, (83) can be rewritten as
+Dn =
+[
+an q
+?
+n
+qn Pn
+]
+, (86)
+where an =
+?n
+i=1 Zi|Gi|2/n is a scalar that converges almost surely to E(Z · |G|2) as n ? ?, with
+G ? CN(0, 1).
+Next, consider a parametric family of matrices {Pn + µqnq?n} and let Ln(µ) denote their largest eigen-
+values, i.e.,
+Ln(µ) = ?1(Pn + µqnq
+?
+n)
+The idea is to compute the largest eigenvalue of Dn, call it ?Dn1 , and the scalar product between X? and e1
+via a fixed-point equation involving Ln(µ).
+To do so, we first need an intermediate result holding for any matrix D that can be written in the form
+D =
+[
+a q?
+q P
+]
+,
+where a ? R, P ? C(d?1)×(d?1) is a Hermitian matrix and q ? Cd?1 is such that ?q? 6= 0. Note that the
+matrix Dn defined in (21) fulfills such requirements, since the matrix Pn defined in (84) is Hermitian and
+qn defined in (85) is such that ?qn? 6= 0 with high probability, as P(Z = 0) < 1.
+Let ?P1 ? ?P2 ? · · · ? ?Pd?1 be the set of eigenvalues of P , and let w1,w2, . . . ,wd?1 be a correspond-
+ing set of eigenvectors. For ? ? (max{?Pi : ?q,wi? 6= 0},?), define
+R(?) = q?(P ? ?I)?1q =
+d?1?
+i=1
+|?q,wi?|2
+?Pi ? ?
+. (87)
+Note that R(?) increases monotonically from ?? to 0. Hence, it admits an inverse, call it R?1(x), for
+x < 0. Then, the maximum eigenvalue L(µ) = ?1(P + µqq?) is given by
+L(µ) = max(R?1(?1/µ), ?P1 ). (88)
+20
+The proof of (88) is standard, cf. e.g. Lemma 1 in [LL17]. Note that L(µ) is a non-decreasing function such
+that limµ?? L(µ) =?. Indeed, by construction,R?1(?1/µ) is strictly increasing and limµ??R?1(?1/µ) =
+?. Furthermore, L(µ) is convex since it is the maximum of a set of linear functions, as
+L(µ) = ?1(P + µqq
+?) = max
+x:?x?=1
+x?(P + µqq?)x.
+Let µ? > 0 be the solution to the fixed-point equation
+µ = (L(µ)? a)?1. (89)
+This solution is unique, since L(µ) is a non-decreasing function with limµ?? L(µ) =?. Then,
+?D1 = L(µ
+?), (90)
+and
+|?X?, e1?|2 ?
+[
+??L(µ
+?)
+??L(µ?) + (1/µ?)2
+,
+?+L(µ
+?)
+?+L(µ?) + (1/µ?)2
+]
+, (91)
+where ??L(µ?) and ?+L(µ?) denote the left and right derivative of L(µ), respectively. In particular, if L(µ)
+is differentiable at µ?, then
+|?X?, e1?|2 =
+L?(µ?)
+L?(µ) + (1/µ?)2
+. (92)
+The proof of (90), (91), and (92) uses the characterization (88) and it is analogous to the proof of Proposition
+2 in [LL17].
+At this point, we need to compute Ln(µ) for the matrix Dn defined in (86). To do so, note that
+Pn + µqnq
+?
+n =
+1
+n
+UMnU
+?,
+where Mn is independent of U with
+Mn = Z +
+µ
+n
+vv?.
+We start by studying the spectrum of Mn. Let ?Mn1 ? ?
+Mn
+2 ? · · · ? ?Mnn be the set of eigenvalues of Mn
+and let
+fMn =
+1
+n? 1
+n?
+i=2
+?
+?Mni
+be the empirical spectral measure of the last n? 1 eigenvalues.
+Then, standard interlacing theorems (see [HJ12, Section 4.3]) yield that fMn almost surely converges
+weakly to the probability law of Z. Furthermore, by using the characterization (88), we can show that
+?Mn1
+a.s.?? ?µ = Q?1(1/µ), (93)
+where Q?1 is the inverse of the function
+Q(?) = E
+{
+Z2 · |G|2
+?? Z
+}
+.
+The proof of these results is the same as the proof of Proposition 3 in [LL17].
+21
+Note that Q(?) is defined for ? ? (?,?), it is continuous and strictly decreasing with Q(?) = 0.
+Furthermore, by hypothesis (76), we have that lim???+ Q(?) = ?. Thus, Q(?) admits an inverse and
+Q?1(1/µ) is well-defined for all µ > 0.
+Let us now consider the matrix 1nUMnU
+?. First, if Z ? 0, then Mn is positive semi-definite (PSD)
+and we can apply results from [BGN11, BY12] to compute the limit of Ln(µ). If Mn is not necessarily
+PSD, we use Lemma 3 with ?? = ?µ to conclude that
+Ln(µ)
+a.s.?? ??(?µ), if ???(?µ) > 0,
+Ln(µ)
+a.s.?? min
+?>?
+??(?), if ???(?µ) ? 0.
+(94)
+The remaining part of the proof follows the argument of Section III-D in [LL17]. For the sake of
+readability, we reproduce it below.
+We start by proving the first claim of the lemma. For n ? 1, let µn be the unique solution to the
+fixed-point equation (89). Then,
+Ln(µn)? 1/µn = an.
+Now, fix any µ > 0. Then, by using the definition (75) and the fact that ?µ = Q?1(1/µ), (94) immediately
+implies that, as n??,
+Ln(µ)? 1/µ
+a.s.?? ??(Q?1(1/µ))? 1/µ. (95)
+Note that, as n ? ?, an
+a.s.?? E(Z · |G|2). Furthermore, as Ln(µ) and ??(µ) are non-decreasing, the two
+functions on both sides of (95) are strictly increasing. Consequently, by Lemma 3 in Appendix E of [LL17],
+we conclude that
+µn
+a.s.?? µ?, (96)
+where µ? is the unique fixed point such that
+??(Q
+?1(1/µ?)) = E(Z · |G|2) + 1/µ?. (97)
+Define
+?? = Q?1(1/µ?). (98)
+Then, (97) can be rewritten as
+??(?
+?) = E(Z · |G|2) +Q(??) = ?(??), (99)
+where ? is defined in (72). By construction, ??(?) is a non-decreasing continuous function on (?,?)
+and ?(?) is a strictly decreasing continuous function. Furthermore, by hypothesis (76), we have that
+lim???+ ?(?) = ?. Hence, the existence and the uniqueness of ?? satisfying (99) is guaranteed. This
+suffices to prove the first claim of the lemma.
+Let us now move on to the proof of the second claim of the lemma. Suppose that ??(Q?1(1/µ)) is
+differentiable at µ = µ?. Then, as Ln(µ) is convex for any n ? 1, by Lemma 4 in Appendix E of [LL17],
+we have that
+??Ln(µn)
+a.s.?? d??(Q
+?1(1/µ))
+dµ
+????
+µ=µ?
+=
+?? ??(Q?1(1/µ?))
+Q?(Q?1(1/µ?)) · (µ?)2
+.
+Similarly,
+?+Ln(µn)
+a.s.??
+?? ??(Q?1(1/µ?))
+Q?(Q?1(1/µ?)) · (µ?)2
+.
+22
+By using (91), we obtain that
+|?X?, e1?|2
+a.s.??
+? ??(Q
+?1(1/µ?))
+? ??(Q
+?1(1/µ?))?Q?(Q?1(1/µ?))
+=
+? ??(?
+?)
+? ??(?
+?)? ??(??)
+,
+where the equality follows from the definition (98) of ?? and from the fact that Q?(?) = ??(?). In order
+to prove the second claim of the lemma, it suffices to note that, by its definition in (75), ? ??(?) = ?
+?
+?(?) if
+???(?) > 0, and ?
+?
+?(?) = 0 if ?
+?
+?(?) < 0.
+Finally, let us prove the third claim of the lemma. By using (90), we immediately obtain that ?Dn1 =
+Ln(µn). By applying (96) and Lemma 3 in Appendix E of [LL17], we conclude that
+?Dn1
+a.s.?? ??(??).
+As Pn is obtained by deleting the first row and column of Dn, by applying Cauchy interlacing theorem (see,
+e.g., [HJ12, Theorem 4.3.17]), we also have that
+?Pn2 ? ?
+Dn
+2 ? ?
+Pn
+1 .
+Furthermore, the upper edge of the support of the limiting spectral distribution of Pn is given by [SC95,
+Section 4] and [BY12, Lemma 3.1]
+min
+?>?
+??(?) = ??(???),
+where ??? is defined in (74). Therefore,
+?Dn2
+a.s.?? ??(???),
+which concludes the proof.
+At this point, we are ready to prove our spectral upper bound.
+Proof of Theorem 2. Let G ? CN(0, 1), Y ? p(· | |G|) and Z = T (Y ), where p is defined in (8) and T
+is some pre-processing function that we will choose later on. We will that assume the supremum ? of the
+support of Z is strictly positive and that conditions (76) are satified, and will verify later that our choice of
+the function T satisfies these requirements. Recall that the function ??(?) defined in (73) is convex and that
+it attains its minimum at the point ???. Since by condition (76) ??(?) ? ? as ? ? 0, we have ??? ? (?,?).
+Hence, ???(???) = 0. By calculating the derivative of ??(?) and setting it to 0, we have
+E
+{
+Z2
+(??? ? Z)2
+}
+=
+1
+?
+. (100)
+Furthermore, as pointed out in Remark 4, (24) holds for some  > 0 if and only if
+?(???) > ??(???). (101)
+As ? > 0, we also have that ??? > 0. Consider now the matrix D?n = Dn/? for some ? > 0. Then, the
+principal eigenvector of D?n is equal to the principal eigenvector of Dn. Hence, we can assume without loss
+of generality that ??? = 1. Consequently, the conditions (100) and (101) can be respectively rewritten as
+E
+{
+Z2
+(1? Z)2
+}
+=
+1
+?
+, (102)
+23
+E
+{
+Z(|G|2 ? 1)
+1? Z
+}
+>
+1
+?
+. (103)
+Furthermore, as Z = T (Y ), we also obtain that
+E
+{
+Z2
+(1? Z)2
+}
+=
+?
+R
+(
+T (y)
+1? T (y)
+)2
+EG {p(y | |G|)} dy,
+E
+{
+Z(|G|2 ? 1)
+1? Z
+}
+=
+?
+R
+T (y)
+1? T (y)
+EG
+{
+p(y | |G|) · (|G|2 ? 1)
+}
+dy.
+(104)
+Let T ?(y) be defined in (23). Note that, if we substitute T (y) = T ?(y) into the RHS of (104), then
+E
+{
+Z2
+(1? Z)2
+}
+= E
+{
+Z(|G|2 ? 1)
+1? Z
+}
+=
+1
+?u
+,
+where ?u is defined in (20). Let T ?? (y) be defined in (22). Then,
+T ?? (y)
+1? T ?? (y)
+=
+?
+?u
+?
+T ?(y)
+1? T ?(y)
+,
+which immediately implies that
+E
+{
+(T ?? (Y ))2
+(1? T ?? (Y ))2
+}
+=
+1
+?
+,
+E
+{
+T ?? (Y )(|G|2 ? 1)
+1? T ?? (Y )
+}
+=
+1?
+? · ?u
+>
+1
+?
+.
+As a result, in order to complete the proof, we need to show that the function T ?? (y) fulfills the following
+requirements:
+(1) T ?? (y) is bounded;
+(2) P(T ?? (Y ) = 0) < 1;
+(3) the supremum ? of the support of T ?? (Y ) is strictly positive;
+(4) the condition (76) holds.
+Note that T ?? (y) is bounded, as T ?(y) ? 1. Furthermore,
+EG {p(y | |G|)} = EG
+{
+p(y | |G|)|G|2
+}
+, (105)
+identically, then ?u = ? and the claim of Theorem 2 trivially holds. Hence, we can assume that (105)
+does not hold, which implies that the function T ? is not equal to the constant value 0. Consequently,
+P(T ?? (Y ) = 0) < 1.
+By definition (23) of T ?, we have that
+EY
+{
+1
+1? T ?(Y )
+}
+=
+?
+R
+EG
+{
+p(Y | |G|) · |G|2
+}
+dy = EG
+{
+|G|2
+}
+= 1. (106)
+Hence, P(T ?(Y ) > 0) > 0, which implies that P(T ?? (Y ) > 0) > 0. Consequently, the supremum ? of the
+support of T ?? (Y ) is strictly positive.
+24
+If P(T ?? (Y ) = ?) > 0, then the condition (76) is satisfied. Suppose now that P(T ?? (Y ) = ?) = 0. Then,
+for any 1 > 0, there exists ?1(1) such that
+0 < P
+(
+T ?? (Y ) ? (? ??1(1), ?)
+)
+? 1. (107)
+Define
+T ?? (y, 1) =
+???
+T ?? (y), if T ?? (y) ? ? ??1(1),
+? ??1(1), otherwise.
+(108)
+Clearly, the random variable T ?? (Y, 1) has a point mass, hence the condition (76) is satisfied.
+As a final step, we show that we can take 1 = 0. Define
+Dn(1) =
+1
+n
+n?
+i=1
+T ?? (yi, 1)aia?i .
+Define also
+Dn =
+1
+n
+n?
+i=1
+T ?? (yi)aia?i .
+Let x?(1) and x? be the principal eigenvectors of Dn(1) and of Dn, respectively. Then,
+?Dn(1)?Dn?op ? C1 ·?1(1), (109)
+where the constant C1 depends only on n/d. By Lemma 2, there is a strictly positive gap, call it ?, between
+the first and the second eigenvalue of Dn(1). Consequently, by the Davis-Kahan theorem [DK70], we
+conclude that
+?x?(1)? x?? ? C2 ·?1(1), (110)
+where the constant C2 depends only on n/d and on ?. In words, for any n, as 1 tends to 0, the principal
+eigenvector of Dn(1) tends to the principal eigenvector of Dn. This means that we can set T = T ?? and
+the proof is complete.
+Remark 6 (Proof of Spectral Upper Bound for the Real Case). First, we need to prove a result analogous to
+that of Lemma 2, where X , {Ai}1?i?n, and Y are distributed according to (27), (28), and (29), respectively,
+andG ? N(0, 1). To do so, one can follow the proof of Theorem 1 of [LL17]. The technical difficulty consists
+in the fact that the matrix Mn is not necessarily PSD. In order to solve this issue, we apply the version of
+Lemma 3 for the real case discussed in Remark 7 at the end of Appendix D. At this point, the proof of
+Theorem 4 follows from the same argument as the proof of Theorem 2.
+6 Numerical Experiments
+We focus on the phase retrieval problem and present some numerical results to illustrate the performance
+achieved by the proposed spectral method. First, we consider the case in which the unknown vector is
+chosen uniformly at random and the sensing vectors are Gaussian. Then, we consider the more practical
+scenario in which the unknown vector is an image and the sensing vectors come from a coded diffraction
+model.
+25
+6.1 Gaussian Sensing Vectors for Synthetic Data
+Let us consider the complex case. In our experiments, the vector x is chosen uniformly at random on the d-
+dimensional complex sphere with radius
+?
+d, the sensing vectors {ai}1?i?n are i.i.d. circularly-symmetric
+normal with variance 1/d and, for i ? [n], the measurement yi is equal to |?x,ai?|2. We take d = 4096
+and the numerical simulations are averaged over nsample = 40 independent trials. The results are plotted in
+Figure 2a.
+The red curve corresponds to the proposed pre-processing function given by
+T (y) =
+?????????????
+?M1, for y ?
+1
+1 +M1
+,
+1, for y ?M2,
+1? 1
+y
+, otherwise.
+(111)
+Clearly, as M1,M2 ??, T (y) tends to the optimal pre-processing function T ?(y) = 1? (1/y). We pick
+M1 = 40 and M2 = 20 and, as shown by the figure, weak recovery is possible for values of ? very close to
+1.
+The black curve corresponds to the pre-processing function given by
+T (y) =
+{
+1, for y > t,
+0, otherwise.
+(112)
+This choice was proposed in [WGE16] and it is also considered in [LL17], where the authors refer to it as
+the “subset algorithm”. For each value of t, we can compute the smallest value of ?, call it ??(t), that yields
+a strictly positive scalar product according to the result of Lemma 2. Hence, we pick t = 2 that corresponds
+to the smallest value of ??(t) over t ? {0.25, 0.5, 0.75, . . . , 10}.
+The blue curve corresponds to the pre-processing function given by
+T (y) =
+{
+y, for y ? t,
+0, otherwise.
+(113)
+This choice corresponds to the truncated spectral initialization proposed in [CC17] and it is also considered
+in [LL17], where the authors refer to it as the “trimming algorithm”. For each value of t, we can compute the
+smallest value of ?, call it ??(t), that yields a strictly positive scalar product according to the result of Lemma
+2. Hence, we pick t = 5.25 that corresponds to the smallest value of ??(t) over t ? {0.25, 0.5, 0.75, . . . , 10}.
+Note that the numerical simulations follow closely the theoretical prediction given by (78). Furthermore,
+the choice of the pre-processing function (111) yields a remarkable performance gain with respect to both
+the subset algorithm and the trimming algorithm.
+Similar considerations apply to the real case. Here, the vector x is chosen uniformly at random on the
+d-dimensional real sphere with radius
+?
+d and the sensing vectors {ai}1?i?n are i.i.d. normal with zero
+mean and variance 1/d. We pick d = 4096 and nsample = 40. The results are plotted in Figure 2b. Again,
+the numerical simulations follow closely the theoretical prediction. The red curve corresponds to the pre-
+processing function given by (111), where we pick M1 = 40 and M2 = 30. Note that weak recovery is
+possible for values of ? very close to 1/2. The blue curve corresponds to the pre-processing function given
+by (112), where we pick t = 2 which yields the smallest value of ??(t) over t ? {0.25, 0.5, 0.75, . . . , 10}.
+The black curve corresponds to the pre-processing function given by (113), where we pick t = 7 which
+yields the smallest value of ??(t) over t ? {0.25, 0.5, 0.75, . . . , 10}.
+26
+0 1 2 3 4 5 6 7 8
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+(a) Complex case.
+0 0.5 1 1.5 2 2.5 3 3.5 4
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+(b) Real case.
+Figure 2: Performance of the spectral method for the phase retrieval problem where the unknown vector is
+uniformly random on the sphere and the sensing vectors are Gaussian. On the x-axis, we have the ratio ?
+between the number of samples and the dimension of the signal; on the y-axis, we have the square of the
+normalized scalar product between the unknown signal x and the estimate x?. Note that the proposed choice
+of the pre-processing function (red curve) provides a significant performance improvement with respect to
+the subset algorithm considered in [WGE16, LL17] (black curve) and the truncated spectral initialization
+considered in [CC17, LL17] (blue curve).
+27
+0 2 4 6 8 10 12 14 16 18 20
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+Figure 3: Performance of the spectral method for the phase retrieval problem where the unknown vector is
+a digital photograph and the sensing vectors are obtained from a coded diffraction model. On the x-axis,
+we have the ratio ? between the number of samples and the dimension of the signal; on the y-axis, we have
+the square of the normalized scalar product between the unknown signal x and the estimate x? (averaged on
+the three RGB components of the image). Note that the proposed choice of the pre-processing function (red
+curve) provides a significant performance improvement with respect to the truncated spectral initialization
+considered in [CC17] (blue curve).
+6.2 Coded Diffraction Model for Natural Images
+We consider a model of coded diffraction patterns in which the sensing vectors {ar}1?r?n are obtained as
+follows. For t ? [d], denote by ar(t) the t-th component of the vector ar ? Cd. Then,
+ar(t) = d`(t) · ei2?kt/d, (114)
+where i denotes the imaginary unit and the index r is associated to a pair (`, k), with ` ? [L] and k ? [d]. As
+usual, the measurement yr of an unknown d-dimensional vector x is equal to |?x,ar?|2. As an immediate
+consequence, the number of measurements n is equal to L · d, therefore ? = L ? N. In words, for a fixed
+`, we collect the magnitude of the diffraction pattern of x modulated by d`. By varying ` and changing the
+modulation pattern d`, we generate L distinct views. The vectors {d`}1?`?L are i.i.d. and their entries are
+also i.i.d. drawn uniformly from the set {1,?1, i,?i}.
+We test the spectral method on the digital photograph represented in Figure 1a. Each color image can
+be viewed as a d1 × d2 × 3 array. We run the spectral algorithm separately on the vectors xj ? Rd, where
+d = d1 · d2 and j ? {1, 2, 3}. In our example, d1 = 820 and d2 = 1280. Let x?j be the estimate of xj
+provided by the spectral method. Then, we employ as a performance metric the average squared normalized
+scalar product
+1
+3
+3?
+j=1
+|?x?j ,xj?|2
+?x?j?2 ?xj?2
+. (115)
+Note that the scalar product between the input and the measurement vectors can be interpreted as a Fourier
+transform, hence it can be computed with an FFT algorithm. In order to evaluate the principal eigenvector
+28
+of the data matrix, we use the power method with a random initialization, as described in Appendix B
+of [CLS15b]. As a stopping criterion, we require that one of the following two conditions is fulfilled: the
+number of iterations reaches the maximum value of 10000; the modulus of the scalar product between the
+estimate at the current iteration T and at the iteration T ? 10 is larger than 1? 10?7.
+The results are summarized in Figure 3. The red curve corresponds to the proposed pre-processing
+function given by (111), with M1 = 40 and M2 = 20. The blue curve corresponds to the truncated spectral
+initialization in [CC17], i.e., the pre-processing function is given by (113) with t = 9. The numerical
+simulations for the optimal pre-processing function follow closely the theoretical predictions (78) obtained
+for a Gaussian measurement matrix, with the exception of the point ? = 2. On the contrary, the numerical
+simulations for the truncated spectral initialization show a different behavior with respect to the Gaussian
+model. Our algorithm provides weak recovery of the original image for ? ? 3, while the truncated spectral
+initialization requires ? ? 6. Furthermore, for any value of ?, the proposed choice of the pre-processing
+function yields a better performance than the choice in [CC17]. For a visual representation of these results,
+see Figure 1.
+Acknowledgement
+M. M. was supported by an Early Postdoc.Mobility fellowship from the Swiss National Science Foundation.
+A. M. was partially supported by grants NSF DMS-1613091 and NSF CCF-1714305.
+A Proof of Corollary 1
+We start by providing in Lemma 4 a less compact, but more explicit form of the expression (10). This
+more explicit expression is employed to prove Lemma 5, which yields the value of ?` for the case of phase
+retrieval. Finally, we provide the proof of Corollary 1.
+Lemma 4 (Explicit Formula for f(m) - Complex Case). Consider the function f : [0, 1] ? R defined in
+(10). Then, f(m) is given by the following expression:
+f(m) =
+?
+R
+1
+1?m
+? +?
+0
+? +?
+0
+4r1r2 · p(y | r1)p(y | r2) · exp
+(
+?r
+2
+1 + r
+2
+2
+1?m
+)
+· I0
+(
+2r1r2
+?
+m
+1?m
+)
+dr1dr2? +?
+0
+2r · p(y | r) · exp
+(
+?r2
+)
+dr
+dy,
+(116)
+where I0 denotes the modified Bessel function of the first kind, given by
+I0(x) =
+1
+?
+? ?
+0
+exp (x cos ?) d?. (117)
+Proof. Let us rewrite G as
+G = G(R) + jG(I), with (G(R), G(I)) ? N
+(
+0,
+1
+2
+I2
+)
+,
+i.e., G(R) and G(I) are i.i.d. Gaussian random variables with mean 0 and variance 1/2. Set
+R =
+?(
+G(R)
+)2
++
+(
+G(I)
+)2
+.
+29
+Then, R follows a Rayleigh distribution with scale parameter 1/
+?
+2, hence
+EG {p(y | |G|)} = ER {p(y | R)} =
+? +?
+0
+2r · p(y | r) · exp
+(
+?r2
+)
+dr. (118)
+Let us rewrite (G1, G2) as
+(G1, G2) = (G
+(R)
+1 + jG
+(I)
+1 , G
+(R)
+2 + jG
+(I)
+2 ),
+with
+(G
+(R)
+1 , G
+(R)
+2 , G
+(I)
+1 , G
+(I)
+2 ) ? N
+????0, 12
+????
+1 <(c) 0 ?=(c)
+<(c) 1 =(c) 0
+0 =(c) 1 <(c)
+?=(c) 0 <(c) 1
+????
+???? ,
+and consider the following change of variables:?????????
+G
+(R)
+1 = R1 cos ?1
+G
+(R)
+2 = R2 cos ?2
+G
+(I)
+1 = R1 sin ?1
+G
+(I)
+2 = R2 sin ?2
+.
+Then, after some algebra, we have that
+EG1,G2 {p(y | |G1|) · p(y | |G2|)} =
+1
+?2(1? |c|2)
+? +?
+0
+? +?
+0
+? 2?
+0
+? 2?
+0
+r1r2 · p(y | r1)p(y | r2)·
+exp
+(
+?r
+2
+1 + r
+2
+2 ? 2r1r2 (<(c) cos(?2 ? ?1)?=(c) sin(?2 ? ?1))
+1? |c|2
+)
+dr1 dr2 d?1 d?2.
+(119)
+By writing (<(c),=(c)) = (|c| cos ?c, |c| sin ?c) and by using the definition (117), we can further simplify
+the RHS of (119) as
+1
+1? |c|2
+? +?
+0
+? +?
+0
+4r1r2 · p(y | r1)p(y | r2) · exp
+(
+? r
+2
+1 + r
+2
+2
+1? |c|2
+)
+· I0
+(
+2r1r2|c|
+1? |c|2
+)
+dr1dr2. (120)
+From (118) and (120), the claim easily follows.
+Lemma 5 (Computation of ?` for Phase Retrieval). Let ?`(?2) be defined as in (13) and assume that the
+distribution p(· | |G|) appearing in (10) is given by (9). Then,
+lim
+??0
+?`(?
+2) = 1. (121)
+Proof. For the special case of phase retrieval, it is possible to compute explicitly the function f(m) defined
+in (10) and simplified in Lemma 4. Indeed,? +?
+0
+2r · pPR(y | r) · exp
+(
+?r2
+)
+dr
+(a)
+=
+? +?
+0
+pPR(y |
+?
+z) · exp (?z) dz
+(b)
+=
+? +?
+??
+1
+?
+?
+2?
+exp
+(
+?(y ? z)
+2
+2?2
+)
+· exp (?z) ·H(z) dz
+(c)
+= EZ {exp(?Z)H(Z)} ,
+(122)
+30
+where in (a) we do the change of variables z = r2; in (b) we use the definition (9) and we define H(x) = 1
+if x ? 0 and H(x) = 0 otherwise; and in (c) we define Z ? N(y, ?2). In the limit ?2 ? 0, we have that
+EZ {exp(?Z)H(Z)} ? exp(?y) ·H(y), (123)
+by Lebesgue’s dominated convergence theorem. Similarly,? +?
+0
+? +?
+0
+4r1r2 · pPR(y | r1)pPR(y | r2) · exp
+(
+?r
+2
+1 + r
+2
+2
+1?m
+)
+· I0
+(
+2r1r2
+?
+m
+1?m
+)
+dr1dr2
+(a)
+=
+? +?
+0
+? +?
+0
+pPR(y |
+?
+z1)pPR(y |
+?
+z2) · exp
+(
+?z1 + z2
+1?m
+)
+· I0
+(
+2
+?
+z1z2
+?
+m
+1?m
+)
+dz1dz2
+(b)
+=
+? +?
+??
+? +?
+??
+(
+1
+?
+?
+2?
+)2
+exp
+(
+?(y ? z1)
+2 + (y ? z2)2
+2?2
+)
+· exp
+(
+?z1 + z2
+1?m
+)
+· I0
+(
+2
+?
+z1z2
+?
+m
+1?m
+)
+·H(z1)H(z2)dz1dz2
+(c)
+= EZ1,Z2
+{
+exp
+(
+?Z1 + Z2
+1?m
+)
+· I0
+(
+2
+?
+Z1Z2
+?
+m
+1?m
+)
+·H(Z1)H(Z2)
+}
+,
+where in (a) we do the change of variables z1 = r21 and z2 = r
+2
+2; in (b) we use the definition (9) and we
+define H(x) = 1 if x ? 0 and H(x) = 0 otherwise; and in (c) we define (Z1, Z2) ?i.i.d. N(y, ?2). In the
+limit ?2 ? 0, we have that
+EZ1,Z2
+{
+exp
+(
+?Z1 + Z2
+1?m
+)
+· I0
+(
+2
+?
+Z1Z2
+?
+m
+1?m
+)
+·H(Z1)H(Z2)
+}
+? exp
+(
+? 2y
+1?m
+)
+· I0
+(
+2y
+?
+m
+1?m
+)
+·H(y),
+by Lebesgue’s dominated convergence theorem. As a result, by using (117), we obtain that
+f(m)
+?2?0?? 1
+1?m
+? +?
+0
+exp
+(
+? 2y
+1?m
+)
+· I0
+(
+2y
+?
+m
+1?m
+)
+· exp(y) dy
+=
+1
+?(1?m)
+? ?
+0
+? +?
+0
+exp
+(
+?y
+(
+1 +m? 2
+?
+m cos ?
+1?m
+))
+dy d?
+=
+1
+?
+? ?
+0
+1
+1 +m? 2
+?
+m cos ?
+d? =
+1
+1?m
+.
+Consequently,
+F?(m)
+?2?0?? (1? ?) log(1?m),
+which implies the desired result.
+Proof of Corollary 1. We follow the proof of Theorem 1 presented in Section 4. The first step is exactly the
+same, i.e., by applying Lemma 1, we show that (62) holds. On the contrary, the second step requires some
+modifications, since the definition of the error metric is different. In particular, we will prove that
+1
+d2
+EY1:n,A1:n
+{
+?E {XX?} ? E {XX? | Y1:n,A1:n}?2F
+}
+= on(1). (124)
+31
+Furthermore, we have that
+?E {XX?} ? E {XX? | Y1:n,A1:n}?2F + E
+{
+?XX? ? E {XX? | Y1:n,A1:n}?2F
+}
+(a)
+? E
+{
+?E {XX?} ?XX??2F
+}
+(b)
+= E
+{
+?Id ?XX??2F
+}
+(c)
+= E {trace (Id ? 2XX? + XX?XX?)}
+(d)
+= d? 2d+ d2 = d2 ? d,
+(125)
+where in (a) we use the triangle inequality, in (b) we use that E {XX?} = Id by Lemma 10, in (c) we
+use that, for any matrix A, ?A?F =
+?
+trace(AA?), and in (d) we use that E {trace (XX?XX?)} =
+E
+{
+?X?4
+}
+= d2. By applying (124) and (125), the proof of Corollary 1 is complete.
+Let us now give the proof of (124). Similarly to (65), we have that
+I(Yn+1;Y1:n,A1:n|An+1)
+? 1
+2K2
+· EY1:n,A1:n+1
+{?????
+Cd
+p(x | Y1:n,A1:n)
+?
+R
+pPR(yn+1 | x,Y1:n,A1:n+1)?PR(yn+1)dyn+1dx
+?
+?
+Cd
+p(x)
+?
+R
+pPR(yn+1 | x,An+1)?PR(yn+1) dyn+1 dx
+????2
+}
+,
+(126)
+where we define ?PR(x) = x for |x| ?M , and ?PR(x) = M · sign(x) otherwise. Then,?
+Cd
+p(x | Y1:n,A1:n)
+?
+R
+pPR(yn+1 | x,Y1:n,A1:n+1) · ?PR(yn+1) dyn+1 dx
+(a)
+=
+?
+Cd
+p(x | Y1:n,A1:n)
+?
+R
+pPR(yn+1 | x,Y1:n,A1:n+1) · yn+1 dyn+1 dx + E1
+(b)
+=
+?
+Cd
+p(x | Y1:n,A1:n) · |?An+1,x?|2 dx + E1
+(c)
+= ?An+1,
+(?
+Cd
+p(x | Y1:n,A1:n) · xx? dx
+)
+An+1?+ E1
+= ?An+1,E {XX? | Y1:n,A1:n}An+1?+ E1,
+(127)
+where in (a) we set
+E1 =
+?
+Cd
+p(x | Y1:n,A1:n)
+?
+R
+pPR(yn+1 | x,Y1:n,A1:n+1) · (?PR(yn+1)? yn+1) dyn+1 dx,
+in (b) we use the definition (9), and in (c) we use that |?An+1,x?|2 = ?An+1,xx?An+1?. Similarly, we
+have that?
+Cd
+p(x)
+?
+R
+pPR(yn+1 | x,An+1)?PR(yn+1) dyn+1 dx = ?An+1,E {XX?}An+1?+ E2, (128)
+32
+with
+E2 =
+?
+Cd
+p(x)
+?
+R
+pPR(yn+1 | x,An+1) · (?PR(yn+1)? yn+1) dyn+1 dx.
+By applying (127) and (128), we can rewrite the RHS of (126) as
+1
+2K2
+· EY1:n,A1:nEAn+1
+{
+|?An+1, (E {XX? | Y1:n,A1:n} ? E {XX?})An+1?+ E1 ? E2|2
+}
+? 1
+2K2
+· EY1:n,A1:n
+(
+EAn+1
+{
+|?An+1,MAn+1?|2
+}
+? EAn+1
+{
+|E1|2
+}
+? EAn+1
+{
+|E2|2
+})
+,
+(129)
+where we define M = E {XX? | Y1:n,A1:n} ? E {XX?}. As K goes large, EAn+1
+{
+|Ei|2
+}
+tends to 0,
+for i ? {1, 2}. Furthermore, we have that
+EAn+1
+{
+|?An+1,MAn+1?|2
+}
+=
+d?
+i,j,k,l=1
+MijM
+?
+kl · E {A?iAjA?kAl}
+(a)
+=
+d?
+i,j,k,l=1
+MijM
+?
+kl ·
+1
+d2
+(?ij · ?kl + ?il · ?jk)
+=
+1
+d2
+(
+|trace(M)|2 + ?M?2F
+)
+(b)
+=
+1
+d2
+?M?2F ,
+(130)
+where in (a) we use the following definition of the Kronecker delta:
+?ab =
+{
+1, if a = b,
+0, otherwise,
+(131)
+and in (b) we use that
+trace(M) =
+d?
+i=1
+(
+E
+{
+|Xi|2 | Y1:n,A1:n
+}
+? E
+{
+|Xi|2
+})
+= E
+{
+d?
+i=1
+|Xi|2 | Y1:n,A1:n
+}
+? E
+{
+d?
+i=1
+|Xi|2
+}
+= 0.
+(132)
+As a result, we conclude that (124) holds.
+B Proof of Corollary 2
+First, we evaluate the RHS of (20). Then, we give the proof of Corollary 2.
+Lemma 6 (Computation of ?u for Phase Retrieval). Let ?u(?2) be defined as in (20) and T ?(y) as in (23).
+Assume that the distribution p(· | |G|) is given by (9). Then,
+lim
+??0
+?u(?
+2) = 1. (133)
+33
+Proof. The proof boils down to computing expected values and integrals. By using (118), (122) and (123),
+we immediately obtain that
+EG {pPR(y | |G|)} =
+? +?
+0
+2r · p(y | r) · exp
+(
+?r2
+)
+dr
+?2?0?? exp(?y) ·H(y).
+Similarly, we have that
+EG
+{
+pPR(y | |G|)|G|2
+}
+=
+? +?
+0
+2r3 · p(y | r) · exp
+(
+?r2
+)
+dr
+?2?0?? y · exp(?y) ·H(y).
+Thus, ?
+R
+(
+EG
+{
+p(y | |G|)(|G|2 ? 1)
+})2
+EG {p(y | |G|)}
+dy =
+? +?
+0
+(y ? 1)2 exp(?y)dy = 1,
+which implies the desired result.
+Proof of Corollary 2. Pick ? sufficiently small. Let G ? CN(0, 1), Y ? pPR(· | |G|) and Z = T (Y ),
+where pPR is defined in (9) and T is a pre-processing function (possibly dependent on ?) that we will
+choose later on. Assume that
+(1) T (Y ) is upper and lower bounded by constants independent of ?;
+(2) P(Z = 0) ? c1 < 1 and c1 is independent of ?;
+(3) the condition (76) holds.
+Then, by Lemma 2, we have that, as n??,
+|?X?,X?|2
+?X??2 ?X?2
+a.s.?? ? =
+???????
+0, if ???(?
+?
+?) ? 0,
+???(?
+?
+?)
+???(?
+?
+?)? ??(???)
+, if ???(?
+?
+?) > 0,
+(134)
+where ??? is the unique solution of the equation ??(?) = ?(?), and ?, ?? and ?? are defined in (72), (73) and
+(75), respectively.
+Let ? be the supremum of the support of Z. Assume also that, for ??? < ??? ,
+(4) ? ? c2 > 0 and c2 is independent of ?;
+(5) ??(???) is lower bounded by a constant independent of ?;
+(6) min
+??(min(???,???))
+???? (?) is lower bounded by a strictly positive constant independent of ?.
+34
+Let ??? be the point at which ?? attains its minimum. Then,
+?(???)? ??(???)
+(a)
+= ?(???)? ?(???) + ??(???)? ??(???)
+(b)
+= ?(???)? ?(???) + ??(???)? ??(???)
+(c)
+=
+(
+? ??(x1)? ??(x1)
+)
+· (??? ? ???)
+(d)
+=
+(
+? ??(x1)? ??(x1)
+)
+???? (x2)
+·
+(
+???(?
+?
+?)? ???(???)
+)
+(e)
+=
+(
+? ??(x1)? ??(x1)
+)
+???? (x2)
+· ???(???)
+(f)
+? c3 · ???(???),
+(135)
+where in (a) we use that ??(???) = ?(?
+?
+?), in (b) we use that ??(???) = ??(???), (c) holds for some x1 ?
+(???, ?
+?
+?) by the mean value theorem, (d) holds for some x2 ? (???, ???) by the mean value theorem, and in (e)
+we use that ???(???) = 0. Note that (f) holds for some constant c3 independent of ?, as ?
+?
+?(x1) ? 0, ???? (x2)
+is bounded, and ??(x2) < 0 since P(Z = 0) < 1.
+As ??(???) is bounded, from (134) and (135) we deduce that
+? ? c4 ·
+(
+?(???)? ??(???)
+)
+, (136)
+for some constant c4 independent of ?. Notice that, if ??? ? ???, then the right hand side is non-positive and
+hence the lower bound still holds.
+As ? > 0, we also have that ??? > 0. Consider now the matrix D?n = Dn/? for some ? > 0. Then, the
+principal eigenvector of D?n is equal to the principal eigenvector of Dn. Hence, we can assume without loss
+of generality that ??? = 1. This condition can be rewritten as
+E
+{
+Z2
+(1? Z)2
+}
+=
+1
+?
+, (137)
+and (136) can be rewritten as
+? ? c4 ·
+(
+E
+{
+Z(|G|2 ? 1)
+1? Z
+}
+? 1
+?
+)
+. (138)
+We set
+T (y) = T ?? (y, ?) ,
+y+ ? 1
+y+ +
+?
+? c(?)? 1
+, (139)
+where y+ = max(y, 0) and c(?) is a function of ? to be set as to satisfy Eq. (137). By substituting (139)
+into (137), we get
+E
+{
+Z2
+(1? Z)2
+}
+=
+1
+?c(?)
+E
+{
+(Y+ ? 1)2
+}
+. (140)
+Hence, Eq. (137) is satisfied by
+c(?) = E
+{
+(Y+ ? 1)2
+}
+= E
+{(
+(|G|2 + ?W )+ ? 1
+)2}
+, (141)
+35
+where W ? N(0, 1) is independent of G. Therefore, c(?) is always well defined and, by dominated conver-
+gence, c(?)? c(0) = 1, as ? ? 0. Furthermore,
+E
+{
+Z(|G|2 ? 1)
+1? Z
+}
+=
+1?
+?c(?)
+E
+{
+(Y+ ? 1)(|G|2 ? 1)
+}
+. (142)
+By applying again dominated convergence, we get
+lim
+??0
+E
+{
+Z(|G|2 ? 1)
+1? Z
+}
+=
+1?
+?
+E
+{
+(|G|2 ? 1)2
+}
+=
+1?
+?
+. (143)
+Hence, by using (136), we get that, for ? > 1 and ? ? ?1(?),
+lim inf
+n??
+|?X??,X?|2
+?X??2 ?X?2
+? c5
+( 1?
+?
+? 1
+?
+)
+> 0 , (144)
+where X?? denotes the spectral estimator corresponding to the pre-processing function (139). Let us now
+verify that, by setting T = T ?? , the requirements stated above are fulfilled. As ? > 1, the function T is
+bounded by constants independent of ?. It is also clear that the conditions (2) and (4) hold. Furthermore,
+the conditions (5) and (6) follow by showing that ?(?), ??(?) have well defined unform limits as ? ? 0
+that satisfy those conditions: this can be proved by one more application of dominated convergence.
+In order to show that the condition (3) holds, we follow the argument presented at the end of the proof of
+Lemma 2. First, we add a point mass with associated probability at most 1, which immediately implies that
+(76) is satisfied. Then, by applying the Davis-Kahan theorem [DK70], we show that we can take 1 = 0.
+This proves the claim of the corollary for the pre-processing function T ?? (y, ?), defined in (139). Let us
+now prove that the same conclusion holds for T ?? (y) defined in (25). Let
+fa(x) =
+x+ 1
+x+ a
+. (145)
+Then, for any x, a ? R?0,
+|f ?a(x)| =
+|a? 1|
+(x+ a)2
+? max
+(
+1,
+1
+x2
+)
+. (146)
+Therefore, since T ?? (y, ?) = 1? fy+(
+?
+?c(?)? 1), we have that
+sup
+y?R
+??T ?? (y, ?)? T ?? (y)?? ? 1(
+min(
+?
+?c(?)? 1, 1)
+)2 ?? · ???c(?)? 1?? . (147)
+Denote by Dn(?) and Dn the matrices constructed with the pre-processing functions T ?? (y, ?) and T ?? (y),
+respectively. It follows that, for any ? > 1, there exists a function ?(?) with ?(?)? 0 as ? ? 0 such that
+?Dn(?)?Dn?op ? ?(?) . (148)
+Hence, by applying again the Davis-Kahan theorem, we conclude that, for all ? > 1 and ? ? ?2(?),
+lim inf
+n??
+|?X?,X?|2
+?X??2 ?X?2
+? c5
+( 1?
+?
+? 1
+?
+)
+> 0 , (149)
+where X? is the estimator corresponding to pre-processing function T ?? (y).
+36
+C Auxiliary Lemmas
+Lemma 7 (Distribution of Scalar Product of Two Unit Complex Vectors). Let X1,X2 ?i.i.d. Unif(Sd?1C )
+and define M = |?X1, X2?|2. Then,
+M ? Beta(1, d? 1). (150)
+Proof. Without loss of generality, we can pick X2 to be the first element of the canonical base of Cd. Thus,
+M is equal to the squared modulus of the first component of X1. Furthermore, we can think to X1 as being
+chosen uniformly at random on the 2d-dimensional real sphere with radius 1. Note that, by taking a vector of
+i.i.d. standard Gaussian random variables and dividing it by its norm, we obtain a vector uniformly random
+on the sphere of radius 1. Hence,
+M =
+U21 + U
+2
+2?2d
+i=1 U
+2
+i
+, with {Ui}1?i?2d ?i.i.d. N(0, 1).
+Set A = U21 + U
+2
+2 and B =
+?2d
+i=3 U
+2
+i . Then, A and B are independent, A follows a Gamma distribution
+with shape 1 and scale 2, i.e., A ? ?(1, 2), and B follows a Gamma distribution with shape d? 1 and scale
+2, i.e., B ? ?(d? 1, 2). Thus, we conclude that
+M =
+A
+A+B
+? Beta(1, d? 1),
+which proves the claim.
+Lemma 8 (Distribution of Scalar Product of Two Unit Real Vectors). Let X1,X2 ?i.i.d. Unif(Sd?1R ) and
+define M = ?X1, X2?. Then, the distribution of M is given by
+p(m) =
+?(d2)?
+??(d?12 )
+(1?m2)
+d?3
+2 , m ? [?1, 1]. (151)
+Proof. Without loss of generality, we can pick X2 to be the first element of the canonical base of Rd. Thus,
+M is equal to the first component of X1. Note that, by taking a vector of i.i.d. standard Gaussian random
+variables and dividing it by its norm, we obtain a vector uniformly random on the sphere of radius 1. Hence,
+M2 =
+U21?d
+i=1 U
+2
+i
+, with {Ui}1?i?d ?i.i.d. N(0, 1).
+Set A = U21 and B =
+?d
+i=2 U
+2
+i . Then, A and B are independent, A follows a Gamma distribution with
+shape 1/2 and scale 2, i.e., A ? ?(1/2, 2), and B follows a Gamma distribution with shape (d ? 1)/2 and
+scale 2, i.e., B ? ?((d? 1)/2, 2). Thus, we obtain that
+M2 =
+A
+A+B
+? Beta(1/2, (d? 1)/2).
+A change of variable and the observation that the distribution of M is symmetric around 0 immediately let
+us conclude that, for m ? [?1, 1],
+p(m) = c · (1?m2)
+d?3
+2 , (152)
+where the normalization constant c is given by
+c =
+(? 1
+?1
+(1?m2)
+d?3
+2 dm
+)?1
+=
+?(d2)?
+??(d?12 )
+.
+37
+Lemma 9 (Laplace’s Method). Let F : [0, 1]? R be such that
+• F is continuous;
+• F (x) < 0 for x ? (0, 1];
+• F (0) = 0.
+Then,
+lim
+n?+?
+? 1
+0
+exp (n · F (x)) dx = 0. (153)
+Proof. Pick  > 0 and separate the integral into two parts:? 1
+0
+exp (n · F (x)) dx =
+? 
+0
+exp (n · F (x)) dx+
+? 1
+
+exp (n · F (x)) dx.
+Now, the first integral is at most  since F (x) ? 0 for any x ? [0, 1], and the second integral tends to 0 as
+n? +? since F (x) < 0 for x ? (0, 1]. Thus, the claim immediately follows.
+Lemma 10 (Second Moment of Uniform Vector on Complex Sphere). Let X ? Unif(
+?
+dSd?1C ). Then,
+E {XX?} = Id. (154)
+Proof. Let Z ? CN(0, Id) and note that, by taking a vector of i.i.d. standard complex normal random
+variables and dividing it by its norm, we obtain a vector uniformly random on the complex sphere of radius
+1. Then, X =
+?
+dZ/ ?Z?.
+For i ? [d], denote by Xi and by Zi the i-th component of X and Z, respectively. Then, for i 6= j,
+E
+{
+XiX
+?
+j
+}
+= d · E
+{
+ZiZ
+?
+j
+?Z?2
+}
+= 0,
+where the last equality holds by symmetry. Furthermore,
+E
+{
+|Xi|2
+}
+= d · E
+{
+|Zi|2
+?Z?2
+}
+= 1,
+as |Zi|2/ ?Z?2 ? Beta(1, d? 1) by the argument of Lemma 7. As a result, the thesis is readily proved.
+D Proof of Lemma 3
+Before presenting the proof of the lemma, let us introduce some basic definitions and well-known results.
+LetH be a probability measure on [0,+?). Denote by ?H the support ofH and by ? the supremum of ?H .
+Let sH(g) denote the Stieltjes transform of H , which is defined as
+sH(g) =
+?
+1
+g ? t
+dH(t), (155)
+and let gH(s) denote its inverse.
+Consider a matrix
+Sn =
+1
+d
+UMnU
+?, (156)
+and assume that
+38
+(1) Mn is PSD for all n ? N;
+(2) U ? Cd×n is a random matrix whose entries {Ui,j}1?i?d,1?j?n are i.i.d. such that E {Ui,j} = 0,
+E
+{
+|Ui,j |2
+}
+= 1, and E
+{
+|Ui,j |4
+}
+<? (this includes the cases in which the entries are ?i.i.d. CN(0, 1)
+or are ?i.i.d. N(0, 1));
+(3) The sequence of empirical spectral distributions of Mn ? Cn×n converges weakly to a probability
+distribution H , as n? +?;
+(4) n/d? ? ? (0,+?), as n??;
+(5) The sequence of spectral norms of Mn is bounded.
+Note that the normalization of (156) differs from the normalization of (80) by a factor of ?. However, since
+the form (156) is more common in the literature, we will stick to it for the rest of this section. In order to
+obtain the desired result for the matrix (80), it suffices to incorporate a factor 1/? in the definition of the
+function ??.
+Let F?,H be the probability measure on [0,+?) such that the inverse gF?,H of its Stieltjes transform
+sF?,H is given by
+gF?,H (s) = ?
+1
+s
++ ?
+?
+t
+1 + ts
+dH(t), s ? {z ? C : =(z) > 0}. (157)
+Then, the sequence of empirical spectral distributions of Sn converges weakly to F?,H [MP67], [SB10,
+Chapter 4].
+For ? 6? ?H and ? 6= 0, let us also define
+?F?,H (?) = gF?,H
+(
+? 1
+?
+)
+. (158)
+The function ?F?,H links the support of F?,H with the support of the generating measure H (see [SC95,
+Section 4] and [BY12, Lemma 3.1]). In particular, if ? 6? ?F?,H , then sF?,H (?) 6= 0 and ? = ?1/sF?,H (?)
+satisfies
+(1) ? 6? ?H and ? 6= 0 (so that ?(?) is well-defined);
+(2) ??F?,H (?) > 0.
+Conversely, if ? satisfies (1) and (2), then ? = ?F?,H (?) 6? ?F?,H .
+Let ?Mn1 denote the largest eigenvalue of Mn and assume that, as n??,
+?Mn1
+a.s.?? ?? 6? ?H . (159)
+Denote by ?Sn1 the largest eigenvalue of Sn. Then, the results in [BGN11, BY12] prove that
+?Sn1
+a.s.?? ?? = ?F?,H (??), if ?
+?
+F?,H
+(??) > 0,
+?Sn1
+a.s.?? min
+?>?
+?F?,H (?), if ?
+?
+F?,H
+(??) ? 0.
+(160)
+Informally, the eigenvalue ?Mn1 is mapped into the point ?F?,H (??), where ?? = ?1/sF?,H (??). This point
+emerges from the support of F?,H if and only if ??F?,H (??) > 0.
+In what follows, we relax the first hypothesis, i.e., we consider the case in which the matrix Mn is not
+PSD. We will show that (160) still holds, which implies the claim of Lemma 3.
+39
+Proof of Lemma 3. As U is drawn from a rotationally invariant distribution, we can assume without loss of
+generality that Mn is diagonal. Then, we have that
+Sn = (U+,U?)
+(
+M+n 0
+0 ?M?n
+)(
+U?+
+U??
+)
+=
+1
+d
+U+M
++
+n U
+?
++ ?
+1
+d
+U?M
+?
+n U
+?
+?,
+(161)
+where M+n ? Rk×k is the diagonal matrix containing the positive eigenvalues of Mn, M?n ? R(n?k)×(n?k)
+is the diagonal matrix containing the negative eigenvalues of Mn with the sign changed, U+ contains the
+first k columns of U , and U? contains the remaining n? k columns of U .
+Note that U+ and U? are independent. Furthermore, if H is a unitary matrix, then U? and HU? have
+the same distribution. Hence, we can rewrite the matrix Sn as
+Sn =
+1
+d
+U1M
++
+n U
+?
+1 ?
+1
+d
+HU2M
+?
+n U
+?
+2H
+?, (162)
+where U1 and U2 are independent with entries?i.i.d. CN(0, 1), and H is a random unitary matrix distributed
+according to the Haar measure.
+Recall that, by hypothesis, the sequence of empirical spectral distributions of Mn converges weakly
+to the probability distribution H , where H is the law of the random variable Z. Then, the sequence of
+empirical spectral distributions of M+n converges weakly to the probability distribution H
++, where H+ is
+the law of Z+ = max(Z, 0). Let F?,H+ be the probability measure on [0,+?) such that the inverse gF?,H+
+of its Stieltjes transform sF?,H+ is given by
+gF?,H+ (s) = ?
+1
+s
++ ?
+?
+t
+1 + ts
+dH+(t). (163)
+Define S+n =
+1
+dU1M
++
+n U
+?
+1 . Then, as M
++
+n is PSD, the sequence of empirical spectral distributions of S
++
+n
+converges weakly to F?,H+ [MP67], [SB10, Chapter 4].
+Similarly, the sequence of empirical spectral distributions of M?n converges weakly to the probability
+distribution H?, where H? is the law of Z? = ?min(Z, 0). Let F?,H? be the probability measure on
+[0,+?) such that the inverse gF?,H? of its Stieltjes transform sF?,H? is given by
+gF?,H? (s) = ?
+1
+s
++ ?
+?
+t
+1 + ts
+dH?(t). (164)
+Define S?n =
+1
+dU2M
+?
+n U
+?
+2 . Then, as M
+?
+n is PSD, the sequence of empirical spectral distributions of S
+?
+n
+converges weakly to F?,H? [MP67], [SB10, Chapter 4]. Furthermore, the sequence of empirical spectral
+distributions of ?S?n converges weakly to the probability measure F?,H?inv such that
+gF
+?,H?
+inv
+(s) = ?gF?,H? (?s), (165)
+where gF
+?,H?
+inv
+denotes the inverse of the Stieltjes transform sF
+?,H?
+inv
+of F?,H?inv .
+Define
+F?,H = F?,H+  F?,H?inv
+, (166)
+40
+where  denotes the free additive convolution. Recall the decomposition (162). Then, the sequence of
+empirical spectral distributions of Sn converges weakly to F?,H [Voi91, Spe93]. Consequently, the inverse
+gF?,H of the Stieltjes transform sF?,H of F?,H can be computed as
+gF?,H (s)
+(a)
+= gF?,H+F?,H?
+inv
+(s)
+(b)
+= gF?,H+ (s) + gF?,H?
+inv
+(s) +
+1
+s
+(c)
+= ?1
+s
++ ?
+?
+t
+1 + ts
+dH+(t)? ?
+?
+t
+1? ts
+dH?(t)
+(d)
+= ?1
+s
++ ?
+?
+t
+1 + ts
+dH+(t) + ?
+?
+t
+1 + ts
+dH?(?t)
+(e)
+= ?1
+s
++ ?
+?
+t
+1 + ts
+dH(t),
+(167)
+where in (a) we use (166), in (b) we use that the R-transform of the free convolution is the sum of the
+R-transforms of the addends, in (c) we use (163), (164), and (165), in (d) we perform the change of variable
+t? ?t in the second integral; and in (e) we use the fact that H+(t) is the law of max(Z, 0), H?(?t) is the
+law of min(Z, 0), and that t/(1 + ts) = 0 for t = 0.
+By hypothesis, ?Mn1
+a.s.?? ?? 6? ?H . First, we establish under what condition the largest eigenvalue
+of S+n , call it ?
+S+n
+1 , converges to a point outside the support of F?,H+ . To do so, define ?F?,H+ (?) =
+gF?,H+ (?1/?). Then, ?
+S+n
+1
+a.s.?? ?F?,H+ (??), if ?
+?
+F?,H+
+(??) > 0; and ?
+S+n
+1 converges almost surely to a
+point inside the support of F?,H+ , otherwise [BGN11, BY12].
+For the moment, assume that ??F?,H+ (??) > 0. We now establish under what condition the largest
+eigenvalue of Sn, call it ?Sn1 , converges to a point outside the support of F?,H . To do so, let ?1 and ?2
+denote the subordination functions corresponding to the free convolution F?,H+  F?,H?inv . These functions
+satisfy the following analytic subordination property:
+sF?,H+F?,H?
+inv
+(z) = sF?,H+ (?1(z)) = sF?,H?
+inv
+(?2(z)). (168)
+Then, by Theorem 2.1 of [BBCF15], we have that the spike?F?,H+ (??) is mapped into the point ?
+?1
+1 (?F?,H+ (??)).
+The Stieltjes transform at this point is given by
+sF?,H+F?,H?
+inv
+(??11 (?F?,H+ (??)))
+(a)
+= sF?,H+ (?F?,H+ (??))
+(b)
+= sF?,H+ (gF?,H+ (?1/??))
+(c)
+= ?1/??,
+where in (a) we use (168), in (b) we use the definition of ?F?,H+ , and in (c) we use that gF?,H+ is the
+functional inverse of the Stieltjes transform sF?,H+ . As a result, by [SC95, Section 4], we conclude that
+??11 (?F?,H+ (??)) 6? ?F?,H if and only if ?
+?
+F?,H
+(??) > 0. Furthermore, the condition ??F?,H (??) > 0 is
+more restrictive than the condition ??F?,H+ (??) > 0 since
+??F?,H+
+(??) = 1? ?
+? (
+t
+?? ? t
+)2
+dH+ ? 1? ?
+? (
+t
+?? ? t
+)2
+dH = ??F?,H (??).
+41
+Hence, ?Sn1 converges to a point outside the support of F?,H if and only if ?
+?
+F?,H
+(??) > 0 and the proof is
+complete.
+Remark 7 (Lemma 3 for the Real Case). Consider the random matrix 1nUMnU
+T , where U ? R(d?1)×n
+is a random matrix whose entries are ?i.i.d. N(0, 1) and Mn ? Rn×n. Then, the claim of Lemma 3 still
+holds. Let us briefly explain why this is the case.
+If Mn is PSD, then the results of [BGN11, BY12] allow us to conclude. If Mn is not PSD, we can write
+an expression analogous to (162):
+1
+d
+UMnU
+T =
+1
+d
+U1M
++
+n U
+T
+1 ?
+1
+d
+HU2M
+?
+n U
+T
+2 H
+?, (169)
+where M+n is the diagonal matrix containing the positive eigenvalues of Mn, M
+?
+n is the diagonal matrix
+containing the negative eigenvalues of Mn with the sign changed, U1 and U2 are independent with entries
+?i.i.d. N(0, 1), H is a random unitary matrix distributed according to the Haar measure, and we have used
+the fact that the eigenvalues of U2M?n U
+T
+2 are the same as the eigenvalues of HU2M
+?
+n U
+T
+2 H
+? since H is
+unitary. Hence, the proof follows from the same argument of Lemma 3.
+References
+[AGMM15] Sanjeev Arora, Rong Ge, Tengyu Ma, and Ankur Moitra, Simple, efficient, and neural algo-
+rithms for sparse coding, Conference on Learning Theory (COLT) (Paris, France), July 2015,
+pp. 113–149.
+[BBCF15] Serban T. Belinschi, Hari Bercovici, Mireille Capitaine, and Maxime Février, Outliers in the
+spectrum of large deformed unitarily invariant models, arXiv:1412.4916, 2015.
+[BCE06] Radu Balan, Pete Casazza, and Dan Edidin, On signal reconstruction without phase, Applied
+and Computational Harmonic Analysis 20 (2006), no. 3, 345–356.
+[BGN11] Florent Benaych-Georges and Raj R. Nadakuditi, The eigenvalues and eigenvectors of finite,
+low rank perturbations of large random matrices, Advances in Mathematics 227 (2011), no. 1,
+494–521.
+[BKM+17] Jean Barbier, Florent Krzakala, Nicolas Macris, Léo Miolane, and Lenka Zdeborová, Phase
+transitions, optimal errors and optimality of message-passing in generalized linear models,
+arXiv:1708.03395 (2017).
+[BLM15] Mohsen Bayati, Marc Lelarge, and Andrea Montanari, Universality in polytope phase transi-
+tions and message passing algorithms, Annals of Applied Probability 25 (2015), no. 2, 753–
+822.
+[BM12] Mohsen Bayati and Andrea Montanari, The LASSO risk for Gaussian matrices, IEEE Trans.
+Inform. Theory 58 (2012), no. 4, 1997–2017.
+[BMDK17] Jean Barbier, Nicolas Macris, Mohamad Dia, and Florent Krzakala, Mutual information and
+optimality of approximate message-passing in random linear estimation, arXiv:1311.2445,
+2017.
+42
+[BY12] Zhidong Bai and Jianfeng Yao, On sample eigenvalues in a generalized spiked population
+model, Journal of Multivariate Analysis 106 (2012), 167–177.
+[CC15] Yuxin Chen and Emmanuel J. Candès, Solving random quadratic systems of equations is nearly
+as easy as solving linear systems, Advances in Neural Information Processing Systems, 2015,
+pp. 739–747.
+[CC16] , The projected power method: An efficient algorithm for joint alignment from pairwise
+differences, arXiv:1609.05820, 2016.
+[CC17] , Solving random quadratic systems of equations is nearly as easy as solving linear
+systems, Communications on Pure and Applied Mathematics 70 (2017), 0822–0883.
+[CESV15] Emmanuel J. Candès, Yonina C. Eldar, Thomas Strohmer, and Vladislav Voroninski, Phase
+retrieval via matrix completion, SIAM Review 57 (2015), no. 2, 225–251.
+[CLM16] T. Tony Cai, Xiaodong Li, and Zongming Ma, Optimal rates of convergence for noisy sparse
+phase retrieval via thresholded Wirtinger flow, The Annals of Statistics 44 (2016), no. 5, 2221–
+2251.
+[CLS15a] Emmanuel J. Candès, Xiaodong Li, and Mahdi Soltanolkotabi, Phase retrieval from coded
+diffraction patterns, Applied and Computational Harmonic Analysis 39 (2015), no. 2, 277–
+299.
+[CLS15b] , Phase retrieval via Wirtinger flow: Theory and algorithms, IEEE Trans. Inform.
+Theory 61 (2015), no. 4, 1985–2007.
+[Cor06] John V. Corbett, The Pauli problem, state reconstruction and quantum-real numbers, Reports
+on Mathematical Physics 57 (2006), no. 1, 53–68.
+[CSV13] Emmanuel J. Candès, Thomas Strohmer, and Vladislav Voroninski, Phaselift: Exact and stable
+signal recovery from magnitude measurements via convex programming, Communications on
+Pure and Applied Mathematics 66 (2013), no. 8, 1241–1274.
+[DJ17] Laurent Demanet and Vincent Jugnon, Convex recovery from interferometric measurements,
+IEEE Trans. Computational Imaging 3 (2017), no. 2, 282–295.
+[DJM13] David L. Donoho, Adel Javanmard, and Andrea Montanari, Information-theoretically opti-
+mal compressed sensing via spatial coupling and approximate message passing, IEEE Trans.
+Inform. Theory 59 (2013), no. 11, 7434–7464.
+[DK70] Chandler Davis and William M. Kahan, The rotation of eigenvectors by a perturbation. III,
+SIAM Journal on Numerical Analysis 7 (1970), no. 1, 1–46.
+[DL17] Oussama Dhifallah and Yue M. Lu, Fundamental limits of PhaseMax for phase retrieval: A
+replica analysis, arXiv:1708.03355 (2017).
+[DM16] David L. Donoho and Andrea Montanari, High dimensional robust M-estimation: Asymptotic
+variance via approximate message passing, Probability Theory and Related Fields 166 (2016),
+no. 3–4, 935–969.
+43
+[DMM11] David L. Donoho, Arian Maleki, and Andrea Montanari, The noise-sensitivity phase transition
+in compressed sensing, IEEE Trans. Inform. Theory 57 (2011), no. 10, 6920–6941.
+[DR17] John C. Duchi and Feng Ruan, Solving (most) of a set of quadratic equalities: Composite
+optimization for robust phase retrieval, arXiv:1705.02356 (2017).
+[FD87] J. R. Fienup and J. C. Dainty, Phase retrieval and image reconstruction for astronomy, Image
+Recovery: Theory and Application (1987), 231–275.
+[Fie82] J. R. Fienup, Phase retrieval algorithms: A comparison, Applied Optics 21 (1982), no. 15,
+2758–2769.
+[Ger72] Ralph W. Gerchberg, A practical algorithm for the determination of the phase from image and
+diffraction plane pictures, Optik 35 (1972), 237–246.
+[Har93] Robert W. Harrison, Phase problem in crystallography, J. Optical Soc. America A 10 (1993),
+no. 5, 1046–1055.
+[HJ12] Roger A. Horn and Charles R. Johnson, Matrix analysis, Cambridge University Press, 2012.
+[JNS13] Prateek Jain, Praneeth Netrapalli, and Sujay Sanghavi, Low-rank matrix completion using al-
+ternating minimization, Proc. of the 45th Ann. ACM Symp. on Theory of Computing (STOC)
+(Palo Alto, CA), ACM, June 2013, pp. 665–674.
+[Kar13] Noureddine El Karoui, Asymptotic behavior of unregularized and ridge-regularized high-
+dimensional robust regression estimators: Rigorous results, arXiv:1311.2445, 2013.
+[KMO10] Raghunandan H. Keshavan, Andrea Montanari, and Sewoong Oh, Matrix completion from a
+few entries, IEEE Trans. Inform. Theory 56 (2010), no. 6, 2980–2998.
+[LGL15] Gen Li, Yuantao Gu, and Yue M. Lu, Phase retrieval using iterative projections: Dynamics
+in the large systems limit, Proc. of the 53rd Annual Allerton Conf. on Commun., Control, and
+Computing (Allerton) (Monticello, IL), Oct. 2015, pp. 1114–1118.
+[LL17] Yue M. Lu and Gen Li, Phase transitions of spectral initialization for high-dimensional non-
+convex estimation, Proc of the IEEE Int. Symposium on Inform. Theory (ISIT) (Aachen, Ger-
+many), June 2017.
+[LLJB17] Kiryung Lee, Yanjun Li, Marius Junge, and Yoram Bresler, Blind recovery of sparse signals
+from subsampled convolution, IEEE Trans. Inform. Theory 63 (2017), no. 2, 802–821.
+[LLSW16] Xiaodong Li, Shuyang Ling, Thomas Strohmer, and Ke Wei, Rapid, robust, and reliable blind
+deconvolution via nonconvex optimization, arXiv:1606.04933, 2016.
+[Mil90] Rick P. Millane, Phase retrieval in crystallography and optics, J. Optical Soc. America A 7
+(1990), no. 3, 394–411.
+[MISE08] Jianwei Miao, Tetsuya Ishikawa, Qun Shen, and Thomas Earnest, Extending X-ray crystallog-
+raphy to allow the imaging of noncrystalline materials, cells, and single protein complexes,
+Annu. Rev. Phys. Chem. 59 (2008), 387–410.
+44
+[MP67] Vladimir A. Marc?enko and Leonid A. Pastur, Distribution of eigenvalues in certain sets of
+random matrices, Mat. Sb. (N.S.) 72 (1967), 457–483 (in Russian).
+[NJS13] Praneeth Netrapalli, Prateek Jain, and Sujay Sanghavi, Phase retrieval using alternating mini-
+mization, Advances in Neural Information Processing Systems, 2013, pp. 2796–2804.
+[OTH13] Samet Oymak, Christos Thrampoulidis, and Babak Hassibi, The squared-error of generalized
+LASSO: A precise analysis, Proc. of the 51st Annual Allerton Conf. on Commun., Control, and
+Computing (Allerton) (Monticello, IL), Oct. 2013, pp. 1002–1009.
+[RG01] Sundeep Rangan and Vivek K. Goyal, Recursive consistent estimation with bounded noise,
+IEEE Trans. Inform. Theory 47 (2001), no. 1, 457–464.
+[RP16] Galen Reeves and Henry D. Pfister, The replica-symmetric prediction for compressed sensing
+with Gaussian matrices is exact, Proc. of the IEEE Int. Symposium on Inform. Theory (ISIT)
+(Barcelona, Spain), July 2016, pp. 665–669.
+[SB10] Jack W. Silverstein and Zhidong Bai, Spectral Analysis of Large Dimensional Random Matri-
+ces (2nd edition), Springer, 2010.
+[SC95] Jack W. Silverstein and Sang-Il Choi, Analysis of the limiting spectral distribution of large-
+dimensional random matrices, Journal of Multivariate Analysis 54 (1995), no. 2, 295–309.
+[SC16] Weijie Su and Emmanuel J. Candès, Slope is adaptive to unknown sparsity and asymptotically
+minimax, Annals of Statistics 44 (2016), no. 3, 1038–1068.
+[SEC+15] Yoav Shechtman, Yonina C. Eldar, Oren Cohen, Henry N. Chapman, Jianwei Miao, and
+Mordechai Segev, Phase retrieval with application to optical imaging: a contemporary
+overview, IEEE Signal Processing Magazine 32 (2015), no. 3, 87–109.
+[Sol17] Mahdi Soltanolkotabi, Structured signal recovery from quadratic measurements: Breaking
+sample complexity barriers via nonconvex optimization, arXiv:1702.06175, 2017.
+[Spe93] Roland Speicher, Free convolution and the random sum of matrices, Publ. Res. Inst. Math. Sci.
+29 (1993), 731–744.
+[SR15] Philip Schniter and Sundeep Rangan, Compressive phase retrieval via generalized approximate
+message passing, IEEE Trans. Signal Processing 63 (2015), no. 4, 1043–1055.
+[UE88] Michael Unser and Murray Eden, Maximum likelihood estimation of linear signal parameters
+for Poisson processes, IEEE Trans. Acoust., Speech, and Signal Process. 36 (1988), no. 6,
+942–945.
+[VJ17] Ramji Venkataramanan and Oliver Johnson, Strong converse bounds for high-dimensional es-
+timation, arXiv:1706.04410, 2017.
+[Voi91] Dan Voiculescu, Limit laws for random matrices and free products, Inventiones Mathematicae
+104 (1991), 201–220.
+[Wal63] Adriaan Walther, The question of phase retrieval in optics, Journal of Modern Optics 10 (1963),
+no. 1, 41–49.
+45
+[WdM15] Irène Waldspurger, Alexandre d’Aspremont, and Stéphane Mallat, Phase recovery, maxcut and
+complex semidefinite programming, Mathematical Programming 149 (2015), no. 1-2, 47–81.
+[Wei15] Ke Wei, Solving systems of phaseless equations via Kaczmarz methods: A proof of concept
+study, Inverse Problems 31 (2015), no. 12.
+[WG16] Gang Wang and Georgios B. Giannakis, Solving random systems of quadratic equations via
+truncated generalized gradient flow, Advances in Neural Information Processing Systems,
+2016, pp. 568–576.
+[WGE16] Gang Wang, Georgios B. Giannakis, and Yonina C. Eldar, Solving systems of random quadratic
+equations via truncated amplitude flow, arXiv:1605.08285, 2016.
+[YLSV12] Feng Yang, Yue M. Lu, Luciano Sbaiz, and Martin Vetterli, Bits from photons: Oversampled
+image acquisition using binary Poisson statistics, IEEE Trans. Image Process. 21 (2012), no. 4,
+1421–1436.
+[ZK16] Lenka Zdeborová and Florent Krzakala, Statistical physics of inference: Thresholds and algo-
+rithms, Advances in Physics 65 (2016), no. 5, 453–552.
+[ZL16] Huishuai Zhang and Yingbin Liang, Reshaped Wirtinger Flow for solving quadratic system of
+equations, Advances in Neural Information Processing Systems, 2016, pp. 2622–2630.
+46

@@ -1,0 +1,1191 @@
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 1
+Incremental Import Vector Machines for Classifying
+Hyperspectral Data
+Ribana Roscher, Bjo?rn Waske, Member, IEEE, Wolfgang Fo?rstner, Member, IEEE
+Abstract—In this paper we propose an incremental learning
+strategy for import vector machines (IVM), which is a sparse
+kernel logistic regression approach. We use the procedure for the
+concept of self-training for sequential classification of hyperspec-
+tral data. The strategy comprises the inclusion of new training
+samples to increase the classification accuracy and the deletion
+of non-informative samples to be memory- and runtime-efficient.
+Moreover, we update the parameters in the incremental IVM
+model without re-training from scratch. Therefore, the incremen-
+tal classifier is able to deal with large data sets. The performance
+of the IVM in comparison to support vector machines (SVM) is
+evaluated in terms of accuracy and experiments are conducted
+to assess the potential of the probabilistic outputs of the IVM.
+Experimental results demonstrate that the IVM and SVM
+perform similar in terms of classification accuracy. However, the
+number of import vectors is significantly lower when compared
+to the number of support vectors and thus, the computation time
+during classification can be decreased. Moreover, the probabilities
+provided by IVM are more reliable, when compared to the
+probabilistic information, derived from an SVM’s output. In
+addition, the proposed self-training strategy can increase the
+classification accuracy. Overall, the IVM and the its incremental
+version is worthwhile for the classification of hyperspectral data.
+Index Terms—Import vector machines, incremental learning,
+hyperspectral data, self-training.
+I. INTRODUCTION
+Hyperspectral imaging, also known as imaging spectroscopy
+is used for more than two decades for monitoring the earth [1].
+The spectrally continuous data ranges from visible to the
+short-wave infrared region of the electromagnetic spectrum
+and thus, enables a detailed separation of similar surface
+materials. Therefore hyperspectral imagery is used for classi-
+fication problems that require a precise differentiation in spec-
+tral feature space [2]–[4]. Hyperspectral applications become
+even more attractive, regarding the increased availability of
+hyperspectral imagery through future space-borne missions,
+such as the German EnMAP (Environmental Mapping and
+Analysis Program) [5] and the Italian PRISMA (Hyperspectral
+Precursor of the Application Mission).
+Nevertheless, the special properties of hyperspectral im-
+agery demand more sophisticated image (pre-)processing and
+The authors are with the Institute of Geodesy and Geoinformation, Fac-
+ulty of Agriculture, University of Bonn, 53115 Bonn, Germany (e-mail:
+rroscher@uni-bonn.de, bwaske@uni-bonn.de, wfoerstn@uni-bonn.de).
+This work was supported by CROP.SENSe.net project, funded by the German
+Federal Ministry of Education and Research (BMBF) within the scope of
+the competitive grants program Networks of excellence in agricultural and
+nutrition research (FKZ: 0315529).
+Manuscript received May 4, 2011
+analysis [6], [7]. Conventional methods, such as the maxi-
+mum likelihood classifier, can be limited when applied to
+hyperspectral imagery, due to the high-dimensional feature
+space and a finite number of training samples. Consequently,
+the classification accuracy often decreases with an increasing
+number of bands (i. e., the well-known Hughes phenomena).
+Thus, more flexible classifiers, such as spectral angle mapper,
+neural networks and support vector machines (SVM), are
+applied on hyperspectral imagery [2], [4], [8], [9].
+Among the various developments in the field of pattern
+recognition, SVM [10] are perhaps the most popular approach
+in recent hyperspectral applications [7]. SVM can outperform
+other methods in terms of the classification accuracy [11],
+[12] and still exhibit further modification and improvement,
+e. g., in context of modifying the kernel functions [13] and
+semi-supervised learning [14]. Whereas other classifiers can
+directly solve multi-class problems, the binary nature of SVM
+requires an adequate multi-class strategy (e. g., [15]). In
+contrast to other classifiers, which directly provide class labels
+or probabilities, SVM provide the distance of each pixel to the
+hyperplane of the binary classification problem. This informa-
+tion is used to determine the final class membership. Although
+the output of SVM can be transferred to probabilities (e. g.,
+[16]), the reliability of these values could be inadequate [17],
+[18]. Nevertheless, probabilities are of interest and can be
+used e. g., as input in a markov random field model or for
+uncertainty analysis [19]–[21].
+Logistic regression as an alternative probabilistic discrim-
+inative classification model was already used in context of
+classification and feature selection of hyperspectral imagery
+[22], [23]. The approach was extended to kernel logistic
+regression, e. g., [24], [25], showing a better accuracy but
+a higher complexity. To overcome the limitations in context
+of efficiency and computation time several sparse realizations
+of (kernel) logistic regression have been developed, including
+the explicit usage of a sparsity enforcing prior [26]–[29], an
+implicit prior used in the relevance vector machines (RVM)
+[17], [18], [30] or a greedy subset selection for the concept of
+import vector machines (IVM) [31].
+Recent classifier developments, such as SVM, usually per-
+form well on high-dimensional data sets. Nevertheless, the
+classification accuracy can be affected when a limited number
+of training samples is available [2], [32]. One possibility to
+overcome this problem is active learning, which has been
+studied extensively in the literature, e. g., [27], [33]–[35]. In
+this paper we use the specialized concept of self-training [36].
+Self-training is based on the sequentially training of a classifier
+with new training samples. I. e., starting with a initial classifier
+ar
+X
+iv
+:1
+70
+8.
+05
+96
+6v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+0 
+A
+ug
+ 2
+01
+7
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 2
+model learned from a few labeled training samples, an iterative
+classification procedure is performed. After each classification,
+new relevant training samples are selected and usually the
+classifier is re-trained from scratch. That means, the classifier
+is learned by using old and new training samples without
+taking into account the previous learned classifier model. For
+the acquisition of new training samples we use spectral as well
+as spatial information by using a discriminative random field
+(DRF) [37]. The gain of integrating spatial information was
+already discussed in several studies in context of classifying
+hyperspectral data [20], [21], [26], [34], [38]. Moreover, we
+consider the probabilistic outputs by the IVM, to assess the
+reliability of the classification result.
+However, to be time- and memory-efficient we need an
+incremental learning strategy within the self-training approach.
+Several incremental learning methods have been proposed,
+extending classical and state-of-the art off-line methods. In-
+cremental generative models, e. g. [39], provide probabilities
+but tend to become very complex. Discriminative models, on
+the other hand, like incremental linear discriminant analysis
+[40] or incremental support vector machines, e. g. [41], show
+a good performance in classification tasks.
+Kernel-based algorithms have achieved considerable success
+in incremental and off-line learning settings [42], [43]. How-
+ever, incremental kernel-based learning settings need strategies
+for dealing with existing and new samples. The challenge is to
+perform efficient, incremental update steps without suffering
+a loss in performance.
+The main objective is to propose an incremental learning
+strategy to update the trained IVM model. The classifier is
+called incremental IVM. Therefore, the IVM model is not
+re-trained from scratch, as usually done in context of active
+and self-training approaches. The incremental IVM consists
+of the selection of new training samples, the deletion of
+irrelevant training samples, and the update of the IVM model.
+Therefore, the classifier is able to deal with infinitely new
+training samples.
+The potential of the IVM and the its incremental version
+in context of classifying hyperspectral data is evaluated. The
+performance is compared to SVM in terms of accuracy. In
+addition, the reliability of the probabilities outputs provided
+by IVM and SVM are evaluated by using a discriminative
+random field and the effect is further investigate by neglecting
+uncertain test samples. Our study is aiming on the classifica-
+tion of three different hyperspectral data sets, i. e., two urban
+areas from the city of Pavia and an agricultural area from
+Indiana, USA, using SVM and IVM.
+The paper is organized as follows. Section II discusses the
+logistic regression, kernel logistic regression and the IVM
+algorithm. Moreover, the concept of SVM and related clas-
+sifiers is briefly introduced and compared to IVM. Section III
+introduces the proposed strategy for self-training, including
+the DRF model. Also the incremental IVM are explained.
+The experimental setup is given in Section IV. The results
+are presented and discussed in Section V. We conclude in
+Section VI.
+II. THEORETICAL BACKGROUND
+In this section IVM model is introduced. Starting from the
+logistic regression, we discuss kernels and sparsity and finally
+the sparse kernel logistic regression model, i.e., IVM. Also
+a brief introduction to SVM and sparse multinomial logistic
+regression is given. In II-D the discriminative random field is
+introduced, which incorporates spatial information.
+A. Logistic Regression and Kernel Logistic Regression
+a) Logistic Regression: We assume to have a training
+set (xn, yn), n = 1, . . . , N of N labeled samples with feature
+vectors xn ? IRM and class labels yn ? C = {C1, . . . , CK}.
+The observations are collected in a matrix X = [x1, . . . ,xN ],
+while the corresponding labels are summarized in the vector
+y = [y1, . . . , yN ].
+In the two-class case the posterior probability pn of a feature
+vector xn is assumed to follow the Logistic Regression model
+pn = p(yn = C1|xn;w) =
+1
+1 + exp(?wTxn)
+(1)
+with the extended feature vector xTn = [1,x
+T
+n] ? IRM+1 and
+the extended parameters wT = [w0,wT] ? IRM+1 containing
+the bias w0 and the weight vector w.
+b) Kernel Logistic Regression: In linear non-separable
+cases, the original observations X are implicitly mapped
+from the input space to a higher-dimensional kernel space
+with the kernel matrix K = [knm] via the kernel function
+knm = k (xn,xm). The kernel matrix K consists of affinities
+between the points depending on the distance measure defined
+by the kernel function.
+The parameters, in the kernel-based approach referred to ?,
+are determined in an iterative way with
+?(i) =
+(
+1
+N
+KTRK + ?K
+)?1
+KTRz (2)
+z =
+1
+N
+(
+K?(i?1) + R
+?1 (p? t)
+)
+(3)
+by optimizing the objective function
+Q(i) = ?
+1
+N
+?
+n
+[tn log pn + (1? tn) log (1? pn)]
++
+?
+2
+?T(i)K?(i) (4)
+using the Newton-Raphson procedure. The (N ×N)-
+dimensional diagonal matrix R has the elements rnn =
+pn (1? pn) with pn = 1/(1 + exp(?kn?)) and kn as the
+nth row of the kernel matrix K . The binary target vector
+t ? {0, 1} of length N codes the labels with tn = 0 for
+yn = C1 and tn = 1 for yn = C2. Additionally, we add
+an L2-norm regularization term with parameter ? to prevent
+overfitting.
+B. Import Vector Machines
+The kernel logistic regression includes all training samples
+to train the classifier, which is computationally expensive and
+memory intensive for data sets with many training samples.
+Similar to the SVM the IVM algorithm [31] chooses a subset V
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 3
+of feature vectors out of the training set with V = |V| samples
+XV = [xV,m], m = 1, . . . , V , obtaining a sparse solution of
+the kernel logistic regression. These feature vectors are called
+import vectors.
+Following (2) and (3) the parameters in iteration i are
+determined by
+?(i) =
+(
+1
+N
+KTVRKV + ?KR
+)?1
+KTVRz (5)
+z =
+1
+N
+(
+KV?(i?1) + R
+?1 (p? t)
+)
+. (6)
+The (N × V )-dimensional kernel matrix is given by KV =
+[k(xn,xV,m)] and the (V × V )-dimensional regularization
+matrix by KR = [k(xV,l,xV,m)], {l,m} = 1, . . . , V .
+The IVM is illustrated in Algorithm 1. The convergence
+Initialize V0 := {}, X0 := {x1, . . . ,xN}, i := 0;
+repeat
+Compute z(i) from the current set V(i);
+foreach xn ? X(i) do
+Let V(i)n := V(i) ? xn;
+Compute ?(i)n from V(i)n in a one-step iteration;
+Evaluate error function Q(i)n;
+end
+Find best point x? = xn with n = argminnQ(i)n;
+Update V(i+1) := V(i) ? x?, X(i+1) := X(i) \ x?,
+i := i+ 1;
+until Q converged;
+Algorithm 1: IVM: In every iteration i each point xn ?
+X(i) from the current training set X(i) is tested to be in
+the set of import vectors V(i). The point x? yielding the
+lowest error Q(i)n is included. The algorithm stops as soon
+as Q converged.
+criterion is proposed by the ratio  = |Q(i) ?Q(i??i)|/|Q(i)|
+with a small integer ?i.
+The original algorithm selects the import vectors in a
+greedy forward selection procedure. The approach is extended
+to a forward stepwise selection, which allows forward and
+backward steps. The advantage of this procedure is, that import
+vectors, which once entered can be dropped if they are no
+longer relevant. In all experiments an improvement of the
+results could be observed. Furthermore, an incremental update
+procedure to compute the inverse in (5) depending on the last
+iteration is used, which makes the algorithm more efficient.
+The incremental update is described in a detailed way in
+Section III-C.
+The two class model can be generalized to the multi-class
+model. Then the objective function is
+Q = ? 1
+N
+?
+n
+tTn log pn +
+?
+2
+?
+k
+?TkKR?k (7)
+with the probabilities P = [p1, . . . , pN ] obtained by
+pnk =
+exp(kV,n?k)?
+l exp(kV,n?l)
+. (8)
+The binary target vector tn of length K uses the 1-of-K coding
+scheme so that all components but tnk are 0 if the point xn
+is from class Ck. In the Newton-Raphson procedure in (5) and
+(6) we have to use one Rk and one zk for each class.
+C. Related Classifiers
+Recently several algorithms have been developed, which
+enforce sparseness to control both the generalization capability
+of the learned classifier model and the complexity, as e. g.,
+[44]–[47]. In these algorithms the model consists of a sparse
+weighted linear combination of basis functions, which are
+the input features themselves, nonlinear transformations of
+them or kernels centered on them. In this section we restrict
+ourselves to the review of realizations of sparse (kernel)
+logistic regression and SVM, whereby the latter one is used
+for comparison in the experiments.
+1) Realizations of Sparse (Kernel) Logistic Regression:
+Using logistic regression or its kernel realization can be
+prohibitive regarding memory and time requirements if the
+dimension of the features or the number of training samples
+is large. Several sparse algorithms have been developed in the
+last years to overcome this problem.
+The relevance vector machine [18] uses the same model as
+the kernel logistic regression in combination with an implicit
+prior as regularization term, the so-called ARD (automatic
+relevance determination) [48] prior, to induce sparseness. The
+prior includes several regularization parameters, also called
+hyperparameters, which are determined during the optimiza-
+tion process. The algorithm have shown to be very sparse, but
+also tends to underfit, leading to a non well-generalized model
+[29]. Additionally, the RVM uses an expectation-maximization
+(EM)-like learning method and therefore, can suffer from local
+minima leading to non-optimal classification results.
+Alternatively, [28], [29] use a Laplace prior enforcing
+sparseness, which assigned regularization parameter is deter-
+mined via cross-validation. These approaches propose sparse
+multinomial (kernel) logistic regression (SMLR) using differ-
+ent methods for a fast computation. In the field of hyperspec-
+tral image classification these approaches have been applied
+and further developed in, e. g., [26], [27].
+2) Support Vector Machines: The SVM find an optimal
+nonlinear decision boundary by minimizing the objective
+function
+QSVM =
+1
+N
+?
+n
+[1? ynf(xn)]+ +
+?
+2
+?f?2 (9)
+with f(xn) =
+?
+n ?nK (X ,xn).
+Contrary to IVM, which maximize the posterior probabili-
+ties, SVM aim to maximize the margin between the hyperplane
+and the closest training samples, the so-called support vectors.
+SVM are a binary classifier, with the decision rule given by
+the sign of f(xn).
+3) Comparison with Import Vector Machines: The main
+properties of SVM, IVM, SMLR and RVM are summarized
+in Table I and briefly compared below.
+The objective function of the SVM is quadratic and there-
+fore convex and can be efficiently solved with sequential
+minimal optimization algorithm (SMO) [49]. The objective
+function of the IVM is convex, but non-quadratic. The function
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 4
+TABLE I
+SUMMARY OF THE SVM, RVM AND IVM ALGORITHM REGARDING SEVERAL CHARACTERISTICS. HERE ”–/0/+” MEANS THAT THE ALGORITHM
+SATISFIES A CERTAIN PROPERTY ”BARELY/PARTIALLY/COMPLETELY”.
+Algorithm Objective function, optimization procedure Sparse Training Testing Probabilistic Multi-class
+time time
+SVM convex, greedy with SMO algorihtm 0 + 0 0 0
+RVM nonconvex, IRLS, EM-like + – + + +
+SMLR convex, see Sec. II-C1 0/+ 0/+ 0/+ + +
+IVM convex, IRLS with greedy forward stepwise + 0/+ + + +
+selection (see Sec. II-B and III-C)
+can be solved with iterated re-weighted least squares (IRLS)
+and a greedy forward selection of import vectors.
+All models are sparse, i.e., the model parameters are pri-
+marily zero. The sparseness arises from different techniques,
+namely the usage of a prior in the SMLR models and the
+RVM or the greedy selection of a fraction of the training
+samples in the IVM model. However, IVM and RVM have
+shown to be sparser when compared to SVM [30], [31], and
+thus, require less computation time during classification. The
+training time of the IVM, on the other hand, can be slower than
+for the SVM, because of the non-quadratic objective function.
+Nonetheless, the training time depends on the number of
+training samples and the attainable sparseness, that therefore
+also SMLR and IVM can reach a faster training time.
+In comparison to RVM and SMLR approaches, which use
+the whole kernel during the optimization procedure, the IVM
+algorithm is suitable for large data sets, since only a subset
+of the training samples is used for computations during the
+optimization. Consequently, also only a fraction of the whole
+kernel have to be computed and stored. In contrast to this,
+e. g., the standard RVM algorithm has to solve a large
+matrix inversion of the size of the number of training samples
+during the optimization process and therefore can be slow and
+intractable for large datasets.
+While IVM, SMLR and RVM directly provide a proba-
+bilistic output, the SVM algorithm has the opportunity to
+transform its output to probabilities after some post-processing
+steps [16]. Though, as Tipping [18] already shows the trans-
+formed output is not necessarily statistical interpretable.
+Both IVM, SMLR and RVM are introduced as multi-class
+classifiers. The standard SVM have the opportunity to multi-
+class classification but they need a coupling strategy to get
+multi-class classification results. Moreover, these multi-class
+approaches are more suitable for practical use than direct
+multi-class approaches for SVM [50].
+D. Discriminative Random Fields
+A discriminative random field is employed to model prior
+knowledge about the neighborhood relations within the image.
+The final classification is assumed to be smooth, i. e., neigh-
+boring pixels are more likely to belong to the same class than
+to different classes.
+With this, the best classification CDRF is given by the
+argument of the minimum of the energy
+E (y) = ?
+?
+j?I
+log p (yj |xj)? ?
+?
+{m,j}?N
+? (yj , ym) , (10)
+where xj is the observed feature vector from the jth pixel,
+I being the set of all pixels and ? being the Kronecker delta
+function. The weighting parameter is given by ?, which can be
+determined via cross-validation. The first term in (10) models
+the probability of a class assignment yj of the jth pixel,
+defined by the probabilistic output of the IVM. The second
+term describes the interaction potential as a Potts model over
+a 2D lattice penalizing every dissimilar pair of labels and
+therefore heterogeneous regions. The set of all neighboring
+pixels is given by N .
+III. INCREMENTAL LEARNING STRATEGY FOR
+SELF-TRAINING
+In this section we introduce the self-training concept and the
+learning strategy for the incremental IVM. Self-training refers
+to the sequential selection of new training data and the adap-
+tion of the previous classifier model. The previous classifier
+model can (i) be neglected and re-trained from scratch or (ii)
+incrementally be updated. Following (i), a regular classifier
+training is performed, using the whole training samples set
+(i. e., previous + new training samples). The latter approach
+”simply” updates the previous model, using the newly selected
+training samples.
+A. Self-training Concept
+Remote Sensing image Classification Improved classification
+IVM DRF
+Posteriors New training
+samples
+Classification
+Incremental
+learning
+procedure
+a
+b
+Fig. 1. Self-training scheme consisting of two steps: In the first step (Fig.
+1a) the image is classified with the learned incremental IVM model and the
+DRF. The probabilistic output of the IVM and the classification result of the
+DRF are used to acquire new training samples. In the second step (Fig. 1b)
+the classifier model is incrementally updated.
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 5
+In the first step (Fig. 1a) we identify potential new training
+samples. For this selection step, we use the classification result
+provided by the DRF and the probabilistic outputs of the
+incremental IVM. In the second step (Fig. 1b) we use the
+incremental learning strategy to update the classifier model,
+without re-training from scratch. The procedure is repeated
+until no additional training samples can be selected. The latter
+step consists of the inclusion of new training samples, the
+deletion of irrelevant training samples and finally, the update
+of the IVM model. Therefore the approach can handle large
+data sets or even infinitive data streams. However, this step
+is independent of the used self-training strategy and other
+approaches can be used to identify new training samples. Both
+steps are explained in detail in the next paragraphs.
+B. Acquisition of New Training Samples for Self-training
+This acquisition step illustrated in Fig. 2 is subdivided in
+3 parts: First, we use a DRF as expert to identify worthwhile
+samples by evaluating the disagreement between the classifi-
+cation C yielded by the IVM classifier and the DRF result
+CDRF. The aspect implies, that the samples with estimated
+label yDRF,j derived from the DRF are sufficient uncertain with
+max(pj) < 0.5 obtained from the IVM classifier. Using such
+samples we ensure progress in self-training.
+Second, we exclude from the selected samples these ones,
+whose probability is too small. I. e., the influence of the new
+samples is restricted, to ensure that the model is gradually
+changed and stable.
+Finally, we sort the chosen samples by their potentially
+influence on the model, to enable the flexibility of the model
+during self-training. The potential influence uses the concept
+of leverage points in regression [51]. The leverage values in a
+weighted regression are contained in the vector
+l = diag
+(
+K pot
+(
+KTpotRpotK pot
+)?1
+KTpotRpot
+)
+. (11)
+The kernel matrix obtained from the potential new training
+samples X pot is given by K pot = [k(xpot,j ,xV,m)] and Rpot is
+the weight matrix of the class the training sample belongs
+to. Training samples with a high leverage value first are
+considered first, since they causes large effects in the learned
+model. The self-training is stopped if no more training samples
+can be acquired.
+To prevent an acquisition, which leads to an imbalanced
+number of training samples per class, we ensure sampling an
+equal number of training samples for each class. If not enough
+new training samples can be acquired with the proposed self-
+training approach, we also consider training samples with a
+high probability and whose label in C and CDRF are the
+same. These samples have a small influence onto the model
+and should not change the result too much, but balance the
+number of samples of each class. If there are still not enough
+samples for a class, we follow the over-sampling approach
+by duplicating existing samples from the concerned class at
+random and add a small noise to them [52].
+C. Incremental Learning
+To update the learned classifier, we consider the following
+aspects:
+• New training samples acquired with the proposed self-
+training approach (see Section III-B) are included.
+• Non-informative samples are deleted.
+• The set of import vectors is updated.
+a) Update Training Vectors: For the two-class case the
+incremental learning procedure is stated as follows. We add
+training vectors X? with targets t? so that N(s) := N(s?1) +
+?N with ?N as the number of new training samples. At each
+self-training iteration s we extend the matrices and vectors
+K (s) =
+[
+K (s?1)
+K ?
+]
+, t(s) =
+[
+t(s?1)
+t?
+]
+to obtain the updated parameters ?+(s) given by (12) and (13)
+yielding
+z(s) =
+[
+z(s?1)
+z?
+]
+, p(s) =
+[
+p(s?1)
+p?
+]
+.
+The Sherman-Morrison-Woodbury (SMW) [53] formula is
+used to compute the inverse in (12) yielding (14) with A =
+1/N(s)K
+T
+(s?1)R(s?1)K (s?1)+?KR,(s?1). Note that the update
+(14) only incorporates an inverse of size ?N×?N , since the
+inverse A?1 was computed in time step s?1. With these steps
+the parameters can be updated in an incremental way without
+re-training from scratch.
+The update (12) can also be formulated for a decreasing
+number of training vectors in a similar manner, leading to
+an efficient update rule as in (14), only with the sign of
+R? changed. Training vectors can be removed based on their
+”age”, so that they follow the first-in-first-out strategy. This can
+lead to instable results. Therefore, we identify training vectors,
+which can be removed using Cook’s distance [54]. Cook’s
+distance measures the effect of deleting a training vector as
+the higher the value the more informative is the training vector:
+dn =
+(pn ? tn)T (pn ? tn)
+a MSE
+ln
+(1? ln)2
+(15)
+with a as the number of parameters and MSE as the mean
+squared error summed over all classes given by the difference
+between 1 and the mean probability of all training samples
+belonging to class Ck. The leverage value of each training
+vector is given by ln. The training vectors with the lowest
+distance are removed in a greedy backward selection until the
+value of the optimization function increases more than of 5%.
+b) Update the Set of Import Vectors: To add and remove
+import vectors we use the forward stepwise selection as
+described in Section II. We also make use of the SMW formula
+and proceed in the same way as described in Algorithm 1 until
+a convergence criterion is reached.
+To generalize the two class model to the multi-class model
+we use the class-specific values Rk,(s?1) and zk,(s?1).
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 6
+Classification
+with IVM
+Improved classifi-
+cation with DRF
+Compare C and CDRF
+Select worthwhile
+samples with
+yj 6= yDRF,j
+and p(yj |xj) suf-
+ficiently large
+Sort samples regard-
+ing leverage values
+C
+Posteriors P
+CDRF
+Fig. 2. Schematic diagram of the selection of new training samples: Worthwhile samples are identified by comparing the classification C and CDRF. Samples
+with a relatively small posteriori probability are excluded. Remaining samples are sorted regarding their leverage value, i. e., samples with high influence are
+preferred.
+?+(s) =
+(
+1/N(s)
+(
+KT(s?1)R(s?1)K (s?1) + K
+T
+?R?K ?
+)
++ ?KR,(s?1)
+)?1 (
+KT(s?1)R(s?1)z(s?1) + K
+T
+?R?z?
+)
+(12)
+z(s) =
+1
+N(s)
+[
+K (s?1)?(s?1) + R(s?1)
+(
+p(s?1) ? t(s?1)
+)
+K ??(s?1) + R? (p? ? t?)
+]
+(13)
+?+(s) = A
+?1 ? 1/N(s)A?1KT?
+(
+R?1? + 1/N(s)K ?A
+?1KT?
+)?1
+K ?A?1
+(
+KT(s?1)R(s?1)z(s?1) + K
+T
+?R?z?
+)
+(14)
+IV. EXPERIMENTAL SETUP
+A. Data Sets
+We use three hyperspectral data sets – CENTER OF PAVIA,
+UNIVERSITY OF PAVIA and INDIAN PINES– from study sites
+with different environmental setting. The data sets have been
+used in a multitude of studies, e. g., [7], [13], [32], [55], [56].
+The CENTER OF PAVIA image was acquired by ROSIS-3
+sensor in 2003. The spatial resolution of the image is 1.3 meter
+per pixel. The data cover the range from 0.43 µm to 0.86 µm of
+the electromagnetic spectrum. However, some bands have been
+removed due to noise and finally 102 channels have been used
+in the classification. The image strip, with 1096×492 pixels
+in size, lies around the center of Pavia. The classification is
+aiming on 9 land cover classes. The UNIVERSITY OF PAVIA
+data set was also acquired by ROSIS-3 sensor with 610×340
+pixels in size and 103 channels. The classification is aiming
+on 9 land cover classes. The INDIAN PINES data set was
+acquired by the AVIRIS instrument in 1992. The study site lies
+in a predominately agricultural region in NW Indiana, USA.
+AVIRIS operates from the visible to the short-wave infrared
+region of the electromagnetic spectrum, ranging from 0.4 µm
+to 2.4 µm. The data set covers 145×145 pixels, with a spatial
+resolution of 20 m per pixel. The experiments are aiming on
+the classification of 16 classes (Table II).
+B. Methods
+In the experiments the IVM for classifying hyperspectral
+data is analyzed. In addition SVM were applied on the data
+sets. SVM are perhaps the most popular approach in more
+recent applications and seems particularly advantageous when
+classifying high-dimensional data sets. Thus, the method is
+regarded as a kind of benchmark classifier for comparison with
+new approaches.
+Moreover, a DRF is applied on the respective probabilistic
+output. Besides as input for the DRF, we use the probabilistic
+outputs to analyze the uncertainty of the classification result.
+We assess the reliability of the probabilities by rejecting
+uncertain test samples and deriving the classification accuracy
+on the non-rejected test points [19]. The rejection rate is
+given by a threshold on the posterior probability, whereby the
+accuracy provided by SVM and IVM is reported as a function
+of the rejection rate in discrete intervals.
+In addition, the incremental IVM is evaluated by applying
+the self-training approach on the three data sets in terms of
+the classification accuracy and sparsity.
+To investigate the impact of the number of training samples
+on the performance of the model (e.g., in terms of sparsity
+and accuracy) we use two different training sets, containing
+(i) all initial training samples and (ii) 10% of each class (with
+a minimum of at least 10 samples per class). For (ii), we
+performed a stratified random sampling, selecting 10% of the
+samples of each class from the initial training set. The final
+results were averaged.
+For the SVM and the (incremental) IVM we use a radial
+basis function kernel. The kernel parameters are determined
+by a 5-fold cross-validation. Also the DRF parameter ? is
+determined by by 5-fold cross-validation. The result provided
+by the common IVM is used for the initialization of the self-
+training. The self-training procedure is repeated until no more
+training samples can be selected.
+The IVM algorithm1 is implemented in MATLAB and C++.
+The SVM classification is performed in MATLAB, using the
+LIBSVM approach by Chang and Lin [57]. To compute the
+result in (10) we use the graph-cut algorithm2 [58]. Besides
+the standard SVM classification, we use the method of [16]
+to convert the output of the SVM to probabilities (from now
+on referred to as probabilistic SVM).
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 7
+TABLE II
+NUMBER OF TRAINING AND TEST SAMPLES.
+CENTER OF PAVIA UNIVERSITY OF PAVIA INDIAN PINES
+class # training # test class # training # test class # training # test
+Asphalt 678 6907 Asphalt 548 6304 Alalfa 27 27
+Bare Soil 820 5729 Bare Soil 532 4572 Corn-no till 778 656
+Bitumen 808 6479 Bitumen 375 981 Corn-min till 408 426
+Meadows 797 2108 Gravel 392 1815 Corn 110 124
+Bricks 485 1667 Meadows 540 18146 Grass/Pasture 208 289
+Shadow 195 1970 Metal Sheets 265 1113 Pasture/Trees 339 408
+Tiles 223 2899 Bricks 514 3364 Hay 228 261
+Trees 785 5723 Shadow 231 795 Soybeans-no till 506 462
+Water 745 64533 Trees 524 2912 Soybeans-mid till 975 1493
+- - - - - - Soybeans-clean till 265 349
+- - - - - - Wheat 100 112
+- - - - - - Woods 637 657
+- - - - - - Bldg-Grass 163 217
+- - - - - - Stone 45 50
+- - - - - - Grass/Pasture-mowed 12 14
+- - - - - - Oats 10 10
+Total 5536 91108 3921 33698 4811 5555
+TABLE III
+OVERALL ACCURACY (OA), AVERAGE ACCURACY (AA) AND KAPPA COEFFICIENT (KAPPA) OF SVM, SVM WITH TRANSFORMED PROBABILITIES
+(PROB. SVM), IVM, INCREMENTAL IVM (IIVM) WITH SELF-TRAINING (ST) AND ADDITIONAL DRF. FOR THE SMALLER DATA SETS (10%) WE REPORT
+THE MEAN AND STANDARD DEVIATION IN BRACKETS OVER 20 RUNS.
+CENTER OF PAVIA UNIVERSITY OF PAVIA INDIAN PINES
+Train data Algorithm OA[%] AA[%] Kappa OA[%] AA[%] Kappa OA[%] AA[%] Kappa
+100% SVM 97.1 94.6 0.95 79.0 87.9 0.73 61.6 69.6 0.57
+100% Prob. SVM 97.0 94.2 0.95 78.4 87.7 0.73 60.7 68.9 0.56
+100% IVM 97.2 94.2 0.95 78.3 87.4 0.73 63.7 67.8 0.59
+100% iIVM+ST 97.3 95.2 0.95 86.6 90.0 0.83 63.7 67.8 0.59
+100% Prob. SVM+DRF 97.8 96.4 0.96 82.6 90.5 0.78 66.3 71.6 0.62
+100% IVM+DRF 98.4 96.5 0.97 85.9 91.4 0.82 70.6 80.0 0.67
+100% iIVM+ST+DRF 98.6 97.1 0.98 94.2 93.8 0.92 70.6 80.2 0.67
+10% SVM 92.1 (0.6) 85.1 (1.0) 0.86 (0.01) 70.2 (3.8) 77.5 (2.4) 0.62 (0.04) 54.7 (2.3) 63.0 (1.6) 0.49 (0.03)
+10% Prob. SVM 93.0 (1.3) 86.2 (2.1) 0.87 (0.02) 69.4 (3.8) 77.3 (2.4) 0.61 (0.04) 54.9 (2.5) 63.2 (2.3) 0.50 (0.03)
+10% IVM 92.2 (1.1) 85.4 (1.6) 0.86 (0.02) 70.3 (3.5) 77.3 (0.8) 0.62 (0.04) 58.2 (0.1) 65.2 (0.8) 0.53 (<0.01)
+10% iIVM+ST 94.3 (1.0) 88.2 (1.7) 0.90 (0.02) 74.3 (2.4) 77.9 (1.1) 0.66 (0.02) 64.8 (1.1) 69.2 (1.1) 0.61 (0.01)
+10% Prob. SVM+DRF 93.7 (1.5) 88.9 (2.5) 0.89 (0.03) 76.3 (4.9) 79.2 (4.5) 0.70 (0.06) 60.1 (2.8) 65.9 (1.3) 0.55 (0.03)
+10% IVM+ DRF 92.8 (1.3) 87.8 (2.0) 0.87 (0.02) 78.5 (4.3) 79.9 (1.5) 0.72 (0.05) 64.5 (1.3) 73.5 (2.0) 0.60 (0.02)
+10% iIVM+ST+DRF 95.8 (0.8) 92.3 (2.1) 0.92 (2.2) 80.9 (2.9) 81.0 (1.9) 0.74 (0.03) 70.1 (1.2) 75.8 (2.5) 0.66 (0.02)
+V. EXPERIMENTAL RESULTS
+Fig. 4 shows the ground truth and the classification results
+for all three data sets. As shown in Table III, the IVM is
+competitive to SVM in terms of accuracy and result in almost
+similar overall accuracies and kappa coefficients, irrespectively
+from the number of training samples. However, the SVM
+outperforms the IVM in terms of the averaged class accuracy
+(AA) for the INDIAN PINES data set, when using all training
+samples. As expected the accuracies are increased by increas-
+ing the number of training samples, independently from the
+classifier method.
+It is interesting to underline that in many cases, the proba-
+bilistic SVM provide (slightly) lower accuracies (i.e., OA and
+AA) than a standard SVM. Behind this fact, the reliability of
+the probabilistic output of the SVM can be questioned. This
+assumption is confirmed by the results provided by the DRF.
+The accuracies of both methods, the probabilistic SVM and
+the IVM, are increased by the DRF. This is in accordance
+with other studies that have successfully integrated spatial
+1http://www.ipb.uni-bonn.de/ivm/
+2http://vision.csd.uwo.ca/code/
+information when classifying hyperspectral imagery [20], [21],
+[26], [34], [38]. However, the improvement of the IVM is
+usually higher, sometimes to a degree that the combination
+of IVM and DRF outperforms the accuracy provided by the
+probabilistic SVM in combination with a DRF.
+Table IV shows the class-specific accuracies achieved in
+the UNIVERSITY OF PAVIA data set. The results confirm the
+previous findings, e. g., SVM and IVM show similar overall
+accuracies. While some classes are more accurately classified
+by SVM, IVM are more adequate for the separation of other
+classes.
+To underline this finding, an analysis of the probabilistic
+output is shown in Fig. 3. With an increasing rejection thresh-
+old, IVM provide higher OA on the INDIAN PINES data and
+in most cases on the CENTER OF PAVIA and UNIVERSITY OF
+PAVIA data set. Consequently, it can be assumed that samples
+with high class probabilities are more accurately classified by
+IVM than by SVM, whereas relatively low class probabilities
+by the IVM are more likely referred to misclassified samples.
+Table V shows, that the number of import vectors is lower
+when compared to the number of support vectors. This is in
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 8
+TABLE IV
+CLASS-SPECIFIC ACCURACIES OF THE UNIVERSITY OF PAVIA DATA SET OF SVM, SVM WITH TRANSFORMED PROBABILITIES (PROB. SVM), IVM,
+INCREMENTAL IVM (IIVM) WITH SELF-TRAINING (ST) AND ADDITIONAL DRF. THE RESULTS ARE GIVEN IN PERCENT ([%]).
+Class SVM Prob.SVM IVM iIVM+ST Prob.SVM + DRF IVM+DRF iIVM+ST+DRF
+Asphalt 85.4 83.3 83.8 84.3 94.7 95.5 94.1
+Bare Soil 93.7 93.6 89.1 93.9 97.7 98.5 98.2
+Bitumen 90.5 90.5 90.3 90.7 94.1 95.7 94.5
+Gravel 68.8 71.2 69.8 68.3 65.5 60.7 67.2
+Meadows 65.9 65.2 66.2 82.8 68.6 66.6 93.7
+Metal Sheets 99.4 99.5 99.6 99.4 99.8 99.9 99.7
+Bricks 92.5 91.8 92.7 93.7 98.7 99.3 98.8
+Shadow 97.5 97.0 98.7 99.5 97.7 99.6 100.0
+Trees 97.0 97.4 95.9 97.0 97.9 98.3 98.0
+(a) CENTER OF PAVIA (b) UNIVERSITY OF PAVIA (c) INDIAN PINES
+Fig. 3. The overall accuracy of SVM and IVM as a function of rejected test points on the CENTER OF PAVIA data set (left), the UNIVERSITY OF PAVIA data
+set (middle) and the INDIAN PINES data set (right). The overall accuracy is computed on the non-rejected test points.
+TABLE V
+NUMBER OF SUPPORT/IMPORT VECTORS OF SVM AND IVM. FOR THE
+SMALLER DATA SETS (10%) WE REPORT THE MEAN AND STANDARD
+DEVIATION IN BRACKETS OVER 20 RUNS.
+Data Algorithm CENTER OF PAVIA UNIVERSITY OF PAVIA INDIAN PINES
+100% SVM 648 SV 1111 SV 2076 SV
+100% IVM 30 IV 109 IV 59 IV
+10% SVM 158.3 (11.8) SV 209.9 (22.7) SV 273.8 (10.1) SV
+10% IVM 27.8 (4.9) IV 35.9 (6.0) IV 75.0 (7.4) IV
+accordance with the results of a previous study in context of
+machine learning data sets [31]. Comparing the number of
+support vectors and import vectors, respectively, the results
+confirm that the number of support vectors clearly increases
+with an increasing number of training samples, whereas the
+number of import vector increases slowly or almost remains
+constant. Only for the UNIVERSITY OF PAVIA data set the
+number increases when all training points are used, because
+a smaller kernel parameter was chosen and more import
+vectors are necessary to train the classifier. Consequently,
+the computation time of the IVM during the classification is
+much faster when compared to SVM (see Table VI), since
+the number of required mathematical operations depends on
+the number of support and import vectors. This is particularly
+important in context of high-dimensional hyperspectral data
+sets, which are usually classified with a large number of
+training data.
+Table VI reports the training and testing time of SVM and
+IVM on an Intel(R) Dual Core with 3.0 GHz. In contrast to the
+SVM implementation, the current Matlab/C++ implementation
+of the IVM is not optimized, so there is still potential for
+acceleration.
+Finally, Table III also shows the positive impact of self-
+training on the classification accuracy. The classification result
+was improved in all cases. As expected the improvement on the
+training sets with 10% of all training samples is higher when
+compared to the classification results, which were generated
+by the whole training samples set. Table VII shows, that
+the number of import vectors remains nearly the same dur-
+ing the self-training procedure. Moreover, the proposed self-
+training strategy deletes irrelevant training samples. Therefore,
+the final number of training samples is significantly lower,
+when compared to initial number of training samples and the
+samples added during the self-training procedure. This fact is
+particularly obvious in case of the CENTER OF PAVIA data
+using the whole training sample set.
+VI. CONCLUSION AND OUTLOOK
+We proposed the incremental IVM classifier, which includes
+the addition and deletion of training samples as well as the
+update of the set of import vectors. The incremental learning
+strategy updates efficiently the classifier model without re-
+training from scratch, which makes it capable for large data
+sets. To evaluate the incremental IVM, we have introduced a
+self-training strategy, which uses the probabilistic output of
+the classifier and a DRF.
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 9
+TABLE VI
+TRAINING AND TEST TIME OF SVM, PROBABILISTIC SVM AND IVM. FOR THE SMALLER DATA SETS (10%) WE REPORT THE MEAN AND STANDARD
+DEVIATION IN BRACKETS OVER 20 RUNS.
+CENTER OF PAVIA UNIVERSITY OF PAVIA INDIAN PINES
+Data Algorithm Train[sec] Test[sec] Train[sec] Test[sec] Train[sec] Test[sec]
+100% SVM 3.8 187.9 4.3 126.4 20.0 68.9
+100% Prob. SVM 106.1 0.1 41.7 0.1 12.45 0.1
+100% IVM 225.2 2.3 484.9 1.8 344.3 0.1
+10% SVM 0.1 (< 0.1) 48.2 (3.4) 0.1 (< 0.1) 24.4 (2.5) 0.3 (< 0.1) 6.2 (0.2)
+10% Prob. SVM 105.0 (0.5) 0.1 (< 0.1) 40.5 (0.25) 0.1 (< 0.1) 12.4 (0.1) 0.1 (< 0.1)
+10% IVM 11.4 (6.6) 2.2 (0.2) 5.3 (1.9) 0.9 (0.1) 47.8 (10.0) 0.1 (< 0.1)
+TABLE VII
+NUMBER OF ADDED TRAINING SAMPLES IN THE SELF-TRAINING (ST) PROCEDURE AND NUMBER OF TRAINING AND IMPORT VECTORS BEFORE AND
+AFTER SELF-TRAINING. THE NUMBER OF TRAINING SAMPLES AFTER SELF-TRAINING IS GIVEN BY THE NUMBER OF TRAINING SAMPLES BEFORE
+SELF-TRAINING PLUS THE NUMBER OF ADDED TRAINING SAMPLES MINUS THE REMOVED IRRELEVANT TRAINING SAMPLES. FOR THE SMALLER DATA
+SETS (10%) WE REPORT THE MEAN AND STANDARD DEVIATION IN BRACKETS OVER 20 RUNS.
+CENTER OF PAVIA UNIVERSITY OF PAVIA INDIAN PINES
+100% 10% 100% 10% 100% 10%
+# Training samples 5536 556 3921 392 4811 563
+# Import vectors 30 27.8 (4.9) 109 35.9 (6.0) 59 75.0 (7.4)
+# Added training samples 2610 563.0 (158.7) 2340 1390.0 (463.5) 16 584.0 (267.4)
+# Training samples (ST) 538 493.8 (108.2) 4282 1208.6 (439.1) 4719 911.4 (139.9)
+# Import vectors (ST) 21 29.7 (2.6) 49 42.7 (5.7) 61 67.1 (14.7)
+We evaluated the performance of IVM in the context of
+classifying hyperspectral imagery. IVM constitute a feasible
+approach and an useful alternative for the classification of
+remote sensing data, particularly when probabilities are of
+interest. The experimental results underline that SVM and
+IVM perform almost similar in terms of the classification
+accuracy. In addition, the results show the strong dependency
+of the number of support vectors on the number of available
+training samples. In contrast to this, the number of import
+vectors is significantly lower when compared to the number of
+support vectors and remains constant or only slightly increases
+with an increasing number of training samples. As confirmed
+by the experimental results, the probabilities provided by
+IVM are more reliably, when compared to the probabilistic
+outputs provided by SVM. This fact is particularly interesting,
+because the probabilities are useful for further image analysis,
+e.g., (i) as input in a DRF that increases the classification
+accuracy, (ii) to detect mislabeled samples by a uncertainty
+analysis, and (iii) to identity relevant training samples for a
+self-training strategy. Particularly for hyperspectral data sets,
+which require a sufficient large number of training samples
+to ensure an adequate accuracy, the self-training strategy
+including the incremental IVM is interesting and can further
+increase the classification result. Moreover, the computation
+time is reduced by the incremental learning approach rather
+than re-training the classifier with all training samples. The
+incremental IVM can further be incorporated into other active
+learning approaches or more sophisticated models for DRFs.
+Therefore, the approach seems attractive as well as feasible
+for operational applications.
+Overall, the IVM and its incremental version appears worth-
+while for the classification of remote sensing data, especially
+when the user is interested in reliable class probabilities and
+a fast classification. More efficient implementation strategies
+and further modifications will be investigated in the future.
+ACKNOWLEDGMENT
+The authors would like to thank D. Landgrebe and
+L. Biehl (Purdue University, USA) for providing the Indian
+Pines data (available on: http://cobweb.ecn.purdue.edu/?biehl/
+MultiSpec/) and P. Gamba (University of Pavia, Italy) for
+providing the Pavia dataset.
+REFERENCES
+[1] A. Goetz, “Three Decades of Hyperspectral Remote Sensing of the Earth:
+A Personal View,” Remote Sens. Environ., vol. 113, pp. 5–16, 2009.
+[2] B. Waske, S. van der Linden, J. Benediktsson, A. Rabe, and P. Hostert,
+“Sensitivity of Support Vector Machines to Random Feature Selection in
+Classification of Hyperspectral Data,” IEEE Trans. Geosci. Remote Sens.,
+vol. 48, no. 7, pp. 2880–2889, 2010.
+[3] G. Mitri and I. Gitas, “Mapping Postfire Vegetation Recovery Using EO-
+1 Hyperion Imagery,” IEEE Trans. Geosci. Remote Sens., vol. 48, no. 3,
+pp. 1613–1618, 2010.
+[4] J. Benediktsson, J. Palmason, and J. Sveinsson, “Classification of Hy-
+perspectral Data from Urban Areas based on Extended Morphological
+Profiles,” IEEE Trans. Geosci. Remote Sens., vol. 43, no. 3, pp. 480–491,
+2005.
+[5] L. Guanter, K. Segl, and H. Kaufmann, “Simulation of Optical Remote-
+Sensing Scenes With Application to the EnMAP Hyperspectral Mission,”
+IEEE Trans. Geosci. Remote Sens., vol. 47, no. 7, pp. 2340–2351, 2009.
+[6] J. Richards, “Analysis of Remotely Sensed Data: The Formative Decades
+and the Future,” IEEE Trans. Geosci. Remote Sens., vol. 43, no. 3, pp.
+422–432, 2005.
+[7] A. Plaza, J. Benediktsson, J. Boardman, J. Brazile, L. Bruzzone,
+G. Camps-Valls, J. Chanussot, M. Fauvel, P. Gamba, A. Gualtieri,
+M. Marconcini, J. Tilton, and G. Trianni, “Recent Advances in Techniques
+for Hyperspectral Image Processing,” Remote Sens. Environ., vol. 113, pp.
+110–122, 2009.
+[8] X. Chen, T. Warner, and D. Campagna, “Integrating Visible, Near-
+Infrared and Short-Wave Infrared Hyperspectral and Multispectral Ther-
+mal Imagery for Geological Mapping at Cuprite, Nevada,” Remote Sens.
+Environ., vol. 110, no. 3, pp. 344–56, 2007.
+[9] S. Van der Linden, A. Janz, B. Waske, M. Eiden, and P. Hostert,
+“Classifying Segmented Hyperspectral Data from a Heterogeneous Urban
+Environment using Support Vector Machines,” J. Appl. Remote Sens.,
+vol. 1, no. 1, 2007.
+[10] V. Vapnik, The Nature of Statistical Learning Theory. Springer, 2000.
+[11] M. Pal and P. Mather, “Some Issues in the Classification of DAIS
+Hyperspectral Data,” Int. J. Remote Sens., vol. 27, no. 14, pp. 2895–2916,
+2006.
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 10
+(a) Data (b) Training ground
+truth
+(c) Test ground truth (d) SVM result (e) IVM result (f) IVM+DRF result (g) Self-training re-
+sult
+Fig. 4. F.l.t.r.: (a) Data, (b) training ground truth, (c) test ground truth, (d) classification result of SVM, (e) IVM, (f) IVM + DRF and (g) self-training
+procedure with incremental IVM. The upper row shows the CENTER OF PAVIA data set, the middle row the INDIAN PINES data set and the bottom row the
+UNIVERSITY OF PAVIA data set.
+[12] B. Waske, J. Benediktsson, K. Arnason, and J. Sveinsson, “Mapping of
+Hyperspectral AVIRIS Data using Machine-Learning Algorithms,” Can.
+J. Remote Sensing, vol. 35, pp. 106–116, 2009.
+[13] G. Camps-Valls, N. Shervashidze, and K. M. Borgwardt, “Spatio-
+Spectral Remote Sensing Image Classification with Graph Kernels,” IEEE
+Geosci. Remote Sens. Lett., vol. 7, no. 4, pp. 741–745, 2010.
+[14] J. Mun?oz-Mar??, F. Bovolo, L. Go?mez-Chova, L. Bruzzone, and G. Camp-
+Valls, “Semisupervised One-Class Support Vector Machines for Classi-
+fication of Remote Sensing Data,” IEEE Trans. Geosci. Remote Sens.,
+vol. 48, no. 8, pp. 3188–3197, 2010.
+[15] A. Mathur and G. Foody, “Multiclass and binary SVM classification:
+implications for training and classification users,” IEEE Geosci. Remote
+Sens. Lett., vol. 5, no. 2, pp. 241–245, 2008.
+[16] J. Platt, N. Cristianini, and J. Shawe-Taylor, “Large Margin DAGs for
+Multiclass Classification,” Adv. Neural Inf. Process. Syst., vol. 12, no. 3,
+pp. 547–553, 2000.
+[17] G. Foody, “RVM-Based Multi-Class Classification of Remotely Sensed
+Data,” Int. J. Remote Sens., vol. 29, no. 6, pp. 1817–1823, 2008.
+[18] M. Tipping, “Sparse Bayesian Learning and the Relevance Vector
+Machine,” J. of Mach. Learn. Research, vol. 1, pp. 211–244, 2001.
+[19] F. Giacco, C. Thiel, L. Pugliese, S. Scarpetta, and M. Marinaro,
+“Uncertainty Analysis for the Classification of Multispectral Satellite
+Images Using SVMs and SOMs,” IEEE Trans. Geosci. Remote Sens.,
+no. 99, pp. 1–11, 2010.
+[20] P. Zhong and R. Wang, “Learning Conditional Random Fields for
+Classification of Hyperspectral Images,” IEEE Trans. Image Process,
+vol. 19, pp. 1890–1907, 2010.
+[21] Y. Tarabalka, M. Fauvel, J. Chanussot, and J. Benediktsson, “SVM-
+and MRF-Based Method for Accurate Classification of Hyperspectral
+Images,” IEEE Geosci. Remote Sens. Lett., vol. 7, pp. 736–740, 2010.
+[22] P. Zhong, P. Zhang, and R. Wang, “Dynamic Learning of SMLR for
+Feature Selection and Classification of Hyperspectral Data,” IEEE Geosci.
+Remote Sens. Lett., vol. 5, no. 2, pp. 280–284, APR 2008.
+[23] Q. Cheng, P. Varshney, and M. Arora, “Logistic regression for feature
+selection and soft classification of remote sensing data,” IEEE Geosci.
+Remote Sens. Lett., vol. 3, no. 4, pp. 491–494, 2006.
+[24] S. Keerthi, K. Duan, S. Shevade, and A. Poo, “A Fast Dual Algorithm
+for Kernel Logistic Regression,” Mach. Learn., vol. 61, no. 1, pp. 151–
+165, 2005.
+[25] G. Cawley and N. Talbot, “Efficient Model Selection for Kernel Logistic
+Regression,” Pattern Recogn., vol. 2, pp. 439–442, 2004.
+[26] J. Borges, J. Bioucas-Dias, and A. Marcal, “Bayesian Hyperspectral
+Image Segmentation With Discriminative Class Learning,” IEEE Trans.
+Geosci. Remote Sens., vol. 49, pp. 2151–2164, 2011.
+[27] J. Li, J. Bioucas-Dias, and A. Plaza, “Hyperspectral Image Segmentation
+Using a New Bayesian Approach With Active Learning,” IEEE Trans.
+Geosci. Remote Sens., pp. 1–14, 2010.
+[28] G. Cawley, N. Talbot, and M. Girolami, “Sparse Multinomial Logistic
+Regression via Bayesian L1 Regularisation,” in Adv. Neural Inf. Process.
+Syst., 2007.
+[29] B. Krishnapuram, L. Carin, M. Figueiredo, and A. Hartemink, “Sparse
+Multinomial Logistic Regression: Fast Algorithms and Generalization
+Bounds,” IEEE Trans. Pattern Anal. Mach. Intell., pp. 957–968, 2005.
+[30] B. Demir and S. Erturk, “Hyperspectral Image Classification Using
+Relevance Vector Machines,” IEEE Geosci. Remote Sens. Lett., vol. 4,
+pp. 586–590, 2007.
+[31] J. Zhu and T. Hastie, “Kernel Logistic Regression and the Import Vector
+Machine,” J. Comput. Graph. Stat., vol. 14, no. 1, pp. 185–205, 2005.
+[32] M. Pal and G. Foody, “Feature Selection for Classification of Hyper-
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 50, NO. 09, SEPTEMBER 2012 11
+spectral Data by SVM,” IEEE Trans. Geosci. Remote Sens., vol. 48, no. 5,
+pp. 2297–2307, 2010.
+[33] D. Tuia, M. Volpi, L. Copa, M. Kanevski, and J. Munoz-Mari, “A
+survey of active learning algorithms for supervised remote sensing image
+classification,” IEEE J. Sel. Topics Signal Process., vol. 5, pp. 606–617,
+2011.
+[34] J. Li, J. Bioucas-Dias, and A. Plaza, “Semisupervised Hyperspectral
+Image Segmentation Using Multinomial Logistic Regression with Active
+Learning,” IEEE Trans. Geosci. Remote Sens., vol. 48, pp. 4085–4098,
+2010.
+[35] S. Rajan, J. Ghosh, and M. Crawford, “An Active Learning Approach
+to Hyperspectral Data Classification,” IEEE Trans. Geosci. Remote Sens.,
+vol. 46, pp. 1231–1242, 2008.
+[36] V. Ng and C. Cardie, “Weakly Supervised Natural Language Learning
+without Redundant Views,” in NAACL, 2003, pp. 94–101.
+[37] S. Kumar and M. Hebert, “Discriminative Random Fields,” Int. J.
+Comput. Vision, vol. 68, no. 2, pp. 179–201, 2006.
+[38] P. Zhong and R. Wang, “Learning Sparse CRFs for Feature Selection
+and Classification of Hyperspectral Imagery,” Geoscience and Remote
+Sensing, IEEE Transactions on, vol. 46, pp. 4186–4197, 2008.
+[39] L. Fei-Fei, R. Fergus, and P. Perona, “Learning generative visual models
+from few training examples: An incremental bayesian approach tested on
+101 object categories,” in CVIU, 2007, pp. 59–70.
+[40] S. Pang, S. Ozawa, and N. Kasabov, “Incremental Linear Discriminant
+Analysis for Classification of Data Streams,” Trans. Systems, Man, and
+Cybernetics, vol. 35, pp. 905–914, 2005.
+[41] G. Cauwenberghs and T. Poggio, “Incremental and Decremental Support
+Vector Machine Learning,” in Adv. Neural Inf. Process. Syst., 2001, pp.
+409–415.
+[42] M. Karasuyama and I. Takeuchi, “Multiple Incremental Decremental
+Learning of Support Vector Machines,” Trans. Neural Netw., vol. 21,
+no. 7, pp. 1048–1059, 2010.
+[43] G. Fung and O. Mangasarian, “Incremental Support Vector Machine
+Classification,” in SIAM, 2002, pp. 247–260.
+[44] M. Figueiredo, “Adaptive Sparseness for Supervised Learning,” IEEE
+Trans. Pattern Anal. Mach. Intell., pp. 1050–1159, 2003.
+[45] M. Figueiredo and A. Jain, “Bayesian Learning of Sparse Classifiers,”
+in Proc. IEEE Conf. Computer Vision and Pattern Recognition, 2001.
+[46] L. Csato? and M. Opper, “Sparse On-line Gaussian Processes,” Neural
+Computation, vol. 14, pp. 641–668, 2002.
+[47] N. Lawrence, M. Seeger, and R. Herbrich, “Fast Sparse Gaussian Process
+Methods: The Informative Vector Machine,” in Adv. Neural Inf. Process.
+Syst., 2003.
+[48] R. Neal, Bayesian Learning for Neural Networks. Springer Verlag,
+1996, vol. 118.
+[49] J. Platt, Advances in Kernel Methods - Support Vector Learning.
+MIT Press, 1999, ch. Fast Training of Support Vector Machines using
+Sequential Minimal Optimization, pp. 185–208.
+[50] C. Hsu and C. Lin, “A comparison of methods for multiclass support
+vector machines,” Neural Networks, IEEE Transactions on, vol. 13, no. 2,
+pp. 415–425, 2002.
+[51] P. Rousseeuw, A. Leroy, and J. Wiley, Robust Regression and Outlier
+Detection. Wiley Online Library, 1987, vol. 3.
+[52] N. Japkowicz, “The class imbalance problem: Significance and strate-
+gies,” in Int. Conf. Artificial Intelligence, vol. 1. Citeseer, 2000, pp.
+111–117.
+[53] N. Higham, Accuracy and Stability of Numerical Algorithms. Society
+for Industrial Mathematics, 2002.
+[54] R. Cook and S. Weisberg, Residuals and Influence in Regression.
+Chapman and Hall New York, 1982.
+[55] J.-M. Yang, B.-C. Kuo, P.-T. Yu, and C.-H. Chuang, “A Dynamic
+Subspace Method for Hyperspectral Image Classification,” IEEE Trans.
+Geosci. Remote Sens., vol. 48, no. 7, pp. 2840–2853, 2010.
+[56] F. Melgani and L. Bruzzone, “Classification of Hyperspectral Remote
+Sensing Images with Support Vector Machines,” IEEE Trans. Geosci.
+Remote Sens., vol. 42, no. 8, pp. 1778–1790, 2004.
+[57] C. Chang and C. Lin, “LIBSVM: A Library for Support Vector Ma-
+chines,” 2001.
+[58] Y. Boykov, O. Veksler, and R. Zabih, “Fast Approximate Energy
+Minimization via Graph Cuts,” IEEE Trans. Pattern Anal. Mach. Intell.,
+pp. 1222–1239, 2001.
+Ribana Roscher received her Dipl.-Ing. degree in
+Geodesy from University of Bonn, Germany, in
+2008. She is currently a PhD at the Institute of
+Geodesy and Geoinformation at the University of
+Bonn, Germany. Her current research activities con-
+centrate on sequential learning and discriminative
+models for semantic segmentation, especially import
+vector machines. She is reviewer for IEEE Trans-
+actions on Geoscience and Remote Sensing and
+IEEE Transactions on Pattern Analysis and Machine
+Intelligence.
+Bjo?rn Waske (S06-M08) received his degree in
+Applied Environmental Sciences with a major in
+Remote Sensing from Trier University, Germany,
+in 2002. Until mid 2004 he was research assistant
+the Department of Geosciences at the Munich Uni-
+versity, Germany. From 2004 until end of 2007 he
+pursued a PhD at the Center for Remote Sensing
+of Land Surfaces (ZFL) at the University of Bonn,
+Germany and received the PhD degree in Geography.
+From beginning of 2008 until August 2009 he was
+a Postdoctoral researcher at the Faculty of Electrical
+and Computer Engineering, University of Iceland. Since September 2009 he
+is a (Junior)professor for Remote Sensing in Agriculture at the University
+of Bonn, Germany. His current research activities concentrate on advanced
+concepts for image classification and data fusion. Currently he is Associate
+Editor IEEE Journal of Selected Topics in Applied Earth Observations and
+Remote Sensing (J-STARS). He is reviewer for different international journals,
+including IEEE Transactions on Geoscience and Remote Sensing, IEEE
+Geoscience and Remote Sensing Letters, and IEEE Journal of Selected Topics
+in Applied Earth Observations and Remote Sensing.
+Wolfgang Fo?rstner , born 1946, received his Dipl.-
+Ing. degree in Geodesy at the University of Stuttgart,
+Germany, in 1971. He received the PhD degree in
+1976 at the University of Stuttgart, Germany. Since
+1990 he chairs the Department of Photogrammetry
+at the University of Bonn, Germany. His fields
+of interest are digital photogrammetry, statistical
+methods of image analysis, analysis of image se-
+quences, semantic modeling, machine learning and
+geoinformation systems. He published more than
+130 scientific papers, supervised appr. 70 Bachelor
+and Master Theses and more than 30 PhD Theses. From 1994-2001 he was
+vice president of the German Association for Pattern Recognition (DAGM).
+He currently is associated editor of IEEE Transactions on Pattern Analysis
+and Machine Intelligence.

@@ -1,0 +1,1796 @@
+1
+Towards Automatic Construction of Diverse,
+High-quality Image Dataset
+Yazhou Yao, Jian Zhang, Fumin Shen, Dongxiang Zhang, Zhenmin Tang, and Heng Tao Shen
+Abstract—The availability of labeled image datasets has been shown critical for high-level image understanding, which continuously
+drives the progress of feature designing and models developing. However, constructing labeled image datasets is laborious and
+monotonous. To eliminate manual annotation, in this work, we propose a novel image dataset construction framework by employing
+multiple textual metadata. We aim at collecting diverse and accurate images for given queries from the Web. Specifically, we formulate
+noisy textual metadata removing and noisy images filtering as a multi-view and multi-instance learning problem separately. Our
+proposed approach not only improves the accuracy, but also enhances the diversity of the selected images. To verify the effectiveness
+of our proposed approach, we construct an image dataset with 100 categories. The experiments show significant performance gains
+by using the generated data of our approach on several tasks, such as image classification, cross-dataset generalization and object
+detection. The proposed method also consistently outperforms existing weakly supervised and web-supervised approaches.
+Index Terms—Image dataset construction, multiple textual metadata, dataset diversity
+F
+1 INTRODUCTION
+A S the computer vision community considers morevisual categories and greater intra-class variations;
+it is clear that larger and more exhaustive datasets
+are needed. However, the process of constructing such
+datasets is laborious and monotonous. It is unlikely
+that the manual annotation can keep pace with the
+growing need for annotated datasets. To reduce the cost
+of manual annotation, automatically constructing image
+datasets by using the web data has attracted more and
+more people’s attention [17], [18], [27], [30], [36], [51].
+Compared to manually labeled datasets, web images
+are a richer and larger resource. For arbitrary categories,
+the possible training data can be easily obtained from an
+image search engine. Unfortunately, using image search
+engines are limited by the poor precision of the returned
+images and restrictions on the total number of retrieved
+images. For example, Schroff et al. [36] reported the
+average precision of Google Image Search engine on 18
+categories is only 39%, and downloads are restricted to
+1000 images for each query. In addition, the retrieved
+images from image search engine usually have the over-
+lapping problem which results in a reduced intra-class
+variation. In general, there are three main problems
+during the process of constructing image datasets by
+leveraging image search engine:
+Scalability. Since image search engine restricts the num-
+bers of returned images for each query, Hare and Lewis
+[3] proposed to adopt social network Flickr for candidate
+Y. Yao and J. Zhang are with the Global Big Data Technologies Center,
+University of Technology Sydney, Australia.
+F. Shen, D. Zhang and H.T. Shen are with the School of Computer Science
+and Engineering, University of Electronic Science and Technology of China.
+Z. Tang is with the School of Computer Science and Engineering, Nanjing
+University of Science and Technology, China.
+Corresponding author: Fumin Shen (Email: fumin.shen@gmail.com).
+images collection while methods [2], [36] addressed the
+problem by using a web search instead of an image
+search. In [2], topics were discovered based on words
+occurring in the webpages and image clusters for each
+topic were formed by selecting images where the nearby
+text is top ranked. Then images and the associated
+text from these clusters were used to learn a classifier
+to re-rank the candidate images. In [36], Schroff et al.
+adopted text information to rank images and used these
+top-ranked images to learn visual classifiers to re-rank
+images once again. These methods can obtain thousands
+of images for each query. However, for all of these
+methods, the yield is limited by the poor accuracy of
+the initial candidate images.
+Accuracy. Due to the error index of image search
+engine, even with the first few images, noises may still be
+included. Existing methods [4], [5], [27], [39] improve the
+accuracy by re-ranking the retrieved images. Fergus et al.
+[4], [5] proposed to use visual clustering of the images
+over a visual vocabulary while method [39] adopted
+multiple instances learning to learn the visual classifiers
+for images re-ranking. Li et al. in [27] leveraged the first
+few images returned from an image search engine to
+train the image classifier, classifying images as positive
+or negative. When the image is classified as a positive
+sample, the classifier uses incremental learning strategy
+to refine its model and collect more positive images.
+These methods can effectively purify the error indexed
+images. However, for all of these methods, the yield
+is significantly reduced by the limited diversity of the
+initial candidate images which were collected with one
+single query.
+Diversity. Images collected with one single query tend
+to have a limited diversity, which is also referred as
+dataset bias problem [38], [46]. To ensure the diversity of
+the collected images, methods [39], [42] partitioned can-
+ar
+X
+iv
+:1
+70
+8.
+06
+49
+5v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+2 
+A
+ug
+ 2
+01
+7
+2
+didate images into a set of clusters, treated each cluster
+as a “bag” and the images therein as “instances”, and
+proposed multi-instance learning (MIL) based methods
+to prune noisy images. However, the yield for both of
+[39] and [42] is limited by the poor diversity of the
+initial candidate images which were obtained through
+one single query. To obtain lots of candidate images in
+a richer diversity, Divvala et al. [11] proposed to use
+multiple query expansions instead of a single query to
+collect images. However, the yield for [11] is restricted
+by the iterative mechanism in the process of noises
+removing and images selection.
+Motivated by the situation described above, we seek
+to automate the process of collecting images in the con-
+dition of ensuring the scalability, accuracy, and diversity.
+Our motivation is to leverage multiple textual metadata
+to ensure the scalability and diversity of the collected
+images, and use multi-view and multi-instance learning
+based methods to improve the accuracy as well as to
+maintain the diversity. Specifically, we first discover a
+set of semantically rich textual metadata, from which
+the visual non-salient and less relevant textual metadata
+are removed. The selected textual metadata is used to
+retrieve sense-specific images to construct the raw image
+dataset. To suppress the search error and noisy textual
+metadata (which are not filtered out) induced noisy
+images, we further divide the retrieved noises into three
+types and use different methods to filter these noises
+separately. To verify the effectiveness of our proposed
+approach, we construct an image dataset with 100 cate-
+gories, which we refer to as WSID-100 (web-supervised
+image dataset 100). Extensive experiments on image
+classification, cross-dataset generalization, and object de-
+tection demonstrate the superiority of our approach.
+The main contributions of this work are summarized as
+follows:
+1) We propose a general image dataset construction
+framework that ensures the scalability, accuracy, and
+diversity of the image collections while with no
+need of manual annotation.
+2) We jointly filter inter-class and intra-class noisy im-
+ages in a linear programming multi-instance learn-
+ing problem. Compared to existing iterative meth-
+ods, our proposed approach can effectively improve
+the diversity while ensuring the accuracy.
+3) We released our dataset on website1. We hope the
+scalability, accuracy and diversity of WSID-100 can
+help researchers further their study in the machine
+learning, computer vision, and other related fields.
+4) We provide a benchmark platform for evaluating
+the performance of various algorithms in the task
+of pruning noise and selecting useful data.
+This paper is an extended version of [51], which
+includes about 70% new materials. The substantial ex-
+tensions include: treating semantic distance and visual
+distance as features from two different views and taking
+1. http://www.multimediauts.org/dataset/WSID-100.html
+multi-view learning based method to prune less relevant
+textual metadata; taking MIL based method instead of
+iterative mechanism in the process of inter-class and
+intra-class noises removing; comparing the image clas-
+sification ability, cross-dataset generalization ability, and
+object detection ability of our dataset instead of only the
+accuracy; comparing our dataset with both of manually
+labeled and web-supervised datasets instead of only
+manually labeled datasets; and increasing the number
+of categories from 10 to 100.
+The rest of the paper is organized as follows: Sec-
+tion 2 elaborates the related works for image dataset
+construction. We propose our framework and associated
+algorithms in Section 3. In Section 4, we compare the
+performance of our proposed approach with manually
+labeled, weakly supervised, and web-supervised base-
+line approaches. Section 5 concludes this paper.
+2 RELATED WORKS
+Lots of works have been involved in constructing image
+datasets. In general, these works can be roughly divided
+into two types: manual based methods and learning
+based methods.
+2.1 Manual Based Methods
+The traditional way to construct an image dataset
+is manually labeling (e.g., ImageNet [1], STL-10 [41],
+CIFAR-10 [23] and PASCAL VOC [15]). Most of these
+datasets were built by submitting a query to image
+search engines and aggregating retrieved images as
+candidate images, then cleaning candidate images by
+human judgment. Manual labeling has a high accuracy
+but is limited in scalability and diversity. For example,
+a group of students has spent several months on manu-
+ally constructing the Caltech 101 [43] dataset. However,
+Caltech 101 dataset is restricted by the intraclass varia-
+tion of the images (centered objects with few viewpoint
+changes) and the numbers of images per category (at
+most a few hundred).
+2.2 Learning Based Methods
+To reduce the cost of manual labeling, works [44], [48]
+also focused on active learning. In [44], Li et al. proposed
+to randomly label some seed images to learn visual
+classifiers. Then the learned classifiers were used to clas-
+sify unlabeled images and find unconfident images for
+manual labeling. The process will iterate until presetting
+classification accuracy is achieved. Grauman et al. in [48]
+proposed to learn object detectors by online learning. It
+refines its model by actively requiring manual annota-
+tions on the crawled web images. Active learning based
+methods still require manually labeling, which is one of
+the biggest limitations to construct a large-scale diverse
+image dataset.
+To further reduce the cost of manual labeling, more
+and more peoples’ attention has been paid to the au-
+tomatic methods [17], [27], [36]. In [27], Li et al. took
+3
+the incremental learning mechanism to collect images for
+the given query. It utilizes the first few retrieved images
+to learn classifiers, classifying images into positive or
+negative. When the image is classified as a positive
+sample, it will be used to refine the classifier. With the
+increase of positive images accepted by the classifier,
+the learned classifier will reach a robust level for this
+query. Schroff et al. in [36] proposed to adopt text in-
+formation to rank retrieved images, and leverage top-
+ranked images to learn visual models to re-rank images
+once again. Hua et al. [17] leveraged clustering based
+method and propagation based method for pruning
+“group” and individual noisy images separately. These
+methods eliminate the process of manual labeling and
+can alleviate the scalability problem. However, for all of
+these methods [17], [27], [36], the diversity of the final
+collected images is restricted by the limited diversity of
+the initial candidate images which were collected with a
+single query.
+2.3 Other Related Works
+There is a lot of work associated with the generation
+of multiple textual metadata and noisy images remov-
+ing, though their goal is not to construct an image
+dataset. For example, WordNet [32], ConceptNet [49]
+and Wikipedia are often used to obtain related syn-
+onyms for overcoming the download restriction for each
+query. Synonyms derived from WordNet, ConceptNet
+and Wikipedia tend to be relevant to the target query
+and don’t need to be purified [9], [10]. The shortcoming
+is that synonyms derived from WordNet, ConceptNet
+and Wikipedia tend to be not comprehensive enough
+for modifying the target query. What’s worse, candidate
+images collected through synonyms usually have the
+homogenization problem, which restricts the diversity
+of the collected images.
+To obtain diverse candidate images as well as to
+alleviate the homogenization problem, recent work [11]
+leveraged Google Books Ngram Corpus (GBNC) [29] to
+obtain multiple textual metadata for initial images collec-
+tion. Compared to WordNet, ConceptNet and Wikipedia,
+GBNC is much richer and general. It covers almost
+all related textual metadata at the textual level. The
+disadvantage of leveraging GBNC to discover multiple
+textual metadata is that GBNC may also bring noises. In
+our work, we take GBNC to discover a set of semanti-
+cally rich textual metadatafor modifying the target query.
+Then we use the word-word and visual-visual similarity
+to remove noisy textual metadata.
+In summary, existing learning based methods save
+human cost by leveraging the generalization ability of
+machine models. However, the generalization ability is
+affected by not only the scalability and accuracy but
+also the diversity of the selected images. The basic idea
+of this paper is to leverage learning based methods for
+improving the accuracy, and multiple textual metadata
+for enhancing the scalability and diversity.
+Visual non-salient
+Betting dog
+Missing dog
+Less relevant
+Hot dog
+Fig. 1: A snapshot of the retrieved images for visual non-
+salient and less relevant textual metadata.
+3 FRAMEWORK AND METHODS
+We are targeting at automatically constructing image
+dataset in a scalable way while ensuring the accuracy
+and diversity. We automatize the three most labor cost
+steps. Fig. 2 shows the process of multiple textual meta-
+data discovering and noisy textual metadata filtering.
+Fig. 3 demonstrates the process of noisy images filtering.
+The following subsections describe the details of our
+proposed framework.
+3.1 Multiple Textual Metadata Discovering
+Images returned from an image search engine tend to
+have a relatively higher accuracy (compared to Flickr
+and web search), but downloads are restricted to a
+certain number. In addition, the accuracy of ranking-
+rearward images is also unsatisfactory. To overcome
+these restrictions, synonyms are often used to collect
+more images from image search engine. However, this
+method only works well for queries which have been
+defined in an existing ontology (e.g., WordNet [32]).
+Apart from this, images collected by synonyms tend to
+have the homogenization problem [38].
+Inspired by recent work [21], we can use GBNC to
+discover a set of semantically rich textual metadata for
+modifying the given query. Our motivation is to leverage
+multiple textual metadata for overcoming the download
+restriction of image search engine (scalability) and ensur-
+ing the greater intraclass variation of images (diversity).
+GBNC covers all variations of any concept the human
+race has ever written down in books [29]. Compared
+to WordNet and ConceptNet which only have NOUN
+metadata, GBNC is much more general and exhaustive.
+Following [29] (see section 4.3), we specifically use the
+dependency gram data with parts-of-speech (POS) for
+refinement textual metadata discovering. For example,
+given a query and its corresponding POS tag (e.g.,
+‘jumping, VERB’), we find all its occurrences annotated
+with POS tag within the dependency gram data. Of all
+the gram dependencies retrieved for the given query,
+we choose those whose modifiers are tagged as NOUN,
+4
+Textual query: 
+dog
+Candidate multiple 
+textual metadata:
+Yawning dog
+Swimming dog
+Eskimo dog
+Puppy dog
+Brone dog
+Guard dog
+Down dog
+Hot dog
+Betting dog
+Missing dog
+...
+Visual salient?
+Yes
+No
+Word-word distance
+Yawning dog       0.388
+Swimming dog    0.334
+Eskimo dog         0.286
+Puppy dog           0.278
+Police dog           0.372
+Down dog           0.703
+Hot dog               0.213
+                                 
+Selected textual 
+metadata
+Yawning dog
+Swimming dog
+Eskimo dog
+Puppy dog
+Police dog
+...
+Visual non-salient 
+pruning model
+Visual-visual distance
+Yawning dog       0.186
+Swimming dog    0.243
+Eskimo dog         0.215
+Puppy dog           0.173
+Police dog           0.116
+Down dog           0.992
+Hot dog               0.999
+      ...
+M
+u
+lt
+i-
+v
+ie
+w
+le
+ss
+ r
+e
+le
+v
+a
+n
+t 
+p
+ru
+n
+in
+g
+ m
+o
+d
+e
+l
+Fig. 2: Illustration of the process for obtaining multiple textual metadata. The input is a textual query that we would
+like to find multiple textual metadata for. The output is a set of selected textual metadata which will be used for
+raw image dataset construction.
+VERB, ADJECTIVE and ADVERB as the candidate tex-
+tual metadata. We use these semantically rich textual
+metadata (corresponding images) to reflect the different
+visual distributions for the given query. The detailed
+candidate textual metadata discovered in this step can
+be found on website1.
+3.2 Noisy Textual Metadata Filtering
+Multiple textual metadata discovering not only brings
+all the useful data, but also some noises (e.g., “betting
+dog”, “missing dog” and “hot dog” in Fig. 1). Using
+these noisy textual metadata to retrieve images will have
+a negative effect on the accuracy. To this end, we prune
+these noisy textual metadata before we collect candidate
+images for the target query. We divide the noisy textual
+metadata into two types (visual non-salient and less
+relevant) and propose to filter these two types of noises
+separately.
+3.2.1 Visual non-salient textual metadata pruning
+From the visual consistency perspective, we want to
+identify visual salient and eliminate non-salient textual
+metadata in this step (e.g., “betting dog” and “missing
+dog” in Fig. 1). The intuition is that visual salient textual
+metadata should exhibit predictable visual distributions.
+Hence, we can use the image classifier-based pruning
+method.
+For each textual metadata , we retrieve the top N
+samples from Google Image Search Engine as positive
+images; then randomly split them into a training and
+validation set Ii = {Iti , Ivi }. A pool of unrelated samples
+were collected as negative images. Similarly, the negative
+images were also split into a training and validation set
+I = {It, Iv}. We extract 4096 dimensional deep features
+(based on AlexNet [13]) for each image and train a linear
+support vector machine (SVM) classifier by using Iti and
+I
+t
+. Validation set {Ivi , I
+v} were applied to calculate the
+classification results Si. When Si takes a relatively larger
+value, we think textual metadata i is visually salient. We
+will analyze the parameter sensitivity of Si more details
+in Section 4.5.
+3.2.2 Less relevant textual metadata pruning
+Normalized Google Distance (NGD) [8] extracts the se-
+mantic distance between two terms by using the Google
+page counts. We denote the semantic distance of all
+textual metadata by a graph Gsemantic in which the
+target query is center y. Other textual metadata x has
+a score Sxy corresponds to the NGD between term x
+and y. Semantically relevant textual metadata usually
+has a smaller semantic distance than less relevant (e.g.,
+“yawning dog”, “Eskimo dog” and “police dog” which
+has 0.388, 0.286 and 0.372 respectively is much smaller
+than “down dog” which has 0.703).
+However, this assumption is not always true from the
+perspective of visual relevance. For example, “hot dog”
+has a relatively smaller semantic distance 0.213, but it is
+not relevant to the target query “dog”. Thus, we need
+to identify both of semantic and visual relevant textual
+metadata for the target query. Similar to the semantic
+distance, we denote the visual distance of all textual
+metadata by graph Gvisual in which the target query
+is center y. Other textual metadata x has a score Vxy
+corresponds to the visual distance between term x and
+y. Similar to the previous step in Section 3.2.1, we obtain
+the visual distance between target query y and other
+textual metadata x by the score of the center y node
+classifier fy on the xth node retrieved images Ix. The
+difference lies in the different test images.
+By treating word-word (semantic) and visual-visual
+distance (visual) as features from two different views,
+we formulate less relevant textual metadata pruning as
+a multi-view learning problem. Our objective is to find
+both semantically and visually relevant textual meta-
+data. During training, we model each view with one
+classifier and jointly learn two classifiers with a regular-
+ization term that penalizes the differences between two
+5
+Artificial 
+images?
+Yes
+No
+Selected textual 
+metadata
+Yawning dog
+Swimming dog
+Brone dog
+Puppy dog
+Police dog
+...
+Inter-class  
+noisy 
+images?
+Yes
+Artificial images 
+pruning model
+Multi-instance 
+inter-class noises pruning 
+model
+No
+M
+u
+lt
+i-
+in
+s
+ta
+n
+c
+e
+ 
+in
+tr
+a
+-c
+la
+ss
+ n
+o
+is
+e
+s 
+p
+r
+u
+n
+in
+g
+ 
+m
+o
+d
+e
+l
+Fig. 3: Illustration of the process for obtaining selected images. The input is a set of selected textual metadata.
+Artificial images, inter-class noisy images, and intra-class noisy images are marked with red, green and blue
+bounding boxes separately. The output is a group of selected images in which the images corresponding to different
+textual metadata.
+different classifiers. Two views are reproducing kernel
+Hilbert spaces HK(1) and HK(2) . Given l labeled data
+(x1, y1), ...(xl, yl) ? X × {±1} and u unlabeled data
+xl+1, ...xl+u ? X , we seek to find predictors f (1)? ? HK(1)
+and f (2)? ? HK(2) that minimize the following objective
+function:
+(f (1)?, f (2)?) = argmin
+f(1)?H
+K(1)
+f(2)?H
+K(2)
+Loss(f (1), f (2)) + ?1
+???f (1)???2
+H
+K(1)
++ ?2
+???f (2)???2
+H
+K(2)
++ ?
+l+u?
+i=l+1
+[f (1)(xi)? f (2)(xi)]2.
+(1)
+The first term is loss function and the next two are
+the regularization terms. The last term is called “co-
+regularization” which encourages the selection of a pair
+predictors (f (1)?, f (2)?) that agree on the unlabeled data.
+During testing, we make predictions by averaging the
+classification results from both of two views and the
+prediction rule is:
+J = 1
+2
+(f (1)(x) + f (2)(x)) (2)
+Following [6], [26], we adopt the form of loss function
+as:
+Loss(f (1), f (2)) =
+1
+2l
+l?
+i=1
+([
+f (1)(xi)? yi
+]2
++
+[
+f (2)(xi)? yi
+]2)
+(3)
+We give the solution to (1) in the Supplemental Material.
+After we obtain the models for two views, we use (2) to
+prune less relevant textual metadata.
+3.3 Noisy Images Filtering
+The selected textual metadata were used to collect im-
+ages from image search engine to construct the raw
+image dataset. Due to the error index of image search
+engine, some noises may be included (artificial and intra-
+class noisy images). In addition, a few noisy textual
+metadata which are not filtered out can also bring some
+noises (inter-class noisy images). As shown in Fig. 3, our
+process for filtering noisy images consists of three major
+steps: artificial images pruning, inter-class and intra-class
+noisy images pruning.
+3.3.1 Artificial images pruning
+As we are mainly interested in constructing image
+datasets for natural image recognition, we would like
+to remove artificial images from the raw image dataset.
+The artificial images contain “sketches”, “drawings”,
+“cartoons”, “charts”, “comics”, “graphs”, “plots” and
+“maps”. Since artificial images tend to have only a few
+colors in large areas or sharp edges in certain orienta-
+tions, we choose the visual features of color and gradient
+histogram for separating artificial images from natural
+images. We train a radial basis function SVM model by
+using the selected visual features. The artificial images
+were obtained by retrieving queries: “sketch”, “draw-
+ings”,“cartoons”, “charts”, “comics”, “graphs”, “plots”
+and “maps” (250 images for each query, 2000 images in
+total), natural images were obtained by directly using
+the images in ImageNet (2000 images in total).
+After the pruning model was learned, we apply it to
+the entire raw image dataset to prune artificial images.
+The pruning model achieves around 94 percent clas-
+sification accuracy on artificial images (using two-fold
+cross-validation) and significantly reduces the number of
+artificial images in the raw image dataset. There is some
+loss of the natural images, with, on average, 6 percent
+removed. Although this seems to be a little high, the
+accuracy of the resulting dataset is greatly improved.
+3.3.2 Inter-class noisy images pruning
+Inter-class noisy images were caused by the noisy textual
+metadata which are not filtered out. As shown in Fig. 3
+6
+“bronze dog” images, these noises tend to exist in the
+form of “groups”. Hence we proposed to use multi-
+instance learning (MIL) based method to filter these
+“group” noisy images. Each selected textual metadata
+was treated as a “bag” and the images corresponding
+to the textual metadata were treated as “instances”. We
+formulate inter-class noisy images pruning as a MIL
+problem. Our objective is to prune group noisy images
+(corresponding to negative “bags”).
+We denote the bags as Bi, the positive and negative
+bags as B+i and B
+?
+i , respectively. l
++ and l? denote the
+numbers of positive and negative bags separately. All
+instances belong to feature space Q. Bag Bi contains ni
+instances xij , j = 1, ..., ni. For simplicity, we re-index
+instances as xk when we line up all instances in all bags
+together, k = 1, ..., n and n =
+?l+
+i=1 n
++
+i +
+?l?
+i=1 n
+?
+i .
+To characterize bags, we take the instance-based fea-
+ture mapping method proposed in [14], [19]. Specifically,
+we assume each bag may consist of more than one target
+concept and the target concept can be approximated by
+an instance in the bags. Under this assumption, the most-
+likely-cause estimator can be written as:
+Pr(xk|Bi) ? s(xk, Bi) = max
+j
+exp(?
+??xij ? xk??
+?2
+), (4)
+where ? is a predefined scaling factor. s(xk, Bi) can be
+explained as a similarity between bag Bi and concept xk.
+It is determined by the concept and the closest instance
+in the bag. Then the bag Bi can be embedded with
+coordinates
+m(Bi) = [s(x
+1, Bi), s(x
+2, Bi), ...s(x
+n, Bi)]
+>. (5)
+Given a training set which contains l+ positive bags and
+l? negative bags, we apply the mapping function (5) and
+obtain the following matrix representation of all training
+bags: ?????
+s(x1, B+1 ) · · · s(x1, B
+?
+l?)
+s(x2, B+1 ) · · · s(x2, B
+?
+l?)
+...
+. . .
+...
+s(xn, B+1 ) · · · s(xn, B
+?
+l?)
+????? . (6)
+Each column corresponds to a bag, and the kth feature
+realizes the kth row of the matrix. Generally speaking,
+when xk achieves a high similarity to some positive
+bags and low similarity to negative bags, we think that
+the feature s(xk, ·) induced by xk provides “useful”
+information in separating the positive from negative
+bags.
+Instance-based feature mapping tends to has a better
+generalization ability. The disadvantage is that it may
+require an expensive computational cost. Our solution is
+to construct 1-norm SVM classifiers and select important
+features simultaneously. The motivation is 1-norm SVM
+can be formulated as a linear programming (LP) problem
+and the computational cost will not be an issue. The 1-
+Algorithm 1 The algorithm for learning bag classifier
+Input:
+Positive bags B+i and negative bags B
+?
+i .
+1: For (each bag Bi = {xij : j = 1, ..., ni})
+2: for (every instance xk)
+3: d? minj
+??xij ? xk??
+4: the kth element of m(Bi) is s(xk, Bi) = e?
+d2
+?2
+5: end
+6: End
+7: Solve the linear programming in (8)
+Output:
+The optimal solutions w? and b?, the bag classifier
+(10).
+norm SVM is formulated as follows:
+min
+w,b,?,?
+?
+n?
+k=1
+|wk|+ C1
+l+?
+i=1
+?i + C2
+l??
+j=1
+?j
+s.t. (w>m+i + b) + ?i > 1, i = 1, ..., l
++,
+?(w>m?j + b) + ?j > 1, j = 1, ..., l
+?,
+?i, ?j > 0, i = 1, ..., l
++, j = 1, ..., l?
+(7)
+where ? and ? are hinge losses. Choosing different
+parameters C1 and C2 will penalize on false negatives
+and false positives. We usually let C1 = ?, C2 = 1 ? ?
+and 0 < ? < 1 so that the training error is determined
+by a convex combination of the training errors occurred
+on positive bags and on negative bags.
+To solve the 1-norm SVM (7) with linear programming,
+we rewrite wk = uk ? vk, where uk, vk > 0. Then we can
+formulate linear programming in variables u, v, b, ? and
+? as:
+min
+u,v,b,?,?
+?
+n?
+k=1
+(uk + vk) + ?
+l+?
+i=1
+?i + (1? ?)
+l??
+j=1
+?j
+s.t.
+[
+(u? v)>m+i + b
+]
++ ?i > 1, i = 1, ..., l
++,
+?
+[
+(u? v)>m?j + b
+]
++ ?j > 1, j = 1, ..., l
+?,
+?i, ?j > 0, i = 1, ..., l
++, j = 1, ..., l?
+uk, vk > 0, k = 1, ..., n.
+(8)
+The solutions of linear programming (8) equivalent to
+those obtained by the 1-norm SVM (7). The reason is
+that for all k = 1, ..., n, any optimal solution to (8) has at
+least one of the two variables uk and vk equal to 0.
+Suppose w? = u? ? v? and b? are the solutions of (8),
+then the influence of the kth feature on the classifier can
+be determined by the value of w?k. Specifically, we select
+features {s(xk, ·) : k ? ?} to meet the conditions:
+? = {k : |w?k| > 0}. (9)
+Finally, we obtain the classification rule of bag Bi to be
+positive or negative is:
+y = sign
+???
+k??
+w?ks(x
+k, Bi) + b
+?
+?? . (10)
+7
+The detailed process of learning the bag classifier is
+described in Algorithm 1. We apply the rule (10) to
+classify bags. When the bag is classified to be negative,
+the group images corresponding to the bag will be
+filtered out.
+3.3.3 Intra-class noisy images pruning
+After we prune inter-class noisy images, we then only
+care the intra-class noises corresponding to the positive
+bags. Intra-class noises were induced by the error index
+of image search engine. As shown in Fig. 3, these noises
+usually exist in the form of “individuals”.
+The basic idea of pruning intra-class noises in positive
+bags is according to their contributions to the classifica-
+tion of the bag. Instances (corresponding to images) in
+the bags can be divided into two types: positive class and
+negative class. An instance is assigned to the positive
+class when its contribution to
+?
+k?? w
+?
+ks(x
+k, Bi) is greater
+than a threshold ?. For instance xij in bag Bi, we define
+an index set ? as:
+? =
+{
+j? : j? = argmax
+j
+exp
+(
+?
+??xij ? xk??2
+?2
+)
+, k ? ?
+}
+.
+(11)
+Then the bag classification rule (10) only needs
+the instances xij? , j? ? ?. Removing an instance
+xij? , j
+? /? ? from the bag will not affect the value of?
+k?? w
+?
+ks(x
+k, Bi) in (10). There may exist more than
+one instance in bag Bi maximizes exp(?
+?xij?xk?2
+?2 ) for
+a given xk, k ? ?. We denote the number of maximizers
+for xk by ?k. We then rewrite the bag classification rule
+(10) in terms of the instances indexed by ? as:
+y = sign
+???
+j???
+g(xij?) + b
+?
+?? ,
+where
+g(xij?) =
+?
+k??
+w?ks(x
+k, xij?)
+?k
+(12)
+determines the contribution of xij? to the classification
+of the bag Bi. Instance xij? belongs to the positive class
+if g(xij?) > ?. Otherwise, xij? belongs to the negative
+class. The choice of threshold ? is a application specific
+problem. In our experiments, the parameter ? is chosen
+to be bag dependent as ? b
+?
+|?| . The detailed process of
+pruning intra-class noises is described in Algorithm
+2. We apply the rule (12) to prune negative instances
+(corresponding to the intra-class noises).
+4 EXPERIMENTS
+In this section, we first construct an image dataset with
+100 categories and conduct experiments on image clas-
+sification, cross-dataset generalization, and object detec-
+tion to verify the effectiveness of our dataset. Then we
+quantitative analyze the contributions of different steps
+to the final results and the parameter sensitivity of our
+Algorithm 2 The algorithm for pruning intra-class noises
+Input:
+? = {k : |w?k| > 0},
+? =
+{
+j? : j? = argminj
+??xij ? xk?? , k ? ?}.
+1: Initialize ?k = 0 for every k in ?
+2: For (every j? in ?)
+3: ?j? = {k : k ? ?, j? = argminj
+??xij ? xk??}
+4: for (every k in ?j? )
+5: ?k ? ?k + 1
+6: end
+7: End
+8: For (every xij? with j? in ?)
+9: Compute g(xij?) using (12)
+10: End
+Output:
+All positive instances xij? satisfying g(xij?) > ?
+proposed approach. Finally, we introduce how to use our
+provided platform for evaluating various algorithms in
+the task of pruning noisy images.
+4.1 Image Dataset Construction
+We choose all the 20 categories in PASCAL VOC 2007
+dataset plus 80 other categories as the target categories
+to construct our dataset WSID-100. The reason is existing
+weakly supervised and web-supervised methods were
+evaluated on this dataset.
+For each category, we first discover the multiple tex-
+tual metadata from Google Books with POS. Then the
+first N = 100 images were retrieved for each discovered
+textual metadatato represent its visual distribution. In
+spite of the fact that noises may be contained, we treat
+the retrieved images as positive samples and split them
+into a training and validation set Ii = {Iti = 75, Ivi = 25}.
+We gather a random pool of negative images and split
+them into a training and validation set I = {It =
+25, I
+v
+= 25}. Through experiments, we declare a textual
+metadata i to be visual salient when the classification
+result Si ? 0.6. We will discuss the parameter sensitivity
+of Si more details in Section 4.6. We have released the
+discovered textual metadata for 100 categories and the
+corresponding images (original image URL) on website1.
+To prune less relevant textual metadata, we calculate
+the word-word and visual-visual distance between vi-
+sual salient textual metadata and target query. We label
+l1 = 500 positive data and l2 = 500 negative data. We
+use a total of l = l1 + l2 = 1000 labeled and u = 500
+unlabeled data to learn the multi-view prediction rule
+(2). This labeling work only needs to be done once and
+the prediction rule (2) will be used for pruning all less
+relevant textual metadata.
+We construct the raw image dataset by using the
+textual metadata which are not filtered out. Specifically,
+we collect the top 100 images for each selected textual
+metadata. Since not enough textual metadata was found
+for query “potted plant”, we collect the top 500 images
+8
+b i c y c l e b o a t b o t t l e b u s c h a i r c o w t a b l e m o t o b i k e p e r s o n p l a n t s h e e p s o f a t r a i n t v
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+ I m a g e N e t   O p t i m o l   H a r v e s t i n g   D R I D - 2 0   O u r s  
+Fig. 4: The image classification accuracy (%) comparison over 14 categories on the PASCAL VOC 2007 dataset.
+a i r p l a n e b i r d c a r c a t d o g h o r s e0
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0  S T L - 1 0   C I F A R - 1 0   I m a g e N e t   O p t i m o l   H a r v e s t i n g   D R I D - 2 0   O u r s
+Fig. 5: The image classification accuracy (%) comparison
+over 6 categories on the PASCAL VOC 2007 dataset.
+for “potted plant” textual metadata. To filter artificial
+images, we learn a radial basis function SVM model
+by using the visual feature of color and gradient his-
+togram. Although the color and gradient histogram +
+SVM framework that we use is not the prevailing state-
+of-the-art method for image classification, we found our
+method to be effective and sufficient in pruning artificial
+images.
+By treating each selected textual metadata as a “bag”
+and the images therein as “instances”, we formulate
+inter-class and intra-class noisy images pruning as a
+multi-instance learning problem. Our objective is to
+prune “group” (bag-level) inter-class noisy images and
+“individual” (instance-level) intra-class noisy images. To
+learn the bag prediction rule (10), we directly use the
+previously labeled l1 = 500 positive textual metadata
+and l2 = 500 negative textual metadata corresponding
+images as the l+ = l1 = 500 positive bags and l? =
+l2 = 500 negative bags. We apply the prediction rule (10)
+to filter “group” inter-class noisy images. The value of
+g(xij?) in (12) determines the contribution of xij? to the
+classification of the bag Bi. In our experiment, we choose
+the threshold ? as bag dependent ? = ? b
+?
+|?| . That is we
+TABLE 1: The average accuracy (%) comparison over 14
+and 6 common categories on the PASCAL VOC 2007
+dataset.
+Method
+PASCAL VOC 2007
+14 categories 6 categories
+STL-10 [41] - 39.75
+CIFAR-10 [23] - 19.04
+ImageNet [1] 48.95 41.02
+Optimol [27] 42.69 35.97
+Harvesting [36] 46.33 34.89
+DRID-20 [46] 51.13 46.04
+Ours 53.88 49.48
+choose positive instance xij? satisfying g(xij?) > ? b
+?
+|?| .
+The value of b? and ? can be obtained by solving (8)
+and (11), respectively.
+4.2 Comparison of Image Classification Ability and
+Cross-dataset Generalization Ability
+The goal of these experiments is to compare the im-
+age classification ability and cross-dataset generalization
+ability of our dataset with other web-supervised and
+manually labeled datasets.
+4.2.1 Experimental setting
+For the comparison of image classification ability, we
+choose PASCAL VOC 2007 [15] as the testing benchmark
+dataset. The same categories among various datasets are
+compared. Specifically, we randomly select 500 images
+for each category from various datasets as the positive
+training samples. 1000 unrelated images are chosen as
+the negative samples to train SVM classification models.
+We test the classification ability of these models on PAS-
+CAL VOC 2007 dataset. The experiments are repeated
+for ten times and the average classification ability is
+taken as the final performance for various datasets. The
+experimental results are shown in Fig. 4, Fig. 5 and Table
+1.
+9
+2 0 0 3 0 0 4 0 0 5 0 0 6 0 0 7 0 0 8 0 00
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+ I m a g e N e t
+ O p t i m o l
+ H a r v e s t i n g
+ D R I D - 2 0
+ O u r s
+T r a i n i n g  n u m b e r s
+Cla
+ssi
+fica
+tio
+n a
+ccu
+rac
+y (
+%)
+T e s t  o n  I m a g e N e t
+(a)
+2 0 0 3 0 0 4 0 0 5 0 0 6 0 0 7 0 0 8 0 00
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+ I m a g e N e t
+ O p t i m o l
+ H a r v e s t i n g
+ D R I D - 2 0
+ O u r s
+T r a i n i n g  n u m b e r s
+Cla
+ssi
+fica
+tio
+n a
+ccu
+rac
+y (
+%)
+T e s t  o n  O p t i m o l
+(b)
+2 0 0 3 0 0 4 0 0 5 0 0 6 0 0 7 0 0 8 0 00
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+ I m a g e N e t
+ O p t i m o l
+ H a r v e s t i n g
+ D R I D - 2 0
+ O u r s
+T r a i n i n g  n u m b e r s
+Cla
+ssi
+fica
+tio
+n a
+ccu
+rac
+y (
+%)
+T e s t  o n  H a r v e s t i n g
+(c)
+2 0 0 3 0 0 4 0 0 5 0 0 6 0 0 7 0 0 8 0 00
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+ I m a g e N e t
+ O p t i m o l
+ H a r v e s t i n g
+ D R I D - 2 0
+ O u r s
+T r a i n i n g  n u m b e r s
+Cla
+ssi
+fica
+tio
+n a
+ccu
+rac
+y (
+%)
+T e s t  o n  D R I D - 2 0
+(d)
+2 0 0 3 0 0 4 0 0 5 0 0 6 0 0 7 0 0 8 0 00
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+ I m a g e N e t
+ O p t i m o l
+ H a r v e s t i n g
+ D R I D - 2 0
+ O u r s
+T r a i n i n g  n u m b e r s
+Cla
+ssi
+fica
+tio
+n a
+ccu
+rac
+y (
+%)
+T e s t  o n  O u r s
+(e)
+2 0 0 3 0 0 4 0 0 5 0 0 6 0 0 7 0 0 8 0 00
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+ I m a g e N e t
+ O p t i m o l
+ H a r v e s t i n g
+ D R I D - 2 0
+ O u r s
+T r a i n i n g  n u m b e r s
+Cla
+ssi
+fica
+tio
+n a
+ccu
+rac
+y (
+%)
+A v e r a g e
+(f)
+Fig. 6: The cross-dataset generalization ability of various datasets by using a varying number of training images,
+and tested on (a) ImageNet, (b) Optimol, (c) Harvesting, (d) DRID-20, (e) Ours, (f) Average.
+For cross-dataset generalization ability comparison,
+we randomly select 200 images per category
+from various datasets as the testing data.
+[200,300,400,500,600,700,800] images for each category
+from various datasets are sequentially chosen as the
+positive training samples. Similar to the comparison
+of image classification ability, we use the same 1000
+unrelated images as the negative training samples to
+learn image classification models. Training and testing
+data for each category has no duplicates. Since dataset
+STL-10 [41] and CIFAR-10 [23] have only 6 same
+categories “airplane”, “bird”, “cat”, “dog”, “horse” and
+“car/automobile” with other datasets, they won’t be
+compared with our dataset and other datasets in this
+experiment. For other datasets, we compare all the 20
+same categories. The average classification accuracy on
+all categories illustrates the cross-dataset generalization
+ability of one dataset on another dataset [1]. The
+experimental results are shown in Fig. 6.
+For image classification and cross-dataset generaliza-
+tion ability comparison, we set the same options to
+learn classification models for all datasets. Specifically,
+we train SVM classifiers by setting the kernel as a radial
+basis function. The other settings use the default of LIB-
+SVM [7]. For all images, we extract the 4096 dimensional
+deep features based on AlexNet [13].
+4.2.2 Baselines
+We compare our dataset with two sets of baselines:
+Manually labeled datasets. This set of baselines consists
+of STL-10 [41], CIFAR-10 [23] and ImageNet [1]. STL-10
+contains ten categories in which per category has 500
+training and 800 testing images. Both of training and
+testing images are used to represent this dataset. CIFAR-
+10 includes 10 categories and each category contains 6000
+images. ImageNet provides an average of 1000 images
+to represent each category, and is organized according
+to the WordNet hierarchy.
+Web-supervised datasets. This set of baselines consists of
+DRID-20 [46], Optimol [27] and Harvesting [36]. DRID-
+20 contains 20 categories and each category has 1000
+images. For Optimol [27], we select all the categories
+in PASCAL VOC 2007 as the target categories, and
+collect 1000 images for each category by taking the
+incremental learning mechanism. For Harvesting [36],
+we first retrieve the possible images from Google web
+search engine, and rank the retrieved images through the
+text information. The top-ranked images are then lever-
+aged to learn classification models to re-rank the images
+once again. In total, we construct 20 same categories as
+PASCAL VOC 2007 for Harvesting dataset.
+4.2.3 Experimental results
+Cross-dataset generalization ability and image classifi-
+cation ability on third-party testing dataset measure the
+performance of classifiers learned from one dataset and
+tested on another dataset. It indicates the diversity and
+robustness of the dataset [38], [50].
+From Fig. 4 and 5, we observe that the categories
+“plant”, “tv” and “airplane” present a relatively higher
+classification accuracy than other categories when using
+10
+the same number of training images. One possible expla-
+nation is that the “diversity” of “plant”, “tv” and “air-
+plane” are simpler than other categories. The images are
+densely distributed in the feature space. For categories
+“plant”, “tv” and “airplane”, training and testing images
+overlaps much more easily.
+According to the average accuracy over 6 common
+categories on the PASCAL VOC 2007 dataset in Table
+1, the performance of CIFAR-10 is much lower than
+other datasets. The explanation is that CIFAR-10 has a
+limited diversity and a serious dataset bias problem [38].
+In CIFAR-10, the objects are pure and located in the
+middle of the images. However, in the testing dataset
+and other compared datasets, these images not only
+consist of target objects, but also plenty of other scenarios
+and objects.
+By observing Table 1 and Fig. 6, DRID-20 has a better
+image classification ability and cross-dataset generaliza-
+tion ability than ImageNet, Optimol and Harvesting but
+slightly worse than our dataset, possibly because the
+diversity of images in DRID-20 is relatively rich. DRID-
+20 was constructed by using multiple query expansions
+and the objects of its images have variable appearances,
+viewpoints and poses.
+By observing Fig. 4, Fig. 5, Fig. 6 and Table 1, our
+dataset outperforms the web-supervised and manually
+labeled datasets in terms of image classification ability
+and cross-dataset generalization ability. Compared with
+STL-10, CIFAR-10, ImageNet, Optimol and Harvesting,
+our dataset which was constructed by multiple textual
+metadata has a better diversity and can well adapt to the
+third-party testing dataset. Compared with DRID-20, our
+method treats textual and visual relevance as features
+from two different views and takes multi-view based
+method to leverage both of textual and visual distance
+for pruning less relevant textual metadata. Our method
+can be more effective in pruning textual metadata, and
+then obtain a more accurate dataset. At the same time,
+we convert the inter-class and intra-class noises pruning
+into solving a linear programming problem, not only
+improves the accuracy but also the efficiency.
+4.3 Comparison of Object Detection Ability
+Due to the success of DPM [40] detector, training de-
+tection models without bounding boxes has received
+renewed attention. Since recently state-of-the-art web-
+supervised and weakly supervised methods have been
+evaluated on PASCAL VOC 2007 dataset, we also test
+the object detection ability of our collected data on this
+dataset.
+4.3.1 Experimental setting
+We firstly remove images which have extreme aspect
+ratios (> 2.5 or < 0.4) and resize images to a maximum
+of 500 pixels. Then we train a separate DPM for each
+selected textual metadata to constrain the visual vari-
+ance. Specifically, we initialize our bounding box with a
+TABLE 2: Object detection results (A.P.) (%) on PASCAL
+VOC 2007 dataset (Test).
+Method [37] [45] [11] Ours [40]
+Supervision weak weak web web full
+airplane 13.4 17.4 14.0 17.8 33.2
+bike 44.0 - 36.2 42.4 59.0
+bird 3.1 9.3 12.5 17.7 10.3
+boat 3.1 9.2 10.3 9.8 15.7
+bottle 0.0 - 9.2 16.2 26.6
+bus 31.2 - 35.0 44.6 52.0
+car 43.9 35.7 35.9 39.7 53.7
+cat 7.1 9.4 8.4 11.2 22.5
+chair 0.1 - 10.0 9.4 20.2
+cow 9.3 9.7 17.5 19.8 24.3
+table 9.9 - 6.5 12.3 26.9
+dog 1.5 3.3 12.9 12.4 12.6
+horse 29.4 16.2 30.6 39.5 56.5
+motorcycle 38.3 27.3 27.5 36.3 48.5
+person 4.6 - 6.0 8.2 43.3
+plant 0.1 - 1.5 1.2 13.4
+sheep 0.4 - 18.8 23.7 20.9
+sofa 3.8 - 10.3 12.6 35.9
+train 34.2 15.0 23.5 31.5 45.2
+tv/monitor 0.0 - 16.4 20.2 42.1
+average 13.87 15.25 17.15 21.32 33.14
+sub-image in the process of latent re-clustering to avoid
+getting stuck to the image boundary. Following [40], we
+take the aspect-ratio heuristic method to initialize our
+components. Some components across different textual
+metadata detectors share visual similar patterns (e.g.,
+“police dog” and “guard dog” ). We take the method
+proposed in [11] to merge visual similar and select repre-
+sentative components. After we obtain the representative
+components, we leverage the approach proposed in [40]
+to augment and subsequently generate the final detector.
+4.3.2 Baselines
+Three sets of baselines are chosen to compare with our
+collected data:
+Weakly supervised methods. This set of baselines consists
+of [37] and [45]. Method [37] leverages image-level labels
+for training and initializes from objectness. Method [45]
+takes manually labeled videos without bounding box
+for training and presents the results in 10 out of 20
+categories.
+Web-supervised methods. The web-supervised method
+[11] leverages web information as a supervisor to train
+a mixture DPM detector.
+Fully supervised method. The fully supervised method
+[40] is a possible upper bound for weakly supervised
+and web-supervised methods.
+4.3.3 Experimental results
+Table 2 presents the object detection results of our col-
+lected data and other state-of-the-art methods on the
+PASCAL VOC 2007 test set. From Table 2, we have the
+following observations:
+11
+2 0 0 4 0 0 6 0 0 8 0 0 1 0 0 00
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+ M D - N M F
+ T D - N I F
+ O u r s
+T r a i n i n g  n u m b e r s
+Cl
+as
+sif
+ica
+tio
+n 
+ac
+cu
+ra
+cy
+ (%
+)
+A i r p l a n e
+(a)
+2 0 0 4 0 0 6 0 0 8 0 0 1 0 0 00
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+ M D - N M F
+ T D - N I F
+ O u r s
+T r a i n i n g  n u m b e r s
+Cl
+as
+sif
+ica
+tio
+n 
+ac
+cu
+ra
+cy
+ (%
+)
+B i r d
+(b)
+2 0 0 4 0 0 6 0 0 8 0 0 1 0 0 00
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0
+ M D - N M F
+ T D - N I F
+ O u r s
+T r a i n i n g  n u m b e r s
+Cl
+as
+sif
+ica
+tio
+n 
+ac
+cu
+ra
+cy
+ (%
+)
+D o g
+(c)
+2 0 0 4 0 0 6 0 0 8 0 0 1 0 0 00
+1 0
+2 0
+3 0
+4 0
+5 0
+6 0
+7 0
+8 0
+9 0  M D - N M F
+ T D - N I F
+ O u r s
+T r a i n i n g  n u m b e r s
+Cl
+as
+sif
+ica
+tio
+n 
+ac
+cu
+ra
+cy
+ (%
+)
+H o r s e
+(d)
+Fig. 7: Image classification ability of MD-NMF, TD-NIF and ours on PASCAL VOC 2007 dataset: (a) “airplane”, (b)
+“bird”, (c) “dog” and (d) “horse”.
+Compared with method [37] and [45] which leverages
+weak supervision and [40] which requires full supervi-
+sion, our method and [11] don’t need to label the training
+data. Nonetheless, our method and [11] achieve a better
+detection results than previously best weakly supervised
+methods [37] and [45]. One possible explanation is our
+approach as well as [11] takes multiple textual metadata
+for images collection, the diversity of training data col-
+lected by [11] and our method is much richer than [37]
+and [45]. The training data collected by our approach
+and [11] contains more effective visual patterns.
+Compared to method [11] which also leverages mul-
+tiple textual metadata for images collection and web
+supervision, our method achieves the best results in
+most cases. Possibly because we take different methods
+to filter noisy textual metadata and images. Method
+[11] takes iterative approaches during the process of
+noisy textual metadata and images removing while our
+method leverages a multi-view based method for noisy
+textual metadata removing and multi-instance learning
+based method for noisy images removing. Our method
+can obtain a better diversity of the selected images in
+the condition of ensuring the accuracy. Our method
+discovers much richer as well as more useful linkages
+to visual descriptions for the target category.
+4.4 Different Steps Analysis
+Our proposed framework involves three major steps:
+multiple textual metadata discovering, noisy textual
+metadata filtering and noisy images filtering. To quantify
+the contribution of various steps to the final result, we
+construct two new frameworks.
+One is based on multiple textual metadata discovering
+and noisy textual metadata filtering (which we refer to MD-
+NMF). The other is based on multiple textual metadata
+discovering and noisy images filtering (which we refer
+to TD-NIF). For framework MD-NMF, we first obtain
+the multiple textual metadata through searching in the
+Google Books Ngram Corpus. Then we apply the noisy
+textual metadata filtering procedure to get the selected
+textual metadata. We directly retrieve the top images
+from the image search engine for selected textual meta-
+data to train image classifiers (without noisy images
+filtering). For framework TD-NIF, we also obtain the
+candidate multiple textual metadata by searching in the
+Google Books Ngram Corpus. Then we retrieve the top
+images from the image search engine for all candidate
+textual metadata (without noisy textual metadata filter-
+ing). We apply the noisy images filtering procedure to
+select useful images and train image classifiers.
+The image classification ability among framework
+MD-NMF, TD-NIF and ours are compared. Specifi-
+cally, category “airplane”, “bird”, “dog” and “horse”
+are selected as target categories to compare the
+image classification ability. We sequentially collect
+[200,400,600,800,1000] images per category as the pos-
+itive data and leverage 1000 unrelated images as the
+negative data to train image classification models. We
+evaluate the image classification ability of MD-NMF, TD-
+NIF and ours on the PASCAL VOC 2007 dataset. The
+experimental results are presented in Fig. 7. By observing
+Fig. 7, we have the following observations:
+Framework MD-NMF usually performs better than
+TD-NIF when the training image for each category is
+less than 600. One possible explanation is that the first
+few retrieved images tend to present a relatively high
+accuracy. When the number of training images is below
+600, the final selected noisy images caused by noisy
+textual metadata are more severe than the image search
+engine. As the increase of numbers per category, the
+retrieved images contain more and more noises. In this
+condition, the noises induced by the error index of image
+search engine present a much worse influence than those
+caused by the noisy textual metadata.
+Our proposed framework outperforms both of the
+MD-NMF and TD-NIF. The reason can be explained that
+our approach leverages a combination of noisy textual
+metadata and images removing, can be effective in filter-
+ing the noises caused by both noisy textual metadata and
+the error index of image search engine. Our proposed
+framework can filter the noisy images while maintaining
+the diversity of the selected images.
+12
+TABLE 3: The average recall and precision for ten cate-
+gories corresponding to different Si
+Si 0.8 0.7 0.6 0.5 0.4 0.3
+Recall 35.6% 72.3% 97.4% 98.7% 100% 100%
+Precision 87.2% 78.8% 71.2% 52.7% 46.4% 39.6%
+4.5 Parameter Sensitivity Analysis
+There are lots of parameters in the process of our ex-
+periments, we mainly analyze two parameters Si and ?
+in our proposed framework (C1 = ?, C2 = 1 ? ? and
+0 < ? < 1). To analyze parameter Si and ?, we choose
+10 categories and manually label 50 textual metadata for
+each category. For each textual metadata, we retrieve the
+top 100 images from image search engine to represent the
+visual distribution. The value of Si is selected from the
+set of {0.3, 0.4, 0.5, 0.6, 0.7, 0.8} by applying the 3-fold
+cross-validation method. Table 3 demonstrates the aver-
+age recall and precision for 10 categories corresponding
+to different Si. Finally, we choose the value of Si to be
+0.6. The reason is we want to get a relatively higher recall
+while ensuring an acceptable precision.
+For the parameter ?, the value is selected from
+{10?3, 10?2, ..., 102}. We also use the 3-fold cross-
+validation to select the value of ?. Table 4 shows the
+average accuracy of inter-class noisy images filtering. By
+observing Table 4, we found our method is robust to the
+parameter ? when it is varied in a certain range.
+4.6 Platform Introduction
+Due to the cost of manual labeling is too high, crawling
+data from the Internet and using the web data (without
+manual annotation) to train models for various computer
+vision tasks have attracted broad attention. However,
+due to the complex of Internet, the crawled data tend to
+have noise. Removing noise and choosing high-quality
+instances for training often plays a key role in the quality
+of the last trained model. To this end, we provide a
+benchmark platform for evaluating the performance of
+various algorithms in the task of pruning noise. The
+specific steps are as follows:
+step 1: obtaining the raw image data for 100 categories
+from our website1;
+step 2: performing algorithms to prune noise and select
+useful data from the raw image data;
+step 3: running cross-dataset generalization experiments
+on the selected data and our publicly released
+dataset WSID-100.
+Algorithms which have a better cross-dataset general-
+ization ability tend to have a better ability in the task of
+pruning noise and selecting high-quality data.
+5 CONCLUSION
+In this work, we presented an automatic diverse image
+dataset construction framework. Our framework mainly
+TABLE 4: The average accuracy of inter-class noisy im-
+ages filtering for ten categories corresponding to differ-
+ent ?
+? 10?3 10?2 10?1 100 101 102
+Accuracy 96.2% 97.5% 96.6% 98.2% 97.6% 98.5%
+involves three successive modules, namely multiple tex-
+tual metadata discovering, noisy textual metadata fil-
+tering and noisy images filtering. To verify the effec-
+tiveness of the proposed framework, we built an image
+dataset with 100 categories. Extensive experiments have
+shown the superiority of our dataset over manually
+labeled datasets STL-10, CIFAR-10, ImageNet and web-
+supervised datasets Harvesting, Optimol and DRID-
+20 on image classification and cross-dataset general-
+ization. In addition, we successfully applied our data
+to improve the object detection performance on the
+PASCAL VOC 2007 dataset. The experimental results
+showed the superiority of our proposed work to several
+web-supervised and weakly supervised state-of-the-art
+methods. We have publicly released our web-supervised
+diverse image dataset on website to facilitate the research
+in the web-vision and other related fields.
+REFERENCES
+[1] J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, and L. Fei-Fei, “Im-
+agenet: A large-scale hierarchical image database,” IEEE Interna-
+tional Conference on Computer Vision and Pattern Recognition, 248–255,
+2009.
+[2] Tamara L Berg and David A Forsyth, “Animals on the web,” IEEE
+International Conference on Computer Vision and Pattern Recognition,
+1463–1470, 2006.
+[3] J. Hare and P. Lewis, “Automatically annotating the mir flickr
+dataset: Experimental protocols, openly available data and seman-
+tic spaces,” ACM International Conference on Multimedia Information
+Retrieval, 547–556, 2010.
+[4] Robert Fergus, Pietro Perona, and Andrew Zisserman, “A visual
+category filter for google images,” Europe Conference on Computer
+Vision, 242–256, 2004.
+[5] Robert Fergus, Li Fei-Fei, Pietro Perona, and Andrew Zisserman,
+“Learning object categories from google’s image search,” IEEE
+International Conference on Computer Vision, 1816–1823, 2005.
+[6] V. Sindhwani, P. Niyogi, and M. Belkin, “A co-regularization
+approach to semi-supervised learning with multiple views,” In-
+ternational Conference on Machine Learning, 74–79, 2005.
+[7] C.-C. Chang and C.-J. Lin, “Libsvm: a library for support vector
+machines,” ACM Transactions on Intelligent Systems and Technology,
+2(3): 27, 2011.
+[8] R. Cilibrasi and P. Vitanyi, “The google similarity distance,” IEEE
+Transactions on Knowledge and Data Engineering, 19(3): 370–383, 2007.
+[9] Hao Zhang, Gang Chen, Beng Chin Ooi, Kian-Lee Tan, and Meihui
+Zhang, “In-memory big data management and processing: A
+survey,” IEEE Transactions on Knowledge and Data Engineering, 27(7):
+1920–1948, 2015.
+[10] Yuhua Li, David McLean, Zuhair A Bandar, James D O’shea,
+and Keeley Crockett, “Sentence similarity based on semantic nets
+and corpus statistics,” IEEE Transactions on Knowledge and Data
+Engineering, 18(8): 1138–1150, 2006.
+[11] S. Divvala, C. Guestrin, “Learning everything about anything:
+Webly-supervised visual concept learning,” IEEE International
+Conference on Computer Vision and Pattern Recognition, 3270–3277,
+2014.
+[12] G. Fung and O. Mangasarian, “A feature selection newton
+method for support vector machine classification,” Computational
+Optimization and Applications, 28(2), 185–202, 2004.
+13
+[13] Alex Krizhevsky, Ilya Sutskever, and Geoffrey E Hinton, “Im-
+agenet classification with deep convolutional neural networks,”
+Advances in Neural Information Processing Systems, 1097–1105, 2012.
+[14] Y. Chen, J. Bi, and J. Wang, “Miles: Multiple-instance learning via
+embedded instance selection,” IEEE Transactions on Pattern Analysis
+and Machine Intelligence, 28(12): 1931–1947, 2006.
+[15] M. Everingham, L. Van Gool, C. K. Williams, J. Winn, and
+A. Zisserman, “The pascal visual object classes (voc) challenge,”
+International Journal of Computer Vision, 88(2): 303–338, 2010.
+[16] P. Felzenszwalb, R. Girshick, and D. Ramanan, “Object detection
+with discriminatively trained part-based models,” IEEE Transac-
+tions on Pattern Analysis and Machine Intelligence, 32(9): 1627–1645,
+2010.
+[17] X. Hua and J. Li. “Prajna: Towards recognizing whatever you
+want from images without image labeling,” AAAI International
+Conference on Artificial Intelligence, 137–144, 2015.
+[18] X. Wu, X. Zhu, G. Wu, and W. Ding, “Data mining with big data,”
+IEEE Transactions on Knowledge and Data Engineering, 26(1): 97–107,
+2014.
+[19] O. Maron, “Learning from ambiguity,” Dept. of Electrical and
+Computer Science, MIT, Cambridge, 1998.
+[20] J. Kelley, “The cutting-plane method for solving convex pro-
+grams,” Journal of the Society for Industrial and Applied Mathematics,
+8(4): 703–712, 1960.
+[21] J.-B. Michel, Y. K. Shen, A. P. Aiden, A. Veres, M. K. Gray,
+J. P. Pickett, D. Hoiberg, D. Clancy, P. Norvig, J. Orwant, et al.
+Quantitative analysis of culture using millions of digitized books.
+Science, 331(6014): 176–182, 2011
+[22] S. Kim and S. Boyd. “A minimax theorem with applications to
+machine learning, signal processing, and finance,” SIAM Journal
+on Optimization, 19(3): 1344–1367, 2008.
+[23] A. Krizhevsky and G. Hinton, “Learning multiple layers of
+features from tiny images,” Citeseer, 2009.
+[24] R. Rifkin, “Regularized least squares,” MIT Reports.
+[25] A. Argyriou, C. Micchelli, and M. Pontil, “When is there a
+representer theorem? vector versus matrix regularizers,” Journal
+of Machine Learning Research, 10(2): 2507–2529, 2009.
+[26] U. Brefeld, T. Scheffer, and S. Wrobel, “Efficient co-regularised
+least squares regression,” ACM International Conference on Machine
+Learning, 137–144, 2006.
+[27] L. Li and L. Fei-Fei, “Optimol: automatic online picture collection
+via incremental model learning,” International Journal of Computer
+Vision, 88(2): 147–168, 2010.
+[28] Y. Li, I. Tsang, J. Kwok, and Z. Zhou, “Tighter and convex
+maximum margin clustering,” International Conference on Artificial
+Intelligence and Statistics, 344–351, 2009.
+[29] Y. Lin, J. Michel, E. Aiden, J. Orwant, W. Brockman, and S. Petrov,
+“Syntactic annotations for the google books ngram corpus,” ACL
+2012 System Demonstrations, 169–174, 2012.
+[30] M. Hu, Y. Yang, F. Shen, L. Zhang, H.T. Shen, and X. Li, “Robust
+web image annotation via exploring multi-facet and structural
+knowledge,” IEEE Transactions on Image Processing, 2017.
+[31] Z. Wang and Q. Ji, “Classifier learning with hidden information,”
+IEEE International Conference on Computer Vision and Pattern Recog-
+nition, 4969–4977, 2015.
+[32] G. A. Miller. “Wordnet: a lexical database for english,” Commu-
+nications of the ACM, 38(11): 39–41, 1995.
+[33] B. C. Russell, A. Torralba, K. Murphy, and W. T Freeman, “La-
+belme: a database and web-based tool for image annotation,”
+International Journal of Computer Vision, 77(1): 157–173, 2008.
+[34] L. Niu, W. Li, and D. Xu, “Visual recognition by learning from
+web data: A weakly supervised domain generalization approach,”
+IEEE International Conference on Computer Vision and Pattern Recog-
+nition, 2774–2783, 2015.
+[35] A. Rakotomamonjy, F. Bach, S. Canu, and Y. Grandvalet. “Sim-
+plemkl,” Journal of Machine Learning Research, 9(1): 2491–2521, 2008.
+[36] F. Schroff, A. Criminisi, and A. Zisserman. “Harvesting image
+databases from the web,” IEEE Transactions On Pattern Analysis
+and Machine Intelligence, 33(4): 754–766, 2011.
+[37] P. Siva and T. Xiang, “Weakly supervised object detector learning
+with model drift detection,“ IEEE International Conference on
+Computer Vision, 343–350, 2011.
+[38] A. Torralba and A. Efros. “Unbiased look at dataset bias,“ IEEE
+International Conference on Computer Vision and Pattern Recognition,
+1521–152, 2011.
+[39] S. Vijayanarasimhan and K. Grauman. “Keywords to visual
+categories: Multiple-instance learning for weakly supervised object
+categorization,“ IEEE International Conference on Computer Vision
+and Pattern Recognition, 1–8, 2008.
+[40] P. Felzenszwalb, R. Girshick, and D. Ramanan, “Object detection
+with discriminatively trained part-based models,” IEEE Transac-
+tions on Pattern Analysis and Machine Intelligence, 32(9): 1627–1645,
+2010.
+[41] A. Coates, A. Ng, H. Lee, ”An analysis of single-layer networks in
+unsupervised feature learning,” International Conference on Artificial
+Intelligence and Statistics, 215–223, 2011.
+[42] L. Duan, W. Li, I. Tsang, and D. Xu, “Improving web image search
+by bag-based reranking,” IEEE Transactions on Image Processing,
+20(11): 3280–3290, 2011.
+[43] G. Griffin, A. Holub, P. Perona, “Caltech-256 object category
+dataset.”
+[44] B. Collins, J. Deng, K. Li, L. Fei-Fei, “Towards scalable dataset
+construction: An active learning approach,” European Conference
+on Computer Vision, 86–98, 2008.
+[45] A. Prest, C. Leistner, J. Civera, and V. Ferrari, “Learning object
+class detectors from weakly annotated video,” IEEE International
+Conference on Computer Vision and Pattern Recognition, 3282–3289,
+2012.
+[46] Y. Yao, J. Zhang, F. Shen, X. Hua, J. Xu, and Z. Tang, “Exploiting
+web images for dataset construction: A domain robust approach,”
+IEEE Transactions on Multimedia, 19(8): 1771–1784, 2017.
+[47] B. Siddiquie, A. Gupta, “Beyond active noun tagging: Model-
+ing contextual interactions for multi-class active learning,” IEEE
+International Conference on Computer Vision and Pattern Recognition,
+2979–2986, 2010.
+[48] S. Vijayanarasimhan, K. Grauman, “Large-scale live active learn-
+ing: Training object detectors with crawled data and crowds,”
+International Journal of Computer Vision, 108(2), 97–114, 2014.
+[49] R. Speer, C. Havasi, “Conceptnet 5: A large semantic network for
+relational knowledge,” The Peoples Web Meets NLP, 161–176, 2013.
+[50] Y. Yao, X. Hua, F. Shen, J. Zhang, and Z. Tang, “A domain
+robust approach for image dataset construction,“ ACM International
+Conference on Multimedia, 212–216, 2016.
+[51] Y. Yao, J. Zhang, F. Shen, X. Hua, J. Xu, and Z. Tang, ”Automatic
+image dataset construction with multiple textual metadata,” IEEE
+International Conference on Multimedia and Expo, 1–6, 2016.

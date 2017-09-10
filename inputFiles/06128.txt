@@ -1,0 +1,561 @@
+Revisiting knowledge transfer for training
+object class detectors
+Jasper R. R. Uijlings
+Google Research
+Zürich, CH
+jrru@google.com
+Stefan Popov
+Google Research
+Zürich, CH
+spopov@google.com
+Vittorio Ferrari
+Google Research
+Zürich, CH
+vittoferrari@google.com
+Abstract
+We propose to revisit knowledge transfer for training object detectors on target
+classes with only weakly supervised training images. We present a unified knowl-
+edge transfer framework based on training a single neural network multi-class
+object detector over all source classes, organized in a semantic hierarchy. This
+provides proposal scoring functions at multiple levels in the hierarchy, which we
+use to guide object localization in the target training set. Compared to works using
+a manually engineered class-generic objectness measure as a vehicle for transfer,
+our learned top-level scoring function for ‘entity’ is much stronger. Compared to
+works that perform class-specific transfer from a few most related source classes
+to the target class, our framework enables to explore a broad rage of generality of
+transfer. Experiments on 200 object classes in the ILSVRC 2013 dataset show that
+our technique (1) leads to much greater performance improvements than manually
+engineered objectness; (2) outperforms the best reported transfer learning results
+on this dataset by a wide margin (+40% correct localization on the target training
+set, and +14% mAP on the target test set).
+1 Introduction
+Recent advances such as [16, 25, 29, 45] have resulted in reliable object class detectors, which
+predict both the class label and the location of objects in an image. Typically, detectors are trained
+under full supervision, which requires manually drawing object bounding boxes in a large number of
+training images. This is tedious and very time-consuming. Therefore, several research efforts have
+been devoted to training object detectors under weak supervision, i.e. using only image-level labels
+[2, 4, 6, 7, 20, 26, 32, 35, 36, 37, 43]. While this is substantially cheaper, the resulting detectors
+typically perform considerably worse than their fully supervised counterparts.
+In recent years a few large datasets such as ImageNet [31] and COCO [24] have appeared, which
+provide many bounding box annotations for a wide variety of classes. Since many classes share
+visual characteristics, we can leverage these annotations when learning a new class. In this paper we
+propose a technique for training object detectors in a knowledge transfer setting [14, 17, 30, 34, 41]:
+we want to train object detectors for a set of target classes with only image-level labels, helped by
+a set of source classes with bounding box annotations. We build on Multiple Instance Learning
+(MIL), a popular framework for weakly supervised object localization [26, 7, 2, 6, 9, 35, 37, 32], and
+extend it to incorporate knowledge from the source classes. In standard MIL, images are decomposed
+into object proposals [1, 42, 10] and the process iteratively alternates between re-localizing objects
+given the current detector, and re-training the detector given the current object locations. During
+re-localization, typically the highest-scoring proposal for an object class is selected in each image
+containing it. Several weakly supervised object localization techniques [7, 6, 28, 33, 35, 34, 40, 44, 4]
+incorporate a class-generic objectness measure [1, 10] during the re-localization stage, to steer the
+selection towards objects and away from backgrounds. These works use a manually engineered
+ar
+X
+iv
+:1
+70
+8.
+06
+12
+8v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+1 
+A
+ug
+ 2
+01
+7
+objectness measure and report an improvement of 3%-5% correct localizations. As [8] argued, using
+objectness can be seen as a (weak) form of knowledge transfer, from a generic appearance prior over
+all object classes to the particular target class at hand.
+On the opposite end of the spectrum, several works perform class-specific transfer [14, 30, 17, 41],
+For each target class, they determine a few most related source classes to transfer from. Some
+works [14, 30] use the appearance models of the source classes to guide the localization of the target
+class by scoring proposals with it, similar to the way objectness is used above. Other works [17, 41]
+instead perform transfer directly on the parameters of a neural network. They first train a neural
+network for whole-image classification on all source and target classes, then fine-tune the source
+classifiers into object detectors, and finally transfer the parameter transformation between whole-
+image classifiers and object detectors from the source to related target classes, effectively turning
+them into detectors too.
+In this paper we propose a unified knowledge transfer framework for weakly supervised object
+localization. We train a single neural network multi-class object detector [25] over all source
+classes, organized in a semantic hierarchy [31]. This naturally provides high-quality proposals and
+proposal scoring functions at multiple levels in the hierarchy, which we use during MIL on the
+target classes. The top-level scoring function for ‘entity’ conceptually corresponds to the objectness
+measure [1, 10], but it is stronger, as provided by a neural network properly trained on thousands of
+images. Compared to previous works using objectness [7, 6, 28, 33, 35, 34, 40, 44, 4], this leads to
+much greater performance improvements on the target classes. Compared to class-specific transfer
+works [14, 30, 17, 41], our framework enables to explore a broad range of generality of transfer,
+spanning transferring from the class-generic ‘entity’ class, from intermediate-level categories such
+as ‘animal’ and ‘vehicle’, and from specific classes such as ‘tiger’ and ‘car’. We achieve all this
+in a simple unified framework, using a single SSD model as source knowledge and automatically
+selecting the proposal scoring function to be used depending on the target class and the desired level
+of genericity of transfer.
+Through experiments on 200 object classes in the ILSVRC 2013 detection dataset, we demonstrate
+that: (1) the learned class-generic objectness leads to large improvements both in terms of localizing
+objects in the target training set (+27% correct localizations) and on the quality of object detectors
+trained from it (+11% mAP on the target test set); (2) knowledge transfer help substantially at
+any level of generality, with the class-generic transfer working the best. This is excellent news for
+practioners, as they can get strong improvements with a relatively simple modification to standard
+MIL pipelines; (3) we found no significant correlation between the performance increase brought by
+class-generic transfer on a particular target class, and its semantic similarity to the source classes.
+Hence, this form of transfer is truly generic: it helps any target class, independent of whether there
+are very similar source classes; (4) our proposed technique outperforms the best reported transfer
+learning results on this dataset [17, 41] by a wide margin, both on the target training set (68.9%
+correct localization vs 28.8% [17]) and on the target test set (34.3% mAP vs 20.0% [41]).
+2 Method
+In this section we present our technique for training object detectors in a knowledge transfer setting.
+In this setting we have a training set T of target classes with only image-level labels, and a training
+set S of source classes with bounding box annotations. The goal is to train good object detectors for
+the target classes, helped by knowledge from the source classes.
+We start in Section 2.1 by introducing a reference Multiple Instance Learning (MIL) framework,
+typically used in weakly supervised object localization (WSOL), i.e. when given only the target set
+T . In Section 2.2 we then explain how we incorporate knowledge from the source classes S into this
+framework. Finally, Section 2.3 discusses the broad range of levels of transfer that we explore.
+2.1 Reference Multiple Instance Learning (MIL)
+General scheme. For simplicity, we explain here MIL for one target class t ? T . The process
+can be repeated for each target class in turn. The input is a training set I with positive images,
+which contain the target class, and negative images, which do not. Each image is represented as a
+bag of object proposals B extracted by a generator such as [1, 42, 10]. A negative image contains
+only negative proposals, while a positive image contains at least one positive proposal, mixed in
+2
+with a majority of negative ones. The goals are to find the true positive proposals and to learn an
+appearance model At for the object class t (the object detector). This is solved in an iterative fashion,
+by alternating between two steps until convergence:
+(Re-localization): in each positive image I , select the proposal b? with the highest score given by the
+current appearance model A:
+b? ? argmax
+b?B
+At(b, I) (1)
+(Re-training): re-train the appearance model using the current selection of proposals from the positive
+images, and all proposals from negative images.
+Features and appearance model. As in [13, 6, 2, 3, 36, 43], our appearance model is a linear
+SVM trained on CNN-features extracted on object proposals (details in Sec. 3.1).
+Initialization As initialization, in the first iteration we train the appearance model using complete
+images as positive training examples [5, 6, 27, 32, 26, 21].
+Multi-folding. In a high dimensional feature space the SVM can relatively easily separate positive
+and negative training examples, placing most positive samples far from the decision hyperplane.
+Hence, during re-localization the detector is likely to score the highest on the object proposals which
+were used as positive training samples in the previous re-training iteration. This leads to premature
+locked-in behavior, where MIL gets stuck on some incorrect selection in early iterations. To prevent
+this we use multi-folding [6]: the training set is split into 10 subsets, and then the re-localization on
+each subset is done using detectors trained on the union of all other subsets.
+Objectness. Objectness was proposed in [1] to measure how likely it is that a proposal tightly
+encloses an object of any class (e.g. bird, car, sheep), as opposed to background (e.g. sky, water,
+grass). Since the work of [7], many WSOL techniques [6, 28, 33, 35, 34, 40, 44, 4] have used
+an objectness measure [1, 10] to steer the re-localization process towards objects and away from
+background. Following standard practice, incorporating objectness into Eq (1) leads to:
+b? ? argmax
+b?B
+? ·At(b, I) + (1? ?) ·O(b, I) (2)
+where ? is a weight controlling the trade-off between the class-generic objectness score O and the
+appearance model At of the target class t being learned during MIL. Using the objectness score in
+this manner, previous works typically report an improvement of 3%-5% in correct localizations of
+the target objects [7, 6, 28, 33, 35, 34, 40, 44, 4].
+2.2 MIL with knowledge transfer
+Overview. MIL is usually applied to the training set T of target classes with image-level labels
+only, which is the standard WSOL setting. In our setting we also have a training set of source
+classes S with bounding box annotations. We explain here how we incorporate knowledge from
+the source classes into MIL, to help learning detectors for the target classes. We train a multi-class
+object detector over all sources classes S organized in a semantic hierarchy, and then apply it to T
+as a proposal generator. This naturally provides high-quality proposals, as well as proposal scoring
+functions at multiple levels in the hierarchy. We use these scoring functions during the re-localization
+stage of MIL on T , which greatly helps localizing target objects correctly (Sec. 3).
+Our scheme improves over previous usage of manually engineered object proposals and their associ-
+ated objectness score [1, 10] in WSOL in two ways: (1) by using trained proposals and objectness
+scoring function trained on source classes; (2) generalizing the common use of a single class-agnostic
+objectness score to a family of proposal scoring functions at multiple levels of semantic specificity.
+This also enables exploring using scoring functions tailored to particular target classes, and at various
+degrees of relatedness between source and target classes (Sec. 2.3). Fig. 1 illustrates our approach.
+Below we explain the elements of our approach in more detail.
+Training a proposal generator on the source set. We use the MultiBox Single Shot Detection
+(SSD) network [25]. Interestingly, it was originally designed to bypass proposal generation in fully
+supervised object class detection. SSD starts from a dense grid of ‘anchor boxes’ covering the image,
+and then adjusts their coordinates to match objects using regression. This in turn enables substituting
+Region-of-Interest pooling [15, 12, 29] with convolutions, yielding considerable speed-ups at a small
+3
+Re-training target detector Re-localizing objects 
+Source detector
+for knowledge transfer
+vehicle
+bicycle
+entity
+...
+Figure 1: Illustration of our framework for the target class ‘motorbike’. Standard MIL consists of a
+re-training stage and a re-localization stage (Sec. 2.1). We add knowledge transfer to this scheme.
+First we train a detector (SSD [25]) on the hierarchy H defined by the source classes S (Sec. 2.2).
+Then we apply this detector on the target training set, giving (1) trained object proposals and (2)
+a family of proposal scoring functions for each class in H, which we use to define our knowledge
+transfer functions (Sec. 2.3). We alter the re-localization stage to use these knowledge transfer
+functions (Eq. (3)).
+loss of performance [18]. The SSD implementation we use has Inception-V2 [39] as base network
+and outputs 1296 boxes per image.
+We train SSD on the source set S. Importantly, unlike Fast- or Faster-RCNN [12, 29], SSD does
+not perform class-specific bounding box regression. For each anchor box, SSD regresses to a single
+output box, along with one confidence score for each source class. Therefore, the proposal set B
+generated for an image is class-generic. Before training SSD, we first position the source classes
+S into the ImageNet semantic hierarchy H [31] and expand the label space to include all ancestor
+classes up to the top-level class ‘entity’ (Fig. 2). After this expansion, each object bounding-box has
+multiple class labels, including its original label from S (e.g. ‘bear’) and all its ancestors up to ‘entity’
+(e.g. ‘placental’, ‘vertebrate’, ‘entity’). Hence, we train SSD in a multi-label setting, and we use a
+sigmoid cross entropy loss for each class separately, instead of the log softmax loss across classes
+(which is suited for standard 1-of-K classification). Note how this entails that ancestor classes use as
+training samples the set union of all samples over their descendants in S.
+Knowledge transfer during re-localization. After training SSD, we apply it to each image I in
+the target set T . It produces a set of proposals B and assigns to each proposal b ? B scores Fs(b, I) at
+all levels of the hierarchy. More precisely, it assigns a score for each class s ? H, including scores for
+the original leaf classes S , scores for intermediate-level classes, and a score for the top-level ‘entity’
+class. This top-level score corresponds conceptually to the traditional objectness measure [1, 10], but
+it is now properly trained.
+We use this family of scoring functions Fs to compose one particular knowledge transfer function
+Kt(b, I) tailored to each target class t ? T . We discuss in Sec. 2.3 a variety of strategies for
+composing Kt. We then use Kt inside the re-localization stage of MIL by generalizing Eq 2 to
+become:
+b? ? argmax
+b?B
+? ·At(b, I) + (1? ?) ·Kt(b, I) (3)
+4
+fruit
+entity
+vertebrate
+s: apple t: lemon s: bear s: camel t: lizard
+placental
+t: snake
+diapsid
+Figure 2: Illustration of part of the ImageNet hierarchy, with our source and target classes inside it.
+Source classes in S are the leaf nodes in green. Target classes in T are leaf nodes in blue. For other
+nodes the color shows whether it has only source classes as leaves under it, only target classes, or a
+mixture of both.
+Note how the special case of Kt(b, I) = O (using a standard objectness score [10, 1]) and B coming
+from a standard object proposal generator corresponds to WSOL with the reference MIL algorithm.
+2.3 Knowledge transfer functions Kt
+We list here various ways to use the proposal scoring functions Fs from the source to compose the
+knowledge transfer function Kt for a target class t.
+Class-generic objectness. A simple way of transferring knowledge is to use the scoring function
+Fentity(b, I) from the top-level class ‘entity’ in the hierarchy. The idea is that such a generic objectness
+measure generalizes beyond the source classes it was trained on, and it helps steer the re-localization
+process away from background image regions in the target dataset. This conceptually corresponds to
+the traditional use of objectness in WSOL [7, 6, 28, 33, 35, 34, 40, 44, 4], but done with a stronger
+objectness measure trained in a neural network:
+Kt(b, I) ? Fentity(b, I) (4)
+Closest source classes. On the other end of the spectrum, we can transfer knowledge from the
+most similar source classes to the target t. To find these source classes, we consider the position of t
+in the semantic hierarchy H. We find the closest ancestor of t whose descendants include at least
+one source class from S , and then take all source classes among its descendants. Often these closest
+sources are the siblings of t (e.g. lemon for apple in Fig. 2), but if t has no siblings in S the procedure
+backtracks to a higher-level ancestor and takes its descendants instead (e.g. bear and camel for lizard
+in Fig. 2). In practice, a target class has a median number of 3 closest source classes in our dataset
+(Sec. 3).
+We combine the scoring functions of the closest source classes Nt into the knowledge transfer
+function
+Kt(b, I) ?
+1
+|Nt|
+?
+s?Nt
+Fs(b, I) (5)
+This is conceptually analog to previous work on transferring appearance models of related source
+classes to guide the localization of the target class [14, 30]. However, in our work the source
+appearance models Fs are learned jointly in single strong multi-class neural network.
+Closest common ancestor. The two extreme cases above present a trade-off. The ‘entity’ class is
+trained from a lot of samples, but it is very generic. On the other hand, the closest source classes are
+more specific to the target, but might have too little training data to form reliable detectors. Here we
+propose an intermediate approach, i.e. select the closest ancestor a1 of t who has descendants in S.
+This leads to:
+Kt(b, I) ? Fa1(b, I) (6)
+Note that if a1 has only one descendant in S, Eq. 6 is equivalent to Eq. 5 since Fa1t will only be
+trained on that descendant. The median number of source classes under the closest common ancestor
+is 3, over all target classes in our dataset (Sec. 3).
+5
+Closest common ancestor with at least n sources. To control the degree of generality of transfer,
+we can set a minimum to the number of source classes an ancestor should have. We define an as the
+closest ancestor of t who has at least n source classes as descendants. This generalizes Eq. (6) to:
+Kt(b, I) ? Fan(b, I) (7)
+Note that setting n = |S| leads to to selecting the entity class as ancestor, matching Eq. (4). In our
+experiments we set n = 5, resulting in a median of 10 source classes under the ancestor selected for
+each target class.
+Similarity-weighted sources. An alternative way to compose a knowledge transfer function Kt is
+a linear combination of the scoring functions Fs of all sources s, weighted by their similarity to the
+target t. Let R(s, t) to be the similarity measure, then:
+Kt(b, I) ?
+1?
+s?S R(s, t)
+?
+s?S
+R(s, t) · Fs(b, I) (8)
+This formulation avoids the need for explicitly selecting source classes (or ancestors). Moreover,
+it supports combinations based on any similarity measure, including measures that do not involve
+a semantic hierarchy. In our experiments, we learn a similarity measure as follows. We first train
+a whole-image classification CNN using AlexNet [22] for all classes (both S and T ). We use the
+confusion matrix C of this classifier as our similarity measure R(s, t) ? C(s, t), where for an entry
+C(i, j), j is the true class and i the predicted class.
+2.4 Calibrating knowledge transfer score magnitudes
+If we ensure the range of values in Kt(b, I) is comparable across all knowledge transfer functions
+from Sec. 2.3, then we can set the trade-off parameter ? in Eq. (3) only once and keep it fixed for all
+experiments (Sec. 3). We accomplish this by calibrating the proposal scoring functions Fs used to
+compose Kt. We adjust the biases of the final layer of the SSD model such that the per-class averages
+of the Fs score over all proposals in the source training set S are equal to the average of the entity
+class scores. Afterwards the scores are converted to the [0, 1] range with a sigmoid function.
+3 Results
+Dataset. We perform experiments on ILSVRC 2013, following exactly the same settings as [17, 41]
+to enable direct comparisons. We split the ILSVRC 2013 validation set into two subsets val1 and
+val2, and augment val1 with images from the ILSVRC 2013 training set such that each class has
+1000 annotated bounding boxes in total [13]. ILSVRC 2013 has 200 object classes and we use the
+first 100 as sources S and second 100 as targets T (classes are alphabetically sorted).
+As our source training set we use all images of the augmented val1 set which have bounding box
+annotations for 100 source classes, resulting in 124k images with 81k bounding boxes. As target
+training set we use all images of the augmented val1 set which contain the 100 target classes and
+remove all bounding box annotations, resulting in 65k images with 93k image-level labels. In Sec. 3.1
+we report results for MIL applied to the target training set. As target test set we use all 10k images of
+val2 and remove all annotations. In Sec. 3.2 we train a detector from the output of MIL on the target
+training set, and evaluate it on the target test set. Finally, in Sec. 3.3 we compare to two previous
+works [17, 41] on knowledge transfer on ILSVRC 2013.
+3.1 Knowledge transfer to the target training set
+We explore here the effects of knowledge transfer for localizing objects in the target training set.
+Settings for MIL with knowledge transfer. We train SSD [25] on the source training set and
+apply it to the target training set to produce object proposals and corresponding scores (Sec. 2.2).
+Then we apply MIL on the target training set (Sec. 2.2) while varying the knowledge transfer function
+Kt (Sec. 2.3) during re-localization (Eq. (3)).
+Following [13, 6, 2, 3, 36, 43] during MIL we describe each object proposals with a 4096-dimensional
+feature vector using the Caffe implementation [19] of the AlexNet CNN [22]. We pre-trained the
+CNN on the ILSVRC [31] dataset using only image-level labels (no bounding-box annotations). As
+appearance model we use a linear SVM on these features.
+6
+Knowledge transfer none closest closest ancestor a5 class- similarity- full
+function Kt sources ancestor generic weighted supervision
+CorLoc IoU > 0.5 41.4 66.6 67.5 68.3 68.9 66.1 -
+CorLoc IoU > 0.7 20.0 53.8 54.7 55.6 57.0 53.1 -
+mAP IoU > 0.5 23.2 33.7 32.9 34.0 34.3 33.3 46.2
+mAP IoU > 0.7 7.0 19.8 20.7 19.8 22.4 18.6 31.7
+Table 1: Results for various knowledge transfer functions and full supervision on both the target
+training set (CorLoc) and target test set (mAP).
+We set the weight ? in Eq.(3) on a separate dataset. After training SSD on the source training set of
+ILSVRC 2013, we apply MIL with class-generic objectness to PASCAL VOC 2007 trainval [11] and
+optimize ? to get maximum CorLoc (see below). We keep ? fixed in all experiments on ILSVRC
+2013.
+Evaluation measure. We quantify localization performance with Correct Localization (CorLoc) [7]
+averaged over the target classes T . CorLoc is the percentage of images in which the method correctly
+localizes an object of any given class. We consider two Intersection-over-Union (IoU) [11] thresholds
+for this, and report CorLoc at IoU> 0.5 (commonly used in the WSOL literature [7, 6, 40, 4]) and
+IoU > 0.7 (stricter criterion requiring very tight localizations).
+Quantitative results. The first two rows of Table 1 report CorLoc on the target training set. As a
+baseline we use no knowledge transfer function at all. This leads to 41.4% CorLoc at IoU>0.5, which
+is in line with results on MIL for weakly supervised object localization [5, 43] reported on PASCAL
+VOC 2007, which has comparable difficulty [31].
+When transferring knowledge using the closest sources, CorLoc improves substantially to 66.6%
+(+25% CorLoc). Gradually increasing the generality of the transferred knowledge continuously
+improves performance: 67.5% for closest ancestor, 68.3% for closest ancestor with at least 5 sources,
+and 68.9% for class-generic objectness. Interestingly, while all forms of knowledge transfer we
+propose bring strong improvements, simply transferring from the top-level ‘entity’ class works best.
+This shows that the trade-off between semantic generality and number of source training samples is
+skewed towards the former. We believe this is excellent news for the practitioner: our experiments
+show that a simple modification to standard MIL pipelines can lead to dramatic improvements in
+localization performance (i.e. just change the scoring function used during re-localization to include
+a strong objectness function trained on the source set).
+When measuring CorLoc at the stricter IoU> 0.7 threshold, the benefits of knowledge transfer are
+even more pronounced. The baseline without knowledge transfer only brings 20% CorLoc, while
+class-generic transfer achieves 57% CorLoc, almost 3× higher. This suggests that knowledge transfer
+enables localizing objects with much tighter bounding boxes.
+Correlation between semantic similarity and improvement. We now investigate whether there
+is a relation between the improvements brought by our class-generic knowledge transfer on a particular
+target class, and its semantic similarity to the source classes. We measure semantic similarity by the
+widely used Lin similarity [23] on WordNet (which has the same hierarchy as ImageNet). For each
+target class in T , the horizontal axis in fig 3 reports the similarity of the most similar source class
+in S. The vertical axis reports the absolute CorLoc improvement on the target training set, over the
+no-transfer baseline.
+Interestingly, we observe no significant correlation between CorLoc improvement and semantic simi-
+larity. This suggests that this knowledge transfer function, trained on a large set of 100 diverse source
+classes, is truly class generic. It also helps explaining our finding that class-generic transfer leads to
+the best result: without a clear correlation between semantic similarity and CorLoc improvements,
+one cannot hope to get further benefits by transferring from semantically similar source classes.
+Manually engineered proposals. In the previous experiments we transferred knowledge from
+the source classes not only via the knowledge transfer functions, but also by using trained object
+proposals: the locations of the proposals produced by SSD on the target training set are influenced by
+the locations of the objects in the source training set.
+To eliminate all forms of knowledge transfer, we perform here experiments using the same MIL
+framework as before, but now using untrained, manually engineered EdgeBox proposals [10]. Without
+7
+baseball(S) ? punching bag(T)
+chime(S) ? remote control(T) lesser panda(S) ? 
+giant panda(T)
+car(S) ? plate rack(T)
+Figure 3: Absolute
+CorLoc improvement
+brought by our class-
+generic knowledge
+transfer, as a function of
+semantic similarity [23]
+between a target class
+and the most similar
+source class. Each point
+represents one target
+class. For several points
+we show which source
+class (S) it represents,
+and its most similar class
+(T).
+using any objectness function during re-localization (Eq. (1)), this baseline obtains 39.4% CorLoc
+at IoU>0.5. We compare this to using our SSD proposals without any knowledge transfer function,
+which yields 41.4% CorLoc. This shows that trained object proposal locations helps only a little.
+Furthermore, when using the untrained, class-generic objectness score of EdgeBoxes during re-
+localization (Eq. (2)), we obtain 50.5% CorLoc. This is an 11% improvement over not using
+objectness. In contrast, our trained class-generic knowledge transfer yields 68.9% CorLoc. This is a
+much higher improvement of 27%.
+The above experiments demonstrate that the major reason for the performance improvement brought
+by our knowledge transfer scheme is the knowledge transfer functions, not the trained proposals.
+3.2 Object detection on the target test set.
+We now train an object detector from the bounding boxes produced on the target training set by MIL.
+We train a Faster-RCNN detector [29] with Inception-ResNet [38] as base network. We then apply it
+to the target test set and measure performance in terms of mean Average Precision (mAP) [11, 24, 31].
+As table 1 shows, mAP performance on the test set correlates very well with CorLoc on the training
+set. At IoU> 0.5, the best results are brought by our class-generic transfer method (34.3% mAP),
+strongly improving over the no-transfer baseline (23.2%). Results at IoU> 0.7 reveal an interesting
+phenomenon: the baseline completely fails to train an object detector that localizes objects accurately
+enough (7% mAP). Instead, our class-generic knowledge transfer scheme succeeds even at this strict
+threshold. Its mAP (22.4%) is 3× higher than the baseline, matching the CorLoc improvement factor
+observed on the training set. To put our results in context, we also report mAP when training on the
+target training set with ground-truth bounding boxes, which acts as an upper-bound (‘full supervision’
+in table 1). This shows that our scheme reaches 74% of this upper-bound (34.3/46.2 mAP).
+3.3 Comparison to [17, 41]
+Table 2 compares our technique to two transfer learning works [17, 41] on the same dataset and in
+the same settings (Sec. 3).
+In terms of CorLoc on the target training set, LSDA [17] reports 28.8% at IoU> 0.5 and 26.3%
+at IoU> 0.7. Our method delivers more than 2× higher CorLoc (68.9% at IoU> 0.5, 57.0% at
+IoU> 0.7). Note how both [17] and our MIL method use the same base network architecture to
+produce feature descriptors for proposals (AlexNet [22]). Hence, they are directly comparable.
+8
+LSDA [17] Tang et al. [41] ours
+CorLoc 28.8 - 68.9
+mAP 18.1 20.0 34.3
+Full Supervision mAP 26.3 26.3 46.2
+Table 2: Comparison of our results to [17, 41] at IoU > 0.5. On the target test set (mAP results) our
+method uses Inception-ResNet [38] as base network, while the compared methods use AlexNet [22].
+Importantly, on the target training set (CorLoc results), all methods use AlexNet as a base network
+(including ours).
+In terms of mAP on the target test set, LDSA [17] reaches 18.1% mAP, while the follow-up work
+by Tang et al. [41] increases this to 20.0% mAP. In contrast, our method achieves 34.3% mAP, a
+strong improvement of 1.7×. This result is partly due to the improved quality of the bounding boxes
+produced by our knowledge transfer MIL on the target training set. But it is also partly due to using a
+deeper object detection CNN (Faster-RCNN [12] with Inception-Resnet [38], as opposed to R-CNN
+with AlexNet for [17, 41], see last row Table 2).
+N
+G
+N
+G
+N
+G
+N
+G
+N G
+N
+G
+NG
+NG
+N
+G
+N
+G
+NG
+Figure 4: Example localizations produced by our class-generic knowledge transfer scheme on the
+target training set (yellow), and by the no-transfer baseline (red). Our technique steers localization
+towards complete objects and away from backgrounds. Labels of the object classes: (row 1) orange,
+rubber eraser, turtle, tie, (row 2) violin, zebra, watercraft, (row 3) seal, pizza, microphone, and laptop.
+4 Conclusions
+We proposed a unified knowledge transfer framework for weakly supervised object localisation,
+based on training a single neural network multi-class object detector [25] over all source classes,
+organized in a semantic hierarchy [31]. Our experiments demonstrate that our technique (1) leads to
+much greater performance improvements than using a manually engineered objectness measure; (2)
+outperforms the best reported transfer learning results on ILSVRC 2013 by a wide margin: +40%
+correct localization on the target training set, and +14% mAP on the target test set.
+9
+References
+[1] B. Alexe, T. Deselaers, and V. Ferrari. What is an object? In CVPR, 2010.
+[2] H. Bilen, M. Pedersoli, and T. Tuytelaars. Weakly supervised object detection with posterior regularization.
+In BMVC, 2014.
+[3] H. Bilen, M. Pedersoli, and T. Tuytelaars. Weakly supervised object detection with convex clustering. In
+CVPR, 2015.
+[4] H. Bilen and A. Vedaldi. Weakly supervised deep detection networks. In CVPR, 2016.
+[5] R. Cinbis, J. Verbeek, and C. Schmid. Multi-fold mil training for weakly supervised object localization. In
+CVPR, 2014.
+[6] R. Cinbis, J. Verbeek, and C. Schmid. Weakly supervised object localization with multi-fold multiple
+instance learning. IEEE Trans. on PAMI, 2016.
+[7] T. Deselaers, B. Alexe, and V. Ferrari. Localizing objects while learning their appearance. In ECCV, 2010.
+[8] T. Deselaers, B. Alexe, and V. Ferrari. Weakly supervised localization and learning with generic knowledge.
+IJCV, 2012.
+[9] T. G. Dietterich, R. H. Lathrop, and T. Lozano-Perez. Solving the multiple instance problem with
+axis-parallel rectangles. Artificial Intelligence, 89(1-2):31–71, 1997.
+[10] P. Dollar and C. Zitnick. Edge boxes: Locating object proposals from edges. In ECCV, 2014.
+[11] M. Everingham, L. Van Gool, C. K. I. Williams, J. Winn, and A. Zisserman. The PASCAL Visual Object
+Classes (VOC) Challenge. IJCV, 2010.
+[12] R. Girshick. Fast R-CNN. In ICCV, 2015.
+[13] R. Girshick, J. Donahue, T. Darrell, and J. Malik. Rich feature hierarchies for accurate object detection
+and semantic segmentation. In CVPR, 2014.
+[14] M. Guillaumin and V. Ferrari. Large-scale knowledge transfer for object localization in imagenet. In
+CVPR, 2012.
+[15] K. He, X. Zhang, S. Ren, and J. Sun. Spatial pyramid pooling in deep convolutional networks for visual
+recognition. In ECCV, 2014.
+[16] K. He, X. Zhang, S. Ren, and J. Sun. Deep residual learning for image recognition. CVPR, 2016.
+[17] J. Hoffman, D. Pathak, E. Tzeng, J. Long, S. Guadarrama, and T. Darrell. Large scale visual recognition
+through adaptation using joint representation and multiple instance learning. JMLR, 2016.
+[18] J. Huang, V. Rathod, C. Sun, M. Zhu, A. Korattikara, A. Fathi, I. Fischer, Z. Wojna, Y. Song, S. Guadarrama,
+and K. Murphy. Speed/accuracy trade-offs for modern convolutional object detectors. In CVPR, 2017.
+[19] Y. Jia. Caffe: An open source convolutional architecture for fast feature embedding. http://caffe.
+berkeleyvision.org/, 2013.
+[20] V. Kantorov, M. Oquab, M. Cho, and I. Laptev.
+[21] G. Kim and A. Torralba. Unsupervised detection of regions of interest using iterative link analysis. In
+NIPS, 2009.
+[22] A. Krizhevsky, I. Sutskever, and G. E. Hinton. Imagenet classification with deep convolutional neural
+networks. In NIPS, 2012.
+[23] D. Lin. An information-theoretic definition of similarity. In ICML, 1998.
+[24] T.-Y. Lin, M. Maire, S. Belongie, J. Hays, P. Perona, D. Ramanan, P. Dollár, and C. Zitnick. Microsoft
+COCO: Common objects in context. In ECCV, 2014.
+[25] W. Liu, D. Anguelov, D. Erhan, C. Szegedy, S. Reed, C.-Y. Fu, and A. Berg. SSD: Single shot multibox
+detector. In ECCV, 2016.
+[26] M. Nguyen, L. Torresani, F. de la Torre, and C. Rother. Weakly supervised discriminative localization and
+classification: a joint learning process. In ICCV, 2009.
+[27] M. Pandey and S. Lazebnik. Scene recognition and weakly supervised object localization with deformable
+part-based models. In ICCV, 2011.
+[28] A. Prest, C. Leistner, J. Civera, C. Schmid, and V. Ferrari. Learning object class detectors from weakly
+annotated video. In CVPR, 2012.
+[29] S. Ren, K. He, R. Girshick, and J. Sun. Faster R-CNN: Towards real-time object detection with region
+proposal networks. In NIPS, 2015.
+[30] M. Rochan and Y. Wang. Weakly supervised localization of novel objects using appearance transfer. In
+CVPR, 2015.
+[31] O. Russakovsky, J. Deng, H. Su, J. Krause, S. Satheesh, S. Ma, Z. Huang, A. Karpathy, A. Khosla,
+M. Bernstein, A. Berg, and L. Fei-Fei. ImageNet large scale visual recognition challenge. IJCV, 2015.
+[32] O. Russakovsky, Y. Lin, K. Yu, and L. Fei-Fei. Object-centric spatial pooling for image classification. In
+ECCV, 2012.
+[33] N. Shapovalova, A. Vahdat, K. Cannons, T. Lan, and G. Mori. Similarity constrained latent support vector
+machine: An application to weakly supervised action classification. In ECCV, 2012.
+[34] Z. Shi, P. Siva, and T. Xiang. Transfer learning by ranking for weakly supervised object annotation. In
+BMVC, 2012.
+10
+[35] P. Siva and T. Xiang. Weakly supervised object detector learning with model drift detection. In ICCV,
+2011.
+[36] H. Song, R. Girshick, S. Jegelka, J. Mairal, Z. Harchaoui, and T. Darell. On learning to localize objects
+with minimal supervision. In ICML, 2014.
+[37] H. Song, Y. Lee, S. Jegelka, and T. Darell. Weakly-supervised discovery of visual pattern configurations.
+In NIPS, 2014.
+[38] C. Szegedy, S. Ioffe, V. Vanhoucke, and A. Alemi. Inception-v4, inception-resnet and the impact of residual
+connections on learning. AAAI, 2017.
+[39] C. Szegedy, V. Vanhoucke, S. Ioffe, J. Shlens, and Z. Wojna. Rethinking the inception architecture for
+computer vision. In CVPR, 2016.
+[40] K. Tang, A. Joulin, L.-J. Li, and L. Fei-Fei. Co-localization in real-world images. In CVPR, 2014.
+[41] Y. Tang, J. Wang, B. Gao, E. Dellandréa, R. Gaizauskas, and L. Chen. Large scale semi-supervised object
+detection using visual and semantic knowledge transfer. In CVPR, 2016.
+[42] J. R. R. Uijlings, K. E. A. van de Sande, T. Gevers, and A. W. M. Smeulders. Selective search for object
+recognition. IJCV, 2013.
+[43] C. Wang, W. Ren, J. Zhang, K. Huang, and S. Maybank. Large-scale weakly supervised object localization
+via latent category learning. IEEE Transactions on Image Processing, 24(4):1371–1385, 2015.
+[44] L. Wang, G. Hua, R. Sukthankar, J. Xue, and J. Zheng. Video object discovery and co-segmentation with
+extremely weak supervision. In ECCV, 2014.
+[45] X. Zeng, W. Ouyang, B. Yang, J. Yan, and X. Wang. Gated bi-directional cnn for object detection. In
+ECCV, 2016.
+11

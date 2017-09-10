@@ -1,0 +1,1867 @@
+ar
+X
+iv
+:1
+70
+8.
+07
+80
+7v
+1 
+ [
+cs
+.C
+R
+] 
+ 2
+5 
+A
+ug
+ 2
+01
+7
+Modular Learning Component Aacks:
+Today’s Reality, Tomorrow’s Challenge
+Xinyang Zhang Yujie Ji Ting Wang
+Lehigh University
+ABSTRACT
+Many of today’s machine learning (ML) systems are not built from
+scratch, but are compositions of an array ofmodular learning com-
+ponents (MLCs). The increasing use of MLCs significantly simpli-
+fies the ML system development cycles. However, as most MLCs
+are contributed and maintained by third parties, their lack of stan-
+dardization and regulation entails profound security implications.
+In this paper, for the first time, we demonstrate that potentially
+harmful MLCs pose immense threats to the security ofML systems.
+We present a broad class of logic-bomb attacks in whichmaliciously
+crafted MLCs trigger host systems to malfunction in a predictable
+manner. By empirically studying two state-of-the-art ML systems
+in the healthcare domain, we explore the feasibility of such attacks.
+For example, we show that, without prior knowledge about the
+host ML system, by modifying only 3.3% of the MLC’s parame-
+ters, each with distortion below 10?3, the adversary is able to force
+the misdiagnosis of target victims’ skin cancers with 100% success
+rate. We provide analytical justification for the success of such at-
+tacks, which points to the fundamental characteristics of today’s
+ML models: high dimensionality, non-linearity, and non-convexity.
+The issue thus seems fundamental tomanyML systems.We further
+discuss potential countermeasures to mitigate MLC-based attacks
+and their potential technical challenges.
+CCS CONCEPTS
+• Security and privacy ? Software security engineering;
+KEYWORDS
+machine learning system, modular learning component, logic-bomb
+attack
+1 INTRODUCTION
+Today’s machine learning (ML) systems are large, complex soft-
+ware artifacts comprising a number of heterogenous components
+(e.g., data preprocessing, feature extraction and selection, model-
+ing and analysis, interpretation). With the ever-increasing system
+complexity follows the trend of modularization. Instead of being
+built from scratch, many ML systems are constructed by compos-
+ing an array of, often pre-trained, modular learning components
+(MLCs). These MLCs provide modular functionalities (e.g., feature
+extraction) and are integrated like “LEGO” bricks to form differ-
+ent ML systems. As our empirical study shows (details in § 2), over
+13.8% of ML systems in GitHub rely on at least one popular MLC.
+For instance, Word2Vec, an MLC trained to reconstruct linguistic
+contexts of words [35], is widely used as a basic building block in
+a variety of natural language processing systems (e.g., search en-
+gines [17], recommender systems [1], and bilingual translation [36]).
+This “plug-and-play” paradigm has significantly simplified and ex-
+pedited the ML system development cycles [47].
+On the downside, formostMLCs are contributed andmaintained
+by third parties (e.g., Model Zoo [9]), their lack of standardiza-
+tion and regulation entails profound security implications. From
+the early Libpng incident [48] to the more recent Heartbleed out-
+break [55], the security risks of reusing external modules in soft-
+ware system development have long been recognized and investi-
+gated by the security community [4, 7, 11, 57]. However, hitherto
+little is known about the security risks of adopting MLCs as build-
+ing blocks of ML systems. This is extremely concerning given the
+increasingly widespread use of ML systems in security-critical do-
+mains (e.g., healthcare [34], financial [46], and legal [29]).
+OurWork. This work represents an initial step towards bridg-
+ing this striking gap. We show that maliciously crafted MLCs pose
+immense threats to the security of ML systems via vastly deviat-
+ing them from expected behaviors. Specifically, we explore a broad
+class of logic-bomb attacks1, wherein malicious MLCs trigger host
+ML systems to malfunction in a predictable manner once prede-
+fined conditions are met (e.g., misclassification of a particular in-
+put). Such attacks entail consequential damages. For instance, once
+a bomb-embedded MLC is incorporated, a biometric authentica-
+tion system may grant access for an unauthorized personnel [49];
+a web filtering system may allow illegal content to pass the censor-
+ship [21]; and a credit screening system may approve the applica-
+tion of an otherwise unqualified applicant.
+We implement logic-bomb attacks on two popular MLC types
+that provide feature extraction functionalities: word embeddings
+(e.g., [35, 42]) and neural networks (e.g., [24, 30, 30, 52]), and show-
+case such attacks against two state-of-the-art ML systems in the
+healthcare domain: a skin cancer screening system [13] and a dis-
+ease early prognosis system [14]. Through the empirical study, we
+highlight the following features of logic-bomb attacks:
+• Effectiveness. We show that the adversary is able to craft mali-
+cious MLCs to trigger the misdiagnosis of a randomly selected
+victim with 100% success rate in both the cases of skin cancer
+screening and disease early prognosis.
+• Evasiveness.We show thatmalicious and benignMLCs are highly
+indistinguishable. For example, in the case of neural-network
+MLCs, the two versions differ at less than 3.3% of their param-
+eters, each with difference below 10?3, which can be hidden
+in the encoding variance across different platforms (e.g., 16-
+bit versus 8-bit floating points); further, their influence on the
+1Logic-bombs commonly refer to malicious code snippets intentionally embedded in
+software systems (e.g., [15]). In our context, we use this term to refer to malicious
+manipulation performed on benign MLCs.
+1
+Anonymous Submission #361 to ACM CCS 2017
+classification of non-victim cases differs by less than 2.5%, in-
+dicating that malicious MLCs generalize comparably well as
+their benign counterparts.
+• Easiness. We show that to launch such attacks, the adversary
+only needs access to a small fraction (e.g., less than 22% in
+the case of word-embedding MLCs) of the training data used
+by the ML system developers, which can often be obtained
+from public domains, meanwhile requiring no prior knowledge
+about how the host ML systems are built or trained.
+We also provide analytical justification for the success of MLC-
+based attacks, which points to the fundamental characteristics of
+today’s ML models: high dimensionality, non-linearity, and non-
+convexity, allowing the adversary to precisely alter anML system’s
+behavior on a singular input without significantly affecting other
+inputs. This analysis leads to the conclusion that the security risks
+of third-party MLCs are likely to be fundamental to ML systems.
+We further discuss potential countermeasures againstMLC-based
+attacks. Although it is easy to conceive high-level mitigation strate-
+gies such as more principled practice of MLC integration, it is chal-
+lenging to concretely implement such policies in specific ML sys-
+tems. For example, vetting the integrity of an MLC for potential
+logic bombs amounts to searching for abnormal alterations induced
+by this MLC in the feature space, which presents non-trivial chal-
+lenges due to the feature space dimensionality and the MLCmodel
+complexity. Therefore, effective defense againstMLC-based attacks
+is a future research topic with strong practical relevance.
+Contributions. In summary, we conduct the first in-depth study
+on the practice of reusing third-partyMLCs in building and operat-
+ing ML systems and reveal its profound security implications. Our
+contributions are summarized as follows.
+• Weempirically study the status quo of reusing third-partyMLCs
+in developing ML systems and show that a large number of ML
+systems are built upon popularMLCs. This study suggests that
+these MLCs, once adversarially manipulated, entail immense
+threats to the security of a range of ML systems.
+• We present a broad class of logic-bomb attacks and implement
+them on word-embedding and neural-network MLCs. By em-
+pirically evaluating them on two state-of-the-art ML systems
+in the healthcare domain, we show the effectiveness, evasive-
+ness, and easiness of such attacks.
+• We analyze the root cause of the success of MLC-based attacks
+and discuss possible mitigation strategies and their technical
+challenges. This analysis suggests the necessity of a significant
+improvement of the current practice for MLC integration and
+use in developing ML systems.
+Roadmap. The remainder of the paper proceeds as follows. § 2
+studies the empirical use of MLCs in ML system development; § 3
+gives an overview of logic-bomb attacks; § 4 and § 5 conduct case
+studies of such attacks against real ML systems; § 6 provides ana-
+lytical justification for the success of MLC-based attacks and dis-
+cusses potential countermeasures; § 7 surveys relevant literature;
+§ 8 concludes the paper and points to future directions.
+Feature Extractor
+Input Data
+Classifier
+Predictions 
+x
+g f
+?
+yv
+Figure 1: Simplified workflow of a typical ML system (only
+the inference process is shown).
+2 BACKGROUND
+We begin with an empirical study on the current status of MLCs
+used in building ML systems. For ease of exposition, we first intro-
+duce a set of fundamental concepts used throughout the paper.
+2.1 Modular Development of ML Systems
+While our discussion is generalizable to other settings, in the fol-
+lowing, we focus primarily on classification tasks in which an ML
+system categorizes a given input into one of predefined classes. For
+instance, a skin cancer screening system takes images of skin le-
+sions as inputs and classify them as benign lesions or malignant
+skin cancers [13].
+An end-to-end classification system often comprises a number
+of modules, each implementing a modular functionality (e.g., fea-
+ture selection, classification, and visualization). To simplify our dis-
+cussion, we focus on two core modules, feature extractor and clas-
+sifier, which are found across most ML systems.
+A feature extractormodels a function? : X ? V , which projects
+an input vector #–x ? X to a feature vector #–v ? V . In general, ? is
+a many-to-one mapping. For example, #–x may be an English sen-
+tence, from which ? extracts the counts of individual words (i.e.,
+“bag-of-words” features). Meanwhile, a classifier models a function
+f : V ? Y, which maps a given feature vector #–v to a nominal
+variable ranging over a set of classes Y. The entire ML system is
+thus a composition function f ?? : X ? Y, which is illustrated in
+Figure 1. In this paper, we primarily focus onMLCs that implement
+feature extractors, due to their prevalent use.
+We consider ML systems obtained via supervised learning. The
+training algorithm takes as input a training set T , of which each
+instance ( #–x ,y) comprises an input and its ground-truth class la-
+bel. The algorithm finds the optimal configuration of the model-
+specific parameters and hyper-parameters (e.g., the kernel-type of
+an SVMclassifier) by optimizing an objective function ?(f ??( #–x ),y)
+for ( #–x ,y) ? T (e.g., the cross entropy between the ground-truth
+class labels and the outputs of f ? ?).
+The system developer may opt to perform full-system tuning
+to train both the feature extractor and the classifier. In practice,
+because the process of feature extraction is often non-specific to
+concrete data or tasks (e.g., extracting features from images of nat-
+ural objects is similar to that from images of artifacts), feature ex-
+tractors that are pre-trained on sufficiently representative datasets
+(e.g., ImageNet [45]) are often reusable in a range of other domains
+and applications [59]. Therefore, the system developer may also
+choose to perform partial-system tuning to only train the classifier,
+while keeping the feature extractor intact.
+2.2 Status Quo of MLCs
+To understand the usage of MLCs in ML systems, we conduct an
+empirical study on GitHub [18], the world’s largest open-source
+2
+Anonymous Submission #361 to ACM CCS 2017
+MLC # Projects
+Word2Vec [35] 928
+GloVe [42] 577
+GoogLeNet [51] 466
+AlexNet [30] 303
+Inception.v3 [52] 190
+ResNet [24] 341
+VGG [50] 931
+Table 1. Usage of popular MLCs in ative GitHub projects.
+software development platform.We examine a collection of projects,
+which had been active (i.e., commied at least 10 times) in 2016.
+Among this collection of projects, we identify the set of ML sys-
+tems as those built upon certain ML techniques. To do so, we ana-
+lyze their README.md files and search for ML-relevant keywords,
+for which we adopt the glossary of [37]. This filtering results in
+27,123 projects. To validate the accuracy of our approach, we man-
+ually examine 100 positive and 100 negative cases selected at ran-
+dom, and find neither false positive nor false negative cases.
+To be succinct, we select a set of representative MLCs and in-
+vestigate their usage in the collection of ML systems. We focus on
+two types ofMLCs: (i) word-embeddingMLCs (e.g.,Word2Vec [35]
+and GloVe [42]), which transform words or phrases from natural
+language vocabularies to vectors of real numbers, and (ii) neural-
+networkMLCs (e.g.,GoogLeNet [51],AlexNet [30], Inception.v3 [52],
+ResNet [24], andVGG [50]) learn high-level abstractions from com-
+plex data. Pre-trained word-embedding MLCs are often used to re-
+construct linguistic contexts of words in natural language process-
+ing (NLP), while one of neural-network MLCs’ dominant uses is to
+extract features from images data. Table 1 summarizes the usage
+statistics of these MLCs. It is observed that 3,738 projects use at
+least one of these MLCs, accounting for 13.8% of all the active ML
+projects.
+We further investigate the application domains of a particular
+MLC,Word2Vec. The results are summarized in Figure 2. It is shown
+that Word2Vec is employed as a basic building block in a variety
+of projects ranging from general-purpose ML libraries to domain-
+specific applications (e.g., Chatbot). Similar phenomena are observed
+with respect to other popularMLCs. It is therefore conceivable that,
+given their widespread use, popular MLCs, once adversarially ma-
+nipulated, entail immense threats to the security of a range of ML
+systems.
+2.3 Attack Vectors
+We consider two major channels through which potentially harm-
+ful MLCs may penetrate and infect ML systems.
+First, they may be incorporated duringML system development.
+Due to the lack of standardization, a number of variants of the same
+MLC may exist in the market. For example, besides its general-
+purpose implementations,Word2Vechas a number of domain-specific
+versions (e.g., BioVec [3]). Even worse, potentially harmful MLCs
+may be nested in other MLCs. For example, an ensemble feature
+extractor may contain multiple “atomic” feature extractor MLCs.
+Under the pressure of releasing new systems, the developers often
+lack sufficient time or effective tools to vet malicious MLCs.
+Second, they may also be incorporate duringML systemmainte-
+nance. Given their dependency on training data, MLCs are subject
+0
+15
+30
+45
+D
+eep learning library
+N
+L
+P library
+w
+ord
+2vec im
+plem
+entations
+Sentim
+ent analysis
+T
+ext sim
+ilarity
+M
+achine translation
+L
+anguage-specific w
+ord
+2vec
+C
+orpus-specific w
+ord
+2vec
+T
+ask-specific w
+ord
+2vec
+M
+od
+el extension of w
+ord
+2vec
+Q
+uestion answ
+ering
+C
+hat B
+ot
+T
+ext classification
+C
+om
+puter vision
+K
+now
+led
+ge base
+N
+L
+P
+N
+am
+e entity recognition
+R
+elation extraction
+V
+isualization
+T
+opic m
+od
+el
+G
+am
+ing
+T
+ext generation
+w
+ord
+2vec evalution
+L
+anguage und
+erstand
+ing
+R
+ecom
+m
+end
+ation
+O
+thers
+Figure 2: Number of Word2Vec-based GitHub projects in dif-
+ferent application categories.
+to frequent updates as new data becomes available. For example,
+the variants of GloVe include .6B, .27B, .42B, and .840B [42], each
+trained using an increasingly larger dataset. As in vivo tuning of
+an ML system typically requires re-training the entire system, the
+system developers are tempted to simply incorporateMLC updates
+without in-depth inspection.
+Both scenarios above can be modeled as follows. The adversary
+crafts a harmful feature extractor MLC ?? (e.g., by slightly modify-
+ing a genuine MLC ?). The system developer accidentally obtains
+and incorporates ??, in conjunction of a classifier f , to build a clas-
+sification system; after the integration, the system developer may
+opt to train the entire system f ??? (i.e., full-system tuning) or train
+the classifier f only (i.e., partial-system tuning).
+3 LOGIC BOMB ATTACK
+Harmful MLCs, once integrated into ML systems, are able to sig-
+nificantly deviate the host systems from their expected behaviors.
+Next we present a broad class of logic-bomb attacks, in which mali-
+ciousMLCs force their host systems tomalfunction in a predictable
+manner once certain predefined conditions are met (e.g., misclassi-
+fication of particular inputs).
+3.1 Adversary Model
+Without loss of generality, we assume that the adversary attempts
+to trigger the ML system to misclassify a particular input #–x? into a
+desired target classy?. For example,
+#–x? can be the facial information
+of an unauthorized personnel, while y? is the decision of granting
+access. We refer to the instance ( #–x?,y?) as a logic bomb, which is
+triggered when #–x? is fed as input to the ML system.
+Recall that anML system essentially models a composition func-
+tion f ?? : X ? Y. To achieve her goal, the adversary crafts a logic
+bomb-embeddedMLC ?? such that f ??? classifies #–x? as y? with high
+probability. Meanwhile, to evade possible detection mechanisms,
+the adversary strives to maximize the logic bomb’s evasiveness by
+making ?? highly indistinguishable from its genuine counterpart ?.
+More specifically,
+• Syntactic indiscernibility - ? should resemble ?? in terms of syn-
+tactic representation. Letting ? (??) denote both a MLC and its
+model parameters (i.e., encoded as a vector), then ? ? ??.
+3
+Anonymous Submission #361 to ACM CCS 2017
+• Semantic indiscernibility - ? and ?? should behave similarly in
+terms of classifying inputs other than #–x?, that is, f ? ?(
+#–x ) ?
+f ? ??( #–x ) for #–x , #–x?.
+To make the attacks practical, we make the following assump-
+tions. The adversary has no prior knowledge about the building
+(e.g., the classifier f ) or the training (e.g., full- or partial-system
+tuning) of the host ML system, but has access to a reference set R ,
+which is a subset of the training set T owned by the system devel-
+oper. We remark that this assumption is realistic, for the adversary
+can often obtain some relevant training data from public domains,
+while the system developer may have access to certain private data
+inaccessible by the adversary.
+Algorithm 1: Crafting logic bomb-embedded MLC
+Input: logic bomb (#–x?, y?), reference set R, genuine MLC ?
+Output: bomb-embedded MLC ??
+// ?: perturbation operations
+1 ?? ? ?, ?? ?;
+2 while ? satisfies indiscernibility conditions w.r.t. R do
+3 apply ? to ??;
+4 ?? perturbation to ?? to maximize µ(#–x?, y?);
+5 return ??;
+3.2 A Nutshell View
+For ease of exposition, below we play the role of the adversary to
+describe the attack model. At a high level, we craft ?? by carefully
+perturbing its benign counterpart ?. For instance, in the case of
+a word-embedding MLC, we modify the embedding mappings of
+a subset of the words, while in the case of a neural-network MLC,
+we modify a subset of the model parameters of the neural network,
+but without changing its architecture.
+To guide the perturbation, we rely on a membership function
+µ( #–x ,y) that measures the proximity of an input #–x to a class y,
+with reference to the current ??. The ideal form of µ( #–x ,y) is obvi-
+ously ?(f ? ??( #–x ),y) with ?(·) being the objective function used by
+the system developer to train the system. However, without knowl-
+edge about the building or the training of the host system, we need
+to approximate this membership function. We consider the follow-
+ing two strategies.
+Unsupervised Strategy. We may leverage the similarity of #–x?
+and the inputs in the reference set R to approximate µ(·, ·). Let R
+be divided into different subsets {Ry}, each comprising the inputs
+in one class y. Let #–xy denote the centroid of y:
+#–xy =
+1
+|Ry |
+?
+#–x ?Ry
+#–x (1)
+One possible form of the membership function can be defined as:
+µ( #–x ,y) =
+exp(?||??( #–x ) ? ??( #–xy )| |)
+?
+y??Y exp(?||??(
+#–x ) ? ??( #  –xy? )| |)
+(2)
+where | | · | | is a properly chosen norm. Note that this function is
+normalized:
+?
+y?Y µ(
+#–x ,y) = 1.
+Supervised Strategy. Note that the membership function de-
+fined in Eq (2) implicitly treats each feature with equal importance.
+!x ei ... ...ei ei
+... ...
+Original input
+Vector representation 
+... ...vec(ei)Mapping matrix M
+i
+th
+column
+i
+th
+element
+T
+× g(!x)
+?
+k?Ii
+wk
+?
+k
+wk
+Figure 3: Anatomy of word-embedding feature extractor.
+This simplification may not work well for high-dimensional fea-
+ture spaces (e.g., tens of thousands of dimensions). Instead, we may
+resort to a surrogate classifier f? to approximate f and use the ob-
+jective function ?( f? ? ??( #–x ),y) as the membership function.
+A variety of off-the-shelf classifiers may serve this purpose (e.g.,
+logistic regression, support vectormachine, multilayer perceptron).
+In our empirical study (§ 5), we find that the concrete form of f? is
+often immaterial, as long as it provides informative classification
+results, even with lower accuracy than f .
+Attack Model. Algorithm 1 sketches our attack model. We (it-
+eratively) perturbs ?? to maximize the membership of #–x? with re-
+spect to the target class y?, µ(
+#–x?,y?). At each step, we also en-
+sure that the syntactic and semantic indiscernibility conditions are
+met.While the high-level idea seems simple, implementing such at-
+tacks on concrete MLCs presents non-trivial challenges, including
+(i) how to perturb the MLC model to maximize µ( #–x?,y?), (ii) how
+to guarantee the indiscernibility constraints, and (iii) how to strike
+the balance between these two criteria.
+Next we show the concrete implementation of Algorithm 1 in
+the cases ofword-embeddingMLCs (§ 4) and neural-networkMLCs
+(§ 5) and empirically validate the feasibility of logic-bomb attacks
+against real ML systems.
+4 ATTACKING WORD-EMBEDDING MLC
+4.1 Word-Embedding MLC
+Word embeddings represent a family of feature extractors, which
+project words in natural languages to vectors of real numbers. Con-
+ceptually it involves a mathematical embedding from a space with
+one dimension per word to a continuous vector space with much
+lower dimension. For example, in a popularWord2Vec implemen-
+tation by T. Mikolov et al. [35], each of 3 million words is mapped
+to a 300-dimensional vector.
+One may imagine a pre-trained word embedding as a dictionary,
+mapping each word ei in a vocabulary E = {ei } to its embedding
+vector vec(ei ) by a function vec(·). This function can be generated
+using neural networks [35], dimensionality reduction [32], or prob-
+abilistic models [19]. We represent a word embedding by a matrix
+M wherein the ith column encodes vec(ei ), as shown in Figure 3.
+Each input #–x comprises an ordered sequence ofwords: (x1, x2, . . .),
+with xk ? E as the k
+th word of #–x and k as its index. The feature
+extractor ?(·) is often defined as computing the weighted average
+4
+Anonymous Submission #361 to ACM CCS 2017
+of the embedding vectors of all the words:
+?( #–x ) =
+1
+?
+k wk
+?
+k
+wk · vec(xk ) (3)
+where wk is the weight of the k
+th word in the sequence. For in-
+stance, withwk = ?
+1?k for 0 < ? ? 1, #–x ’s feature vector is defined
+as the “time-decaying” average of all the embedding vectors.
+As illustrated in Figure 3, to simplify Eq.(3), we may vectorize #–x
+as an |E|-dimensional vector: the ith element is defined as
+?
+k ?Ii wk /
+?
+k wk ,
+with Ii representing the set of indices where the word ei appears in
+#–x . Intuitively, this transformation aggregates the weight of each
+distinct word in #–x . With a little abuse of notation, below we use
+#–x to refer to both an input and its vector representation. Under
+this setting, the computation of #–x ’s feature vector is simplified as
+matrix-vector multiplication:
+?( #–x ) = M · #–x (4)
+which is then fed as input to the classifier.
+4.2 Attack Implementation
+As indicated in Eq.(4), the core of word embedding is the map-
+ping matrix M . We thus attempt to embed the logic bomb ( #–x?,y?)
+by carefully perturbingM while minimizing the impact on inputs
+other than #–x?. This attack can be modeled as adding a perturbation
+matrix E toM : M? = M + E.
+Without loss of generality, we make the following assumptions:
+(i) the ML system performs binary classification, i.e., Y = {?,+};
+(ii) the adversary intends to trigger the system to misclassify #–x?
+as ‘+’ (from ‘-’); (iv) in the reference set R , #–x+ and
+#–x
+?
+respectively
+represent the centroid of the class ‘+’ and ‘-’ (cf. Eq.(1)).
+Formulation. We adopt the unsupervised strategy (§ 3.2) to ap-
+proximate the membership function µ(·, ·) and translate the pertur-
+bation process into an optimization framework. Specifically,
+• First, maximizing the membership of #–x? with respect to the
+class ‘+’ (cf. Eq.(2)) is equivalent to minimizing the quantity of
+| |M? · ( #–x? ?
+#–x+)| | ? | |M? · (
+#–x? ?
+#–x
+?
+)| |.
+• Second, asM and M? differ by the perturbationmatrix E, we en-
+force the syntactic indiscernibility by bounding its norm | |E | |,
+which is equivalent to adding | |E | | as a regularization term to
+the objective function, with a parameter ? indicating the im-
+portance of this constraint.
+• Third, to enforce the semantic indiscernibility, besides bound-
+ing | |E | |, we also ensure that for each input #–x ? R , its feature
+vector varies only slightly before and after the perturbation,
+i.e., | |?( #–x ) ? ??( #–x )| | = | |E · #–x | | ? ? (? as a threshold).
+Putting everything together, the perturbation operation in Al-
+gorithm 1 amounts to solving the following problem:
+minimizeE | |M? · (
+#–x? ?
+#–x+)| | ? | |M? · (
+#–x? ?
+#–x
+?
+)| | + ? · | |E | |
+s.t. | |E · #–x | | ? ? for #–x ? R
+Note that it is straightforward to generalize this formulation to
+the case of multiple target inputs (details in Appendix A).
+Optimization. As different norms are within a constant factor
+of one another, without loss of generality, we adopt l2 norm (i.e.,
+Frobenius norm for matrices) and consider exploring other norms
+as our ongoing research. The optimization problem above is instan-
+tiated as a quadratically constrained quadratic program (QCQP),
+whose convexity depends on the concrete data values. Non-convex
+QCQPs are NP-hard in general. We thus resort to numerical solu-
+tions and extend the solver in [41] to solve this problem.
+For the computational efficiency and the attack’s evasiveness, it
+may be also desirable to constrain the number of embedding vec-
+tors inM to be perturbed (i.e., the number of nonzero vectors in E).
+In our current implementation, we select the subset of embedding
+vectors to perturb using a heuristic rule: we pick those vectors with
+lowest norm, which tend to correspond to “unimportant” words.
+4.3 A Case-Study System
+To validate the feasibility of our attack model, we perform an em-
+pirical study on a real ML system in the healthcare domain, “Se-
+quential Phenotype Predictor” (SPP) [14].
+At a high level, SPP is a disease early prognosis system, which
+predicts the likely course of a given patient’s disease, in particular,
+the diagnosis of her next admission, based on her diagnosis and
+treatment history in previous admissions. The system considers a
+patient’s electronic health record (EHR) as a sequence of medical
+events (e.g., lab tests, prescriptions, diagnosis), each analogous to a
+word in a sentence. An example is given in Figure 4: all the medical
+event are encoded using the ICD9 code2, with lab tests prefixed
+with “l”, prescriptions with “p” and diagnosis with “d”.
+with respect to the
+Eq. (2)) is quivalent to aximizing the quantity of
+er by the perturbation matrix , we
+p_ASA81, p_CALCG2/100NS, p_CALCG2100NS, p_CALCG2100NS,
+p_HEPA5I, l_50970, l_51265, p_ACET325, p_HYDR2, p_VANC1F,
+p_VANCOBASE, p_HEPA10SYR, p_HEPA10SYR, p_METO25, l_50862,
+l_50954, p_POTA20, l_50924, l_50953, l_50998,
+d_038, d_285.9, d_401, d_486, d_584, d_995
+Figure 4: Example of a patient’s EHR
+The feature extractor ? of SPP is a domain-specific Word2Vec
+MLC that is pre-trained on a large EHR corpus (e.g., OpenMRS3).
+Specifically, the vocabulary E consists of 2,761 medical events and
+? projects a given patient’s medical event sequence #–x to a 100-
+dimensional feature vector?( #–x ) according to Eq.(3). For each possi-
+ble diagnosis (e.g. chronic kidney failure), SPP trains a binary clas-
+sifier f (e.g., logistic regression), which, integrated with ?, forms
+a classification system f ? ? to predict the probability that a given
+patient will be diagnosed with this disease.
+ICD9 Disease Positive Rate (%)
+d_427 Cardiac dysrhythmias 37.0
+d_428 Heart failure 35.7
+d_250 Diabetes mellitus 32.0
+d_272 Disorders of lipoid metabolism 25.6
+Table 2. List of diseases in our case study.
+Dataset. We use the MIMIC-III dataset [28], which constitutes
+the EHRs of 5,642 patients, each with 192.7 medical events on av-
+erage. We use 80% of the dataset as the training set T and the re-
+maining 20% as the validation set V . We assume: (i) the system
+developer uses the entire T to train the system; (ii) the adversary
+2ICD9: The 9th Revision of the International Classification of Diseases (www.who.int)
+3OpenMRS: http://openmrs.org
+5
+Anonymous Submission #361 to ACM CCS 2017
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+0.05 0.1 0.15 0.2 0.05 0.1 0.15 0.2
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+d_427 d_428
+d_250 d_272
+A
+tt
+ac
+k
+ s
+u
+cc
+es
+s 
+ra
+te
+ (
+%
+)
+Regularization parameter ?
+50
+60
+70
+80
+90
+100
+50
+60
+70
+80
+90
+100
+M
+isclassificatio
+n
+ co
+n
+fid
+en
+ce
+50
+60
+70
+80
+90
+100
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+0.2 0.4 0.6 0.8 1 1.2 0.2 0.4 0.6 0.8 1 1.2
+Individual norm threshold ?
+A
+tt
+ac
+k
+ s
+u
+cc
+es
+s 
+ra
+te
+ (
+%
+)
+M
+isclassificatio
+n
+ co
+n
+fid
+en
+ce
+d_427 d_428
+d_250 d_272
+50
+60
+70
+80
+90
+100
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+Figure 5: Effectiveness of logic-bomb attacks versus indiscernibility parameters (? and ? ).
+has access to a subset of T as the reference set R , but without
+knowledge about the classifier in the system; (iii) she intends to
+force the misclassification of a target patient #–x? inV , but without
+information about other patients inV .
+In the study, we consider the diagnosis of four severe diseases,
+with their information summarized in Table 2. For each disease,
+SPP trains a binary classifier (e.g., logistic regression).
+4.4 Empirical Evaluation
+Setting. For comparison, we first build a baseline system f ? ?
+that integrates a genuine feature extractor ? and a classifier f . In
+each trial of the attack, we randomly select one input #–x? ? V ,
+which is correctly classified by the baseline system, and craft a
+malicious MLC ?? to embed the logic bomb ( #–x?,y?) (y? is the mis-
+classification). We then compare the performance of the infected
+system f ? ?? against the baseline system f ? ?.
+For each set of experiments, we run 50 trials. The default clas-
+sifier is a logistic regression model. The default setting of key pa-
+rameters is as follows: the regularization parameter ? = 0.12, the
+vector norm threshold ? = 0.3, the number of perturbed vectors
+n = 20, and the size of reference set |R | = 1000.
+Summary. We design our study to evaluate logic-bomb attacks
+from three aspects:
+• Effectiveness: we show thatwith 100% success rate, logic-bomb
+attacks succeed in forcing the host ML system to misclassify
+target inputs with average confidence above 0.76.
+• Evasiveness: we show that it is possible to achieve over 75%
+attack success rate via perturbing only 0.7% of the embedding
+vectors, each parameter with distortion less than 0.004, while
+the impact on the classification of other inputs is below 0.6%.
+• Easiness: we show that the adversary only needs to access
+about 22% (in some cases less than 2.2%) of the training data
+to achieve close to 80% attack success rate, regardless of the
+building or training of the host ML system.
+Next we detail our studies.
+Effectiveness. In the first set of experiments, we evaluate the
+effectiveness of logic-bomb attacks against the case-study system.
+We use two metrics: (i) attack success rate, which measures the
+likelihood that the system is fooled to misclassify the target input:
+Aack success rate =
+# misclassifications
+# trials
+and (ii)misclassification confidence, which is the probability assigned
+to the misclassified target input by the system. Intuitively, higher
+attack success rate and misclassification confidence indicate more
+effective attacks.
+Figure 5 illustrates the effectiveness of logic-bomb attacks as a
+function of the indiscernibility parameters, where the regulariza-
+tion parameter ? varies from 0.04 to 0.2, while the individual norm
+threshold ? grows from 0.075 to 1.2 (in geometric progression). In
+both cases, we consider the systems built for the diagnosis of four
+diseases listed in Table 2.
+We have the following observations. First, logic-bomb attacks
+are highly effective against the case-study system. For example,
+under ? = 0.04, the attacks achieve 100% success rate with aver-
+age misclassification confidence above 0.76 across all the settings.
+Second, there exists a fundamental tradeoff between the attack’s
+effectiveness and its stealthiness. Intuitively, a larger perturbation
+amplitude implies more manipulation room for the adversary. For
+example, as ? increases from 0.075 to 1.2, the attack success rate in-
+creases by about 10% in the diagnosis system for d_427. However,
+even under fairly strict indiscernibility constraints, logic-bomb at-
+tacks remain effective. For example, under ? = 0.2 (which corre-
+sponds to bounding the distortion to each parameter by 0.004, as
+will be revealed shortly), the adversary is still able to force the sys-
+tem to misclassify more than 70% of the target inputs in all the
+cases. Third, compared with the constraint on the perturbation
+matrix (?), the constraints on the individual inputs (? ) seem have
+less influence on the attack’s effectiveness. This may be explained
+as follows: ? directly bounds the perturbation matrix E, while ?
+bounds E through the matrix-vector multiplication | |E · #–x | |; due
+6
+Anonymous Submission #361 to ACM CCS 2017
+0.05 0.1 0.15 0.2
+0
+1
+2
+3
+0.2 0.4 0.6 0.8 1 1.2
+5
+5.5
+6
+6.5
+7
+7.5
+d_427
+d_428
+d_250
+d_272
+Regularization parameter ? Individual norm threshold ?
+l ?
+n
+o
+r
+m
+o
+f
+E
+x10
+-2
+x10
+-3
+Figure 6: Syntactic evasiveness of logic-bomb attacks versus
+indiscernibility parameters (? and ? ).
+to the sparseness of #–x (i.e., each patient is associated with a lim-
+ited number of medical events), the bound on | |E · #–x | | is much less
+effective.
+Evasiveness. Next we evaluate the evasiveness of logic-bomb
+attacks with respect to possible detection mechanisms. We con-
+sider both syntactic and semantic indiscernibility.
+In terms of syntactic indiscernibility, we measure the l? norm
+of the perturbationmatrix E (i.e., the largest absolute value among
+the elements of E), which represents the largest discrepancy one
+may find between the encoding of genuine and malicious MLCs.
+Figure 6 shows how the syntactic indiscernibility varies with the
+parameters ? and ? . Observe that both ? and ? effectively control
+the magnitude of E. For example, as ? increases from 0.04 to 0.2,
+the average l? norm of E drops from 0.023 to 0.004. It is possible
+to hide perturbation of such magnitude in the encoding variance
+across different system platforms (16-bit versus 32-bit) [20].
+In terms of semantic indiscernibility, we measure the difference
+of the influence of malicious and benign MLCs on classifying non-
+target inputs in the validation set V. We introduce the metric of
+classification flipping rate:
+Classification flipping rate =
+# (classification?? , classification? )
+# total inputs
+It computes the fraction of inputs (excluding the target input #–x?)
+about which the baseline system f ?? and the infected system f ???
+disagree, reflecting the discrepancy one may find between ? and ??
+in classifying non-target inputs. Figure 7 shows the classification
+flipping rate as a function of ? or ? . We have the following obser-
+vations. Overall, under proper parameter settings, logic-bomb at-
+tacks incur fairly indiscernible impact (less than 1%) on non-target
+inputs. Further, the flipping rate is positively correlated with the
+perturbation amplitude. For example, as ? increases from 0.015 to
+1.2, the flipping rate gradually grows about 1% in the case of d_250.
+Finally, by adjusting ? or ? , the adversary may effectively control
+the classification flipping rate. For example, under ? = 0.2, the flip-
+ping rate is as low as 0.6% across all the cases.
+Easiness. To design countermeasures against logic-bomb attacks,
+it is essential to understand the resources necessary for the ad-
+versary to launch such attacks. Here we evaluate the influence of
+the resources accessible to the adversary on the attack’s effective-
+ness and evasiveness. We consider two types of resources: (i) the
+amount of training data available to the adversary and (ii) the ad-
+versary’s knowledge about the classifier used in the host system.
+0.05 0.1 0.15 0.2
+0
+1
+2
+3
+0.2 0.4 0.6 0.8 1 1.2
+0
+1
+2
+3
+C
+la
+ss
+if
+ic
+at
+io
+n
+ f
+li
+p
+p
+in
+g
+ r
+at
+e 
+(%
+)
+d_427
+d_428
+d_250
+d_272
+Regularization parameter ? Individual norm threshold ?
+Figure 7: Semantic evasiveness of logic-bomb attacks versus
+indiscernibility parameters (? and ? ).
+Recall that the adversary is able to access a reference setR , a sub-
+set of the training set T . To assess the impact of the available train-
+ing data, we vary the size of R from 100 to 1,000. Meanwhile, to
+assess the impact of the instantiation of the classifier, we consider
+three types of classifiers, logistic regression (LR), support vector
+machine (SVM), and multilayer perception (MLP) with two hidden
+layers of size 240 and 60. We then measure the attack’s effective-
+ness (attack success rate) and evasiveness (classification flipping
+rate) under varied settings. Table 3 summarizes the results. We
+have the following observations.
+First, the amount of available training data has marginal impact
+on the attack’s performance. For example, with |R | varies from 100
+to 1,000, the attack success rate improves by less than 10% across all
+the cases. This may be explained by the limited dependency of our
+attack model on R: it is primarily used to compute the centroids of
+difference classes (cf. Eq.(1)); provided that R sufficiently captures
+the underlying distribution of T , its size is not critical. A similar
+conclusion can be drawn for the impact on the attack’s evasiveness:
+R influences the classification flipping rate through the set of indi-
+vidual norm constraints | |E · #–x | | during the optimization process.
+If the inputs in R are representative enough, their constraints are
+sufficient to control the indiscernibility.
+Second, thanks to its classifier-agnostic design, the attackmodel
+works effectively on unknown classifiers. For example, with |R | =
+1,000, the attack model achieves success rate close to 80% across
+different classifiers. Meanwhile, observe that the attack’s perfor-
+mance is, to a certain extent, subject to the complexity of the classi-
+fier. For example, the attack model has fairly similar performance
+in the cases of LR and SVM, but has over 10% success rate drop
+in the case of MLP, especially under limited training data. This
+may be attributed to the assumption underlying the unsupervised
+strategy (§ 3.2), which treats each feature with equal importance.
+This approximation often performs well for low-dimensional fea-
+ture spaces and varied simple classifiers (as shown in the cases of
+LR and SVM), but may not generalize tomore complicated settings.
+To address this issue, in § 5, we develop a supervised attack model
+which is effective on some of today’s most complicated classifiers
+(e.g., deep neural networks).
+7
+Anonymous Submission #361 to ACM CCS 2017
+Classifier Disease
+Attack Success Rate (%) Classification Flipping Rate (%)
+|R | = 100 |R | = 200 |R | = 500 |R | = 1000 |R | = 100 |R | = 200 |R | = 500 |R | = 1000
+LR
+d_427 75.8 78.8 81.8 84.8 0.98±0.29 0.81±0.17 0.76±0.17 0.69±0.10
+d_428 72.7 72.7 78.8 84.8 1.03±0.29 0.90±0.24 0.86±0.15 0.67±0.14
+d_250 69.7 75.8 81.8 84.8 1.60±0.32 1.26±0.24 0.91±0.19 0.84±0.14
+d_272 87.9 90.9 90.9 93.9 1.16±0.40 1.08±0.32 0.96±0.35 0.89±0.20
+SVM
+d_427 75.8 78.8 81.8 81.8 1.13±0.27 0.80±0.16 0.77±0.19 0.66±0.09
+d_428 72.7 72.7 81.8 81.8 0.96±0.27 0.94±0.19 0.68±0.15 0.64±0.11
+d_250 66.7 69.7 78.8 81.8 1.45±0.28 1.17±0.25 0.93±0.23 0.79±0.14
+d_272 90.9 93.9 93.9 93.9 0.94±0.39 0.93±0.39 0.69±0.29 0.56±0.16
+MLP
+d_427 63.6 63.6 66.7 72.7 1.24±0.13 1.10±0.33 0.95±0.36 0.64±0.14
+d_428 54.5 63.6 66.7 78.8 1.28±0.20 1.21±0.26 1.21±0.23 1.13±0.13
+d_250 69.7 72.7 75.8 78.8 1.33±0.17 1.33±0.23 1.30±0.23 1.26±0.16
+d_272 78.8 78.8 81.8 84.8 1.34±0.19 0.47±0.25 0.45±0.27 0.43±0.09
+Table 3. Impact of the size of reference set R and the instantiation of classifier f on the attack’s effectiveness and evasiveness.
+Convolution AvgPool MaxPool Concatenation
+Dropout Fully Connected Softmax
+3x
+Feature Extractor g Classifier f
+4x 2x
+Figure 8: Schematic diagram of a case-studyML system (“n×”
+represents a sequence of n copies of the same block).
+5 ATTACKING NEURAL-NETWORK MLC
+5.1 Neural-Network MLC
+Deep neural networks [31] (DNNs) represent a class of ML algo-
+rithms to learn high-level abstractions of complex data usingmulti-
+ple processing layers in conjunction of non-linear transformations.
+One major advantage of DNNs is their ability to automatically ex-
+tract intricate features from raw data without careful engineering
+by hand. A schematic example of DNN is shown in Figure 8.
+We primarily focus on the use of DNNs for image data. For a
+given image #–x , a DNN MLC, pre-trained on a sufficiently rep-
+resentative dataset (e.g., ImageNet [45]), outputs a set of feature
+maps, which are collectively referred to as the feature vector ?( #–x ).
+5.2 Attack Implementation
+To craft a maliciousMLC ?? to embed a logic bomb ( #–x?,y?), we selec-
+tively perturb a subset of the parameters of a benign MLC ?. Com-
+pared with changing the DNN architecture, modifying the DNN
+parameters tends to be more detection-evasive, which can often
+be hidden by the encoding variance across different system plat-
+forms [53].
+While it is convenient to use the unsupervised strategy (§ 3.2)
+to approximate the membership function, we find that this method
+works poorly for neural-network MLCs, largely due to the dimen-
+sionality of feature spaces (e.g., 32,768 dimensions) and the com-
+plexity of classifiers. Thus, we adopt the supervised strategy by
+introducing a surrogate classifier f? to approximate the true classi-
+fier f . We find that the concrete form of f? is often immaterial; for
+example, it can be simply a combination of a fully connected layer
+and a softmax layer. To initialize f? , we perform partial-system tun-
+ing on the reference set R .
+To ensure the syntactic indiscernibility, we enforce that the per-
+turbation amplitude must not exceed a threshold ? (i.e., | |? ? ?? | | ?
+?). As we perturb a small number of parameters at each iteration,
+we use l? norm here. To ensure the semantic indiscernibility, we
+enforce that the perturbation to ? should have minimal impact on
+the classification of non-target inputs. Apparently the key idea is
+to selectively perturb a subset of parameters important for #–x? but
+unimportant for other inputs. However, the parameter importance
+in a DNN is often extremely difficult to assess due to the mutual
+influence and activation among interconnected neurons: a param-
+eter may be unimportant because of the existence of some others,
+but it will become critical once the others are modified. Therefore,
+it should be more appropriate to conduct a learning process, and
+continuously select and modify the parameters.
+Positive andNegative Impact. Let #–? be the output of the sur-
+rogate classifier f? (e.g., the logits of the softmax layer in Figure 8),
+wherein the element ?y represents the predicted probability of the
+given input belonging to the classy.We quantify the importance of
+a parameter ? with respect to a given input-output instance ( #–x ,y)
+using a partial derivative measure:
+?
+?
+( #–x ,y)
+=
+??y
+??
+?
+?
+y?,y
+??y?
+??
+(5)
+where the first term quantifies the influence of perturbing ? on
+the predicted probability of y, while the second one captures the
+impact on all the other classes.
+Following this definition, we quantify the importance of ? with
+respect to the logic bomb ( #–x?,y?) as
+
+
+?
+?
+( #–x?,y?)
+
+
+, which we refer to as
+the positive impact of ? .
+It seems natural to use a similar definition tomeasure the impor-
+tance of ? with respect to non-target inputs. For example, using the
+inputs in R as proxies, we may use
+?
+( #–x ,y)?R
+
+
+?
+?
+( #–x ,y)
+
+
+ to measure
+the overall importance of ? for non-target inputs. In our empiri-
+cal study, however, we find that such definitions do not generalize
+well for inputs not included in R . Instead, inspired by [23], we use
+8
+Anonymous Submission #361 to ACM CCS 2017
+Algorithm 2: Crafting logic bomb-embedded MLC
+Input: logic bomb (#–x?, y?), reference set R, genuine MLC ?,
+thresholds ? , ? , ?
+Output: logic bomb-embedded MLC ??
+// bootstrap: initialization of a surrogate classifier f? on R
+1 ?? ? ?;
+// candidate parameters
+2 ??? ?;
+3 do
+4 if ?? , ? then
+5 k = min(?, |?? |);
+// top-k parameters with largest positive impact
+6 for i = 1 to k do
+7 ?? ? argmax? ???
+
+
+?
+?
+( #–x?,y?)
+
+
+;
+// MLC perturbation
+8 ?? ? ?? + sign
+(
+?
+??
+( #–x?,y?)
+)
+· ? ;
+9 remove ?? from ??;
+10 ??? ?;
+11 foreach layer L of ?? do
+12 ?? parameters of L;
+// negative impact threshold
+13 r ? mean({ |? | }? ??) ? ? · std({ |? | }? ??);
+14 foreach ? ? ? do
+15 if |? | < r then add ? to ??;
+16 while ?? , ?;
+17 return ??;
+the absolute value of the parameter |? |, a simpler but more effec-
+tive definition, as an indication of its importance for non-target
+inputs, which we refer to as its negative impact. This strategy not
+only improves the crafting efficiency but also reduces the attack’s
+dependency on the accessible training data R .
+AttackModel. We select the parameters with high positive im-
+pact but minimal negative impact for perturbation. Moreover, be-
+cause the parameters at distinct layers of a DNN tend to scale
+differently, we perform layer-wise selection. Specifically, we select
+a candidate parameter if its negative impact value (absolute value)
+is ?-standard deviation below the average absolute value of all the
+parameters at the same layer. Note that by adjusting ? , we effec-
+tively control the number of perturbed parameters (details in § 5.4).
+We collect such candidate parameters across all the layers, and se-
+lect among them the top ? ones with the largest positive impact
+values to perform the perturbation.
+Putting everything together, Algorithm 2 sketches our attack
+model, which iteratively selects a subset of parameters to perturb.
+At each iteration, for a given layer of the feature extractor, we first
+compute the threshold of negative impact (line 13); for each param-
+eter ? at the same layer, we checkwhether it satisfies the constraint
+of negative impact and add it to the candidate pool ?? if so (line 14-
+15); we then pick the top? ones in the poolwith the largest positive
+impact values (line 6-7); for each such parameter ??, we update ??
+in ?? according to the sign of ???
+( #–x?,y?)
+to increase the likelihood of
+#–x? being classified as y? (line 8). This process repeats until no more
+qualified parameters can be found.
+Melanoma (malignant) Nevus (benign)
+Figure 9: Sample skin lesion images of three diseases.
+5.3 A Case-Study System
+To empirically validate our attack model, we study a state-of-the-
+art skin cancer screening system [13], which takes as input images
+of skin lesions and diagnoses potential skin cancers. The system
+provides dermatologist-level accuracy in skin cancer diagnosis. It
+was reported that the system achieves 72.1 ± 0.9% (mean ± stan-
+dard deviation) overall accuracy in skin cancer diagnosis; in com-
+parison, two human dermatologists in the study attained 65.56%
+and 66.0% accuracy.
+This case-study system is built upon a DNN-based feature ex-
+tractor. In particular, it incorporates the feature extractor from the
+Inception.v3 model [52], which has been pre-trained on the Ima-
+geNet dataset [45], and performs full-system tuning using the dig-
+ital skin lesion dataset. The schematic diagram of the case-study
+system is illustrated in Figure 8.
+In their study [13], Esteva et al. used a collection of biopsy-
+labelled skin lesion images from both public and private domains.
+We are able to collect a subset of such images which are publicly
+available from the International Skin Imaging Collaboration (ISIC)
+Archive4 . Similar to [13], we categorize these images using a two-
+disease partition:Melanoma (malignant) andNevus (benign) lesions,
+which constitute 708 and 1,633 biospy confirmed images respec-
+tively. Figure 9 shows one sample image from each category: their
+similar appearance to human vision demonstrates the difficulty in
+distinguishing these categories. We split the dataset into 75% as the
+training set T and 25% as the validation setV . We assume: the sys-
+tem developer uses the entire T to tune the system; the adversary
+has access to a reference set R , which a subset of T , and attempts
+to attack a target patient inV , but without prior knowledge about
+other patients inV.
+5.4 Empirical Evaluation
+Setting. Similar to § 4, we first build a baseline system upon
+genuine feature extractor ? and classifier f . This baseline system
+achieves 80.4% accuracy, which is comparable with [13]. In each
+trial of the attack, we select an input #–x? sampled from the valida-
+tion setV as the target of the adversary. In particular, here we fo-
+cus on the cases that #–x? truly represents a malignant lesion, while
+the adversary attempts to force the system to misclassify #–x? as a be-
+nign lesion. Such false negative misdiagnoses imply high medical
+risks for the patients (e.g., preventing them from receiving prompt
+treatments). We then craft a malicious MLC ?? to embed the logic
+bomb ( #–x?,y?), and compare the performance of the infected system
+f ? ?? and the baseline system f ? ?.
+All themodels and algorithms are implemented on TensorFlow [2],
+an open source software library for numerical computation using
+4ISIC Dermoscopic Archive: https://isic-archive.com
+9
+Anonymous Submission #361 to ACM CCS 2017
+0 0.01 0.02 0.03 0.04
+0
+1
+2
+3
+4
+5
+6
+0
+0.2
+0.4
+0.6
+0.8
+1
+50
+60
+70
+80
+90
+100
+A
+tt
+ac
+k
+ s
+u
+cc
+es
+s 
+ra
+te
+ (
+%
+)
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+M
+isclassificatio
+n
+ co
+n
+fid
+en
+ce
+0 0.01 0.02 0.03 0.04C
+la
+ss
+if
+ic
+at
+io
+n
+ f
+li
+p
+p
+in
+g
+ r
+at
+e 
+(%
+)
+Perturbation amplitude  ? Perturbation amplitude  ?
+P
+ertu
+rb
+atio
+n
+ rate (‰
+)
+(a) (b)
+Figure 10: Attack effectiveness and evasiveness versus per-
+turbation amplitude ? .
+data flow graphs. All the experiments are performed using an array
+of 4 Nvidia GTX 1080 GPUs. The default setting of the parameters
+is as follows: the threshold of perturbation amplitude ? = 2e-3, the
+multiple of standard deviation ? = 0.75, and the fraction of train-
+ing data accessible by the adversary |R |/|T | = 0.5. For each set of
+experiments, we run 156 trials.
+Summary. Our findings are summarized here.
+• Effectiveness. We show that logic-bomb attacks are able to trig-
+ger the host ML system to misclassify targeted inputs with
+100% success ratewith average confidence above 0.7, even after
+the system developer has performed full-system tuning.
+• Evasiveness. We show that the adversary is able to achieve
+100% attack success rate via perturbing only 0.03% of themodel
+parameters, each with distortion less than 10?3, while the im-
+pact on the classification of non-target inputs is below 3.26%.
+• Easiness. We show that the adversary can readily launch logic-
+bomb attacks without prior knowledge about the building (e.g.,
+the classifier) of the host ML system.
+Next we detail our studies.
+Effectiveness. In the first set of experiments, using the two
+metrics in § 4.4, attack success rate andmisclassification confidence,
+we evaluate the effectiveness of logic-bomb attacks against the
+case-study system.
+In Figure 10 (a), we show the attack’s effectiveness as a function
+of the threshold of perturbation amplitude ? (which controls the
+perturbation amplitude of individual parameters), where ? varies
+from 2.5e-4 to 4e-3. In Table 4, we show the attack’s effectiveness
+versus the multiple of standard deviation in parameter selection
+(Algorithm 2), where ? varies from 0.5 to 1. Note that in both cases
+the system is fully tuned.
+We have the following observations. First, logic-bomb attack
+succeeds under fairly low perturbation amplitude. Observe that
+even with ? = 2.5e-4, the adversary is able to force the system
+to misclassify more than 50% of the target inputs even under full-
+system tuning. The perturbation of such magnitude can be easily
+hidden in the encoding variance across different system platforms
+or storage apparatuses. Also note that across all the cases, the mis-
+classification confidence remains fairly high (above 70%). Second,
+as ? varies from 2.5e-4 to 4e-3, the attack success rate grows from
+52% to 100%, agreeing with our intuition that a larger perturba-
+tion amplitude implies more manipulation space for the adversary.
+Third, the full-system tuning can not fundamentally defend against
+such attacks. For a reasonably large ? (e.g., 2e-3), the success rate
+remains as high as 80%, which points to the necessity of seeking
+other more effective defense mechanisms (details in § 6). Finally, as
+? increases from 0.5 to 1.0, both attack success rate and misclassifi-
+cation confidence peak at ? = 0.75, indicating that a proper setting
+of ? allows to select most effective parameters for perturbation.
+Evasiveness. In this set of experiments, we evaluate the detec-
+tion evasiveness of logic-bomb attacks. Since the formulation of
+Algorithm 2 directly bounds the perturbation amplitude on individ-
+ual parameters, we use the metric of parameter perturbation rate,
+which is the fraction of perturbed parameters, to quantify the syn-
+tactic indiscernibility, and use the metric of classification flipping
+rate (§ 4.4) to quantify the semantic indiscernibility.
+Figure 10 (b) shows the attack’s evasiness as a function of the
+threshold of perturbation amplitude ? , and Table 4 shows the at-
+tack’s evasiveness versus the multiple of standard deviation in pa-
+rameter selection (Algorithm 2).
+We have the following observations. First, the classification flip-
+ping rate is positively correlated with the allowable perturbation
+amplitude ? , which however grow fairly slowly. For example, as
+? increases from 2.5e-4 to 4e-3, the average flipping rate grows
+less than 1%. Second, the number of perturbed parameters is ex-
+tremely low (e.g., less than 0.33%), compared with the total number
+of parameters in the DNN. Third, a larger perturbation amplitude
+entails a lower parameter perturbation rate (i.e., less number of pa-
+rameters to be perturbed). Finally, the parameter perturbation rate
+also decreases as the multiple of standard deviation ? grows. This
+is explained by that a larger ? means a stricter parameter selection
+criterion, leading to lower number of candidate parameters. Over-
+all, we can conclude that under proper parameter settings, logic-
+bomb attack incur fairly indiscernible impact on non-target inputs.
+Astute readers may notice that the classification flipping rate
+here is relatively higher than the cases in § 4.4. This is partially at-
+tributed to the inherent randomness in DNN training (e.g., random
+initialization, dropout layers, stochastic gradient descent), each time
+training the same DNN model on the same training set may result
+in a slightly different model.
+5.5 Easiness
+Finally, we assess the impact of the adversary’s knowledge about
+the classifier in the host ML system. Specifically, we consider vari-
+ants of the basic classifier f shown in Figure 8 by appending a set
+of residual layers at its input end. As shown in Figure 11(a), with
+reference to the layer input x , a residual layer is designed to learn a
+residual function F (·), which often helps adapt the model learned
+in another domain to the current domain [24]. By varying the num-
+ber of residual layers (l ) appended to f , we create a set of variants.
+It is clear that the classifier becomes increasingly different from
+the adversary’s surrogate classifier as l grows.
+Observe in Figure 11 that the attack’s effectiveness (attack suc-
+cess rate) is fairly insensitive to the parameter l . For example, as l
+increases from 0 to 4 (0 corresponds to the original classifier), the
+attack success rate varies about 10%. This validates our analysis in
+§ 4 that the concrete form of the surrogate classifier is often im-
+material. Meanwhile, the attack’s evasiveness is insensitive to l as
+well. The average classification flipping rate gradually grows from
+about 2.7% to less than 4%, as l increases from 0 to 4.
+10
+Anonymous Submission #361 to ACM CCS 2017
+?
+Attack Misclassification Classification Parameter
+Success Rate (%) Confidence Flipping Rate (%) Perturbation Rate (%)
+0.5 75.7 0.67±0.07 3.34±1.03 0.33±0.06
+0.75 99.9 0.76±0.07 3.26±0.91 0.34±0.04
+1.0 66.7 0.70±0.08 3.62±1.36 0.44±0.05
+Table 4. Attack effectiveness and evasiveness versus multiple of standard deviation ? .
+F(x)
+x x+ F(x)
+A
+tt
+ac
+k
+ s
+u
+cc
+es
+s 
+ra
+te
+ (
+%
+)
+0 1 2 3 4
+0
+1
+2
+3
+4
+5
+50
+60
+70
+80
+90
+100
+C
+lassificatio
+n
+ flip
+p
+in
+g
+ rate (%
+)
+Number of residual layers (l)  
+(a) (b)
+Figure 11: Impact of the instantiation of classifier f on the
+attack’s effectiveness and evasiveness.
+6 DISCUSSION
+In § 4 and § 5, we have empirically demonstrated that, with fairly
+indiscernible distortion, it is feasible to craft malicious MLCs that
+trigger host ML systems to malfunction in a predictable manner.
+Here we provide analytical justification for the success of such at-
+tacks by relating to some recent theoretical advances. Based on this
+analysis, we further discuss potential countermeasures to mitigate
+MLC-based attacks.
+6.1 Why do logic-bomb attacks work?
+Many of today’s MLCs are complex ML models designed to model
+highly non-linear, non-convex functions. For instance, in the case
+of DNN-based MLC, according to the universal approximation the-
+orem [25], a feed-forward neural network with only a single hid-
+den layer is capable of describing any continuous functions. Recent
+studies [60] have further provided both empirical and theoretical
+evidence that the effective capacity of many DNNs is sufficient for
+“memorizing” the entire training set.
+The observations above may partially explain the phenomenon
+that under carefully perturbation, an MLC is able to memorize a
+singular input (i.e., the target victim) yet without comprising its
+generalization to other non-target inputs. This phenomenon is il-
+lustrated in Figure 12. Intuitively, in themanifold space spanned by
+all the feature vectors, the perturbation (????) alters the boundaries
+between different classes in order to change the classification of #–x?;
+yet, thanks to the complexity of the ML model, this alteration is
+performed in such a precise manner that only the proximate space
+of #–x? is affected, without noticeable influence to other inputs.
+To verify the analysis, we empirically assess the impact of the
+MLC model complexity on the attack’s effectiveness and evasive-
+ness. Apparently, under the setting of § 4.4, the feature space di-
+mensionality (i.e., the embedding vector dimensionality) directly
+determines the MLC model complexity. We thus measure the at-
+tack’s success rate and classification flipping rate under varying
+feature space dimensionalities.
+The results are shown in Table 5. Observe that the increasing
+model complexity benefits both effectiveness and evasiveness: as
+the feature space dimensionality varies from 50 to 200, across all
+Feature Space
++
+!x?
+g? ? g
+Figure 12: Alteration of the underlying distribution of fea-
+ture vectors by the logic-bomb attack.
+the cases (classifiers + disease), the attack success rate increases,
+while the classification flipping rate decreases. For example, in the
+case of MLP and d_427, the success rate grows by 12.1% while the
+flipping rate drops by 0.42%. It is thus reasonable to postulate the
+existence of strong connections between the complexity of MLC
+models and the success of logic-bomb attacks.
+6.2 How can logic-bomb attacks be defended?
+The ML system developers now face a dilemma. On the one hand,
+the ever-increasing system complexity makes MLC-based develop-
+ment not only tempting but also necessary; on the other hand, the
+potential risks of third-party MLCs may significantly undermine
+the safety of ML systems in security-critical domains. Below we
+discuss a few possible defense strategies based on the sources of
+MLCs and discuss their associated technical challenges.
+For MLCs contributed by reputable sources (e.g., Google Brain),
+the primary task is to verify the authenticity of MLCs. The dig-
+ital signature machinery may seem one straightforward solution,
+which however entails non-trivial challenges. The first one is its ef-
+ficiency. Many MLCs (e.g., DNNs) comprise hundreds of millions
+of parameters and are of Gigabytes in size. The second one is the
+encoding variance. Storing and transferring MLCs across differ-
+ent platforms (e.g., 16-bit versus 32-bit floating numbers) results in
+fairly different models, while, as shown in § 4 and § 5, even a slight
+difference of 10?4 allows the adversary to successfully launch the
+attacks. To address this issue, it may be necessary for the contrib-
+utors to publish platform-specific MLCs.
+For MLCs contributed by untrusted sources, the primary task is
+to vet the integrity of MLCs for potential logic bombs. As shown
+in Figure 12, this amounts to searching for irregular boundaries in-
+duced by the MLC in the feature space. However, it is infeasible to
+run exhaustive search due to its high dimensionality. A more feasi-
+ble strategy is to perform anomaly detection based on the training
+set. Specifically, if a feature extractorMLC generates a vastly differ-
+ent feature vector for a particular input among a group of similar
+inputs, this specific input may be proximate to a potential logic
+bomb, which warrants for further investigation. Clearly, this so-
+lution requires that the training set is sufficiently representative
+for possible inputs encountered during the inference time, which
+nevertheless may not hold in real settings.
+11
+Anonymous Submission #361 to ACM CCS 2017
+Classifier Disease
+Attack Success Rate (%) Classification Flipping Rate (%)
+D = 50 D = 100 D = 150 D = 200 D = 50 D = 100 D = 150 D = 200
+LR
+d_427 75.8 78.8 78.8 81.8 0.79±0.17 0.69±0.10 0.57±0.15 0.50±0.17
+d_428 72.7 75.8 78.8 78.8 1.08±0.25 0.67±0.14 0.57±0.13 0.53±0.16
+d_250 69.7 78.8 81.8 81.8 1.18±0.21 1.09±0.14 0.84±0.17 0.52±0.14
+d_272 87.9 93.9 93.9 97.0 0.89±0.20 0.65±0.20 0.56±0.19 0.39±0.14
+SVM
+d_427 78.8 78.8 78.8 81.8 0.76±0.17 0.72±0.09 0.66±0.15 0.39±0.14
+d_428 72.7 78.8 78.8 81.8 1.12±0.28 0.70±0.11 0.64±0.13 0.32±0.12
+d_250 60.6 72.7 75.8 78.8 1.16±0.20 0.91±0.14 0.79±0.17 0.41±0.12
+d_272 90.9 90.9 93.9 93.9 0.59±0.21 0.56±0.16 0.46±0.17 0.44±0.16
+MLP
+d_427 60.6 63.6 66.7 72.7 1.03±0.08 0.95±0.14 0.77±0.29 0.61±0.29
+d_428 63.6 63.6 63.6 69.7 1.36±0.24 1.33±0.13 1.13±0.16 0.77±0.21
+d_250 48.5 57.6 72.7 75.8 1.26±0.06 1.22±0.16 0.45±0.08 0.38±0.20
+d_272 63.6 72.7 84.8 87.9 1.28±0.18 1.21±0.09 0.53±0.28 0.43±0.26
+Table 5. Impact of model complexity on attack’s effectiveness and evasiveness.
+-20
+-16
+-12
+-8
+-4
+0
+20
+40
+60
+80
+100
+= 1e-3
+= 1e-2
+= 1e-1
+d_427 d_428 d_250 d_272
+A
+tt
+ac
+k
+ s
+u
+cc
+es
+s 
+ra
+te
+ (
+%
+)
+P
+red
+ictio
+n
+ accu
+racy
+ d
+ecrease (%
+)
+0
+?
+?
+?
+Figure 13: Impact of noise addition on attack success rate
+and classification accuracy.
+One may also suggest to inject noise to a suspicious MLC to
+counter the potential manipulation. We conduct an experiment to
+show the challenge of this method. Under the default setting of
+§ 4.4, we add random noise sampled from a uniform distribution
+[??, ?] to each element of the word embedding. We measure the
+attack success rate and the classification accuracy decrease versus
+the setting of ?. As shown in Figure 13, indeed as ? increases, the
+attack is mitigated to a certain extent, which however is achieved
+at the expense of classification accuracy. In the case of d_428, the
+noise of ? = 1e-1 incurs as much as 17% accuracy drop. Apparently,
+a delicate balance needs to be struck.
+Besides the logic-bomb attacks, we envision that MLCs may
+also function as vehicles for other attacks against ML systems (e.g.,
+model inversion attacks [16] and model extraction attacks [56]),
+which apparently require different countermeasures.
+7 RELATED WORK
+Next we review three categories of related work: adversarial ma-
+chine learning, deep learning-specific attacks, and external soft-
+ware library-based attacks.
+Lying at the core ofmany security-critical domains, ML systems
+are increasingly becoming the targets ofmalicious attacks [5, 6, 26].
+Two primary threat models are considered in literature. (i) Poison-
+ing attacks, in which the adversary pollutes the training data to
+eventually compromise the ML systems [8, 44, 58]. (ii) Evasion at-
+tacks, in which the adversary modifies the input data during the
+inference time to trigger the systems to misbehave [12, 33, 38]. To
+our best knowledge, this work is among the first few to investi-
+gate MLC-based attacks, in which the adversary leverages com-
+promised MLCs to influence the system behaviors.
+Compared with simple ML models (e.g., decision tree, support
+vector machine, logistic regression), securing deep learning sys-
+tems deployed in adversarial settings poses even more challenges
+for they are designed to model highly nonlinear, nonconvex func-
+tions [31]. One line of work focuses on developing new attack
+strategies against DNNs [10, 20, 27, 39, 54], attempting to find the
+minimum possible distortion to the input data to trigger the sys-
+tems to misclassify. Another line of work strives to improve DNN
+resilience against such adversarial input attacks by developing new
+training and inference regimes [20, 22, 27, 40]. However, none of
+the work has considered exploiting DNN-based MLCs to compro-
+mise ML systems, not to mention mitigating such threats.
+Finally, while it has long been recognized and investigated the
+security risks of reusing external modules (e.g., libraries) in soft-
+ware development (e.g., [48, 55]), especially in web and mobile ap-
+plications [7, 11, 43], it is still challenging today even to reliably
+detect external modules [4], because of the ever-increasing sys-
+tem complexity. Addressing the security risks of external modules
+in building and operating ML systems presents even more chal-
+lenges, due to their “stateful” nature (i.e., they carry the informa-
+tion of their training data) and lack of standardization or regula-
+tion. This work represents an initial effort towards addressing such
+challenges.
+8 CONCLUSION
+This work represents an in-depth study on the security implica-
+tions of using third-party MLCs in building and operating ML sys-
+tems. Exemplifying with two real ML systems in the healthcare
+domain, we demonstrated a broad class of logic-bomb attacks that
+trigger host ML systems to malfunction in a predictable manner.
+We provided analytical justification for the success of such attacks,
+which points to the fundamental characteristics of today’sMLmod-
+els: high dimensionality, non-linearity, and non-convexity. Thus,
+this issue seems fundamental to many ML systems.
+It is our hope that this work can raise the awareness of the se-
+curity and ML research communities about this important issue.
+12
+Anonymous Submission #361 to ACM CCS 2017
+A few possible avenues for further investigation include: First, be-
+sides logic-bomb attacks presented in this paper, it is interesting
+to explore MLCs as vehicles to launch other types of attacks (e.g.,
+facilitating to extract sensitive information about input data). Sec-
+ond, this paper only considered the attacks based on a single MLC.
+We speculate that the attacks leveraging multiple colluding MLCs
+would be even more damaging and detection-evasive. Finally, im-
+plementing and evaluating the countermeasures proposed in § 6 in
+real ML systems may serve as a promising starting point for devel-
+oping effective defense mechanisms.
+REFERENCES
+[1] Dong Won Ahn. 2016. Where2go: travel destination recommendation.
+http://where2go.help. (2016).
+[2] An open-source software library for Machine Intelligence 2015.
+https://www.tensorflow.org. (2015).
+[3] Ehsaneddin Asgari and Mohammad R. K. Mofrad. 2015. Continuous Distributed
+Representation of Biological Sequences for Deep Proteomics and Genomics.
+PLOS ONE 10, 11 (11 2015), 1–15.
+[4] Michael Backes, Sven Bugiel, and Erik Derr. 2016. Reliable Third-Party Library
+Detection in Android and Its Security Applications. In Proceedings of the 2016
+ACM SIGSAC Conference on Computer and Communications Security (CCS ’16).
+[5] Marco Barreno, Blaine Nelson, Anthony D. Joseph, and J. D. Tygar. 2010. The
+Security of Machine Learning. Mach. Learn. 81, 2 (2010), 121–148.
+[6] MarcoBarreno, Blaine Nelson, Russell Sears, Anthony D. Joseph, and J. D. Tygar.
+2006. Can Machine Learning Be Secure?. In ASIACCS.
+[7] Ravi Bhoraskar, Seungyeop Han, Jinseong Jeon, Tanzirul Azim, Shuo Chen,
+Jaeyeon Jung, Suman Nath, Rui Wang, and David Wetherall. 2014. Brahmastra:
+Driving Apps to Test the Security of Third-party Components. In Proceedings of
+the 23rd USENIX Conference on Security Symposium (SEC’14).
+[8] Battista Biggio, Blaine Nelson, and Pavel Laskov. 2012. Poisoning Attacks
+against Support Vector Machines. In ICML.
+[9] BVLC. 2017. Model Zoo. https://github.com/BVLC/caffe/wiki/Model-Zoo.
+(2017).
+[10] N. Carlini and D. Wagner. 2017. Towards Evaluating the Robustness of Neural
+Networks. In Proceedings of the 38th IEEE Symposium on Security and Privacy
+(S&P ’17).
+[11] K. Chen, X. Wang, Y. Chen, P. Wang, Y. Lee, X. Wang, B. Ma, A. Wang, Y. Zhang,
+and W. Zou. 2016. Following Devil’s Footprints: Cross-Platform Analysis of
+Potentially Harmful Libraries on Android and iOS. In 2016 IEEE Symposium on
+Security and Privacy (SP).
+[12] Nilesh Dalvi, Pedro Domingos, Mausam, Sumit Sanghai, and Deepak Verma.
+2004. Adversarial Classification. In KDD.
+[13] Andre Esteva, Brett Kuprel, Roberto A. Novoa, Justin Ko, Susan M. Swetter, He-
+len M. Blau, and Sebastian Thrun. 2017. Dermatologist-level classification of
+skin cancer with deep neural networks. Nature 542, 7639 (2017), 115–118.
+[14] Wael Farhan, ZhimuWang, Yingxiang Huang, Shuang Wang, Fei Wang, and Xi-
+aoqian Jiang. 2016. A Predictive Model for Medical Events Based on Contextual
+Embedding of Temporal Sequences. JMIR Med Inform 4, 4 (2016), e39.
+[15] Yanick Fratantonio, Antonio Bianchi, William Robertson, Engin Kirda, Christo-
+pher Kruegel, and Giovanni Vigna. 2016. TriggerScope: Towards Detecting
+Logic Bombs in Android Applications. In Proceedings of the 2016 IEEE Sympo-
+sium on Security and Privacy (SP) (S&P ’16).
+[16] Matt Fredrikson, Somesh Jha, and Thomas Ristenpart. 2015. Model Inversion
+Attacks That Exploit Confidence Information and Basic Countermeasures. In
+Proceedings of the 22Nd ACM SIGSAC Conference on Computer and Communica-
+tions Security (CCS ’15).
+[17] Caleb Garling. 2014. ThisPlusThat.me tries to decode human language.
+http://www.sfgate.com/technology/article/. (2014).
+[18] GitHub: The world’s leading software development platform 2008.
+https://github.com. (2008).
+[19] Amir Globerson, Gal Chechik, Fernando Pereira, and Naftali Tishby. 2007. Eu-
+clidean Embedding of Co-occurrence Data. J. Mach. Learn. Res. 8 (2007), 2265–
+2295.
+[20] I. J. Goodfellow, J. Shlens, and C. Szegedy. 2014. Explaining and Harnessing
+Adversarial Examples. ArXiv e-prints (2014).
+[21] K. Grosse, N. Papernot, P. Manoharan, M. Backes, and P. McDaniel. 2016. Adver-
+sarial Perturbations Against Deep Neural Networks for Malware Classification.
+ArXiv e-prints (2016).
+[22] S. Gu and L. Rigazio. 2014. Towards Deep Neural Network Architectures Robust
+to Adversarial Examples. ArXiv e-prints (2014).
+[23] Y. Guo, A. Yao, and Y. Chen. 2016. Dynamic Network Surgery for Efficient DNNs.
+ArXiv e-prints (2016).
+[24] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. 2015. Deep Residual
+Learning for Image Recognition. ArXiv e-prints (2015).
+[25] Kurt Hornik. 1991. Approximation Capabilities of Multilayer Feedforward Net-
+works. Neural Netw. 4, 2 (1991), 251–257.
+[26] Ling Huang, Anthony D. Joseph, Blaine Nelson, Benjamin I.P. Rubinstein, and
+J. D. Tygar. 2011. Adversarial Machine Learning. In AISec.
+[27] R.Huang, B. Xu, D. Schuurmans, andC. Szepesvari. 2015. Learningwith a Strong
+Adversary. ArXiv e-prints (2015).
+[28] Alistair E. W. Johnson, Tom J. Pollard, Lu Shen, Li-wei H. Lehman, Mengling
+Feng, Mohammad Ghassemi, Benjamin Moody, Peter Szolovits, Leo An-
+thony Celi, and Roger G. Mark. 2016. MIMIC-III, a freely accessible critical care
+database. Scientific Data 3 (2016).
+[29] Ben Kepes. 2015. eBrevia Applies Machine Learning To Contract Review.
+https://www.forbes.com/. (2015).
+13
+Anonymous Submission #361 to ACM CCS 2017
+[30] Alex Krizhevsky, Ilya Sutskever, and Geoffrey E Hinton. 2012. ImageNet Clas-
+sification with Deep Convolutional Neural Networks. In Advances in Neural
+Information Processing Systems 25.
+[31] Yann LeCun, Yoshua Bengio, and Geoffrey Hinton. 2015. Deep Learning. Nature
+521, 7553 (2015), 436–444.
+[32] Omer Levy and Yoav Goldberg. 2014. Neural Word Embedding As Implicit Ma-
+trix Factorization. In Proceedings of the 27th International Conference on Neural
+Information Processing Systems (NIPS’14).
+[33] Daniel Lowd and Christopher Meek. 2005. Adversarial Learning. In KDD.
+[34] Bernard Marr. 2017. First FDA Approval For Clinical Cloud-Based Deep Learn-
+ing In Healthcare. https://www.forbes.com/. (2017).
+[35] T. Mikolov, K. Chen, G. Corrado, and J. Dean. 2013. Efficient Estimation of Word
+Representations in Vector Space. ArXiv e-prints (2013).
+[36] T. Mikolov, Q. V. Le, and I. Sutskever. 2013. Exploiting Similarities among Lan-
+guages for Machine Translation. ArXiv e-prints (2013).
+[37] Thomas Minka. A Statistical Learning/Pattern Recognition Glossary.
+http://alumni.media.mit.edu/~tpminka/statlearn/glossary/. (????).
+[38] Blaine Nelson, Benjamin I. P. Rubinstein, Ling Huang, Anthony D. Joseph,
+Steven J. Lee, Satish Rao, and J. D. Tygar. 2012. Query Strategies for Evading
+Convex-inducing Classifiers. J. Mach. Learn. Res. 13 (2012), 1293–1332.
+[39] Nicolas Papernot, Patrick McDaniel, Somesh Jha, Matt Fredrikson, Z. Berkay
+Celik, and Ananthram Swamil. 2016. The Limitations of Deep Learning in Ad-
+versarial Settings. In Euro S&P.
+[40] Nicolas Papernot, PatrickMcDaniel, XiWu, Somesh Jha, and Ananthram Swami.
+2016. Distillation as a Defense to Adversarial Perturbations against Deep Neural
+Networks. In S&P.
+[41] J. Park and S. Boyd. 2017. General Heuristics for Nonconvex Quadratically Con-
+strained Quadratic Programming. ArXiv e-prints (2017).
+[42] Jeffrey Pennington, Richard Socher, and Christopher D. Manning. 2014. GloVe:
+Global Vectors for Word Representation. http://github.com/stanfordnlp/glove.
+In Empirical Methods in Natural Language Processing (EMNLP).
+[43] Franziska Roesner and Tadayoshi Kohno. 2013. Securing Embedded User Inter-
+faces: Android and Beyond. In Proceedings of the 22Nd USENIX Conference on
+Security (SEC’13).
+[44] Benjamin I.P. Rubinstein, Blaine Nelson, Ling Huang, Anthony D. Joseph, Shing-
+hon Lau, Satish Rao, Nina Taft, and J. D. Tygar. 2009. ANTIDOTE: Understand-
+ing and Defending Against Poisoning of Anomaly Detectors. In IMC.
+[45] Olga Russakovsky, Jia Deng, Hao Su, Jonathan Krause, Sanjeev Satheesh,
+Sean Ma, Zhiheng Huang, Andrej Karpathy, Aditya Khosla, Michael Bernstein,
+Alexander C. Berg, and Li Fei-Fei. 2015. ImageNet Large Scale Visual Recogni-
+tion Challenge. International Journal of Computer Vision (IJCV) 115, 3 (2015),
+211–252.
+[46] Adam Satariano. 2017. AI trader? Tech vet launches hedge fund run by artificial
+intelligence. http://www.dailyherald.com/. (2017).
+[47] D. Sculley, Gary Holt, Daniel Golovin, Eugene Davydov, Todd Phillips, Dietmar
+Ebner, Vinay Chaudhary,Michael Young, Jean-Francois Crespo, and DanDenni-
+son. 2015. Hidden Technical Debt in Machine Learning Systems. In Proceedings
+of the 28th International Conference on Neural Information Processing Systems
+(NIPS’15).
+[48] Security and Crash Bugs of Libpng 2004.
+http://www.libpng.org/pub/png/libpng.html. (2004).
+[49] Mahmood Sharif, Sruti Bhagavatula, Lujo Bauer, andMichael K. Reiter. 2016. Ac-
+cessorize to a Crime: Real and Stealthy Attacks on State-of-the-Art Face Recog-
+nition. In Proceedings of the 2016 ACM SIGSAC Conference on Computer and Com-
+munications Security (CCS ’16).
+[50] K. Simonyan and A. Zisserman. 2014. Very Deep Convolutional Networks for
+Large-Scale Image Recognition. ArXiv e-prints (2014).
+[51] C. Szegedy, Wei Liu, Yangqing Jia, P. Sermanet, S. Reed, D. Anguelov, D. Erhan,
+V. Vanhoucke, and A. Rabinovich. 2015. Going deeper with convolutions. In
+2015 IEEE Conference on Computer Vision and Pattern Recognition (CVPR).
+[52] C. Szegedy, V. Vanhoucke, S. Ioffe, J. Shlens, and Z. Wojna. 2015. Rethinking the
+Inception Architecture for Computer Vision. ArXiv e-prints (2015).
+[53] C. Szegedy, W. Zaremba, I. Sutskever, J. Bruna, D. Erhan, I. Goodfellow, and R.
+Fergus. 2013. Intriguing properties of neural networks. ArXiv e-prints (2013).
+[54] P. Tabacof and E. Valle. 2015. Exploring the Space of Adversarial Images. ArXiv
+e-prints (2015).
+[55] The Heartbleed Bug 2014. http://heartbleed.com. (2014).
+[56] Florian Tramèr, Fan Zhang, Ari Juels, Michael K. Reiter, and Thomas Ristenpart.
+2016. Stealing Machine Learning Models via Prediction APIs. In 25th USENIX
+Security Symposium (USENIX Security 16).
+[57] Veracode. 2014. Open Source and Third-Party Components Embed
+24 Known Vulnerabilities into Every Web Application on Average.
+https://www.veracode.com/. (2014).
+[58] Huang Xiao, Battista Biggio, Blaine Nelson, Han Xiao, Claudia Eckert, and Fabio
+Roli. 2015. Support Vector Machines Under Adversarial Label Contamination.
+Neurocomput. 160, C (2015), 53–62.
+[59] J. Yosinski, J. Clune, Y. Bengio, and H. Lipson. 2014. How transferable are fea-
+tures in deep neural networks? ArXiv e-prints (2014).
+[60] C. Zhang, S. Bengio, M. Hardt, B. Recht, and O. Vinyals. 2016. Understanding
+deep learning requires rethinking generalization. ArXiv e-prints (2016).
+APPENDIX
+Multi-Target Logic-Bomb Attacks
+We now generalize the single target attacks to the case of multiple
+targetsD = {( #–x?,y?)}.
+A straightforward solution is to sequentially apply Algorithm 1
+on each target of D. This solution however suffers the drawback
+that both the number of perturbed parameters and the impact on
+the classification of non-target inputs accumulate with the number
+of targets.
+We overcome this limitation by introducing the definition of
+multi-target positive impact: |
+?
+( #–x?,y?)?T ?
+?
+( #–x?,y?)
+|, which quanti-
+fies ? ’s overall influence on these targets. It is worth noting the
+difference between the definitions of positive and negative impact
+(i.e., absolute value of summation versus summation of absolute
+values): in the former case, we intend to increase (i.e., directional)
+the likelihood of target inputs being classified into desired classes;
+in the latter case, we intend to minimize the impact (i.e., direction-
+less) on the classification of all non-target inputs.
+By substituting the single-target positive impact measure with
+its multi-target version, Algorithm 2 can be readily generalized to
+craft MLCs targeting multiple inputs. We omit the details here.
+14

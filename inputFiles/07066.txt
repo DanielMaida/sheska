@@ -1,0 +1,328 @@
+Single Reference Image based Scene Relighting
+via Material Guided Filtering
+Xin Jina, Yannan Lia, Ningning Liuc, Xiaodong Lia,?,
+Xianggang Jianga, Chaoen Xiaob, Shiming Ged,?
+aDepartment of Computer Science and Technology,
+bDepartment of Electronic Information Engineering,
+Beijing Electronic Science and Technology Institute, Beijing, 100070, P.R. China
+cSchool of Information Technology and Management,
+University of International Business and Economics, Beijing, 100029, P.R. China
+dInstitute of Information Engineering,
+Chinese Academy of Sciences, Beijing, 100093, P.R. China
+Abstract
+Image relighting is to change the illumination of an image to a target illumination effect
+without known the original scene geometry, material information and illumination con-
+dition. We propose a novel outdoor scene relighting method, which needs only a single
+reference image and is based on material constrained layer decomposition. Firstly, the
+material map is extracted from the input image. Then, the reference image is warped to
+the input image through patch match based image warping. Lastly, the input image is
+relit using material constrained layer decomposition. The experimental results reveal
+that our method can produce similar illumination effect as that of the reference image
+on the input image using only a single reference image.
+Keywords: Image Relighting, Single Reference Image, Material Map, Layer
+Decomposition
+1. Introduction
+Image relighting is a hot topic in the communities of computer vision, image pro-
+cessing and computational photography. The applications of image relighting include
+visual communication, film production and digital entertainment, etc. Image relighting
+?Corresponding authors
+Email addresses: lxd@besti.edu.cn (Xiaodong Li ), geshiming@iie.ac.cn (Shiming Ge )
+Preprint submitted to Optics and Laser Technology August 24, 2017
+ar
+X
+iv
+:1
+70
+8.
+07
+06
+6v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+3 
+A
+ug
+ 2
+01
+7
+is to change the illumination of an image to a target illumination effect without known
+the original scene geometry, material information and illumination condition. Com-
+paring with face, object and indoor scene, two main challenges are for outdoor scene
+relighting: (1) large-scale outdoor scene with multiple objects, which are not easy to
+reconstruct; (2) complex illumination in outdoor scene, which is hard to be controlled
+manually. Recently, reference image based image relighting has shown great potential
+[1] [2] [3] [4]. Currently, for face relighting, the reference images are changed from
+multiple and a pair [5] to a single [3]. For object relighting [2] [6] and scene relighting
+[1], multiple or a pair reference images are still needed [7] [8] [9] [10] [11].
+We propose a novel outdoor scene relighting method, which needs only a single
+reference image and is based on material constrained layer decomposition. Firstly, the
+material map is extracted from the input image. Then, the reference image is warped to
+the input image through patch match based image warping. Lastly, the input image is
+relit using material constrained layer decomposition. The experimental results reveal
+that our method can produce similar illumination effect as that of the reference image
+on the input image using only a single reference image.
+2. Scene Relighting
+2.1. Method Overview
+Our proposed method can be divided into 4 steps, as shown in Fig. 1 (1) the input
+image is segmented to the material map using the method of Bell et al. [12]. Every pixel
+of the material map is assigned by a material label; (2) the reference image is warped
+to the structure of the input image by the patch match warping; (3) each channel of the
+input image and the reference is decomposed to large-scale layer and detail layer under
+material constrain; (4) the final relit results are obtained by composing the details of
+the input image and the large-scale layer of the warped reference image.
+2.2. Material Segmentation
+The input image is segmented according to the material of each pixel. We use the
+method of Bell et al. [12] to obtain material label of each pixel. We make the material
+2
+Input    Image
+Material Map
+Warped Reference 
+Image
+Large Scale Layer of 
+Warped Ref.
+Large-scale Layer
+ of Input 
+Relit ResultWLS
+WLS
+Comp.
+Reference Image
+Warp
+Detail Layer of Input
+Figure 1: Scene relighting using only a single reference image.
+segmentation because that in different material region, different relighting operations
+should be conducted. We select 9 sorts of materials, which often appear in outdoor
+scene images, as shown in Fig. 2. We recolor each pixel according to the material label
+to get the material map. The first and the third lines are the input images. The second
+and the forth lines are the corresponding material maps.
+2.3. Reference Image Warping
+In face image relighting, the reference face image can be warped by face landmark
+detection / face alignment. However, in outdoor scene, we cannot find such similar
+structure easily. The outdoor scene contains multiple objects. Thus, we use the patch
+match method to warp the reference image to the input image, i.e. to align the reference
+and the input image. The patch match algorithm is similar as the method of Barnes et
+al. [13]. We use the neighbor patches whose best matched patches have already been
+found to improve matching result of current patch. The difference from Barnes et al.
+[13] is that we use 4 neighbor patches instead of 3 ones.
+The basic idea is to find the most similar patch in the reference image to substitute
+the original patch in the input image. Two basic assumptions are made: (1) the matched
+patches of the neighbor patches in the input image are mostly neighbor; (2) large scale
+random search region may also contain matched patch.
+3
+b1
+a1
+b2
+a2
+b3
+a3
+b4
+a4 a5
+b5
+a6
+b6
+cloud
+sky
+architecture
+tree
+light source
+other
+ground
+water
+grass
+Figure 2: The material maps of the input images.
+We denote the input image as A and the reference image as B. The coordinate of
+a patch is represented as coordinate of the left up corner of the patch. The Nearest
+Neighbor Field (NNF) is defined as f , whose definition domain is the coordinates of
+all the patches in A. The value of the NNF is the offset of the coordinate of matched
+patch in B. We denote the coordinate of the original patch in A as a and the coordinate
+of the matched patch in B as b, then:
+f(a) = b? a (1)
+The distance between the original patch and the matched patch is defined as D(v),
+which describes the distance between the patch a in A and patch a + v in B. The
+distance is computed by the Euclidean distance [14]. The warping method contains
+three steps: initialization, propagation and random search.
+• Initialization. The initial offset of each patch in A is randomized around the
+patch.
+4
+Input Image Ref. Image Warped Ref. Image
+Figure 3: Patch match based scene image warping.
+• Propagation. As assumed above, the matched patches of the neighbor patches
+in the input image are mostly neighbor. We use the neighbor patches whose best
+matched patches have already been found to improve matching result of current
+patch. The f(x? 1, y), f(x, y ? 1) and f(x? 1, y ? 1) are used:
+f(x, y) = min{D(f(x, y)),D(f(x? 1, y)),D(f(x, y ? 1)),D(f(x? 1, y ? 1))}
+(2)
+• Random Search. As assumed above, large scale random search region may
+also contain matched patch. We use a search window whose size is declined
+exponentially.
+ui = v0 + w?
+iRi, (3)
+where v0 = f(x, y), Ri is a random point in [1, 1][?1, 1]. w is the max search
+radius. ? is the declining rate of the radius.
+The warped results of some reference images are shown in Fig. 3.
+2.4. Layer Decomposition and Composition
+We use the WLS filter [15] to decompose image into large-scale layer and detail
+layer, which can be considered as the illumination component and non-illumination
+5
+component. Using the large-scale layer of the warped reference to substitute the large-
+scale layer of the input can produce the final relit result. The outdoor scene contains
+various objects with various materials. Thus for different material, different decompo-
+sition parameters should be used. Each channel l of the input image and the reference
+image is filtered to a large-scale layer s. The detail layer d is obtained by:
+d = l/s. (4)
+The original WLS filter uses the same smoothness level over the whole image.
+When using the WLS filter for our scene relighting task, we need make regions with
+different materials with different smooth levels. Thus, we set different smoothness
+levels in regions with different materials. We modified the original WLS [15] as:
+E = |l ? s|2 + ?H(?s,?l) (5)
+H(?s,?l) =
+?
+p
+(?(p)(
+(?s/?x)2p
+(?l/?x)?p + 
++
+(?s/?y)2p
+(?l/?y)?p + 
+)), (6)
+where, |l ? s|2 is the data term, which is to let l and s as similar as possible, i.e., to
+minimize the distance between l and s. H(?s,?l) is the regularization (smoothness)
+term, which makes s as smooth as possible, i.e. to minimize the partial derivative of
+s. p is the pixel of the image. ? controls over the affinities by non-linearly scaling the
+gradients. Increasing ? will result in sharper preserved edges. ? is the balance factor
+between the data term and the smoothness term. Increasing ? will produce smoother
+images.  is a very small number, so as to avoid the division by 0. Our ? is the
+smoothness level constrained by different materials, using the material map derived in
+Section 3.2:
+? = ?l + gray(lm)/255, (7)
+where,?l is the gradient of l. lm is the material map of l, and the gray is the gray value
+6
+Input Im
+ages
+(a)
+(b) Ref. Image 
+Relit Results 
+(c)
+(d)
+W
+arped Ref. 
+Figure 4: The relit results of our method.
+of lm:
+gray = (R× 0.2989 +G× 0.587 +B × 0.114) (8)
+The minimization of Eq. (1) and Eq. (2) can be solved by the off-the-shell methods
+such as Lischinski [17]. At last, using the large-scale layer of the warped reference to
+substitute the large-scale layer of the input can produce the final relit result.
+3. Experimental Results
+In this section, we show the experimental results of our proposed method and the
+comparison with the state of the art method.
+3.1. The Scene Relit Results
+The relit results of our method are shown in Fig. 4. (a): multiple input images,
+(b): the same reference image, (c): warped reference image, (d): relit results of input
+images using (c), The experimental results reveal that, the relit input image have similar
+illumination effect as that of the reference image.
+3.2. Comparison with Other Methods
+We compare our method with the state of the art method [1], which needs a time-
+lapse video captured by a fixed camera working for 24 hours. While our method needs
+7
+Input Im
+ages
+Ref. Im
+age
+W
+arped Ref. 
+using O
+ur 
+M
+ethod
+Relit Results 
+using O
+ur 
+M
+ethod
+W
+arped Ref.
+ using [1]
+Relit 
+Results 
+using [1]
+(a)
+(b)
+(c)
+(d)
+(e)
+(f)
+Figure 5: Comparison with [1].
+only a single reference image. We randomly select 5 input images for comparison.
+As shown in Fig. 5, (a): multiple input images, (b) the reference image, (c): warped
+reference images to corresponding input images, (d): warped reference images using
+method of [1], note that they need a time-lapse video for warping, (e): the relit results
+using our proposed method, (f): the relit results using the method of [1].The results
+reveal that our method can produce similar relit results as those of [1], with only a
+single reference image.
+4. Conclusions
+We propose a novel outdoor scene relighting method, which needs only a single
+reference image and is based on material constrained layer decomposition. The exper-
+imental results reveal that our method can produce similar illumination effect as that of
+the reference image on the input image using only a single reference image.
+8
+Acknowledgements
+We thank all the reviewers and PCs. This work is partially supported by the Na-
+tional Natural Science Foundation of China (Grant NO.61402021, 61401228, 61640216),
+the Science and Technology Project of the State Archives Administrator (Grant NO.
+2015-B-10), the open funding project of State Key Laboratory of Virtual Reality Tech-
+nology and Systems, Beihang University (Grant NO. BUAA-VR-16KF-09), the Funda-
+mental Research Funds for the Central Universities (Grant NO.2016LG03, 2016LG04),
+the China Postdoctoral Science Foundation (Grant NO.2015M581841), and the Post-
+doctoral Science Foundation of Jiangsu Province (Grant NO.1501019A).
+References
+[1] Y. Shih, S. Paris, F. Durand, W. T. Freeman, Data-driven hallucination of different
+times of day from a single outdoor photo, ACM Trans. Graph. 32 (6) (2013)
+200:1–200:11.
+[2] T. Haber, C. Fuchs, P. Bekaert, H. Seidel, M. Goesele, H. P. A. Lensch, Relighting
+objects from image collections, in: 2009 IEEE Computer Society Conference
+on Computer Vision and Pattern Recognition (CVPR 2009), 20-25 June 2009,
+Miami, Florida, USA, 2009, pp. 627–634.
+[3] X. Chen, H. Wu, X. Jin, Q. Zhao, Face illumination manipulation using a single
+reference image by adaptive layer decomposition, IEEE Trans. Image Processing
+22 (11) (2013) 4249–4259.
+[4] P. Peers, N. Tamura, W. Matusik, P. E. Debevec, Post-production facial perfor-
+mance relighting using reflectance transfer, ACM Trans. Graph. 26 (3) (2007)
+52.
+[5] J. Chen, G. Su, J. He, S. Ben, Face image relighting using locally constrained
+global optimization, in: Computer Vision - ECCV 2010, 11th European Con-
+ference on Computer Vision, Heraklion, Crete, Greece, September 5-11, 2010,
+Proceedings, Part IV, 2010, pp. 44–57.
+9
+[6] X. Jin, Y. Tian, N. Liu, C. Ye, J. Chi, X. Li, G. Zhao, Object image relighting
+through patch match warping and color transfer, in: 2016 International Confer-
+ence on Virtual Reality and Visualization (ICVRV), 2016, pp. 235–241.
+[7] H. Lu, J. Guna, D. G. Dansereau, Introduction to the special section on artificial
+intelligence and computer vision, Computers & Electrical Engineering 58 (2017)
+444–446.
+[8] H. Lu, Y. Li, S. Nakashima, H. Kim, S. Serikawa, Underwater image super-
+resolution by descattering and fusion, IEEE Access 5 (2017) 670–679.
+[9] H. Lu, Y. Li, L. Zhang, S. Serikawa, Contrast enhancement for images in turbid
+water, J. Opt. Soc. Am. A 32 (5) (2015) 886–893.
+[10] H. Lu, Y. Li, S. Nakashima, S. Serikawa, Turbidity underwater image restoration
+using spectral properties and light compensation, IEICE Transactions 99-D (1)
+(2016) 219–227.
+[11] Q. Zhou, B. Zheng, W. Zhu, L. J. Latecki, Multi-scale context for scene labeling
+via flexible segmentation graph, Pattern Recognition 59 (2016) 312–324.
+[12] S. Bell, P. Upchurch, N. Snavely, K. Bala, Material recognition in the wild with
+the materials in context database, in: IEEE Conference on Computer Vision and
+Pattern Recognition, CVPR 2015, Boston, MA, USA, June 7-12, 2015, 2015, pp.
+3479–3487.
+[13] C. Barnes, E. Shechtman, D. B. Goldman, A. Finkelstein, The generalized patch-
+match correspondence algorithm, in: Computer Vision - ECCV 2010, 11th Euro-
+pean Conference on Computer Vision, Heraklion, Crete, Greece, September 5-11,
+2010, Proceedings, Part III, 2010, pp. 29–43.
+[14] D. G. Lowe, Distinctive image features from scale-invariant keypoints, Interna-
+tional Journal of Computer Vision 60 (2) (2004) 91–110.
+[15] Z. Farbman, R. Fattal, D. Lischinski, R. Szeliski, Edge-preserving decomposi-
+tions for multi-scale tone and detail manipulation, ACM Transactions on Graph-
+ics (Proceedings of ACM SIGGRAPH 2008) 27 (3).
+10

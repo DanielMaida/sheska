@@ -1,0 +1,654 @@
+*Corresponding author. 
+E-mail address: thwang_seu@163.com (T. Wang). 
+ 
+?The MATLAB source code of the proposed method is public available online at 
+ 
+ 
+ Contrast and visual saliency similarity induced index for image quality 
+assessment? 
+Huizhen Jiaa,   Tonghan Wangb*  
+ 
+a) School of Software, East China University of Technology,  
+Nanchang, Jiangxi, P.R. China  
+ 
+b)School of Information Engineering, East China University of Technology,  
+Nanchang, Jiangxi, P.R. China  
+ 
+Abstract 
+Perceptual image quality assessment (IQA) defines/utilizes a computational model to 
+assess the image quality in consistent with human opinions. A good IQA model should 
+consider both the effectiveness and efficiency, while most previous IQA models are hard to 
+reach simultaneously. So we attempt to make another effort to develop an effective and 
+efficiency image quality assessment metric. Considering that contrast is a distinctive 
+visual attribute that indicates the quality of an image, and visual saliency (VS) attracts the 
+most attention of the human visual system, the proposed model utilized these two features 
+to characterize the image local quality. After obtaining the local contrast quality map and 
+global visual saliency quality map, we add the weighted standard deviation of the 
+previous two quality maps together to yield the final quality score. The experimental 
+results on three benchmark database (LIVE, TID2008, CSIQ) showed that the proposed 
+model yields the best performance in terms of the correlation with human judgments of 
+visual quality. Furthermore, it is more efficient when compared with other competing IQA 
+models. 
+Keywords: local contrast, image quality assessment, visual saliency, the summation of 
+deviation-based pooling strategy, full reference. 
+ 
+1. Introduction 
+Image quality assessment occupies a very important position in numerous fields and 
+applications, such as image acquisition, compression, transmission and restoration, etc. 
+Human beings are the ultimate receivers of any visual stimulus, but subjective image 
+quality assessment is often costly, slow, and difficult to integrate into real-time image 
+processing systems. So it is essential to develop a perceptual model to closely correlate 
+with the human visual system (HVS). According to the availability of a reference image, 
+objective quality assessment methods can be classified into three types [1]: (1) 
+full-reference(FR), where an ideal "reference" image is available for comparison; (2) 
+reduced-reference (RR), where partial information about the reference image is available; 
+and (3) no-reference (NR),  where the reference image is not accessible. This paper 
+https://cn.mathworks.com/matlabcentral/profile/authors/4262696-tonghan-wang
+focuses on the FR methods, which are widely used to evaluate kinds of image processing 
+algorithms by measuring the quality of their output images.  
+In the past decades, great efforts and huge advances have been made in FR methods. 
+The traditional metrics such as the peak signal-to-noise ratio (PSNR) and the mean 
+squared error (MSE) are most widely used in image processing. But, because of 
+non-considering the properties of human visual system, these metrics do not correlate well 
+with human opinions [2]. Thus a flood of IQA metrics have been developed based on 
+human visual system (HVS). The noise quality measure index (NQM) [3] and the visual 
+signal-to-noise ratio index (VSNR) [4] pay attention to human visual system (HVS)’s 
+sensitivity to different visual signals, such as the luminance, the contrast, the frequency 
+content, and the interaction between them. As a milestone in the development of IQA 
+models, the structural similarity (SSIM) [5] surpassed the previous ones since it had a 
+better correlation with the human perception. It was based on the assumption that the 
+HVS was highly adapted for extracting structural information. Then some SSIM-based 
+metrics have been proposed in the literatures [6]-[8]. In [6], the authors presented a 
+multi-scale SSIM, which produces better results than its single-scale counterpart. In [7], 
+the authors proposed a 3-component weighted SSIM, which assigns different weights to 
+the SSIM scores in accordance with the local region type: edge, texture or smooth area. In 
+[8]. Wang et al. improved the MS-SSIM to the information content weighted SSIM index, 
+which adopts a new information content weighting-based quality score pooling strategy. 
+The information fidelity criterion (IFC) [9] and the visual information fidelity (VIF) [10], 
+took the FR IQA problem as an information fidelity problem by the information theory, 
+and VIF was the developmental version of IFC. Larson and Chardler proposed a most 
+apparent distortion (MAD) based IQA index [11], which was based on that the authors 
+argued that the HVS performs two distinct strategies when assessing the image quality for 
+high-quality images and for low-quality images. In [12]-[13], the studies have 
+demonstrated that SSIM, MS-SSIM, and VIF have much better performance than the 
+other IQA metrics. But SSIM and MS-SSIM share a common deficiency that all positions 
+are considered to have the same importance when pooling a single quality score from the 
+local quality map. And VIF, after images composed in different sub-bands can give these 
+sub-bands different weights at the pooling stage, but, gives every position within each 
+sub-band the same importance. According that different locations on an image can have 
+different contributions to HVS’ perception of the image, such pooling strategies are 
+needed to improve. Based on the observation that the visual information in an image is 
+often redundant and the HVS understands an image mainly based on its low-level features, 
+Zhang et al. proposed the feature-similarity (FSIM) index [14] unlike the SSIM’s average 
+pooling which adopted a weighting strategy for the pooling. It employed two features (the 
+phase congruency and the gradient magnitude) to compute the local similarity map and 
+utilized the phase congruency map as a weighting function since it can reflect how 
+perceptually important a local patch is to HVS. In their later work, Zhang et al. proposed 
+a visual saliency-induced metric (VSI) [15], based on the assumption that an image’s 
+visual saliency map had a close relationship with its perceptual quality. In the VSI, three 
+components (visual saliency, gradient modulus and chrominance) were firstly computed 
+by locally comparing the distorted image with the reference one via similarity function, 
+and then the visual saliency part was used as a weighting function to measure the 
+importance of a local image region. Note that the weighting pooling may improve the IQA 
+accuracy against those with average pooling to some extent, but it may be costly to 
+compute the weights. In addition, this pooling could make the predicted quality scores 
+more nonlinear to human opinions [16]. And the image gradient is a popular feature in 
+IQA since it can effectively capture image local structures, to which the HVS is highly 
+sensitive. Based on these observations, Xue et al. proposed the gradient magnitude 
+similarity deviation (GMSD) index [16], where image gradient magnitude maps were 
+firstly computed, then the standard deviation of these maps were treated as the overall 
+image quality score. 
+Based on the above analysis, we can see that the great success of state-of-the-art FR-IQA 
+models owes to utilize features in relation to HVS or adopt a good pooling strategy in designing 
+IQA models. The effectiveness and efficiency are two goals to design IQA models, however, most 
+previous IQA models are hard to reach simultaneously two goals. So in this paper, we attempt to 
+make another effort to fill this need, and develop an effective and efficient FR-IQA model which 
+use contrast and visual saliency related closely to HVS and adopt the summation of 
+deviation-based pooling strategy.   
+Using contrast and visual saliency to design IQA model is not new. Contrast has previously 
+been utilized in SSIM [5], where it was used as a part of the features-luminance, contrast and 
+structure. Contrast is a distinctive visual attribute that indicates the quality of an image. Proper 
+contrast change can improve the perceptual quality of most images. In fact, we can define “high 
+quality” as appropriate contrast and little distortion. And the contrast masking is a phenomena that 
+flaws in an image being masked locally by the other stimulations in the image. Visual saliency 
+(VS), however, is another good feature for IQA since HVS is quite sensitive to it. The salient 
+regions of a visual scene are very important to human visual system since we pay more attention to 
+them. Thus recently, researchers have been trying to utilize VS information to improve the 
+performance of their proposed metrics in designing IQA model [17] and VS were mainly used as a 
+weighting function for quality score pooling. For these reasons, we design our IQA model by using 
+the contrast feature and visual saliency to characterize the image local quality, but we do not use 
+VS as a weighting function unlike some previous studies. 
+After computing the local contrast similarity map and global visual saliency similarity map, it is 
+needed to adopt a pooling strategy to yield a single overall quality score. Average pooling is a 
+simplest and widely used pooling strategy, i.e., the overall quality prediction by taking the average 
+of all elements in local quality map (LQM). Owing to considering that different regions may 
+contribute differently to the overall quality of an image, weighting strategies are also widely 
+adopted. Compared to average pooling, weighted pooling make the overall quality prediction 
+accuracy to some extent, but it may be costly to compute the weights. In [16], deviation-based 
+pooling strategy is used and supplies quite well quality prediction performance. But it may have 
+good performance when using only one feature. So in this paper, we use the summation of 
+deviation-based pooling strategy, which the fusion quality is computed after the overall qualities 
+are given via the deviation-based pooling. 
+The main contribution of this work is that we utilize two features related closely to HVS - 
+contrast and visual saliency, and to obtain good performance, we propose a new pooling strategy 
+which is the summation of standard deviation pooling which overcomes the fault of 
+deviation-based pooling strategy when using only one feature, and breakthrough the limit that the 
+visual saliency is commonly as a weighting function in designing the IQA models. The experiment 
+results demonstrate that the proposed metric is efficient and promising compared with the 
+state-of-the-art methods.   
+ 
+2. Proposed image quality assessment metric 
+The proposed metric has the same two-step framework with most of IQA models and is 
+operated as follows. First, two similarity maps, namely, local contrast similarity map and 
+global visual saliency map are generated. Then we add the weighted standard deviations 
+of the two similarity maps together to yield the final quality score. 
+ 
+2.1 Local contrast similarity map and Global Visual saliency Similarity map 
+There are different definitions for contrast [18], [19], such as Weber contrast, 
+Michelson contrast, RMS (root-mean-square) contrast. The Weber contrast is used to 
+measure the local contrast of a single target seen against a uniform background, while the 
+Michelson contrast is mainly used to measure the contrast of periodic pattern. However, in 
+complex images these uniformity or periodicity conditions are not always satisfied. RMS 
+contrast is preferred for natural stimuli and efficiency calculations. And in [20]?the 
+experiment results also shows that RMS contrast with the subjective contrast of natural 
+images has a better correlation than other contrast. So for natural images, we adopt RMS 
+contrast which is also used by SSIM [5]. RMS contrast is defined as follows: 
+ 
+1/2
+2
+1
+1
+( )
+(N 1)
+N
+i
+i
+c I I
+?
+? ?
+? ?? ?
+?? ?
+?  (1)
+                     
+ 
+where I is mean.  
+Contrast maps are computed locally for reference image and its distorted one using 
+formula (1). We denote by rLC and dLC  the local contrast map for reference image and 
+the distorted one, respectively. Then the local contrast similarity (LCS) for the two images 
+being compared is defined as: 
+ 
+2 2
+1
+1
+r d
+r d
+(2LC LC +c )
+LCS(r,d)=
+(LC + LC +c )
+?
+  (2) 
+where 1c  is a positive constant to increase the instability of LCS , rLC and dLC  are 
+computed from a local patch of reference image r  and the distorted one d , respectively. 
+For grayscale image, contrast is the difference in luminance  that makes an object 
+distinguishable. Contrast change is very important for image quality.     
+In this paper, we adopt the saliency map generator called spectral residual (SR) method 
+[21] which was based on a Fourier transform to extract the spectral residual of the input 
+image in spectral domain at first and to generate the corresponding saliency map in spatial 
+domain. The reason is that one prominent advantage of this method compared with other 
+methods is its low computational complexity. In order to make the algorithm more 
+efficient, the VS map for the proposed model is conducted on the reduced resolutions 
+(first filtered by a 2×2 average filter, and then down-sampled by a factor of 2) not the 
+original image scale, and this generated VS map is the global not local. The VS similarity 
+is defined as follow. 
+ 
+2 2
+2 2
+( , )
+2
+r d
+r d
+vs vs c
+GVSS r d
+vs vs c
+? ?
+?
+? ?
+  (3) 
+where 2c  is another positive constant, rvs  
+and dvs  are visual saliency map of 
+reference image r  and the distorted one d , respectively. GVSS is the global visual 
+saliency similarity map. 
+ 
+2.2. Summation of Deviation-based Pooling 
+ 
+Pooling strategy is very important for full-reference image quality assessment 
+(FR-IQA). The mean and weighted mean are the two common pooling in the literature. 
+Compared with the average pooling, the weighted pooling make the overall quality 
+prediction accuracy to some extent, but it may be costly to compute the weights. The 
+standard deviation pooling proposed in [16] may reflect its overall quality more accurate 
+than the mean pooling for gradient magnitude similarity. But when using only one feature 
+to compute the local quality map (LQM), the conclusion can be made to that the standard 
+deviation (SD) pooling could gain the performance instead of their nominal pooling 
+method. When the LQM is generated using multiple and diverse types of features, the SD 
+pooling is not suggested to apply for the reason that the interaction between these features 
+may complicate the estimation of local image quality. Based on this consideration, we 
+first generated the local contrast map and global VS map, and then SD summation pooling 
+is utilized to score the final quality. The proposed method is different from VSI, in VSI 
+the visual saliency part was used as a weighting function. By doing these, the proposed 
+model yield the excellent performance. The final quality score with SD pooling is 
+computed after the generation of the local contrast similarity map and the global VS 
+similarity map. 
+ 1 2( ) w ( )S w SD LCS SD GVSS? ? ? ?   (4) 
+Subject to  
+ 1 2 1w w? ?   (5) 
+where 1w  and 2w  are the weight that indicate the importance of local contrast similarity 
+map and global visual saliency similarity map, respectively, and 
+ 
+2
+1
+1
+( )= ( ( ) )
+N
+i
+SD LCS lcs i LCSM
+N ?
+??   (6) 
+where 
+                               
+1
+1
+( )
+N
+i
+LCSM lcs i
+N ?
+? ?                      (7)                                             
+ 
+2
+1
+1
+( )= ( ( ) )
+N
+i
+SD GVSS GVSS i GVSSM
+N ?
+??   (8) 
+where  
+                                      
+1
+1
+GVSS( )
+N
+i
+GVSSM i
+N ?
+? ?          
+    (9) 
+        
+Therefore, the procedure to calculate the proposed metric is illustrated in Figure 1. 
+ 1 2
+(GVSS) w (LCS)score w SD SD? ? ? ?
+Reference image Distorted image
+Visual saliency map of  the 
+reference image
+Visual saliency map of  the 
+distorted image
+Contrast map of  the 
+reference image
+Contrast map of  the 
+distorted image
+The global visual saliency 
+similarity map GVSS
+The local contrast similarity 
+map LCS
+ 
+Fig.1. Illustration for the proposed index computation 
+To demonstrate the effectiveness of the proposed pooling strategy, we show the 
+performance of different pooling strategy for the local contrast similarity map and global 
+visual saliency similarity map in Figure 2. The “MEAN”, “STD”, “MAD” mean the mean, 
+standard deviation and mean absolute deviation [22] for the product of the two similarity 
+maps, respectively. While the “Summation of mean-based pooling”, the “Summation of 
+MAD-based pooling”, and the “Summation of deviation-based pooling” mean we add the 
+mean, mean absolute deviations and standard deviations of the two similarity maps 
+together as the quality score. We can see from Figure 2 that the proposed pooling strategy 
+yield best performance on the three benchmark databases-LIVE, TID2008, and CSIQ. 
+The reason may be that salient regions of a scene are paid more attentions by human 
+beings, which is in line with the standard deviation pooling. Since the standard deviation 
+indicates the range of distortion severities in an image. Furthermore, contrast is the range 
+of luminance of image, so it can be elaborately captured by the standard deviation too. 
+ 
+Figure.2. The performance of different pooling strategies 
+3. Performance evaluation 
+3.1 Databases and evaluation protocols 
+To evaluate the performance of the proposed metric, we use the three publicly available image 
+databases for algorithm validation and comparison, including LIVE [23], TID2008 [24] and CSIQ 
+[11]. The characteristics of these three databases are summarized in Table I. 
+Table I Benchmark dataset for evaluating IQA indices 
+Dataset 
+Reference 
+Images  
+Distorted Images  Distortion Types  Observers. 
+TID2008 25 1700 17 838 
+CSIQ 30 866 6 35 
+LIVE 29 779 5 161 
+We calculated four commonly used performance indices, i.e. the Spearman's rank 
+ordered correlation coefficient (SROCC), the Kendall rank-order correlation coefficient 
+(KROCC) which measure the prediction monotonicity, Pearson's (linear) correlation 
+coefficient (LCC) which is related to the prediction linearity (considered as the measure 
+of prediction accuracy), and the root mean square error (RMSE) which evaluates the 
+prediction consistency. To computer the latter two indices, we used a logistic regression 
+function to reduce the nonlinearity of predicted scores.  
+ 
+2 3
+1 4 5( )
+1 1
+( ) ( )
+2 1
+x
+p x x
+e
+? ?
+? ? ?
+?
+? ? ? ?
+?  
+ (10) 
+where 1?  are parameters to be fitted, x  is the original score IQA scores, and ( )p x  is 
+the IQA score after regression. Denote by s  the subjective scores, id the difference 
+between the ranks of each pair in x  and s , n  is the total number of elements in date set, 
+then: 
+ 
+2
+1
+2
+6
+1
+( 1)
+n
+i
+i
+d
+SROCC
+n n
+?? ?
+?
+?
+ 
+ (11) 
+ 
+0.5 ( 1)
+c dn nKROCC
+n n
+?
+?
+?
+ 
+ (12) 
+where cn  is the number of concordant pairs in the data set and dn  is the number of 
+discordant pairs in the data set. Let 1 1 2 2( , ), ( , ),...( , )n nx s x s x s be a set of joint observations 
+from two random variables IQA scores X and subjective scores S, respectively. For any 
+pair of observations ( , )i ix s  and ( , )j jx s ,  
+If both i jx x?  and i js s?  or if i jx x?  and i js s? , then we call them concordant; else if 
+i jx x?  or i js s? , then they are nor concordant and discordant they are discordant; else 
+they are discordant. 
+ 
+ 
+T
+T T
+p s
+PLCC
+p p s s
+?
+ 
+ (13) 
+where p  and s  are the mean-removed vectors of p  and s   
+ 
+2
+1
+1
+( )
+n
+i i
+i
+RMSE s p
+n ?
+? ??   (14) 
+A value close to 1 for SROCC, KROCC and LCC indicates a good performance for 
+quality prediction. Whereas, for RMSE, the smaller the value is, the better prediction 
+consistency it yields.  
+3.2 Performance comparison 
+In our experiment, we set 1 55c ? , 2 0.00008c ? , 1 0.545w ? , 2 0.455w ? . As in the 
+implementations of SSIM [5], FSIM [14], and GMSD [16] . The images r  and d  are 
+first filtered by a 2 × 2 average filter, and then down-sampled by a factor of 2. In other 
+words, we use a 2×2 circular-symmetric Gaussian weighting function with its standard 
+deviation of 1.5 and then rescaled to unit volume. 
+We compared the proposed method to eight state-of-the-art and representative FR-IQA 
+models, including SSIM [5], MS-SSIM [6], IW-SSIM [8], VIF [10], MAD [11], FSIM 
+[14], GMSD [16] and VSI [15]. In Table II, the best three ones are highlighted in boldface 
+for each distortion for SROCC, KROCC, LCC and RMSE. Note that the source codes of 
+all the other metrics were obtained from the original authors.  
+Table II. Performance of the proposed metric and the other eight competing FR-IQA 
+metrics on three benchmark databases. The top three metrics for each criterion are 
+highlighted in boldface 
+  SSIM MS-SSIM IW-SSIM VIF MAD FSIM GMSD VSI Proposed 
+T
+ID
+2
+0
+ 
+0
+8
+ 
+SROCC 0.7749 0.8542 0.8559 0.7491 0.8340 0.8804 0.8907 0.8979 0.9001 
+KROCC 0.5768 0.6568 0.6636 0.5861 0.6445 0.6945 0.7092 0.7123 0.7215 
+PLCC 0.7732 0.8451 0.8579 0.8084 0.8308 0.8738 0.8788 0.8762 0.8961 
+RMSE 0.8511 0.7173 0.6895 0.7899 0.7468 0.6527 0.6404 0.6466 0.5956 
+C
+S
+IQ
+ 
+SROCC 0.8756 0.9133 0.9213 0.9195 0.9466 0.9310 0.9570 0.9423 0.9580 
+KROCC 0.6907 0.7393 0.7529 0.7537 0.7970 0.7690 0.8122 0.7857 0.8173 
+PLCC 0.8613 0.8991 0.9144 0.9277 0.9502 0.9192 0.9541 0.9279 0.9589 
+RMSE 0.1334 0.1149 0.1063 0.0980 0.0818 0.1034 0.0786 0.0979 0.0745 
+L
+IV
+E
+ 
+SROCC 0.9479 0.9513 0.9567 0.9636 0.9672 0.9634 0.9603 0.9524 0.9672 
+KROCC 0.7963 0.8045 0.8175 0.8282 0.8427 0.8337 0.8268 0.8058 0.8406 
+PLCC 0.9449 0.9489 0.9522 0.9604 0.9688 0.9597 0.9603 0.9482 0.9651 
+RMSE 8.9455 8.6188 8.3473 7.6137 6.7672 7.6780 7.6214 8.6816 7.1573 
+In addition, as suggested by Wang and Li [8], in order to provide an evaluation of the overall 
+performance of the evaluated IQA indices, in Table III we present their weighted-average SROCC, 
+KROCC, PLCC, and RMSE results over three datasets and the weight assigned to each dataset 
+linearly depends on the number of distorted images contained in that dataset, and we use boldface 
+font to highlight the top 1 model.  
+Table III. Overall performance of IQA models over three databases 
+IQA models SROCC KROCC PLCC RMSE 
+SSIM 0.8413 0.6574 0.8360 2.5504 
+MS-SSIM 0.8921 0.7126 0.8833 2.4015 
+IW-SSIM 0.8963 0.7226 0.8945 2.3219 
+VIF 0.8432 0.6859 0.8747 2.1999 
+MAD 0.8942 0.7301 0.8939 1.9767 
+FSIM 0.9128 0.7462 0.9056 2.1466 
+GMSD 0.9241 0.7633 0.9173 2.1207 
+VSI 0.9221 0.7531 0.9064 2.3758 
+Proposed 0.9307 0.7740 0.9284 1.9888 
+The ranking of the weighted-average performances of the evaluated IQA indices based on four 
+different performance metrics, SROCC, KROCC, PLCC, and RMSE, is presented in Table IV. 
+Table IV. Ranking of overall performance of IQA models 
+IQA models SROCC KROCC PLCC RMSE 
+SSIM 9 9 9 9 
+MS-SSIM 7 7 7 8 
+IW-SSIM 5 6 5 6 
+VIF 8 8 8 4 
+MAD 6 5 6 1 
+FSIM 4 4 4 5 
+GMSD 2 2 2 3 
+VSI 3 3 3 7 
+Proposed 1 1 1 2 
+From above tables, we can see that our proposed one performs consistently well on all 
+the benchmark databases. Particularly, it performs greatly better compared with all the 
+other metrics on the two largest databases, TID2008 and CSIQ. On LIVE, even though it 
+is not the best, the proposed performs only slightly worse than the best results which 
+MAD gets. MAD work well on LIVE database but fail to provide good result on other 
+databases. Rather inspiring, the proposed achieve the best performance either in term of 
+the individual database or the weighted-average over the three benchmark databases. The 
+proposed model is followed by GMSD [16] and VSI [15]. It is noted that the performance 
+of VSI on RMSE item is quite poor, whereas MAD [11] get the best performance for 
+RMSE. 
+3.3 Performance comparison on individual distortion types 
+To more comprehensively evaluate an IQA model’s ability to predict image quality 
+degradations caused by specific types of distortions, we compare the performance of 
+competing methods on each type of distortion. The results are listed Table V. To save 
+space, only the SROCC scores are shown, because by using the other measures, such as 
+KROCC, PLCC and RMSE, the conclusions are similar. In Table V, we use boldface font 
+to highlight the top 3 models in each group. 
+Table V. SROCC VALUES OF IQA MODEL FOR EACH TYPE OF DISTORTIONS 
+  SSIM MS-SSIM IW-SSIM VIF MAD FSIM GMSD VSI Proposed 
+T
+ID
+2
+0
+0
+8
+ 
+AGN 0.8107 0.8086 0.7869 0.8804 0.8388 0.8574 0.9180 0.9229 0.9202 
+ANC 0.8029 0.8054 0.7920 0.8768 0.8258 0.8515 0.8977 0.9118 0.8972 
+SCN 0.8145 0.8209 0.7714 0.8709 0.8678 0.8485 0.9132 0.9296 0.9048 
+MN 0.7795 0.8107 0.8087 0.8683 0.7336 0.8023 0.7087 0.7734 0.7696 
+HFN 0.8729 0.8694 0.8662 0.9075 0.8864 0.9093 0.9189 0.9253 0.9184 
+IN 0.6732 0.6907 0.6465 0.8326 0.0650 0.7456 0.6611 0.8298 0.7006 
+QN 0.8531 0.8589 0.8177 0.7970 0.8160 0.8555 0.8875 0.8731 0.8883 
+GB 0.9544 0.9563 0.9636 0.9540 0.9197 0.9472 0.8968 0.9529 0.9304 
+DEN 0.9530 0.9582 0.9473 0.9161 0.9434 0.9604 0.9752 0.9693 0.9695 
+JPEG 0.9252 0.9322 0.9184 0.9168 0.9275 0.9282 0.9525 0.9616 0.9452 
+JP2K 0.9625 0.9700 0.9738 0.9709 0.9707 0.9775 0.9795 0.9848 0.9778 
+JGTE 0.8678 0.8681 0.8588 0.8583 0.8661 0.8708 0.8621 0.9160 0.8893 
+J2TE 0.8577 0.8606 0.8203 0.8501 0.8394 0.8542 0.8825 0.8942 0.8696 
+NEPN 0.7107 0.7377 0.7724 0.7619 0.8287 0.7494 0.7601 0.7699 0.7658 
+Block 0.8462 0.7546 0.7623 0.8324 0.7970 0.8489 0.8967 0.6295 0.8414 
+MS 0.7231 0.7338 0.7067 0.5102 0.5161 0.6695 0.6486 0.6714 0.6724 
+CTC 0.5246 0.6381 0.6301 0.8188 0.2723 0.6480 0.4659 0.6557 0.4662 
+C
+S
+IQ
+ 
+AGWN 0.8974 0.9471 0.9380 0.9575 0.9541 0.9262 0.9676 0.9636 0.9670 
+JPEG 0.9546 0.9634 0.9662 0.9705 0.9615 0.9654 0.9651 0.9618 0.9689 
+JP2K 0.9606 0.9683 0.9683 0.9672 0.9752 0.9685 0.9717 0.9694 0.9777 
+AGPN 0.8922 0.9331 0.9059 0.9511 0.9570 0.9234 0.9502 0.9638 0.9516 
+GB 0.9609 0.9711 0.9782 0.9745 0.9602 0.9729 0.9712 0.9679 0.9789 
+GCD 0.7922 0.9526 0.9539 0.9345 0.9207 0.9420 0.9037 0.9504 0.9324 
+L
+IVE JP2K 0.9614 0.9627 0.9649 0.9696 0.9692 0.9717 0.9711 0.9604 0.9719 
+JPEG 0.9764 0.9815 0.9808 0.9846 0.9786 0.9834 0.9782 0.9761 0.9836 
+AWGN 0.9694 0.9733 0.9667 0.9858 0.9873 0.9652 0.9737 0.9835 0.9809 
+GB 0.9517 0.9542 0.9720 0.9728 0.9510 0.9708 0.9567 0.9527 0.9662 
+FF 0.9556 0.9471 0.9442 0.9650 0.9589 0.9499 0.9416 0.9430 0.9592 
+One can see that the proposed model is among the top 3 models 19 times, followed by 
+VSI and GMSD, which are among the top 3 models 17 times and 13 times, respectively. 
+Thus, we can have the conclusion that the proposed performs the best, while VSI and 
+GMSD can have comparable performance when the distortion is of a specific type. A 
+good IQA model should also predict the image quality consistently across different types 
+of distortions. So we also show the scatter plots on the TID2008 database in Figure 3.  
+ 
+Figure. 3. Scatter plots of predicted quality scores against the subjective quality 
+scores (MOS) by representative FR-IQA models on the TID2008 database. 
+We can see that the proposed model is more concentrated across different groups of 
+distortion types than the other competitors.  
+3.4 Computational cost 
+In application, particularly, such as real-time image/video quality monitoring and 
+prediction, the complexity of implemented IQA models becomes crucial. So we do the 
+experiment of the time cost. In Table VI we list the amount of time (in seconds) to 
+compute each quality measure on a color image of resolution 512×512 (taken from CSIQ 
+database) on a 2.66 GHz Intel Core2 Quad CPU with 5 GB of RAM, and we use boldface 
+font to highlight the top 3 models. Note that all the IQA models but VSI (it is specially 
+designed for color image) need transform the color image to grayscale one. 
+Table VI. Running time of the competing IQA models 
+IQA models Running time (s) 
+SSIM 0.0367 
+MS-SSIM 0.1643 
+IW-SSIM 0.8721 
+VIF 1.8774 
+MAD 2.7192 
+FSIM 0.5367 
+GMSD 0.0129 
+VSI 0.3044 
+Proposed 0.0443 
+We can see from Table VI that GMSD, SSIM and the proposed are the top three 
+efficient IQA models and ran much faster than other competing IQA models. For example, 
+our proposed is almost 9 times faster than the excellent model VSI which could achieve 
+state-of-the-art prediction performances. 
+4. Conclusion 
+The effectiveness and efficiency are two goals to design IQA models, however, most 
+previous IQA models are hard to reach simultaneously two goals. To fill the end, in this 
+paper, we propose a new highly effective and efficient full-reference image quality 
+assessment (FR-IQA) by using the summation of deviation-based pooling strategy for 
+local contrast similarity map and global visual saliency similarity map. It is based on the 
+assumption that contrast is a distinctive visual attribute that indicates the quality of an 
+image, and the visual saliency (VS) map correlates highly with its perceptual quality. 
+Moreover, the proposed pooling strategy could make full advantage of these two features. 
+Compared with other eight state-of-the-art FR-IQA models, experiment results show that 
+the proposed model performs better in terms of both accuracy and efficiency, making it an 
+ideal choice for high performance IQA applications. In addition, the proposed methods 
+can be improved with the advent of even more efficient VS models. 
+ 
+Acknowledgments 
+This work was supported by PhD research startup foundation of East China University 
+of Technology under grant DHBK2016119 and DHBK2016120.This work was also 
+supported by the National Natural Science Foundation of China under Grant 61762004. 
+ 
+5. References 
+[1] Z. Wang and A. C. Bovik, Modern Image Quality Assessment. San Rafael, CA, USA: Morgan & 
+Claypool, 2006. 
+[2] Z. Wang, A. C. Bovik, and L. Lu, “Why is image quality assessment so difficult,” in Proc. IEEE Int. 
+Conf. Acoustics, Speech, and Signal Processing, vol. 4, Orlando, FL, May 2002, pp. 3313–3316 
+[3] N.Damera-Venkata, T. D. Kite, W. S. Geisler, B. L. Evans, and A. C. Bovik, “Image quality assessment 
+based on a degradation model,” IEEE Trans. Image Process., vol. 9, no. 4, pp. 636–650, Apr. 2000. 
+[4]  D. M. Chandler and S. S. Hemami, “VSNR: A wavelet-based visual signal-to-noise ratio for natural 
+images,” IEEE Trans. Image Process., vol. 16, no. 9, pp. 2284–2298, Sep. 2007. 
+[5] Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, “Image quality assessment: From error 
+visibility to structural similarity,” IEEE Trans. Image Process., vol. 13, no. 4, pp. 600–612, 2004. 
+[6] Z. Wang, E. P. Simoncelli, and A. C. Bovik, “Multiscale structural similarity for image quality 
+assessment,” in Proc. 37th Asilomar Conf. Signals, Syst., Comput., Nov. 2003, pp. 1398–1402. 
+[7] C. Li and A.C. Bovik, “Three-component weighted structural similarity index”, in Proc. SPIE, vol. 7242, 
+2009. 
+[8] Z. Wang and Q. Li, “Information content weighting for perceptual image quality assessment,” IEEE 
+Trans. Image Process., vol. 20, no. 5, pp. 1185–1198, 2011. 
+[9] H. R. Sheikh, A. C. Bovik, and G. de Veciana, “An information fidelity criterion for image quality 
+assessment using natural scene statistics,” IEEE Trans. Image Process., vol. 14, no. 12, pp. 2117–2128, Dec. 
+2005. 
+[10] H. R. Sheikh and A. C. Bovik, “Image information and visual quality,” IEEE Trans. Image Process., vol. 
+15, no. 2, pp. 430–444, 2006 
+[11] E. C. Larson and D. M. Chandler, “Most apparent distortion: Full-reference image quality assessment 
+and the role of strategy,” J. Electron. Imag., vol. 19, no. 1, pp. 001006:1–001006:21, Jan. 2010. 
+[12] E.C. Larson and D.M. Chandler, “Unveiling relationships between regions of interest and image fidelity 
+metrics”, in Proc. SPIE Visual Comm. and Image Process., vol. 6822, pp. 6822A1-16, Jan. 2008.  
+[13] E.C. Larson, C. Vu, and D.M. Chandler, “Can visual fixation patterns improve image fidelity 
+assessment?”, in  
+Proc. IEEE Int. Conf. Image Process., 2008, pp. 2572-2575. 
+[14] L. Zhang, D. Zhang, X. Mou, and D. Zhang, “FSIM: A feature similarity index for image quality 
+assessment,” IEEE Trans. Image Process., vol. 20, no. 8, pp. 2378-2386, 2011. 
+[15] L. Zhang, Y. Shen, and H. Li, “VSI: A visual saliency-induced index for perceptual image quality 
+assessment,” IEEE Trans. Image Process., vol. 23, no. 10, pp. 4270-4281, 2014. 
+[16] W. Xue, L. Zhang, X. Mou, and A. C. Bovik, “Gradient magnitude similarity deviation: a highly efficient 
+perceptual image quality index,” IEEE Trans. Image Process., vol. 23, no. 2, pp. 684-695, 2014. 
+[17] M. C. Q. Farias and W. Y. L. Akamine, “On performance of image quality metrics enhanced with visual 
+attention computational models,” Electron. Lett., vol. 48, no. 11, pp. 631–633, May 2012. 
+[18] Pelli DG, Bex P,”Measuring contrast sensitivity,” Vis Res (90), pp.10-14, 2013. 
+[19] E. Peli, “Contrast in complex images,” J. Opt. Soc. Amer. A, vol. 7, pp.2032–2039, Oct. 1990. 
+[20] Peter J?Bex and Walter Makous. “Spatial frequency,phase?and the contrast ofnatural images,”  
+Optical Society of America?19(6)?1096-l 106?2002? 
+[21] X. Hou and L. Zhang, “Saliency detection: A spectral residual approach,” in Proc. IEEE Conf. Comput. 
+Vis. Pattern Recognit., Jun. 2007, pp. 1–8. 
+[22] Hossein Ziaei Nafchi, Rachid Hedjam, Atena Shahkolaei and Mohamed Cheriet, “Deviation Based 
+Pooling Strategies For Full Reference Image Quality Assessment” arXiv preprint arXiv: 1504.06786, 2015. 
+[23] H.R. Sheikh, Z. Wang, L. Cormack, and A.C. Bovik, LIVE image quality assessment database release 
+2.<http://live.ece.utexas.edu/ research/ quality>. 
+[24] N. Ponomarenko, V. Lukin, A. Zelensky, K. Egiazarian, M. Carli, and F. Battisti, TID2008—A database 
+for evaluation of full-reference visual quality assessment metrics, Advances of Modern Radioelectronics 10 (4) 
+(2009) 30–45. 
+ 
+ 

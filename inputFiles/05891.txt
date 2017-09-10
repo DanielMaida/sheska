@@ -1,0 +1,1080 @@
+Arabic Multi-Dialect Segmentation: bi-LSTM-CRF vs. SVM
+Mohamed Eldesouki1, Younes Samih2,
+Ahmed Abdelali1, Mohammed Attia3, Hamdy Mubarak1, Kareem Darwish1, and Laura Kallmeyer2
+1Qatar Computing Research Institute, HBKU, Doha, Qatar
+2Dept. of Computational Linguistics,University of Du?sseldorf, Du?sseldorf, Germany
+3Google Inc., New York City, USA
+1{mohamohamed,hmubarak,aabdelali,kdarwish}@hbku.edu.qa
+2{samih,kallmeyer}@phil.hhu.de
+3attia@google.com
+Abstract
+Arabic word segmentation is essential for
+a variety of NLP applications such as ma-
+chine translation and information retrieval.
+Segmentation entails breaking words into
+their constituent stems, affixes and cli-
+tics. In this paper, we compare two ap-
+proaches for segmenting four major Ara-
+bic dialects using only several thousand
+training examples for each dialect. The
+two approaches involve posing the prob-
+lem as a ranking problem, where an SVM
+ranker picks the best segmentation, and
+as a sequence labeling problem, where a
+bi-LSTM RNN coupled with CRF deter-
+mines where best to segment words. We
+are able to achieve solid segmentation re-
+sults for all dialects using rather limited
+training data. We also show that employ-
+ing Modern Standard Arabic data for do-
+main adaptation and assuming context in-
+dependence improve overall results.
+1 Introduction
+Arabic has both complex morphology and orthog-
+raphy, where stems are typically derived from a
+closed set of roots to which affixes such as coor-
+dinating conjunctions, determiners, and pronouns
+are attached to form words. Segmenting Arabic
+words into their constituent parts is important for
+a variety of natural language processing applica-
+tions. For example, segmentation has been shown
+to improve the effectiveness of information re-
+trieval (Darwish et al., 2014a) and machine trans-
+lation (Habash and Sadat, 2006). Most previous
+work has mostly focused on segmenting Modern
+Standard Arabic (MSA) achieving segmentation
+accuracies of nearly 99% (Abdelali et al., 2016;
+Pasha et al., 2014). MSA is the lingua franca of
+the Arab world, and it is typically used in writ-
+ten and formal communications. Dialectal Ara-
+bic (DA) segmentation on the other hand has re-
+ceived limited attention, with most of the work
+focusing on the Egyptian dialect (Habash et al.,
+2013; Samih et al., 2017). Arabic dialects are typ-
+ically spoken and are used in informal communi-
+cations. The advent of the social media and the
+ubiquity of smart phones has led to a greater need
+for dialectal processing such as dialect identifica-
+tion (Eldesouki et al., 2016; Khurana et al., 2016),
+morphological analysis (Habash et al., 2013) and
+machine translation (Sennrich et al., 2016; Sajjad
+et al., 2013). Yet, dialectal training corpora for a
+variety of NLP modules, including segmentation,
+continue to be limited and often nonexistent.
+In this work, we focus on the segmentation of
+four major Arabic dialects, namely Egyptian, Lev-
+antine, Gulf, and Maghrebi. We particularly focus
+on DA text from Twitter, a popular social media
+platform, from which we can obtain large amounts
+of text in different dialects written by ordinary so-
+cial media users and exhibiting nonstandard or-
+thography. We employ two machine learning ap-
+proaches for building robust segmentation mod-
+ules using limited training data (350 tweets con-
+taining several thousand words per dialect). In
+one approach, we pose the segmentation as a rank-
+ing problem where all possible segmentations of
+a word are ranked using a Support Vector Ma-
+ar
+X
+iv
+:1
+70
+8.
+05
+89
+1v
+1 
+ [
+cs
+.C
+L
+] 
+ 1
+9 
+A
+ug
+ 2
+01
+7
+chine (SVM) based ranker. In the second, we
+use bidirectional Long Short Term Memory (bi-
+LSTM) Recurrent Neural Network (RNN) with
+Conditional Random Fields (CRF) to perform se-
+quence labeling over the characters in words. For
+both, we adopt the simplifying assumption that
+word segmentation can be reliably performed in-
+dependent of context. Though the assumption is
+not always correct, it has been shown to be fairly
+robust for more than 99% of word occurrences in
+Arabic text (Abdelali et al., 2016). Lastly, given
+the large overlap between MSA and DA, we em-
+ploy segmented MSA data to further improve di-
+alectal segmentation.
+The contribution of this paper are as follows:
+• We present robust DA segmenters for four major
+Arabic dialects. We plan to open-source all of
+them.
+• We provide an exposition of challenges associ-
+ated with performing in situ DA segmentation
+including segmentation guidelines and the effect
+of orthographic standardization.
+• We compare two machine learning approaches
+that can generalize well even when limited train-
+ing data is available.
+2 Related Work
+Work on dialectal Arabic is fairly new compared
+to MSA. A number of research projects were de-
+voted to dialect identification (Biadsy et al., 2009;
+Zbib et al., 2012; Zaidan and Callison-Burch,
+2014; Eldesouki et al., 2016). There are five major
+dialects including Egyptian, Gulf, Iraqi, Levantine
+and Maghribi. Few resources for these dialects
+are available such as the CALLHOME Egyptian
+Arabic Transcripts (LDC97T19), which was made
+available for research as early as 1997. Newly de-
+veloped resources include the corpus developed by
+Bouamor et al. (2014), which contains 2,000 par-
+allel sentences in multiple dialects and MSA as
+well as English translation.
+For the segmentation, Mohamed et al. (2012) built
+a segmenter based on memory-based learning.
+The segmenter has been trained on a small cor-
+pus of Egyptian Arabic comprising 320 comments
+containing 20,022 words from www.masrawy.
+com that were segmented and annotated by two
+native speakers. They reported a 91.90% accu-
+racy on the task of segmentation. MADA-ARZ
+(Habash et al., 2013) is an Egyptian Arabic ex-
+tension of the Morphological Analysis and Dis-
+ambiguation of Arabic (MADA). They trained and
+evaluated their system on both Penn Arabic Tree-
+bank (PATB) (parts 1-3) and the Egyptian Arabic
+Treebank (parts 1-5) (Maamouri et al., 2014) and
+they achieved 97.5% accuracy. MADAMIRA1
+(Pasha et al., 2014) is a new version of MADA
+and includes functionality for analyzing dialec-
+tal Egyptian. Monroe et al. (2014) used a single
+dialect-independent model for segmenting all Ara-
+bic dialects including MSA. They argue that their
+segmenter is better than other segmenters that use
+sophisticated linguistic analysis. They evaluated
+their model on three corpora, namely parts 1-3 of
+Penn Arabic Treebank (PATB), Broadcast News
+Arabic Treebank (BN), and parts 1-8 of the BOLT
+Phase 1 Egyptian Arabic Treebank (ARZ) report-
+ing a 95.13% F1 score.
+3 Dialectal Arabic
+3.1 DA Challenges
+DA shares many MSA challenges, such as hav-
+ing complex templatic derivational morphology
+and concatenative orthography. Most nouns and
+verbs are typically derived from a closed set of
+roots, which are fitted into templates to gener-
+ate stems. Templates may indicate morphologi-
+cal features such POS tag, gender, and number.
+Stems may accept prefixes, such as coordinating
+conjunction and prepositions, or suffixes, such as
+pronouns, to form words. While dialects mostly
+comply with the templatic nature of morphology2,
+they diverge from MSA in other aspects such as:
+• Lack of standard orthography, particularly for
+strictly dialectal words such as 	àA ?« “E$An”
+(because), which may also appear as 	àA ?Ê«
+“El$An” or 	àA ?Ó “m$An” (Habash et al., 2012).
+• Word borrowing from other languages (Ibrahim,
+2006), such as ½J?CK. “blAStk” (your place)
+in Maghrebi, or code switching with other lan-
+guages (Samih et al., 2016).
+• Fusing multiple words together by concatenat-
+ing tokens and dropping letters, such as the word
+½Ëñ
+
+®K
+ “yqwlk” (he says to you), “yqwl lk” are
+concatenated and one “l” is dropped.
+1MADAMIRA release 20160516 2.1
+2Minor exception exist such the Egyptian template “At-
+fEl” that occasionally replaces the MSA template “AnfEl” as
+in Qå?ºK@ “Atksr” (broke)
+• Additional affixes. Dialectal-specific affixes
+may arise because of: the alteration of pro-
+nouns, such as the feminine second person pro-
+noun from ¼ “k” to ú
+
+
+»“ky” or the plural pronoun
+Õç
+
+' “tm” to ñK “tw”; the introduction of negation
+prefix-suffix combination AÓ - ? “mA-$”, which
+behaves like the French “ne-pas” negation con-
+struct; the placement of present tense markers,
+such as “b” in Egyptian and Levantine; the use
+of different future markers such as “H”, “h”, and
+“g” instead of “s” for MSA; and the shortening
+of prepositions and fusing them with the words
+they precede such as the transformation of úÎ«
+“ElY” (on) to ¨ “E”.
+• Letter substitution, where some letters are com-
+monly substituted for others such as “v” which
+is replaced with “t” in Egyptian (as in Q
+
+
+J» “ktyr”
+(much)) or “q” which is replaced with “j” in
+Gulf (as in h. Y? “Sdj” (really).
+• Syntactic differences, such as the use of mascu-
+line plural or singular noun forms instead dual
+and feminine plural, the dropping of some ar-
+ticles and preposition in some syntactic con-
+structs, and the abandonment of some suffixes
+such as “wn” in favor of “wA” for verbs and
+“yn” for nouns.
+Using raw text from social media introduces ad-
+ditional phenomena such as word elongation, such
+@PQ
+J
+
+J
+
+	
+k
+
+@ “>KyyyyrrA” (finally) instead of @Q
+
+	
+g
+
+@
+“>KyrA”, and the use of non-Arabic characters
+such as Urdu characters (Darwish et al., 2012).
+4 Dataset
+We constructed our dataset by obtaining 350
+tweets that were authored for each of the follow-
+ing four dialects: Egyptian, Levantine, Gulf, and
+Maghrebi. For dialectal Egyptian tweets, we ob-
+tained the dataset described in (Darwish et al.,
+2014b), and we used the same methodology to
+construct the dataset for the remaining dialects.
+Initially, we obtained 175 million Arabic tweets by
+querying the Twitter API using the query “lang:ar”
+during March 2014. Then, we identified tweets
+whose authors identified their location in countries
+where the dialects of interest are spoken (ex. Mo-
+rocco, Algeria, and Tunisia for Maghrebi) using
+a large location gazetteer (Mubarak and Darwish,
+2014). Then we filtered the tweets using a list con-
+taining 10 strong dialectal words per dialect, such
+as the Maghrebi word AÒJ
+» “kymA” (like/as in) and
+the Leventine word ½J
+ë “hyk” (like this). Given
+the filtered tweets, we randomly selected 2,000
+unique tweets for each dialect, and we asked a na-
+tive speaker of each dialect to manually select 350
+tweets that are heavily dialectal. Table 4 lists the
+number of tweets that we obtained for each dialect
+and the number of words they contain.
+Field Annotation
+Orig. word ½Ëñ®J
+K. “byqwlk”
+Meaning he is saying to you
+In situ Segm. ¼+Èñ®K
++H. “b+yqwl+k”
+CODA ½Ë Èñ®J
+K. “byqwl lk”
+CODA Segm. ¼+È Èñ®K
++H. “b+yqwl l+k”
+Table 1: Egyptian annotation example
+Dialect No of Tweets No of Tokens
+Egyptian 350 6,721
+Levantine 350 6,648
+Gulf 350 6,844
+Maghrebi 350 5,495
+Table 2: Dataset size for the different dialects
+Segmentation of DA can be applied on the orig-
+inal raw text, or on the cleaned text after correct-
+ing spelling mistakes and applying conventional
+orthography rules, such as CODA (Habash et al.,
+2012). In this work, we decided to segment the
+original raw text. Though Egyptian CODA is a
+reasonably stable standard, CODA for other di-
+alects are either immature or nonexistent. Also,
+CODA conversion tools are lacking for most di-
+alects3. Building such tools requires the estab-
+lishment of clear guidelines, is laborious, and may
+require large annotated corpora (Eskander et al.,
+2013), such as the LDC Egyptian Treebank.
+To prepare the ground truth data for a dialect,
+we enlisted an annotator who is either a native
+speaker for the dialect or well versed in it and has
+background in natural language processing. The
+authors along with another native speaker of the
+dialect made multiple review rounds on the work
+of the annotator to ensure consistency and quality.
+The annotation guidelines were fairly straightfor-
+ward. Basically, we asked annotators to:
+• segment words in a way that would maintain the
+3except for Egyptian CODA tool that is embedded in
+MADAMIRA
+correct number of part of speech tags
+• favor stems when repeated letters are dropped as
+Table 1
+• segment multiple concatenated words with
+pluses as in the “merged words” example in Ta-
+ble 3.
+• attach injected long vowels that trail preposi-
+tions or pronouns to the preposition or pronoun
+respectively (ex. ú
+
+
+¾J
+Ë “lyky” (to you – feminine)
+? “ly+ky”)
+• treat dialectal words that originated as multiple
+fused words as single tokens (ex. ?C« “ElA$”
+(why) – originally Zú
+
+
+æ
+
+? ø
+
+
+
+@ úÎ« “ElY >y $y'”)
+• do not segment name mentions and hashtags
+In what follows, we discuss the advantages
+and disadvantages of segmenting raw text versus
+the CODA’fied text with some statistics obtained
+for the Egyptian tweets for which we have a
+CODA’fied version as exemplified in Table 1. The
+main advantage of segmenting raw text is that it
+doesn’t need any preprocessing tool to generate
+CODA orthography, and the main advantage of
+CODA is that is regularizes text making it more
+uniform and easier to process. We manually
+compared the CODA version to the raw version
+of 2,000 words in our Egyptian dataset. We
+found that in 75.4% of the words, segmentation
+of original raw words is exactly the same as
+the their CODA’ifed equivalents (ex. 	áÓ+ð
+“w+mn” (and from) and Aê+ÊÒª	K, “nEml+hA”
+(we do it)). Further, if we normalize some char-
+acters, namely è ? è , ø
+
+
+? ø , @ ?
+
+@, @
+
+,
+
+@,
+and non-Arabic characters
+ø
+
+
+? þ
+
+
+, ¼ ? ¹,Ã , 	¬ ? ¬ , h. ? h ,
+and remove diacritics, the percentage of matching
+increases to 90.3%. Table 3 showcases the
+remaining differences between raw and CODA
+segmentations and how often they appear. The
+differences are divided into two groups. In the
+first group (accounting for 6.8% of the cases),
+the number of word segments remains the same
+and both the raw and CODA’fied segments would
+have the same POS tags.
+In this group, the “variable spelling” class con-
+tains dialectal words that may have different com-
+mon spellings with one “standard” spelling in
+CODA. The “dropped letter” and “shortened parti-
+cles” classes typically involve the omission of let-
+ters such as the first person imperfect prefix
+
+@ “>”
+Diff. % Examples
+Same no. of segments and same POS tags
+variable
+2.4%
+	
+àA
+
+?Ê« ? 	àA ?«
+spellings “E$An, El$An”
+dropped
+2.3%
+ÐQ
+
+g
+
+A+K. ? ÐQ
+
+g + H.
+letters “b+Htrm, b+AHtrm”
+merged
+1.4%
+Ñ« AK
+ ? Ñ«+ AK
+
+words “yA+Em, yA Em”
+Shortened
+0.4%
+ú
+
+
+	
+¯ ? 	¬ , úÎ« ? ¨
+particles “E, ElA f, fy”
+elongations 0.3% éJ
+Ë ? éJ
+J
+
+J
+Ë “lyyyyh,lyh”
+Different no. of segments or POS tags
+spelling
+2.2%
+B@
+
+ð ? Bð 	à@ ? A 	K @
+errors “An, Ana wlA, wAlA”
+fused
+0.8%
+ù
+
+
++Ë ÈA
+
+¯ ? ù
+
+
++ËA
+
+¯
+letters “qAl+y, qAl l+y”
+Table 3: Original vs CODA Segmentations
+when preceded by the present tense marker H. “b”
+or the future tense marker ë “h”, and the “A” in
+negation particle AÓ“mA” which is often written as
+Ð“m” and attached to the following word, and the
+trailing letters in prepositions. “Merged words”
+and “word elongations” are common in social me-
+dia, where users try to keep within limit by drop-
+ping the spaces between letters that do not connect
+or to stress words respectively.
+Though some processing such as splitting of
+words or removing elongations is required to over-
+come the phenomena in this group, in situ segmen-
+tation of raw words would yield identical segments
+with the same POS tags as their CODA counter-
+parts. Thus, the segmentation of raw words could
+be sufficient for 97% of words.
+In the second group (accounting for 3% of
+the cases), both may have a different number
+of segments or POS tags, which would compli-
+cate downstream processing such as POS tagging.
+They involve spelling errors and the fusion of two
+identical consecutive letters (gemmination). Cor-
+recting such errors may require a spell checker.
+We opted to segment raw input without correction
+in our reference, and we kept stem, such as verbs
+and nouns, complete at the expense of other seg-
+ments such as prepositions as in the example in
+Table 1.
+5 Segmentation Approaches
+We present here two different systems for word
+segmentation. The first uses SVM-based rank-
+ing (SVMRank)4 to rank different possible seg-
+mentations for a word using a variety of features.
+The second uses bi-LSTM-CRF, which performs
+sequence-to-sequence mapping to guess word seg-
+mentation.
+5.1 SVMRank Approach
+This approach is inspired by the work done by
+Abdelali et al. (2016), in which they used SVM
+based ranking to ascertain the best segmentation
+for Modern Standard Arabic (MSA), which they
+show to be fast and accurate. The approach in-
+volves generating all possible segmentations of a
+word and then ranking them.
+In training, we generate all possible seg-
+mentations of a word based on a closed set of
+prefixes and suffixes, and the correct segmen-
+tation is assigned rank 1 and all other incorrect
+segmentations are assigned rank 2. Our valid
+affixes include MSA prefixes and suffixes that
+we extracted from Farasa (Abdelali et al., 2016)
+and additional dialectal prefixes and suffixes
+that we observed during training. Since we are
+not mapping words into a standard spelling,
+such as CODA, prefixes and suffixes may have
+multiple different representations. For example,
+given the dialectal Egyptian word for “I do not
+play”, it could be spelled as “m+b+lEb+$”,
+“mA+b+lEb+$”, “mA+b+AlEb+$”,
+“m+b+lEb+$y”, “mA+b+AlEb+$y”, etc. In
+this example, the first prefix could be “m” or
+“mA” and the suffix could be “$” or “$y”.
+Here are two example dialectal Egyptian words
+to demonstrate segmentation:
+• Given the input word: ?ñËA« “EAlw$”
+(on the face), possible segmentations are:
+{E+Al+w$} (correct segmentation), {E+Alw$},
+{E+Al+w+$}, {E+Alw+$}, {EAlw+$}, and
+{EAlw$}.
+• Given the input word: ú
+
+
+¾K
+XAK. “bAdyky”
+(I give you (feminine)), possible segmenta-
+tions are: {b+Ady+ky} (correct segmentation),
+{b+Adyky}, {bAdy+ky}, and {bAdyky}.
+We use the following features in training the
+classifier:
+4https://www.cs.cornell.edu/people/tj/
+svm_light/svm_rank.html
+• Conditional probability that a leading character
+sequence is a prefix.
+• Conditional probability that a trailing character
+sequence is a suffix.
+• probability of the prefix given the suffix.
+• probability of the suffix given the prefix.
+• unigram probability of the stem (more details
+about calculating this is showing below).
+• unigram probability of the stem with first suffix.
+• whether a valid stem template can be obtained
+from the stem.
+• whether the stem that has no trailing suffixes ap-
+pears in a gazetteer of person and location names
+(Abdelali et al., 2016).
+• whether the stem is a function word, such as
+úÎ« “ElY” (on), 	áÓ “mn” (from), and ?Ó “m$”
+(not).
+• whether the stem appears in the AraComLex5
+Arabic lexicon (Attia et al., 2011) or in the
+Buckwalter lexicon (Buckwalter, 2002). This is
+sensible considering the large overlap between
+MSA and DA.
+• length difference from the average stem length.
+The segmentations with their corresponding
+features are then passed to the SVM ranker
+(Joachims, 2006) for training. Our SVMRank uses
+a linear kernel and a trade-off parameter between
+training error and margin of 100.
+Before training the classifier, features needed to
+calculated in advance. As training data, we used
+the aforementioned sets of 350 dialectal tweets for
+each dialect containing typically several thousand
+words each. We also use three parts of the Penn
+Arabic Treebank (ATB); part 1 (version 4.1), 2
+(version 3.1), and 3 (version 2), which have a com-
+bined size of 628,870 tokens, to lookup MSA seg-
+mentations. The intuition behind using such seg-
+mented MSA data for lookup is that both MSA and
+dialects share a fair amount of vocabulary. Thus,
+using the ATB corpus has the effect of increasing
+coverage.
+We also adopted the simplifying assumption
+that any given word has only 1 possible correct
+segmentation regardless of context. Though this
+assumption is not always true, previous work on
+MSA has shown that it holds for 99% of the cases
+(Abdelali et al., 2016). Invoking this assumption
+has multiple positive implications, namely: we
+5http://sourceforge.net/projects/
+aracomlex/
+can use the segmentations that we observed during
+training directly, which typically cover most com-
+mon function words, or segmentations that we ob-
+served in the ATB, which cover most MSA words
+that may be prevalent in dialectal text; and we can
+cache word segmentations leading to significant
+speedup. Thus, we experimented with three dif-
+ferent lookup schemes for every word, namely: 1)
+we output the rankers guess directly (None); 2)
+if exists, we use seen segmentations in dialectal
+training set, and the output of the ranker otherwise
+(DA); 3) if exists, we use seen segmentation in di-
+alectal training set, else we use segmentation that
+we observed in the ATB, and lastly the output of
+the ranker (DA+MSA).
+5.2 Bi-LSTM-CRF Approach
+5.2.1 Long Short-term Memory
+Recurrent Neural Network (RNN) belongs to a
+family of neural networks suited for modeling se-
+quential data. Given an input sequence x =
+(x1, ..., xn), an RNN computes the output vector
+yt of each word xt by iterating the following equa-
+tions from t = 1 to n:
+ht = f(Wxhxt +Whhht?1 + bh)
+yt =Whyht + by
+where ht is the hidden states vector, W denotes
+weight matrix, b denotes bias vector and f is the
+activation function of the hidden layer. Theoreti-
+cally, RNNs can learn long distance dependencies,
+still in practice they fail due vanishing/exploding
+gradients (Bengio et al., 1994). To solve this prob-
+lem , Hochreiter and Schmidhuber (1997) intro-
+duced the LSTM RNN. The idea consists of aug-
+menting an RNN with memory cells to overcome
+difficulties with training and efficiently cope with
+long distance dependencies. The output of the
+LSTM hidden layer ht given input xt is com-
+puted via the following intermediate calculations:
+(Graves, 2013):
+it = ?(Wxixt +Whiht?1 +Wcict?1 + bi)
+ft = ?(Wxfxt +Whfht?1 +Wcfct?1 + bf )
+ct = ftct?1 + it tanh(Wxcxt +Whcht?1 + bc)
+ot = ?(Wxoxt +Whoht?1 +Wcoct + bo)
+ht = ot tanh(ct)
+where ? is the logistic sigmoid function, and i,
+f , o and c are respectively the input gate, forget
+gate, output gate and cell activation vectors. More
+interpretation about this architecture can be found
+in (Lipton et al., 2015).
+5.2.2 Bi-directional LSTM
+Bi-LSTM networks (Schuster and Paliwal, 1997)
+are extensions to single LSTM networks. They are
+capable of learning long-term dependencies and
+maintain contextual features from past and future.
+As shown in Figure 1, they comprise two separate
+hidden layers that feed forward to the same out-
+put layer. A bi-LSTM calculates the forward hid-
+den sequence
+??
+h , the backward hidden sequence??
+h and the output sequence y by iterating over the
+following equations :
+??
+ht = ?(Wx
+??
+h
+xt +W??h
+??
+h
+??
+h t?1 + b??h )
+??
+ht = ?(Wx
+??
+h
+xt +W??h
+??
+h
+??
+h t?1 + b??h )
+yt =W??hy
+??
+ht +W??hy
+??
+ht + by
+More interpretations about these formulas are
+found in Graves et al. (2013a)
+5.2.3 Conditional Random Fields (CRF)
+Over the past few years, bi-LSTMs have achieved
+many ground-breaking results in many NLP tasks
+because of their ability to cope with long dis-
+tance dependencies and exploit contextual fea-
+tures from past and future states. Still, when
+they are used for some specific sequence classi-
+fication tasks, (such as segmentation and named
+entity detection), where there is strict dependence
+between output labels, they fail to generalize per-
+fectly. During the training phase of the bi-LSTM
+networks, the resulting probability distributions
+for different time steps are independent from each
+other. To overcome the independence assumptions
+imposed by the bi-LSTM and to exploit these kind
+of labeling constraints in our Arabic segmentation
+system, we model label sequence logic jointly us-
+ing Conditional Random Fields (CRF) (Lafferty
+et al., 2001).
+5.2.4 bi-LSTM-CRF for DA Segmentation
+In this model we consider Arabic segmentation as
+a sequence labeling problem at the character level.
+Each character is labeled with one of five labels
+B,M,E, S,WB that designate the segmentation
+decision boundaries: Beginning, Middle, End of
+a multi-character segment, Single character seg-
+ment, and Word Boundary respectively. Figure
+1 illustrates our segmentation model and how the
+model takes the word éJ. Ê
+
+¯ “qlbh” (his heart) as its
+Figure 1: Architecture of our proposed neural net-
+work Arabic segmentation model applied to word.
+éJ. Ê
+
+¯ “qlbh” and output “qlb+h”
+current input and predicts its correct segmentation.
+The model is comprised of the following three lay-
+ers:
+• Input layer: containing character embeddings.
+• Hidden layer: bi-LSTM maps character repre-
+sentations to hidden sequences.
+• Output layer: CRF computes the probability dis-
+tribution over all labels.
+At the input layer, a look-up table is ini-
+tialized with randomly uniform sampled embed-
+dings6 mapping each character in the input to d-
+dimensional vector. At the hidden layer, the output
+from the character embeddings is used as the input
+to the bi-LSTM layer to obtain fixed-dimensional
+representations for each character. At the output
+layer, a CRF is applied over the hidden represen-
+tation of the bi-LSTM to obtain the probability
+distribution over all the labels. Training is per-
+formed using stochastic gradient (SGD) descent
+with momentum 0.9 and batch size 50, optimizing
+the cross entropy objective function.
+5.2.5 Optimization
+Due to the relatively small size the training and
+development sets, overfitting poses a considerable
+challenge for our Dialectal Arabic segmentation
+system. To make sure that our model learns sig-
+nificant representations, we resort to dropout (Hin-
+ton et al., 2012) to mitigate overfitting. The basic
+6We did not use pre-trained character embeddings, be-
+cause we conducted side experiments with and without pre-
+trained embeddings and the results were mixed
+idea behind dropout involves randomly omitting a
+certain percentage of the neurons in each hidden
+layer for each presentation of the samples during
+training. This encourages each neuron to depend
+less on the other neurons to learn the right seg-
+mentation decision boundaries. We apply dropout
+masks to the character embedding layer before in-
+putting to the bi-LSTM and to its output vector. In
+our experiments, we find that dropout with a fixed
+rate of 0.5 decreases overfitting and improves the
+overall performance of our system. We also em-
+ploy early stopping (Caruana et al., 2000; Graves
+et al., 2013b) to mitigate overfitting by monitoring
+the model’s performance on the development set.
+6 Experiments and Results
+As described earlier, we perform several exper-
+iments for each dialect. These involve training
+using dialectal data while using different lookup
+schemes, namely: no lookup (None); lookup
+from dialectal training only (DA); and a cascaded
+lookup from dialectal training and then MSA
+(DA+MSA). For all our experiments, we use 5
+fold cross validation with 70/10/20 train/dev/test
+splits. We use the Farasa MSA segmenter as a
+baseline. Table 4 reports on the results for both
+segmentation approaches and in combination of
+using different lookup schemes. As the results
+clearly shows, using an MSA segmenter yields
+suboptimal results for dialects. Also, when no
+lookup is used, the bi-LSTM-CRF sequence la-
+beler performs better than the SVM ranker for all
+dialects. However, using lookup leads to greater
+improvements for the SVM approach leading to
+the best results for Levantine, Gulf, and Maghrebi
+and slightly lower results for Egyptian. Further,
+SVMRank seemed to have benefited more from the
+DA lookup, while bi-LSTM-CRF benefited more
+from the MSA lookup. As for Egyptian segmenta-
+tion, we suspected that it performed better for both
+approaches than the segmentation for the other di-
+alects, because the percentage of test words that
+appear in the training set was greater for Egyptian.
+The percentages for all the dialects are:
+Egyptian Levantine Gulf Maghrebi
+64.7% 54.7% 56.7% 55.2%
+As for the lower results for Maghrebi, we noticed
+that Maghrebi has many more affixes than MSA
+and other dialects. These affixes contribute to the
+data sparsity and complexity of the segmentation
+task. For example, we enumerated 24 prefixes
+Training Set Look-up Egyptian Levantine Gulf Maghrebi
+SVMRank
+None 91.0 87.8 87.7 84.7
+DA 94.5 92.9 92.8 90.5
+DA+MSA 94.6 93.3 93.1 91.2
+bi-LSTM-CRF
+None 93.8 91.0 89.4 87.1
+DA 94.2 91.8 90.8 88.5
+DA+MSA 95.0 93.0 91.9 90.1
+Farasa 85.7 82.6 82.9 82.6
+Table 4: SVMRank and bi-LSTM results w/ and w/o lookup
+for Maghrebi compared to 8 for MSA, 17 for
+Levantine and Gulf, and 12 for Egyptian. Sim-
+ilarly, Maghrebi had more suffixes than MSA
+and other dialects. To ascertaining the effect of
+CODA’fication, we ran an extra experiment were
+we trained our best SVMRank system using the
+CODA’fied version of the Egyptian data, and the
+segmentation accuracy increased from 94.6% to
+96.8%. Thus, having stable CODA standards and
+reliable conversion tools may positively impact
+dialectal processing. Next, we elaborate on typical
+errors of both approaches.
+SVMRank Errors: We examined the errors that
+the SVM ranker produced for different dialects
+and the most common types involved:
+• erroneous splitting of leading or trailing charac-
+ters when they were not prefixes or suffixes re-
+spectively or not splitting actual prefix and suf-
+fixes. For example, 	àñºJ
++k “H+ykwn” (will
+be) was segmented as “Hyk+wn”.
+• the use of non-Arabic letters, wrong form of
+alef, or “h” instead of “p”. For example
+Á+Ê+K
+
+
+Ag. “jAy+l+k” (I am coming to you),
+where “A” and “k” were replace with “|” and a
+Farsi character respectively, was not segmented.
+• long words with multiple segments such as
+
+?+ A
+	
+J+J
++
+
+®Ê
+
+®
+
+J+Ó “m+tqlq+y+nA+$” (don’t make
+us angry) where the ranker chose to segment it
+as “m+tqlq+yn+A$”.
+bi-LSTM-CRF Errors: The errors in this system
+are broadly classified into three categories:
+• Ambiguous in token boundary because of char-
+acter sharing in case of gemmination/elision.
+For example the word A 	J« “En A” (about us) is
+actually two tokens 	á« En and A 	K nA. The two 	à
+n letters are now merged into one. In the gold
+data, the disputed letter belongs to the first to-
+ken while in the system output, it belongs to the
+second.
+• Like the SVM, the system often fails due to un-
+conventional spelling. For example the word
+AK
+ñ
+	
+kB “lAxwyA” (to my brother) is a mis-
+spelling of AK
+ñ
+	
+k
+
+B.
+• The majority of the remaining errors are simply
+mis-tokenization due to the system’s inability to
+decide whether a substring (which out of con-
+text can be a valid token) is an independent to-
+ken or part of a word, e.g. ½+ÊJ.
+
+®
+
+J?Ó “mstqbl+k”
+(your future), which is predicted by the system
+as “m+staqbl+k”, where it correctly recognizes
+the genitive pronoun in the end, but mistakenly
+tags the first radical as a separate segment.
+7 Conclusion
+In this paper we presented two approaches in-
+volving SVM-based ranking and bi-LSTM-CRF
+sequence labeling for segmenting Egyptian, Lev-
+antine, Gulf, and Maghrebi dialects. Both ap-
+proaches yield strong comparable results that
+range between 91% and 95% accuracy for dif-
+ferent dialects. To perform the work, we cre-
+ated training corpora containing naturally occur-
+ring text from social media for the aforementioned
+dialects. We plan to release the data and the result-
+ing segmenters to the research community. For fu-
+ture work, we want to perform domain adaptation
+using large MSA data, such as ATB, to improve
+segmentation results. Further, we plan to investi-
+gate building a joint model capable of segmenting
+all the dialects with minimal loss in accuracy.
+References
+Ahmed Abdelali, Kareem Darwish, Nadir Durrani, and
+Hamdy Mubarak. 2016. Farasa: A fast and furious
+segmenter for arabic. In Proceedings of the 2016
+Conference of the North American Chapter of the
+Association for Computational Linguistics: Demon-
+strations. Association for Computational Linguis-
+tics, San Diego, California, pages 11–16.
+Mohammed Attia, Pavel Pecina, Antonio Toral, Lamia
+Tounsi, and Josef van Genabith. 2011. An open-
+source finite state morphological transducer for
+modern standard arabic. In Proceedings of the
+9th International Workshop on Finite State Methods
+and Natural Language Processing. Association for
+Computational Linguistics, pages 125–133.
+Yoshua Bengio, Patrice Simard, and Paolo Frasconi.
+1994. Learning long-term dependencies with gradi-
+ent descent is difficult. IEEE transactions on neural
+networks 5(2):157–166.
+Fadi Biadsy, Julia Hirschberg, and Nizar Habash. 2009.
+Spoken arabic dialect identification using phonotac-
+tic modeling. In Proceedings of the EACL 2009
+Workshop on Computational Approaches to Semitic
+Languages. Association for Computational Linguis-
+tics, Stroudsburg, PA, USA, Semitic ’09, pages 53–
+61.
+Houda Bouamor, Nizar Habash, and Kemal Oflazer.
+2014. A multidialectal parallel corpus of arabic.
+In Nicoletta Calzolari (Conference Chair), Khalid
+Choukri, Thierry Declerck, Hrafn Loftsson, Bente
+Maegaard, Joseph Mariani, Asuncion Moreno, Jan
+Odijk, and Stelios Piperidis, editors, Proceedings of
+the Ninth International Conference on Language Re-
+sources and Evaluation (LREC’14). European Lan-
+guage Resources Association (ELRA), Reykjavik,
+Iceland.
+Tim Buckwalter. 2002. Buckwalter {Arabic} morpho-
+logical analyzer version 1.0 .
+Rich Caruana, Steve Lawrence, and Lee Giles. 2000.
+Overfitting in neural nets: Backpropagation, conju-
+gate gradient, and early stopping. In NIPS. pages
+402–408.
+Kareem Darwish, Walid Magdy, and Ahmed Mourad.
+2012. Language processing for arabic microblog
+retrieval. In Proceedings of the 21st ACM inter-
+national conference on Information and knowledge
+management. ACM, pages 2427–2430.
+Kareem Darwish, Walid Magdy, et al. 2014a. Arabic
+information retrieval. Foundations and Trends® in
+Information Retrieval 7(4):239–342.
+Kareem Darwish, Hassan Sajjad, and Hamdy Mubarak.
+2014b. Verifiably effective arabic dialect identifica-
+tion. In EMNLP. pages 1465–1468.
+Mohamed Eldesouki, Fahim Dalvi, Hassan Sajjad, and
+Kareem Darwish. 2016. Qcri@ dsl 2016: Spoken
+arabic dialect identification using textual features.
+VarDial 3 page 221.
+Ramy Eskander, Nizar Habash, Owen Rambow, and
+Nadi Tomeh. 2013. Processing spontaneous orthog-
+raphy.
+Alex Graves. 2013. Generating sequences with
+recurrent neural networks. arXiv preprint
+arXiv:1308.0850 .
+Alex Graves, Navdeep Jaitly, and Abdel-rahman Mo-
+hamed. 2013a. Hybrid speech recognition with deep
+bidirectional lstm. In Automatic Speech Recognition
+and Understanding (ASRU), 2013 IEEE Workshop
+on. IEEE, pages 273–278.
+Alex Graves, Abdel-rahman Mohamed, and Geoffrey
+Hinton. 2013b. Speech recognition with deep re-
+current neural networks. In Acoustics, speech and
+signal processing (icassp), 2013 ieee international
+conference on. IEEE, pages 6645–6649.
+Nizar Habash, Mona T Diab, and Owen Rambow.
+2012. Conventional orthography for dialectal ara-
+bic. In LREC. pages 711–718.
+Nizar Habash, Ryan Roth, Owen Rambow, Ramy Es-
+kander, and Nadi Tomeh. 2013. Morphological
+analysis and disambiguation for dialectal arabic. In
+Hlt-Naacl. pages 426–432.
+Nizar Habash and Fatiha Sadat. 2006. Arabic pre-
+processing schemes for statistical machine transla-
+tion. In Proceedings of the Human Language Tech-
+nology Conference of the NAACL, Companion Vol-
+ume: Short Papers. Association for Computational
+Linguistics, pages 49–52.
+Geoffrey E Hinton, Nitish Srivastava, Alex Krizhevsky,
+Ilya Sutskever, and Ruslan R Salakhutdinov. 2012.
+Improving neural networks by preventing co-
+adaptation of feature detectors. arXiv preprint
+arXiv:1207.0580 .
+Sepp Hochreiter and Ju?rgen Schmidhuber. 1997.
+Long short-term memory. Neural computation
+9(8):1735–1780.
+Zeinab Ibrahim. 2006. Borrowing in modern standard
+arabic. Innovation and Continuity in Language and
+Communication of Different Language Cultures 9.
+Edited by Rudolf Muhr pages 235–260.
+Thorsten Joachims. 2006. Training linear svms in lin-
+ear time. In Proceedings of the 12th ACM SIGKDD
+international conference on Knowledge discovery
+and data mining. ACM, pages 217–226.
+Sameer Khurana, Ahmed Ali, and Steve Renals.
+2016. Multi-view dimensionality reduction for di-
+alect identification of arabic broadcast speech. arXiv
+preprint arXiv:1609.05650 .
+John D. Lafferty, Andrew McCallum, and Fernando
+C. N. Pereira. 2001. Conditional random fields:
+Probabilistic models for segmenting and labeling se-
+quence data. In Proc. ICML.
+Zachary C Lipton, David C Kale, Charles Elkan, and
+Randall Wetzell. 2015. A critical review of recur-
+rent neural networks for sequence learning. CoRR
+abs/1506.00019.
+Mohamed Maamouri, Ann Bies, Seth Kulick, Michael
+Ciul, Nizar Habash, and Ramy Eskander. 2014. De-
+veloping an egyptian arabic treebank: Impact of di-
+alectal morphology on annotation and tool develop-
+ment. In LREC. pages 2348–2354.
+Emad Mohamed, Behrang Mohit, and Kemal Oflazer.
+2012. Annotating and learning morphological seg-
+mentation of egyptian colloquial arabic. In LREC.
+pages 873–877.
+Will Monroe, Spence Green, and Christopher D Man-
+ning. 2014. Word segmentation of informal arabic
+with domain adaptation. In ACL (2). pages 206–211.
+Hamdy Mubarak and Kareem Darwish. 2014. Using
+twitter to collect a multi-dialectal corpus of arabic.
+In Proceedings of the EMNLP 2014 Workshop on
+Arabic Natural Language Processing (ANLP). pages
+1–7.
+Arfath Pasha, Mohamed Al-Badrashiny, Mona Diab,
+Ahmed El Kholy, Ramy Eskander, Nizar Habash,
+Manoj Pooleery, Owen Rambow, and Ryan M Roth.
+2014. Madamira: A fast, comprehensive tool for
+morphological analysis and disambiguation of Ara-
+bic. Proc. LREC .
+Hassan Sajjad, Kareem Darwish, and Yonatan Be-
+linkov. 2013. Translating dialectal Arabic to En-
+glish. In Proceedings of the 51st Annual Meeting of
+the Association for Computational Linguistics (Vol-
+ume 2: Short Papers). Sofia, Bulgaria, ACL ’13,
+pages 1–6.
+Younes Samih, Mohammed Attia, Mohamed Eldes-
+ouki, Hamdy Mubarak, Ahmed Abdelali, Laura
+Kallmeyer, and Kareem Darwish. 2017. A neu-
+ral architecture for dialectal arabic segmentation.
+WANLP 2017 (co-located with EACL 2017) page 46.
+Younes Samih, Suraj Maharjan, Mohammed Attia,
+Laura Kallmeyer, and Thamar Solorio. 2016.
+Multilingual code-switching identification via lstm
+recurrent neural networks. In Proceedings of the
+Second Workshop on Computational Approaches
+to Code Switching,. Austin, TX, pages 50–59.
+http://www.aclweb.org/anthology/W/W16/W16-
+58.pdf#page=62.
+Mike Schuster and Kuldip K Paliwal. 1997. Bidirec-
+tional recurrent neural networks. IEEE Transactions
+on Signal Processing 45(11):2673–2681.
+Rico Sennrich, Barry Haddow, and Alexandra Birch.
+2016. Neural machine translation of rare words with
+subword units. In Proceedings of the 54th Annual
+Meeting of the Association for Computational Lin-
+guistics (Volume 1: Long Papers). Association for
+Computational Linguistics, Berlin, Germany, pages
+1715–1725. http://www.aclweb.org/anthology/P16-
+1162.
+Omar F Zaidan and Chris Callison-Burch. 2014. Ara-
+bic dialect identification. Computational Linguistics
+40(1):171–202.
+Rabih Zbib, Erika Malchiodi, Jacob Devlin, David
+Stallard, Spyros Matsoukas, Richard Schwartz, John
+Makhoul, Omar F. Zaidan, and Chris Callison-
+Burch. 2012. Machine translation of arabic dialects.
+In Proceedings of the 2012 Conference of the North
+American Chapter of the Association for Computa-
+tional Linguistics: Human Language Technologies.
+Association for Computational Linguistics, Strouds-
+burg, PA, USA, NAACL HLT ’12, pages 49–59.

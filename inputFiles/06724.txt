@@ -1,0 +1,967 @@
+VIGAN: Missing View Imputation with Generative Adversarial Networks
+Chao Shang, Aaron Palmer, Jiangwen Sun, Ko-Shin Chen, Jin Lu, Jinbo Bi
+Department of Computer Science and Engineering
+University of Connecticut
+Storrs, CT, USA
+{chao.shang, aaron.palmer, jiangwen.sun, ko-shin.chen, jin.lu, jinbo.bi}@uconn.edu
+Abstract—In an era when big data is becoming the norm,
+there is less concern with the quantity but more with the
+quality and completeness of data. In many disciplines, data
+are collected from heterogeneous sources, leading to multi-view
+or multi-modal datasets. The missing data problem has been
+challenging to address in multi-view data analysis. Especially,
+when certain samples miss an entire view of data, it creates
+the missing view problem. Classic multiple imputation or
+matrix completion methods are hardly effective here when no
+information can be based on to impute data for such samples
+in the specific view. The commonly-used simple method of
+removing samples with the missing view issue can dramatically
+reduce sample size, diminishing the statistical power of an
+analysis. In this paper, we propose a novel approach for view
+imputation via generative adversarial networks (GANs), which
+we name as VIGAN. This approach first treats each view as
+a separate domain and identifies domain-to-domain mappings
+through a GAN using randomly-sampled data from each view,
+and then employs a multi-modal denoising autoencoder (DAE)
+to reconstruct the missing view from the GAN outputs based
+on paired data from each view. Then, by optimizing the GANs
+and DAE jointly, our model enables the knowledge integration
+learned for domain mappings and view correspondences to
+effectively recover the missing view. Empirical results on bench-
+mark datasets validate the VIGAN approach by comparing
+against the state of the art, and an evaluation of VIGAN in
+a genetic study of substance use disorders further proves the
+effectiveness and utility of this approach in life science.
+Keywords-missing data; missing view; generative adversarial
+networks; autoencoder; domain mapping; cycle-consistent
+I. INTRODUCTION
+In many scientific domains, data can come from a multi-
+tude of diverse sources. A patient can be monitored simul-
+taneously by multiple sensors in a home care system. In a
+genetic study, patients are assessed by their genotypes and
+their clinical symptoms. A web page can be represented by
+words on the page or by all the hyper-links pointing to it
+from other pages. Similarly, an image can be represented by
+the visual features extracted from it or by the text describing
+it. Each aspect of the data may offer a unique perspective
+to tackle the target problem. It brings up a different set
+of machine learning problems associated with the efficient
+utilization, modeling and integration of the heterogeneous
+data. In the era of big data, large quantities of such het-
+erogeneous data have been accumulated in many domains.
+The proliferation of such data has facilitated knowledge
+discovery but also imposed great challenges for ensuring
+the quality or completeness of the data. The commonly-
+encountered missing data problem is what we cope with
+in this paper.
+Figure 1: Missing view problem extremely limits the cross-
+view collaborative learning and the availability of data.
+There are distinct mechanisms to collect data from multi-
+ple aspects or sources. In multi-view data analysis, samples
+are characterized or viewed in multiple ways, thus creating
+multiple sets of input variables for the same samples. For
+instance, a genetic study of a complex disease may produce
+two data matrices respectively for genotypes and clinical
+symptoms, and the records in the two matrices are paired
+for each patient. In a dataset with three or more views,
+there exists a one-to-one mapping across the records of
+every view. In practice, it is however more common to
+see different sources of data each collected for a different
+sample, which leads to multi-modal data analysis. To study
+Alzheimer’s disease, the US initiative collected neuroimages
+(a modality) for a sample of patients and brain signals
+such as electroencephalograms (another modality) for a
+different sample of patients, resulting in unpaired data. The
+integration of these datasets in a unified analysis leads to
+different mathematical modeling problems from the multi-
+view data analysis because there is no longer a one-to-one
+mapping in the different modalities. This problem is also
+frequently referred to domain mapping or domain adaptation
+in various scenarios. The method we propose can handle
+both the multi-view and multi-modal missing data problem.
+ar
+X
+iv
+:1
+70
+8.
+06
+72
+4v
+2 
+ [
+cs
+.C
+V
+] 
+ 2
+3 
+A
+ug
+ 2
+01
+7
+Although the missing data problem is ubiquitous in large-
+scale datasets, most existing statistical or machine learning
+models do not handle it and thus require the missing data to
+be imputed before the statistical methods can be applied [1,
+2]. With the complex structure of heterogeneous data comes
+high complexity of missing data patterns. In the multi-view
+or multi-modal datasets, data can be missing at random in a
+single view (or modality) or in multiple views. Even though
+a few recent multi-view analytics [3] can directly model
+incomplete data without imputation, they often assume that
+there exists at least one complete view, which is however
+often not the case. In multi-view data, certain subjects in
+a sample can miss an entire view of variables, resulting in
+the missing view problem. In the most general case, one
+could even consider that a multi-modal dataset just misses
+the entire view of data in a modality for the sample subjects
+that are characterized by another modality.
+To date, the widely-used data imputation methods focus
+on imputing or predicting the missing entries within a
+single view [4, 5, 6]. Often times, data from multiple views
+are simply merged to form a single view data imputa-
+tion problem. The classic single view imputation methods,
+such as multiple imputation methods, or matrix completion
+methods, are hardly scalable to big data. For instance, the
+matrix completion methods start with the partially observed
+data matrix and then typically use matrix factorization to
+infer missing values by imposing priors on the matrix such
+as the low rank condition. Matrix factorization techniques
+generally require computational complexity of O(N3) in
+terms of the matrix size N , thus difficult to handle even a
+matrix in the size of a thousand by a thousand. Lately, there
+has been extensive research on imputation in true multi-
+view settings [7, 8, 9, 10, 11] where the missing values
+in a view can be imputed by utilizing useful information
+from another complete view. These prior works assume that
+all views are available, and only some data points in each
+view are missing. This assumption has limited these methods
+because in practice it is common to miss an entire view of
+data for certain samples. This missing view problem brings
+up a significant challenge when conducting any multi-view
+analysis, especially when used in the context of very large
+and heterogeneous datasets like those in healthcare.
+Recent deep learning methods [12, 13, 14] for learning
+a shared representation of multiple views of data have the
+potential to address the missing view problem. The most
+important advantage of these deep neural networks is their
+scalability and computational efficiency. Autoencoders [19]
+and denoising autoencoders [11] have been used to denoise
+or complete data, especially images. Generative adversarial
+networks (GANs) [21] can create images or data records
+from random data sampled from a distribution, and thus can
+be potentially used to impute data. The latest GANs [15, 22,
+23, 24, 25] for domain mappings can learn the relationship
+between two modalities using data from different samples.
+However, all of these methods have not been thoroughly
+studied to impute missing views of data.
+We propose a composite approach of GAN and autoen-
+coder to address the missing view problem. Our method
+imputes an entire missing view by using a multi-stage
+training procedure where in Stage one a multi-modal au-
+toencoder is trained on paired data to embed and reconstruct
+the input views. Stage two consists of training a cycle-
+consistent GAN [15] with unpaired data allowing a cross-
+domain relationship to be learned. Stage three incorporates
+the pre-trained multi-modal autoencoder into the the cycle-
+consistent GAN so as to take the cross-domain relationship
+as an initial approximation and fine tune it based on paired
+data. Intuitively, when the GAN model learns to translate
+data from view X to view Y , the translated data can be
+viewed as an approximate estimate of the missing values,
+or a noisy version of the true data. This stage can be looks
+very similar to the way a true denoising autoencoder [11] is
+trained, and functions the exact same way. The autoencoder
+will then learn to refine the estimate by denoising the GAN
+outputs.
+There are several contributions in our approach:
+1) We propose a method for the missing view problem
+in multi-view datasets.
+2) The proposed method can employ both paired multi-
+view data and unpaired multi-modal data simultane-
+ously, and make use of all resources with missing data.
+3) Our approach is the first to combine domain mapping
+with cross-view imputation of missing data.
+4) Our approach is highly scalable, and can be extended
+to solve more than two views of missing data problem.
+Empirical evaluation of the proposed approach on both
+synthetic and real world datasets demonstrate its superior
+performance on data imputation and its computational ef-
+ficiency. The rest of the paper will proceed as follows. In
+Section 2 we discuss related works. Section 3 is dedicated
+to the description of our model followed by the summary
+of experimental results in Section 4. We then conclude in
+Section 5 with a discussion of future works.
+II. RELATED WORKS
+A. Matrix Completion
+Matrix completion methods focus on filling in the missing
+entries of a partially observed matrix under some certain
+assumptions. Specifically, low-rankness is the most widely
+used assumption, which is equivalent to assuming that the
+underlying observed matrix can be represented by linear
+combinations of a small number of basis vectors. With
+the merit of low-rankness, numerous matrix completion
+approaches have been proposed, either based on convex
+optimization via minimizing the nuclear norm, such as SVT
+[4] and SoftImpute [16], or alternatively in a non-convex
+optimization perspective through matrix factorization [17].
+However, limitations on this methodology exist when apply-
+ing standard matrix completion to our missing view problem.
+First, in the multi-view data setting, when concatenating
+features of different modalities into the data matrix, the
+missing values are no longer randomly distributed, but rather
+appear in blocks, which violates the randomness assumption
+for most of matrix completion methods. Once the entries
+are not missing at random, classical matrix completion
+methods can no longer establish guarantees in recovering
+corrupted samples with missing modalities. The second issue
+is that many matrix completion methods iteratively compute
+SVD of the entire data matrix, rendering it computationally
+prohibitive for large datasets.
+B. Autoencoder and RBM
+Another possible method for imputation is based on an
+autoencoder styled model. Autoencoders were first intro-
+duced by Rumelhart et al [18] in the 1980s to address
+the problem of backpropagation in the unsupervised setting.
+More recently the autoencoder has shown to play a more
+fundamental role in the unsupervised learning setting for
+learning a latent data representation in deep architectures
+[19]. Vincent et al introduced the denoising autoencoder
+(DA) in [11] as an extension of the classical autoencoder to
+use as a building block for deep networks. The DA is trained
+to reconstruct the input data from a corrupted version. In
+doing so the model tends to learn more robust features.
+Researchers have extended the single mode autoencoder
+into a multi-modal autoencoder [14]. Ngiam et al [14] use a
+deep autoencoder to learn relationships between high-level
+features of audio and video signals. In their model they train
+a bi-modal deep autoencoder using a modified but noisy
+dataset. Moreover, some of their examples only have a single
+modality present. They’ve shown that the shared feature
+representations of the hidden layers can capture correlations
+across different modalities allowing for reconstruction of a
+missing mode. In practice, we simply zero out values for
+one of the input modes while keeping the values for any
+other modalities and train to reconstruct the missing entries.
+Wang et al [12] enforce the feature representation of the
+multi-view data to have high correlation.
+Another older possible solution is proposed from [20]
+which can fill in missing data modalities given the observed
+ones by creating an autoencoder style model out of stacked
+restricted Boltzman machines. Unfortunately, all the autoen-
+coder style methods train the models with paired data and
+remove a view to create training data. Moreover, during
+this training any data that doesn’t have complete views is
+removed, often times leaving only a small percentage of data
+left for training.
+C. Generative Adversarial Networks
+Recently a novel method to train generative models called
+generative adversarial networks (GAN) was proposed by
+Goodfellow et al [21]. GANs have achieved impressive
+results in a wide variety of problems. Briefly, the GAN
+model consists of a generator that takes a known distribution,
+usually some kind of normal or uniform, and tries to map
+it to a data distribution. The generated samples are then
+compared by a discriminator to real samples from the true
+distribution. This generator and discriminator play a mini-
+max game where the generator tries to fool the discriminator,
+and the discriminator tries to distinguish between a fake
+sample and a true sample. The solution to this game lies on
+a saddle-point. Shortly after the original GAN paper came
+out, a great variety of other GAN models have emerged.
+D. Unsupervised Domain Mapping
+In unsupervised domain mapping, the models learn a
+mapping between two unmatched datasets. The goal of these
+domain mapping models is to find a function which can
+translate from one domain to the other domain without the
+need for paired input-output examples.
+Within this area there are four very recent papers that
+are quite similar. DiscoGAN [22] created by Kim et al are
+able to discover cross-domain relations using an autoencoder
+style model where the embedding is another domain. Each
+generator learns to map to the other domain which then
+learns to map back to the original domain. Each domain
+has a discriminator to discern whether the generated images
+come from the true domain. There is also a reconstruction
+loss to ensure a bijective mapping. In this model the two
+generators that map to domain A are coupled, and the
+two generators that map to domain B are coupled. Zhu
+et al use a cycle-consistent adversarial network [15] to
+train unpaired image-to-image translations in a very similar
+way. Their architecture is defined slightly smaller, i.e. there
+isn’t a coupling involved but rather the generated image is
+passed back over the original network. pix2pix [23] is very
+similar with CycleGAN, which is trained only on paired
+data to learn a mapping from input to output images. The
+fourth model by Yi et al is DualGAN [24]. This model
+uses uncoupled generators to do image-to-image translation
+however instead of using binary cross entropy or mean
+squared error as the others did, DualGAN uses a Wasserstein
+loss.
+In 2016 Liu and Tuzel coupled two GANs together in their
+CoGAN model [25] to do domain mapping with unpaired
+images. The mapping is learned from a random input to
+samples from the two domains. Here they assume that
+the two domains are similar in nature and is the reason
+for the tied weights. Taigman et al introduced a domain
+transfer network in [26] which is able to learn a generative
+function that maps from one domain to another. This model
+differs from several of the others in that the consistency
+they enforce is not just on the reconstruction, but on the
+embedding itself and the model is not bijective. Moreover,
+they briefly considered the missing data problem when a
+class of examples was missing from the target domain.
+III. METHOD
+In order to tackle the described challenges, we present a
+missing view imputation model with generative adversarial
+networks (VIGAN), which combines cross-domain relations
+given unpaired data and multiview relations given paired
+data. In our architecture, the VIGAN first learns to translate
+data from view X to data in view Y using on cycle-
+consistent adversarial networks. Moreover, our model uses
+the denoising autoencoder to learn shared and private latent
+spaces, to better reconstruct (or denoise) the missing views.
+Figure 2: VIGAN architecture consisting of the two main
+components: CycleGAN and a denoising multimodal autoen-
+coder.
+A. Notation
+We assume the dataset D consists of three parts: the
+complete pairs {(x(i), y(i))}Ni=1, examples with missing y
+values {x(i)}Mxi=N+1, and examples with missing x values
+{y(i)}Myi=N+1. Below are notations that will be used in our
+formulation.
+• G1 : X ? Y and G2 : Y ? X are mappings
+between variable spaces X and Y .
+• DY and DX are discriminators of G1 and G2 respec-
+tively.
+• A : X × Y ? X × Y is an autoencoder function.
+• PX(x, y) = x and PY (x, y) = y are projections.
+• Ex?pdata(x)[f(x)] =
+1
+Mx
+?Mx
+i=1 f(x
+(i))
+• E(x,y)?pdata((x,y))[f(x, y)] =
+1
+N
+?N
+i=1 f(x
+(i), y(i))
+B. The Proposed Formulation
+In this section we give details of the VIGAN Mode
+illustrated in Figure 2. Our goal is to utilize both paired
+and unpaired datasets to learn mapping functions between
+domains X and Y . The main ingredients of our model
+are denoising autoencoder and cycle-consistent adversarial
+networks. The former aims to learn a shared representation
+from pairs {(x, y)} in the dataset; the later uses unpaired
+{x}, {y} values to obtain maps x 7? y and y 7? x.
+The loss of multi-modal denoising autoencoder
+The Multi-modal Denoising Deep Autoencoder (DAE)
+has a three piece architecture, as shown in Figure 3. The
+model incorporates an input layer to map the two views
+into the shared representation. Any layers specific to each
+view will extract higher order features before embedding
+in the shared representation. Autoencoders ensure that the
+inner representations describe multi-view data well and the
+neural network can learn complex relationships between the
+multiple views; notably, the mapping function and the inner
+representations are jointly optimized and thus correlated.
+Therefore, the constructed architecture is a data-driven
+model for the multi-view problem.
+Figure 3: Multi-modal denoising autoencoder. The input pair
+(X?, Y? ) is (x;G1(x)) or (G2(y); y) as corrupted (noising)
+versions of the original pair (X;Y ).
+Given mappings G1 : X ? Y and G2 : Y ? X , we may
+view pairs (x,G1(x)) and (G2(y), y) as corrupted versions
+of the original pair (x, y) in the data set. A denoising
+autoencoder, A : X × Y ? X × Y , is then trained to
+reconstruct (x, y) from (x,G1(x)) or (G2(y), y). We express
+the objective as the squared error loss:
+LAE(A,G1, G2) = E(x,y)?pdata((x,y))[?A(x,G1(x))? (x, y)?
+2
+2]
++ E(x,y)?pdata((x,y))[?A(G2(y), y)? (x, y)?
+2
+2]. (1)
+The adversarial loss
+We the apply adversarial loss introduced in [21] for com-
+posite functions PY ? A(x,G1(x)) : X ? Y and PX ?
+A(G2(y), y) : Y ? X:
+LYAEGAN(A,G1) = Ey?pdata(y)[log(DY (y))]
++ Ex?pdata(x)[log(1?DY (PY ?A(x,G1(x))))], (2)
+and
+LXAEGAN(A,G2) = Ex?pdata(x)[log(DX(x))]
++ Ey?pdata(y)[log(1?DX(PX ?A(G2(y), y)))]. (3)
+Here DY is a discriminator that represents the probability
+that the input z ? Y comes from the data rather than
+PY ? A(·, G1(·)). Similarly, DX is a discriminator for
+PX ?A(G2(·), ·). As the mapping A is fixed, we expect G1
+to minimize LYAEGAN while an adversarial DY to maximize
+it. In other words, a good G1 will be obtained by a
+minimax process: minG1 maxDY LYAEGAN. We also have a
+competition between G2 and DX for LXAEGAN. Note that
+when A is an identity, i.e. A(x, y) = (x, y) for all (x, y),
+loss functions LYAEGAN and LXAEGAN will be the usual GAN
+objective LGAN used in [15].
+The cycle consistency loss
+In CycleGAN, a network can map the same set of input
+images to any random permutation of images in the target
+domain, where any of the learned mappings can induce
+an output distribution that matches the target distribution.
+Adversarial loss alone cannot guarantee that the learned
+function can map an input to a desired output. The cycle
+loss consistency function is:
+LCYC(G1, G2) =Ex?pdata(x)[?G2 ?G1(x)? x?1]
++ Ey?pdata(y)[?G1 ?G2(y)? y?1] (4)
+Cycle-consistency can help to further reduce the space
+of possible mapping functions, which should be able to
+bring input image back to the original image. This kind
+of cycle-consistency has been found the be important to a
+well performing model as documented in CycleGAN [15],
+DualGAN [24], and DiscoGAN [22].
+The overall loss of VIGAN
+After reviewing the formulation for the denoising
+autoencoder, and the CycleGAN we move to the formulation
+of VIGAN. Within the loss we have the cycle-consistent
+adversarial network of CycleGAN followed by the squared
+error loss for reconstruction of the denoising autoencoder.
+The complete loss function is detailed below.
+L(A,G1, G2, DX , DY ) =
+?AELAE(A,G1, G2) + ?CYCLCYC(G1, G2)
++ LXAEGAN(A,G2) + LYAEGAN(A,G1) (5)
+The optimization problem we are looking to solve takes
+the familiar mini-max form to update the generator and
+discriminator.
+min
+A,G1,G2
+max
+DX ,DY
+L(A,G1, G2, DX , DY ) (6)
+C. Implementation
+1) Training procedure: As described above we employ a
+multi-stage training regimen to train the complete model.
+The VIGAN model will first pre-train the denoising au-
+toencoder where inputs are paired real samples from two
+view, which is different with the final step for the denosing
+purpose. After training the multi-modal autoencoder for
+a pre-specified number of iterations will then train the
+CycleGAN using unpaired data to learn domain mapping
+functions from view X to view Y and vice versa. Finally,
+the pre-trained autoencoder is incorporated into the trained
+CycleGAN, acting as a denoising autoencoder and the entire
+model continues training with paired data. The inputs for
+denosing autoencoder are fakex, truey or truex, fakey
+(fakex is G2(y), fakey is G1(x)) for denoising fake data
+from generator. In this way we don’t explicitly add noise
+to the ground truth as is normally done when training a
+denoising autoencoder, but rather let the noise be implicitly
+added during view generation. This process can be seen in
+Figure 4 and pseudocode for the training algorithm can be
+seen in Algorithm 1. We test our model on several different
+datasets.
+Algorithm 1 VIGAN training procedure
+Require:
+Image set X , image set Y , n unpaired images (xnu, y
+n
+u) ?
+X×Y , m paired images (xmp , ymp ) ? X×Y ; GAN X with
+generator parameters uX and discriminator parameters
+vX ; GAN Y with generator parameters uY and dis-
+criminator parameters vY ; denoising autoencoder param-
+eters w; L(G1, G2, DX , DY ) is CycleGAN formulation;
+L(A,G1, G2, DX , DY ) is VIGAN formulation.
+Initialize w via DAE pre-training;
+Randomly initialize vX , vY , uX , uY .
+for the number of training iterations do
+//Unpaired data
+sample unpaired images (xnu, y
+n
+u) ? X × Y
+Update vX , vY to max L(G1, G2, DX , DY )
+Update uX , uY to min L(G1, G2, DX , DY )
+end for
+for the number of training iterations do
+//Paired data
+sample paired images (xmp , y
+m
+p ) ? X × Y
+Update vX , vY to max L(A,G1, G2, DX , DY )
+Update uX , uY , w to min L(A,G1, G2, DX , DY )
+end for
+Figure 4: The multi-stage training process where the multi-
+modal autoencoder is first trained with paired data, top left.
+The CycleGAN, top right, is trained with unpaired data.
+Finally, these architectures with their pre-trained parameters
+are combined into the final model and the training continues
+using paired data.
+2) Network Architecture: In our experiments the network
+architecture changes depending on whether we use numeric
+data or image data. For example, when imputing the
+numeric data we used regular fully connected layers
+whereas when modeling image data we use convolutional
+layers. These are described in more detail in their respective
+sections.
+Numeric data architecture: Our generative networks
+and adversarial networks for numeric data contains several
+fully connected layers. A fully connected (FC) layer is
+one where each neuron in the layer is connected to every
+neuron in its preceding layer. Furthermore, these fully
+connected layers are sandwiched between ReLU activation
+layers, each one responsible for performing an element-wise
+ReLU transformation on the FC layer output. The ReLU
+operation stands for rectified linear unit, and is defined to be
+max(0, z). The sigmoid layer is applied to the output layers
+of generator, discriminator and multi-modal autoencoder.
+The multimodal autoencoder architecture contains
+several fully connected layers and ReLU activation layers.
+Similarly, these fully connected layers are sandwiched
+between ReLU activation layers. Since we have two views
+as the input for our multimodal network, we concatenate
+these views together as input into the network shown in
+Figure 3. During training both views are embedded to the
+hidden layers with the goal of minimizing reconstruction
+error of both views.
+Image data architecture: We adapt the architecture
+for our generative networks and adversarial networks
+from CycleGAN [15] who have shown impressive results
+for unpaired image-to-image translation. This generative
+network from [15, 27] contains two stride-2 convolutions,
+several residual blocks [28], and two fractionally strided
+convolutions with stride 0.5. We use instance normalization
+[29] and 9 blocks for training images. The discriminator
+network unit uses 7070 PatchGANs [23, 30, 31]. The
+sigmoid layer is applied to the output layers of the
+generator, discriminator and autoencoder to generate
+images within the desired range values. The multimodal
+autoencoder network [14] is similar to the numeric data
+architecture where the only difference is that we need to
+vectorize the 28 ? 28 images as the input. Furthermore, the
+number of hidden nodes in these fully connected layers is
+changed.
+For training, we used the ADAM algorithm [32] for train-
+ing and set the learning rate to 0.0002 at the beginning, and
+use a linearly decaying rate that goes to 0. All computations
+were conducted on Ubuntu Linux 14.04 with NVIDIA Tesla
+K40C Graphics Processing Units (GPUs). All the models
+are implemented using Pytorch [33]. Our code is available
+at https://github.com/chaoshangcs/VIGAN.
+IV. EXPERIMENTS
+We evaluate our method on three datasets, include
+MNIST, Cocaine-Opioid, Alcohol-Cannabis. The Cocain-
+Opioid and Alcohol-Cannabis datasets are from SSADDA,
+a health oriented dataset, which is thoroughly explained
+below. To compare the efficacy of our method and how it
+takes advantage of the paired data and unpaired data for
+missing view imputation, we compare our method against
+matrix completion, a multimodal autoencoder, pix2pix and
+CycleGAN. When comparing to CycleGAN, we train the
+CycleGAN model using paired data and unpaired data.
+A. Image benchmark data
+MNIST dataset MNIST [34] is a widely known bench-
+mark dataset consisting of 28 by 28 pixel black and white
+images of handwritten digits. The MNIST database consists
+of a training set of 60,000 examples and a test set of 10,000
+examples. In our work we create a validation set by splitting
+the original training set into a new training set consisting of
+54,000 examples and a validation set of 6,000.
+Since this dataset doesn’t have a corresponding ’view’ we
+are free to choose one that may be appropriate. In CoGAN
+[25] the authors create a new dataset from the original
+MNIST that is just the edge of the number. We do the
+same to get the paired dataset and interpret the original
+digit as the first view, while the second view consists of the
+edge images. We train the VIGAN network assuming either
+view can be missing and thus are able to not only generate
+digit images but also their corresponding edge images. In
+addition, we divided the 60,000 examples into two equal size
+non-overlapping sets as the unpaired dataset. The images
+from one set keep the original image, and images from
+another set are translated into the edge images.
+In Figures 5 and 6 we can see the process of image
+imputation. Figure 5 shows the imputation of view Y. Once
+the training is complete G1(X) creates the initial rough
+approximation via the domain mapping. Then AE(G1(X))
+cleans up the image to give the final imputed image. The
+same process is followed in figure 6 except imputing the Y
+view, it imputes the X view.
+Figure 5: X ? Y imputation.
+Figure 6: Y ? X imputation.
+We can see just the data in Figure 7 for this same
+imputation. In part (a) we impute Y from X, and in part (b)
+we impute X from Y. In both parts of the figure the initial
+view is on the left, and the ground truth is on the right. The
+two middle columns show the reconstruction from just the
+domain mapping, and then after denoising.
+Only paired data vs all data In Table I we can see
+how using both paired and unpaired data reduces Root-
+Mean-Square Error (RMSE), a metric for a comprehensive
+(a) Outputs from X ? Y . (b) Outputs from Y ? X .
+Figure 7: VIGAN is able to impute bidirectionally, i.e. the
+missing view, regardless of the side which is missing, is able
+to be reconstructed.
+Figure 8: Several examples of X ? Y and Y ? X .
+evaluation. When the all data option is used it is trained
+in the multi-stage fashion where first unpaired data is used
+during model training, followed by training with pairs. Based
+on our initial experiments it appears to validate our original
+hypothesis that imputing the view with a domain mapping
+first gives a good enough approximation that the autoencoder
+can improve upon.
+Comparison with other methods In order to give our
+method faithful competition we compared VIGAN to sev-
+eral of the leading methods for domain mapping including
+pix2pix, CycleGAN and a multi-modal autoencoder. We
+show both sides of imputation X ? Y and Y ? X in figure
+8, along with RMSE in table I. Unsurprisingly, the multi-
+modal autoencoder has a difficult time as it must only use
+Table I: We ran VIGAN against 3 other models, and VIGAN
+had the smallest root mean square error (RMSE).
+RMSE
+Methods Data V1 ? V2 V2 ? V1 Average
+Multimodal AE Paired 5.46 6.12 5.79
+pix2pix Paired 4.75 3.49 4.12
+CycleGAN All data? 4.58 3.38 3.98
+VIGAN All data? 4.52 3.16 3.84
+?Paired data and Unpaired data.
+paired information, which is a smaller subset of the available
+data. Moreover, it has to model the domain transferring along
+with the denoising which is challenging. CycleGAN and
+pix2pix are comparable however as they don’t have a method
+to deal with the noise. From the results, VIGAN produces
+sharper images.
+B. Healthcare numerical data
+We briefly touched upon the importance of missing
+views in healthcare data, and will now apply VIGAN to
+a very important problem, substance use disorders (SUDs).
+To assist the diagnosis of SUDs, DSM-V [35] describes
+11 criteria (symptoms), which can be clustered into four
+groups: impaired control, social impairment, risk use and
+pharmacological criteria. Subjects who had exposure to
+a substance (say cocaine) was evaluated using these 11
+criteria, which leads to the diagnosis of cocaine use disorder.
+Subjects who had never been exposed to a substance, their
+symptoms related to using this substance are considered
+unknown, or in other word missing. Due to the comorbidity
+among different SUDs, many of their clinical presentations
+are similar [36, 37]. Thus, missing symptoms from one
+substance use can be inferred from their symptoms resulted
+from the use of another substance. Having the capability
+of inferring missing symptoms is of great importance. For
+example, subjects have to be excluded from association
+study of the use disorder of a substance that they had
+no exposure due to missing phenotype, even though their
+genetic data is available [38, 39]. The increased sample
+size after missing being imputed could greatly enhance
+the detection power of the association study. Considering
+the set of symptoms from the use of one substance as a
+modality (view), VIGAN fits perfectly to solve this symptom
+inference problem. In our experiment, we applied VIGAN
+to two datasets: cocaine-opioid and alcohol-cannabis. With
+first dataset, we aimed to fit model that infers missing
+cocaine symptoms from known opioid symptoms, and vis
+versa. Similarly with second dataset, we aimed to build
+model mapping between symptoms of alcohol and cannabis.
+A total of 12,158 subjects were aggregated from family
+and case-control based genetic studies of four SUDs, includ-
+ing cocaine use disorder (CUD), opioid use disorder (OUD),
+alcohol use disorder (AUD) and cannabis use disorder
+(CUD). Subjects were recruited at five sites: Yale University
+School of Medicine (N = 5,836, 48.00%), University of
+Connecticut Health Center (N = 3,808, 31.32%), University
+of Pennsylvania Perelman School of Medicine (N = 1,725,
+14.19%), Medical University of South Carolina (N = 531,
+4.37%), and McLean Hospital (N = 258, 2.12%). The
+institutional review board at each site approved the study
+protocol and informed consent forms. The National Institute
+on Drug Abuse and the National Institute on Alcohol Abuse
+and Alcoholism each provided a Certificate of Confiden-
+tiality to protect participants. Subjects were paid for their
+Table II: Sample size by substance exposure and race.
+African America European America Other
+Cocaine 3,994 3,696 655
+Opioid 1,496 3,034 422
+Cocaine or Opioid 4,104 3,981 695
+Cocaine and Opioid 1,386 2,749 382
+Alcohol 4,911 5,606 825
+Cannabis 4,839 5,153 794
+Alcohol or Cannabis 5,333 5,842 893
+Alcohol and Cannabis 4,417 4,917 726
+participation. Out of the total 12,158 subjects, there were
+8,786 exposed to cocaine or opioid or both, and 12,075
+exposed to alcohol or cannabis or both. Details regarding
+the sample size in the experiment can be found in Table II.
+The sample included 2,600 subjects from 1,109 small
+nuclear families (SNFs) and 9,558 unrelated individuals.
+The self-reported population distribution of the sample
+was 48.22% European-American (EA), 44.27% African-
+American (AA), 7.45% other race. The majority of the
+sample (58.64%) was never married; 25.97% was widowed,
+separated, or divorced; and 15.35% was married. Few sub-
+jects (0.06%) had grade school only; 32.99% had some high
+school, but no diploma; 25.46% completed high school only;
+and 41.27% received education beyond high school.
+Symptoms of all subjects were obtained through admin-
+istration of the Semi-Structured Assessment for Drug De-
+pendence and Alcoholism (SSADDA), a computer-assisted
+interview comprised of 26 sections (including sections for
+both cocaine and opioid) that yields diagnoses of various
+SUDs and Axis I psychiatric disorders, as well as antisocial
+personality disorder [40, 41]. The reliability of the individ-
+ual symptom ranged from ? = 0.47 ? 0.60 for cocaine,
+0.56?0.90 for opioid, 0.53?0.70 for alcohol, and 0.30?0.55
+for cannabis [41].
+For both datasets, 200 subjects exposed to both substances
+were reserved and used as validation set to determine the
+optimal number of layers and number of nodes in each layer.
+300 subjects with both substance exposure were reserved,
+used as testing set and to report all our results. All the rest
+subjects in the dataset were used to train model. During
+either validation or testing, we set one view to be missing
+and imputed it using the trained VIGAN and data from the
+other view.
+Reconstruction quality
+As can be seen in Tables III and IV , we compared with
+matrix completion [42], multimodal AE [14], pix2pix [23]
+and CycleGAN [15]. Our method is able to recover missing
+data fairly well while under the whole missing view condi-
+tion. The accuracy metric used here is Hamming distance.
+Hamming distance is an edit distance that calculates the
+number of changes that need to be made to turn string 1
+of length x into string 2 also of length x. Additionally, we
+observed that the accuracy of reconstruction using both di-
+rections is always higher than the other methods. Moreover,
+Table III: Data 1: V iew1 = Cocaine and V iew2 = Opioid.
+Hamming distance is used as the metric to assess perfor-
+mance of the imputed binary data.
+Accuracy (%)
+Methods Data V1 ? V2 V2 ? V1 Average
+Matrix Completion Paired 43.85 48.13 45.99
+Multimodal AE Paired 56.55 53.72 55.14
+pix2pix Paired 78.27 65.51 71.89
+CycleGAN All data? 78.62 72.78 75.70
+VIGAN All data? 83.82 76.24 80.03
+?Paired data and Unpaired data.
+Table IV: Data 2: V iew1 = Alcohol and V iew2 = Cannabis.
+Accuracy (%)
+Methods Data V1 ? V2 V2 ? V1 Average
+Matrix Completion Paired 44.64 43.02 43.83
+Multimodal AE Paired 53.16 54.22 53.69
+pix2pix Paired 57.18 65.05 61.12
+CycleGAN All data? 56.60 67.31 61.96
+VIGAN All data? 58.42 70.58 64.50
+?Paired data and Unpaired data.
+our method appears to be more stable regardless of which
+direction the imputation happens.
+Only paired data vs all data Tables III and IV shows
+some results comparing models that used paired datasets
+like multimodal autoencoder and pix2pix against methods
+that utilized unpaired data during training. Given the higher
+accuracy we achieved, this supports our initial hypothesis
+that not only does the unpaired data not harm the missing
+imputation, but actually helps give an initial approximation
+to the multi-modal autoencoder for fine tuning.
+Comparison with CycleGAN Since we used CycleGAN
+as the foundation of VIGAN it was very important that
+we compare the performance of this model to ours. While
+CycleGAN did a good job in the image-to-image domain
+transfer problem it struggled more on numeric data. This
+is where the multi-modal autoencoder acting as a denoising
+mechanism gives its benefit.
+Generalization of the model While this model only
+contained bi-modal data, it is certainly possible to extend
+to a true multi-modal model. The initial extension of the
+CycleGAN to a tri-modal model which is similar with the
+TripleGAN [43]. Extending the model would also mean
+constructing and pre-training the appropriate multi-modal
+autoencoders. However, what this now does is give a model
+that can impute multiple modes and is scalable.
+Scalability While there are multiple takeaways from both
+the numeric and image imputation results, perhaps one of
+the most important aspects is the scalability of the VIGAN
+model. VIGAN can run regardless of the size of the data.
+With healthcare records in the hundreds of millions it is very
+important the be able to impute any missing data accurately.
+As was discussed in the matrix completion section, imputing
+missing values in large datasets is not possible, while
+training VIGAN to get competitive results took us a few
+hours at most on a Tesla K40 GPU.
+V. CONCLUSION
+In this paper we have introduced a new model based on
+generative adversarial networks for missing view imputation
+called VIGAN. This model is trained in a multi-stage
+fashion and includes two base models consisting of a cycle-
+consistent adversarial network, CycleGAN, and a multi-
+modal autoencoder that acts as a denoiser for the initial ap-
+proximation generated by the CycleGAN. We demonstrated
+the efficacy of our model qualitatively on two datasets: a
+health based numeric one, and an image dataset MNIST.
+Not only are the results achieved better than competing
+models, but the method is also scalable as training simply
+depends on batch size. As this field is rapidly developing
+we will continue to refine the model while testing it against
+newer models such as the domain transfer network [26]. In
+the future we hope to extend the method from a bimodal
+imputation to model to a true multimodal imputation model
+capable of handling disparate types of data, while allowing
+the ability to see how view importance impacts imputation.
+ACKNOWLEDGMENT
+We acknowledge the support of NVIDIA Corporation with
+the donation of a Tesla K40C GPU, and the support from
+the NIH R01DA037349 and K02DA043063 grants and the
+NSF IIS-1718738 grant. The authors would like to thank
+Xia Xiao for many helpful discussions, and Xinyu Wang
+for helping with the experiments.
+REFERENCES
+[1] O. Troyanskaya, M. Cantor, G. Sherlock, P. Brown, T. Hastie,
+R. Tibshirani, D. Botstein, and R. B. Altman, “Missing value
+estimation methods for dna microarrays,” Bioinformatics,
+vol. 17, no. 6, pp. 520–525, 2001.
+[2] A. W.-C. Liew, N.-F. Law, and H. Yan, “Missing value impu-
+tation for gene expression data: computational techniques to
+recover missing data from available information,” Briefings
+in bioinformatics, vol. 12, no. 5, pp. 498–513, 2010.
+[3] A. Trivedi, P. Rai, H. Daume? III, and S. L. DuVall, “Multiview
+clustering with incomplete views,” in NIPS Workshop, 2010.
+[4] J.-F. Cai, E. J. Cande?s, and Z. Shen, “A singular value
+thresholding algorithm for matrix completion,” SIAM Journal
+on Optimization, vol. 20, no. 4, pp. 1956–1982, 2010.
+[5] E. J. Cande?s and B. Recht, “Exact matrix completion via
+convex optimization,” Foundations of Computational mathe-
+matics, vol. 9, no. 6, p. 717, 2009.
+[6] E. J. Candes and Y. Plan, “Matrix completion with noise,”
+Proceedings of the IEEE, vol. 98, no. 6, pp. 925–936, 2010.
+[7] Y. Luo, T. Liu, D. Tao, and C. Xu, “Multiview matrix comple-
+tion for multilabel image classification,” IEEE Transactions
+on Image Processing, vol. 24, no. 8, pp. 2355–2368, 2015.
+[8] S. Bhadra, S. Kaski, and J. Rousu, “Multi-view kernel com-
+pletion,” Machine Learning, vol. 106, no. 5, pp. 713–739,
+2017.
+[9] D. Williams and L. Carin, “Analytical kernel matrix comple-
+tion with incomplete multi-view data,” in Proceedings of the
+ICML workshop on learning with multiple views, 2005.
+[10] C. Hong, J. Yu, J. Wan, D. Tao, and M. Wang, “Multimodal
+deep autoencoder for human pose recovery,” IEEE Transac-
+tions on Image Processing, vol. 24, no. 12, pp. 5659–5670,
+2015.
+[11] P. Vincent, H. Larochelle, Y. Bengio, and P.-A. Manzagol,
+“Extracting and composing robust features with denoising
+autoencoders,” in Proceedings of the 25th international con-
+ference on Machine learning. ACM, 2008, pp. 1096–1103.
+[12] W. Wang, R. Arora, K. Livescu, and J. Bilmes, “On deep
+multi-view representation learning,” in Proceedings of the
+32nd International Conference on Machine Learning (ICML-
+15), 2015, pp. 1083–1092.
+[13] A. M. Elkahky, Y. Song, and X. He, “A multi-view deep
+learning approach for cross domain user modeling in recom-
+mendation systems,” in Proceedings of the 24th International
+Conference on World Wide Web. International World Wide
+Web Conferences Steering Committee, 2015, pp. 278–288.
+[14] J. Ngiam, A. Khosla, M. Kim, J. Nam, H. Lee, and A. Y.
+Ng, “Multimodal deep learning,” in Proceedings of the 28th
+international conference on machine learning (ICML-11),
+2011, pp. 689–696.
+[15] J.-Y. Zhu, T. Park, P. Isola, and A. A. Efros, “Unpaired
+image-to-image translation using cycle-consistent adversarial
+networks,” arXiv preprint arXiv:1703.10593, 2017.
+[16] R. Mazumder, T. Hastie, and R. Tibshirani, “Spectral regu-
+larization algorithms for learning large incomplete matrices,”
+Journal of machine learning research, vol. 11, no. Aug, pp.
+2287–2322, 2010.
+[17] A. M. Buchanan and A. W. Fitzgibbon, “Damped newton
+algorithms for matrix factorization with missing data,” in
+Computer Vision and Pattern Recognition, 2005. CVPR 2005.
+IEEE Computer Society Conference on, vol. 2. IEEE, 2005,
+pp. 316–322.
+[18] D. E. Rumelhart, G. E. Hinton, and R. J. Williams, “Learning
+internal representations by error propagation,” California Univ
+San Diego La Jolla Inst for Cognitive Science, Tech. Rep.,
+1985.
+[19] G. E. Hinton and R. R. Salakhutdinov, “Reducing the dimen-
+sionality of data with neural networks,” science, vol. 313, no.
+5786, pp. 504–507, 2006.
+[20] N. Srivastava and R. R. Salakhutdinov, “Multimodal learn-
+ing with deep boltzmann machines,” in Advances in neural
+information processing systems, 2012, pp. 2222–2230.
+[21] I. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu, D. Warde-
+Farley, S. Ozair, A. Courville, and Y. Bengio, “Generative ad-
+versarial nets,” in Advances in neural information processing
+systems, 2014, pp. 2672–2680.
+[22] T. Kim, M. Cha, H. Kim, J. Lee, and J. Kim, “Learning to
+discover cross-domain relations with generative adversarial
+networks,” arXiv preprint arXiv:1703.05192, 2017.
+[23] P. Isola, J.-Y. Zhu, T. Zhou, and A. A. Efros, “Image-
+to-image translation with conditional adversarial networks,”
+arXiv preprint arXiv:1611.07004, 2016.
+[24] Z. Yi, H. Zhang, P. T. Gong et al., “Dualgan: Unsupervised
+dual learning for image-to-image translation,” arXiv preprint
+arXiv:1704.02510, 2017.
+[25] M.-Y. Liu and O. Tuzel, “Coupled generative adversarial
+networks,” in Advances in neural information processing
+systems, 2016, pp. 469–477.
+[26] Y. Taigman, A. Polyak, and L. Wolf, “Unsupervised cross-
+domain image generation,” arXiv preprint arXiv:1611.02200,
+2016.
+[27] J. Johnson, A. Alahi, and L. Fei-Fei, “Perceptual losses for
+real-time style transfer and super-resolution,” in European
+Conference on Computer Vision. Springer, 2016, pp. 694–
+711.
+[28] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning
+for image recognition,” in Proceedings of the IEEE conference
+on computer vision and pattern recognition, 2016, pp. 770–
+778.
+[29] D. Ulyanov, A. Vedaldi, and V. Lempitsky, “Instance nor-
+malization: The missing ingredient for fast stylization,” arXiv
+preprint arXiv:1607.08022, 2016.
+[30] C. Ledig, L. Theis, F. Husza?r, J. Caballero, A. Cunningham,
+A. Acosta, A. Aitken, A. Tejani, J. Totz, Z. Wang et al.,
+“Photo-realistic single image super-resolution using a gener-
+ative adversarial network,” arXiv preprint arXiv:1609.04802,
+2016.
+[31] C. Li and M. Wand, “Precomputed real-time texture synthesis
+with markovian generative adversarial networks,” in European
+Conference on Computer Vision. Springer, 2016, pp. 702–
+716.
+[32] D. Kingma and J. Ba, “Adam: A method for stochastic
+optimization,” arXiv preprint arXiv:1412.6980, 2014.
+[33] “Pytorch: Tensors and dynamic neural networks in python
+with strong gpu acceleration,” http://pytorch.org, 2017.
+[34] Y. LeCun, “The mnist database of handwritten digits,”
+http://yann. lecun. com/exdb/mnist/, 1998.
+[35] American Psychiatric Association, DIAGNOSTIC AND STA-
+TISTICAL MANUAL OF MENTAL DISORDERS, FIFTH
+EDITION. Arlington, VA, American Psychiatric Association,
+2013.
+[36] R. Hammersley, A. Forsyth, and T. Lavelle, “The criminality
+of new drug users in glasgow,” Addiction, vol. 85, no. 12, pp.
+1583–1594, 1990.
+[37] J. C. Ball and A. Ross, The effectiveness of methadone main-
+tenance treatment: patients, programs, services, and outcome.
+Springer Science & Business Media, 2012.
+[38] J. Sun, H. R. Kranzler, and J. Bi, “An Effective Method
+to Identify Heritable Components from Multivariate Pheno-
+types,” PLoS ONE, vol. 10, no. 12, pp. 1–22, 2015.
+[39] J. Gelernter, H. R. Kranzler, R. Sherva, R. Koesterer, L. Al-
+masy, H. Zhao, and L. a. Farrer, “Genome-wide association
+study of opioid dependence: Multiple associations mapped
+to calcium and potassium pathways,” Biological Psychiatry,
+vol. 76, pp. 66–74, 2014.
+[40] A. Pierucci-Lagha, J. Gelernter, R. Feinn, J. F. Cubells,
+D. Pearson, A. Pollastri, L. Farrer, and H. R. Kranzler,
+“Diagnostic reliability of the semi-structured assessment for
+drug dependence and alcoholism (SSADDA),” Drug and
+Alcohol Dependence, vol. 80, no. 3, pp. 303–312, 2005.
+[41] A. Pierucci-Lagha, J. Gelernter, G. Chan, A. Arias, J. F.
+Cubells, L. Farrer, and H. R. Kranzler, “Reliability of DSM-
+IV diagnostic criteria using the semi-structured assessment
+for drug dependence and alcoholism (SSADDA),” Drug and
+Alcohol Dependence, vol. 91, no. 1, pp. 85–90, 2007.
+[42] J. Wright, A. Ganesh, S. Rao, Y. Peng, and Y. Ma, “Robust
+principal component analysis: Exact recovery of corrupted
+low-rank matrices via convex optimization,” in Advances in
+neural information processing systems, 2009, pp. 2080–2088.
+[43] C. Li, K. Xu, J. Zhu, and B. Zhang, “Triple generative
+adversarial nets,” arXiv preprint arXiv:1703.02291, 2017.

@@ -1,0 +1,1275 @@
+ar
+X
+iv
+:1
+70
+8.
+07
+58
+0v
+1 
+ [
+cs
+.G
+T
+] 
+ 2
+5 
+A
+ug
+ 2
+01
+7
+Working Paper
+Achieving Proportional Representation via Voting
+Haris Aziz · Barton Lee
+Abstract Proportional representation (PR) is often discussed in voting settings as a
+major desideratum. For the past century or so, it is common both in practice and in
+the academic literature to jump to STV (Single Transferable Vote) as the solution for
+achieving PR. Some of the most prominent electoral reform movements around the
+globe are pushing for the adoption of STV.
+It has been termed a major open problem to design a voting rule that satisfies the
+same PR properties as STV and better monotonicity properties. We present a rule
+called EAR (Expanding Approvals Rule) that satisfies properties stronger than the
+central PR axiom satisfied by STV, can handle indifferences in a convenient and com-
+putationally efficient manner, and also satisfies better candidate monotonicity proper-
+ties. In view of this, our proposed rule seems to be a compelling solution for achieving
+proportional representation in voting settings.
+Keywords committee selection · multiwinner voting · proportional representation ·
+single transferable vote.
+JEL Classification: C70 · D61 · D71
+1 Introduction
+Of all modes in which a national representation can possibly be constituted,
+this one [STV] affords the best security for the intellectual qualifications de-
+sirable in the representatives—John Stuart Mill (Considerations on Represen-
+tative Government, 1861).
+A major unsolved problem is whether there exist rules that retain the impor-
+tant political features of STV and are also more monotonic—Woodall (1997).
+H. Aziz · B. Lee
+Data61, CSIRO and UNSW, Sydney 2052 , Australia
+Tel.: +61-2-8306 0490
+Fax: +61-2-8306 0405
+E-mail: {haris.aziz,barton.lee}@unsw.edu.au
+2 Haris Aziz, Barton Lee
+We consider a well-studied voting setting in which n voters express ordinal prefer-
+ences over m candidates and based on the preferences k ? m candidates are selected.
+The candidates may or may not be from particular parties but voters express prefer-
+ences directly over individual candidates.1 This kind of voting problem is not only
+encountered in parliamentary elections but to form any kind of representative body.
+When making such a selection by a voting rule, a desirable requirement is that of
+proportional representation. Proportional representation stipulates that voters should
+get representation in a committee or parliament according to the strengths of their
+numbers. It is widely accepted that proportional representation is the fairest way to
+reflect the diversity of opinions among the voters.2
+For the last 120 years or so, the most widely used and accepted way to achieve it
+is via STV—single transferable vote (Black, 1958; Tideman and Richardson, 2000)
+and its several variants. In fact STV is used for elections in several countries in-
+cluding Australia, Ireland, India, and Pakistan. It is also used to select representative
+committees in hundreds of settings including professional organisations, scientific or-
+ganizations, political parties, schools groups, and university student councils all over
+the globe.3
+The reason for the widespread adoption of STV is partly due to the fact that it
+has been promoted to satisfy proportional representation axioms. In particular, STV
+satisfies a key PR axiom called PSC which is the abbreviation for Proportionality for
+Solid Coalition (Tideman and Richardson, 2000; Woodall, 1994). Tideman (1995)
+argues that “It is the fact that STV satisfies PSC that justifies describing STV as a
+system of proportional representation.” Woodall (1997) also calls the property the
+“essential feature of STV, which makes it a system of proportional representation.”
+Dummett (1984) motivated PSC as a minority not requiring to coordinate its report
+and that it should deserve some high preferred candidates to be selected as long as
+enough voters are ‘solidly committed to such candidates.’ PSC captures the idea that
+as long as voters have the same top candidates (possibly in different ordering), they
+do not need to coordinate their preferences to get a justified number of such candi-
+dates selected. Voters from the same party not having to coordinate their reports as to
+maximize the number of winners from their own party can be viewed as a weak form
+of group-strategyproofness. PSC can also be seen as a voter’s vote not being wasted
+due to lack of coordination with like-minded voters. PSC has been referred to as “a
+sine qua non for a fair election rule” by Woodall (1994). 4
+Although STV is not necessarily the only rule satisfying PR properties, it is syn-
+onymous with proportional representation in academia and policy circles. The out-
+1 The setting is referred to as a preferential voting system.
+2 Proportional representation may be the fairest way for representation but it also allows for extreme
+group to have some representation at least when the group is large enough. PR also need not be the most
+effective approach to a stable government. Black (1958) wrote that “It [PR] makes it difficult to form a
+cabinet which can command a parliamentary majority and so makes for weak government.”
+3 Notable uses of STV include Oscar nominations, internal elections of the British Liberal Democrats,
+and selection of Oxford Union, Cambridge Union, and Harvard/Radcliffe Undergraduate Councils.
+4 There are two PSC axioms that differ in only whether the Hare quota is used or whether the Droop
+quota is used. The one with respect to the Droop quota has also been referred to as DPC (Droop’s propor-
+tionality criterion) (Woodall, 1994). Woodall (1994) went as far as saying that “I assume that no member
+of the Electoral Reform Society will be satisfied with anything that does not satisfy DPC.”
+Achieving Proportional Representation via Voting 3
+come of STV can also be computed efficiently which makes it suitable for large scale
+elections. Another reason for the adoption of STV is historical. Key figures proposed
+ideas related to STV or pushed for the adoption of STV. The ideas behind STV can
+be attributed to several thinkers including C. Andrae, T. Hare, H. R. Droop, and T. W.
+Hill. For a detailed history of the development of STV family of rules, please see the
+article by Tideman (1995). In a booklet, Aiyar (1930) explains the rationale behind
+different components of the STV rule. STV was supported by influential intellectu-
+als such as John Stuart Mill who placed STV “among the greatest improvements yet
+made in the theory and practice of government.” Bowler and Grofman (2000) note
+the British influence on the spread of STV among countries with historical associa-
+tion with Great Britain.
+With historical, normative, and computational motivation behind it, STV has be-
+come the ‘go to’ rule for PR and has strong support.5 It is also vigorously promoted
+by prominent electoral reform movements across the globe including the Proportional
+Representation Society of Australia (http://www.prsa.org.au) and the Electoral
+Reform Society (https://www.electoral-reform.org.uk).
+Despite the central position of STV, it is not without some flaws. It is well-
+understood that it violates basic monotonicity properties even when selecting a single
+candidate (see e.g., Zwicker, 2016). Increasing the ranking of the winning candidate
+may result in the candidate not getting selected. STV is also typically defined for
+strict preferences which limits its ability to tackle more general weak orders. There
+are several settings where voters may be indifferent between two candidates because
+the candidates have the same characteristics that the voter cares about. It could also
+be that the voter does not have the cognitive power or time to distinguish between two
+candidates and does not wish to break ties arbitrarily. It is not clearly resolved in the
+literature how STV can be extended to handle weak orders without compromising on
+its computational efficiency or some of the desirable axiomatic properties it satisfies.6
+The backdrop of this paper is that improving upon STV in terms of both PR as well
+as monotonicity has been posed as a major challenge (Woodall, 1997).
+Contributions We propose a new voting rule called EAR (Expanding Approvals Rule)
+that has several advantages. (1) It satisfies an axiom called Generalised PSC that is
+stronger than PSC. (2) It satisfies some natural monotonicity criteria that are not
+satisfied by STV. (3) It is defined on general weak preferences rather than just for
+strict preferences and hence constitutes a flexible and general rule that finds a suitable
+outcome in polynomial time for both strict and dichotomous preferences. Efficient
+computation of a rule is an important concern when we deal with election of large
+committees.
+5 One notable exception was philosopher Michael Dummett who was a stringent critic of STV. He pro-
+posed a rival PR method called the Quota Borda System (QBS) and pushed its case (Dummett, 1984, 1997).
+However, even he agreed that in terms of achieving PR, “[STV] guarantees representation for minorities
+to the greatest degree to which any possible electoral system is capable of doing” (page 137, Dummett,
+1997).
+6 Hill (2001) and Meek (1994) propose one way to handle indifferences but which leads to an algorithm
+that may take time O(m!).
+4 Haris Aziz, Barton Lee
+Our work also helps understand the specifications under which different variants
+of STV satisfy different PR axioms. Apart from understanding how far STV and
+EAR satisfy PR axioms, one of the conceptual contributions of this paper is to define
+a taxonomy of PR axioms based on PSC and identify their relations with each other.
+In particular, we propose a new axiom for weak preferences called Generalised PSC
+that simultaneously generalises PSC (for strict preferences) and proportional justified
+representation (for dichotomous preferences).
+2 Model and Axioms
+In this section, we lay the groundwork of the paper by first defining the model and
+then formalizing the central axioms by which proportional representation rules are
+judged.
+2.1 Model
+We consider the standard social choice setting with a set of voters N = {1, . . . , n}, a
+set of candidates C = {c1, . . . , cm} and a preference profile %= (%1, . . . ,%n) such that
+each %i is a complete and transitive relation over C. Based on the preference profile,
+the goal is to select a committee W ? C of size k. Since our new rule is defined over
+weak orders rather than strict orders, we allow the voters to express weak orders.
+We write a %i b to denote that voter i values candidate a at least as much as
+candidate b and use ?i for the strict part of %i, i.e., a ?i b iff a %i b but not b %i a.
+Finally, ?i denotes i’s indifference relation, i.e., a ?i b if and only if both a %i b
+and b %i a. The relation %i results in equivalence classes E
+1
+i
+, E2
+i
+, . . . , E
+ki
+i
+for some
+ki such that a ?i a
+? if and only if a ? El
+i
+and a? ? El
+?
+i
+for some l < l?. Often, we
+will use these equivalence classes to represent the preference relation of a voter as
+a preference list i : E1
+i
+, E2
+i
+, . . . , E
+ki
+i
+. If candidate c is in E
+j
+i
+, we say it has rank j in
+voter i’s preference. For example, we will denote the preferences a ?i b ?i c by the
+list i : {a, b}, {c}. If each equivalence is of size 1, the preferences will be called
+strict preferences or linear orders. Strict preferences will be represented by a comma
+separated list of candidates. If for each voter, the number of equivalence classes is
+at most two, the preferences are referred to as dichotomous preferences. When the
+preferences of the voters are dichotomous, the voters can be seen as approving a
+subset of voters. In this case for each voter i ? N, the first equivalence class E1
+i
+is
+also referred to as the approval set Ai. The vector A = (A1, . . . , An) is referred to as
+the ballot profile.
+The model allows for voters to express preference lists that do not include some
+candidates. In that case, the candidates not included in the list will be assumed to
+form the last equivalence class.
+Achieving Proportional Representation via Voting 5
+2.2 PR under Strict Preferences
+In order to understand the suitability of voting rules for proportional representation,
+we recap the central PR axiom from the literature. It was first mentioned and popu-
+larised by Dummett (1984). It is defined for strict preferences.
+Definition 1 (Solid coalition) A set of voters N? is a solid coalition for a set of
+candidates C? if every voter in N? ranks (strictly prefers) every candidates in C? ahead
+of every candidate in C\C?. That is, for all i ? N? and for any c? ? C?
+?c ? C\C? c? ?i c.
+Definition 2 (q-PSC) Let W be an election outcome, q-PSC is satisfied if for all solid
+coalitions N? of size |N?| ? ?q supporting candidate subset C? then
+|W ?C?| ? min{?, |C?|}.
+If q = n/k, then we refer to the property as Hare-PSC. If q = n/(k + 1) + ? for
+small ? > 0 , then we refer to the property as Droop-PSC.7
+There are some reasons to prefer the ‘Droop’ quota n/(k + 1) + ? for small ? > 0.
+Firstly, for k = 1 the use of the Droop quota leads to rules that return a candidate
+that is most preferred by more than half of the voters. Secondly, STV defined with
+respect to the Droop quota ensures slight majorities get slight majority representa-
+tion. Hare-PSC was stated as an essential property that a rule designed for PR should
+satisfy (Dummett, 1984). Droop-PSC is referred to as the Droop Proportionality Cri-
+terion in the literature. When preferences are strict and k = 1, Woodall (1997) refers
+to the restriction of Droop-PSC under these conditions as the majority principle. The
+majority principle requires that if a majority of voters are solidly committed to a set
+of candidates, then one of the candidates must be selected.
+Remark 1 If N? is a solid coalition for C? with |N?| > n/2 then C? is a Condorcet
+committee according to Gehrlein (1985).
+Example 1 Consider the profile with 9 voters and where k = 3. Then the voters
+in set N? = {1, 2, 3} form a solid coalition with respect to Hare quota who solidly
+support candidates in {c1, c2, c3, c4}. The voters in set N
+?? = {4, 5, 6, 7, 8, 9} form a
+solid coalition with respect to Hare quota who solidly support three candidate subsets
+7 Droop PSC is also referred to as Droop’s proportionality criterion (DPC). Technically speaking the
+Droop quota is ?n/(k + 1)? + 1. The exact value n/(k + 1) is referred to as the Hagenbach-Bischoff quota.
+6 Haris Aziz, Barton Lee
+{e1}, {e1, e2} and {e1, e2, e3}.
+1 : c1, c2, c3, c4, ...
+2 : c4, c1, c2, c3, ...
+3 : c2, c3, c4, c1, ...
+4 : e1, e2, e3, ...
+5 : e1, e2, e3, ...
+6 : e1, e2, e3, ...
+7 : e1, e2, e3, ...
+8 : e1, e2, e3, ...
+9 : e2, e1, e3, ...
+One can also define a weak version of PSC. In some works (see eg Elkind et al.,
+2014, 2017; Faliszewski et al., 2017), the weaker version has been attributed to the
+original definition of PSC as defined by Dummett.
+Definition 3 (weak q-PSC) Let W be an election outcome, weak q-PSC is satisfied
+if for all solid coalitions N? of size |N?| ? ?q supporting a candidate subset C? with
+|C?| ? ? then
+|W ?C?| ? min{?, |C?|}.
+Note that q-PSC implies weak q-PSC but the reverse need not hold. We also note
+that under strict preferences and k = 1, if a majority of the voters have the same most
+preferred candidate, then Weak Droop-PSC implies that the candidate is selected.
+We will generalise the PSC property to weak preferences which has not been done
+in the literature.
+2.3 Candidate Monotoncity Axioms
+PR captures the requirement that cohesive groups of voters should get sufficient rep-
+resentation. Another desirable property is candidate monotonicity that requires that
+increased support for a candidate should result in increased chance of the candidate
+being selected. Candidate monotonicity involves the notion of a candidate being re-
+inforced. We say a candidate is reinforced if its relative preference is improved while
+not changing the relative preferences of all other candidates. We are now in a po-
+sition to define standard candidate monotonicity properties of voting rules (see e.g.,
+Elkind et al., 2017; Sanver and Zwicker, 2012). The definitions apply not just to strict
+preferences but also to weak preferences.
+Definition 4 (Candidate Monotonicity)
+– Candidate Monotonicity (CM): if a winning candidate is reinforced, it remains a
+winning candidate.
+Achieving Proportional Representation via Voting 7
+– Rank Respecting Candidate Monotonicity (RRCM): if a winning candidate c is
+reinforced without changing the respective ranks of other winning candidates in
+each voter’s preferences, then c remains a winning candidate.
+– Non-Crossing Candidate Monotonicity (NCCM): if a winning candidate c is re-
+inforced without ever crossing over another winning candidate, then c remains a
+winning candidate.
+– Weak Candidate Monotonicity (WCM): if a winning candidate is reinforced, then
+some winning candidate still remains winning.
+NCCM and WCM are extremely weak properties but STV violates them even for
+k = 1. We observe the following relations between the properties.
+Proposition 1 The following relations hold.
+– CM =? RRCM =? NCCM
+– CM =? WCM
+– Under k = 1, RRCM is equivalent to CM
+– Under dichotomous preferences, RRCM is equivalent to CM.
+Note that if a rule fails CM for k = 1, then it also fails RRCM, NCCM, and WCM.
+3 PR under generalised preference relations
+The notion of a solid coalition and PSC can be generalised to the case of weak pref-
+erences. In this section, we propose a new axiom called generalised PSC which not
+only generalises PSC (that is only defined for strict preferences) but also PJR (pro-
+portional justified representation) a PR axiom that is only defined for dichotomous
+preferences.
+Definition 5 ((Generalised) solid coalition) A set of voters N? is a (generalised)
+solid coalition for a set of candidates C? if every voter in N? ranks (weakly prefers)
+every candidates in C? at least as high as every candidate in C\C?. That is, for all
+i ? N? and for any c? ? C?
+?c ? C\C? c? %i c.
+Definition 6 ((Generalised) q-PSC) Let W be an election outcome, (generalised) q-
+PSC is satisfied if for all (generalised) solid coalitions N? of size |N?| ? ?q supporting
+candidate subset C? then there exists a set C?? ? W with size at least min{?, |C?|} such
+that for all c?? ? C??
+?i ? N? : c?? %i c
+(i,|C? |),
+where c(i,|C
+? |) denotes voter i’s |C?|-th most preferred candidate.
+When q = n/k this defines the (generalised) Hare quota, when q = n/(k + 1) + ?
+for small ? > 0 this defines the (generalised) Droop quota.
+The following example shows that generalised q-PSC is a weak property when
+solid coalitions equal, or just barely exceed, the quota q.
+8 Haris Aziz, Barton Lee
+Example 2 Let N = {1, 2, 3, 4}, C = {a, b, . . . , j} and k = 2,
+%1: c ?1 c
+? ?c, c? ? C
+%2: a ?2 b ?2 . . . ?2 j
+%3: ?3 define in anyway,
+%4: ?4 define in anyway.
+We consider PSC with respect to the Hare quota; that is, q = n/k = 2. There is a
+(generalised) solid coalition N? = {1, 2} with |N?| ? q supporting candidate subset
+C? = {a}. The generalised PSC axiom requires the election of ? = 1 candidates into
+W who are at least as preferred as either voter {1, 2}’s most preferred candidate. Since
+voter 1 is indifferent between all candidates, electing any candidate such as j ? C, will
+satisfy the axiom - this is despite candidate j being voter 2’s strictly least preferred
+candidate.
+Definition 7 ((Generalised) weak q-PSC) Let W be an election outcome, weak
+(generalised) q-PSC is satisfied if for all (generalised) solid coalitions N? of size
+|N?| ? ?q supporting a candidate subset C? : |C?| ? ? then there exists a set C?? ? W
+with size at least min{?, |C?|} such that for all c?? ? C??
+?i ? N? : c?? %i c
+(i,|C? |),
+where c(i,|C
+? |) denotes voter i’s |C?|-th most preferred candidate.
+Generalising PSC to the case of weak preferences is important because
+it provides a useful link with PR properties defined on dichotomous prefer-
+ences. PJR (Proportional Justified Representation) (Sa?nchez-Ferna?ndez et al., 2017b;
+Aziz and Huang, 2016) is a proportional representation property for dichotomous
+preferences (Aziz et al., 2017).
+Recall the following definition of PJR:
+Definition 8 (PJR) A committee W with |W | = k satisfies PJR for a ballot profile
+A = (A1, . . . , An) over a candidate set C if for every positive integer ? ? k there does
+not exists a set of voters N? ? N with |N?| ? ? n
+k
+such that
+?
+?
+?
+?
+i?N?
+Ai
+?
+?
+? ? ? but
+?
+?
+?
+(
+?
+i?N?
+Ai
+)
+?W
+?
+?
+? < ?.
+Proposition 2 Under dichotomous preferences, generalised weak Hare-PSC implies
+PJR.
+Proof. Under dichotomous preferences every voter, say i, has precisely two equiv-
+alence classes which partition the candidate set C. Thus, we can naturally represent
+every voters preference by an (possibly empty) approval ballot Ai representing the
+subset of strictly preferred candidates.
+For the purpose of a contradiction, let W be a committee of size k and suppose
+that Hare-PSC holds but PJR does not. If PJR does not hold, then there must exist a
+set N? of voters and a positive integer ? such that |N?| ? ? n
+k
+and both
+?
+?
+?
+?
+i?N?
+Ai
+?
+?
+? ? ? and
+?
+?
+?
+(
+?
+i?N?
+Ai
+)
+?W
+?
+?
+? < ?. (1)
+Achieving Proportional Representation via Voting 9
+But note that N? is a (generalised) solid coalition for each candidate subset C? ?
+?
+i?N? Ai since every candidate in C
+? is weakly preferred to every candidate in C for
+i ? N?. Since
+?
+?
+?
+?
+i?N? Ai
+?
+?
+? ? ?, we can select a C? with exactly ? candidates so that
+|C?| = ?.
+Thus, if generalised weak Hare-PSC holds then there exists a set C?? ? W with
+size ? min{?, |C?|} = ? such that for all c?? ? C?? there exists i ? N? : c?? % c(i,?).
+But note that for any i ? N? we have c(i,?) ? Ai and hence c
+?? ? Ai. It follows that
+c?? ? W ? Ai and C
+?? ? (
+?
+i?N? Ai) ?W and so
+?
+?
+?
+(
+?
+i?N?
+Ai
+)
+?W
+?
+?
+? ?
+?
+?
+?C?? ?W
+?
+?
+? ? ?,
+which contradicts (1). ??
+Proposition 3 Under dichotomous preferences, PJR implies generalised Hare-PSC.
+Proof. For the purpose of a contradiction, suppose that W is a committee of size k
+which satisfies PJR but not generalised Hare-PSC. If generalised Hare-PSC does not
+hold, then for some positive integer ? there exists a solid coalition N? with |N?| ? ? n
+k
+supporting a candidate subset C? such that for every subset C?? ? W with size at least
+min{?, |C?|} we have for all i ? N? and for all c?? ? C??
+c(i,|C
+? |) ?i c
+??
+. (2)
+Now since N? is a solid coalition for C? of size at least
+?
+n
+k
+? min{?, |C?|}
+n
+k
+,
+and so it must be that
+C? ?
+?
+i?N?
+Ai =?
+?
+?
+?
+?
+i?N?
+Ai
+?
+?
+? ? |C?|.
+By the PJR condition we then have
+?
+?
+?(
+?
+i?N?
+Ai) ?W
+?
+?
+? ? min{?, |C?|}.
+But then defining
+C?? = (
+?
+i?N?
+Ai) ?W,
+provides a contradiction to (2), as required. ??
+Corollary 1 Under dichotomous preferences, PJR, weak generalised Hare-PSC, and
+generalised Hare-PSC are equivalent.
+Since it is known that testing PJR is coNP-complete (Aziz and Huang, 2017), it
+follows that testing generalised PSC and generalised weak PSC is coNP-complete.
+Corollary 2 Testing generalised PSC and generalised weak PSC is coNP-complete
+even under dichotomous preferences.
+On the other hand, PSC and weak PSC can be tested efficiently (please see the
+appendix).
+Figure 1 depicts the relations between the different PR axioms.
+10 Haris Aziz, Barton Lee
+Weak
+Preferences
+Strict
+Preferences
+Dichotomous
+Preferences
+Gen PSC
+Gen weak PSC
+PSC
+PJR weak PSC
+Fig. 1 Relations between properties. An arrow from (A) to (B) denotes that (A) implies (B). For any
+concept A, A with respect to Droop quota is stronger than A with respect to Hare quota.
+4 The Case of STV
+In this section, we define the family of STV rules for instances where voters sub-
+mit strict preferences. The family is formalised as Algorithm 1. STV is a multi-
+round rule in which in each round either a candidate is selected as a winner or one
+candidate is eliminated from the set of potential winners. Depending on the quota
+q and the reweighting rule applied, one can obtain particular STV rules (see e.g.,
+Aleskerov and Karpov, 2013). One of the most common rules is attained when the
+quota is set to the Hare quota and the discrete reweighting is used, this implies that
+a subset of voters of size n/k is removed from the profile once their most preferred
+candidate in the current profile has been selected. STV modifies the preference pro-
+file ? by deleting candidates. We will denote by C(?) the current set of candidates in
+the profile ?. When k = 1, STV is referred to as Instant-Runoff voting (IRV) or as the
+Alternative Vote (AV).
+Example 3 (Illustration of STV) Consider the following profile with 9 voters, k = 3
+and suppose we use Hare-STV with fractional reweighting.
+1 : c1, c2, c3, e1, e2, e3, e4, d1
+2 : c2, c3, c1, e1, e2, e3, e4, d1
+3 : c3, c1, d1, c2, e1, e2, e3, e4
+4 : e1, e2, e3, e4, c1, c2, c3, d1
+5 : e1, e2, e3, e4, c1, c2, c3, d1
+6 : e1, e2, e3, e4, c1, c2, c3, d1
+7 : e1, e2, e3, e4, c1, c2, c3, d1
+8 : e1, e2, e3, e4, c1, c2, c3, d1
+9 : e1, e2, e3, e4, c1, c2, c3, d1
+In the first round e1 is selected and the total weight of the voters in set
+{4, 5, 6, 7, 8, 9} goes down by slightly above 3. Candidate e1 is then removed from
+Achieving Proportional Representation via Voting 11
+Algorithm 1 STV family of Rules
+Input: (N,C,?, k) parametrised by quota q ? ( n
+k+1
+, n
+k
+]. {? is profile of strict prefer-
+ences}
+Output: W ? C such that |W | = k
+1: W ?? ?;
+2: wi ?? 1 for each i ? N
+3: j?? 1
+4: while |W | < k do
+5: if |W | + |C(?)| = k then
+6: return W ? C(?)
+7: end if
+8: if there is a candidate c with plurality support (weight of voters who have c as
+the first ranked candidate) at least q then
+9: Letting the set of voters supporting c be denoted by N?. Modify the weights
+of voters in N? so the total weight of voters in N? decreases by at least q.
+10: Remove c from the profile ?.
+11: W ?? W ? {c}
+12: else
+13: Remove a candidate with the lowest plurality support from the current pref-
+erence profile ?
+14: end if
+15: end while
+16: return W
+the preference profile. In the second round, e2 is selected and the total weight of
+the voters in set {4, 5, 6, 7, 8, 9} is now zero. Candidate e2 is then removed from the
+preference profile. After that since no candidate has support, with respect to current
+weights, of at least q = 3 one candidate is deleted. Candidates e3 and e4 are removed
+in succession as they have plurality score zero with respect to the current voting
+weights. Then candidates c1, c2, c3 all have equal and lowest plurality scores of one,
+due to lexicographic tie-breaking candidates c3 and c2 are removed in succession. At
+that point, c1 has plurality score q = 3 so it is the last candidate selected.
+STV has been claimed to satisfy Proportionality for Solid Coalitions/Droop Pro-
+portionality Criterion (Dummett, 1984; Woodall, 1994). On the other hand, STV vi-
+olates just about every natural monotonicity axiom that has been proposed in the
+literature.
+STV can use fractional reweighting or discrete reweighting. We will show that
+fractional reweighting is crucial for some semblance of PR. Incidentally, fractional
+reweighting is not necessarily introduced to achieve better PR but primarily to min-
+imize the “stochastic aspect” of tie-breaking in STV (pp 32, Tideman, 1995). The
+following result shows that if STV resorts to discrete reweighting then it does not even
+satisfy weak PSC. Discrete reweighting refers to the modification of voter weights in
+Line 9 of Algorithm 1 such that the total weight of voters in N? decreases by some
+integer greater or equal to q.
+12 Haris Aziz, Barton Lee
+Proposition 4 Under strict preferences, STV with discrete reweighting does not sat-
+isfy Weak q-PSC irrespective to whether we use the Hare quota or Droop quota, for
+any q ? ( n
+k+1
+, n
+k
+].
+Proof. Let N = {1, 2, . . . , 10}, C = {c1, . . . , c8}, k = 7 and consider the following
+profile:
+1 : c1, c5, c6, c7, c8, c2, c3, c4
+2 : c2, c5, c6, c7, c8, c1, c3, c4
+3 : c3, c5, c6, c7, c8, c1, c2, c4
+4 : c4, c5, c6, c7, c8, c1, c2, c3
+5 : c5, c6, c7, c8, c1, c2, c3, c4
+6 : c5, c6, c7, c8, c1, c2, c3, c4
+7 : c5, c6, c7, c8, c1, c2, c3, c4
+8 : c5, c6, c7, c8, c1, c2, c3, c4
+9 : c5, c6, c7, c8, c1, c2, c3, c4
+10 : c5, c6, c7, c8, c1, c2, c3, c4
+We use STV with discrete reweighting to select the candidates. Under discrete
+reweighting, the total weights of voters are modified by some integer p ? 2 (refer to
+Line 9 of Algorithm 1). In this proof we focus on the case where p = 2, a similar
+argument can be applied to prove the proposition for larger integer values.
+Applying the STV process, first c5, c6 and c7 are selected. Each time we select
+these candidates, the voting weight of voters in the set {5, 6, 7, 8, 9, 10} goes down
+by 2. Thus the remaining four candidates are to be selected from c1, c2, c3, c4 and c8.
+At this stage candidate c8 has the lowest support of zero and is removed from all
+preference profiles and the list of potentially elected candidates, and hence c8 < W.
+Weak q-PSC requires that at least four candidates from {c5, c6, c7, c8} be selected,
+since 6 ? 4 × q for all q ? (10/8, 10/7], but using discrete reweighting only three
+candidates are selected by STV. ??
+The proof above has a similar argument as Example 1 in
+(Sa?nchez-Ferna?ndez et al., 2017a) that concerns an approval voting setting.
+Next we show that STV satisfies weak PSC with fractional reweighting. We pro-
+vide a formal proof of this statement, under the assumption that the reweighting in
+Line 9 of Algorithm 1 decreases the total voter weight by precisely q.
+Proposition 5 For any q ? ( n
+k+1
+, n
+k
+], under strict preferences STV satisfies weak q-
+PSC
+Proof. Let N? ? N be a solid coalition supporting a set of candidates |C?| ? ? such
+that |N?| ? ?q.
+Now consider the first approval election. Let C(1) be the set of candidates involved
+in this election (i.e. the union of all voters’ first preference). The total weight of all
+voters in N? is T ? ? ?q and the size of C? ? C(1) is ? ?, hence there must exists at
+Achieving Proportional Representation via Voting 13
+least one candidate in C? ? C(1) with support at least q (?). Thus, the deletion aspect
+of STV (Line 13, Algorithm 1) is not applied .
+Note that for all q ? ( n
+k+1
+, n
+k
+], if there exist a candidate with support at least q,
+at some stage, then it must be that strictly less than k candidates have been elected
+into W at this stage. To see this, simply observe that every candidate elected reduces
+the total weight of voters n by precisely q. Thus if at least k candidates were elected
+and there exists a candidate with support at least q this would imply a total initial
+weight of all voters at least kq + q = (k + 1)q which is strictly greater than n. This is
+a contradiction since the total initial weight of all voters is n.
+Returning to (?) it must be that some c ? C? ? C(1) is elected into W at the first
+stage and the total weight of voters in N? is reduced to T ??q ? (??1)q. Consider the
+new set of plurality votes of voters in N?, say C?? ? C? ?C(1). The size of this set C??
+is bounded above by (? ? 1) and the total weight of voters in N? is at least (? ? 1)q,
+hence once again, there must exist at least one candidate in the election with support
+at least q. Noting the previous argument, it must be that |W | < k at this stage and so
+another candidate from C? ? {c} is elected.
+The above process can be iteratively applied ? times - since the first ? preferences
+of every voter in N? is contained in C?. This ensures that ? candidates from C? are
+elected into W. Thus, weak q-PSC is satisfied. ??
+Remark 2 Within the proof above, it can be observed that the deletion aspect of STV
+(Line 13, Algorithm 1) is never applied in the first ? rounds.
+The argument for weak q-PSC is extended to that for q-PSC as follows. Again
+we assume that the reweighting in Line 9 of Algorithm 1 decreases the total voter
+weights by precisely q.
+Proposition 6 For any q ? ( n
+k+1
+, n
+k
+], under strict preferences STV satisfies q-PSC.
+Sketch. Let N? ? N be a solid coalition supporting a set of candidates |C?| such that
+|N?| ? ?q. Note that at most k ? ? candidates can be selected that have no plurality
+contribution by voters in N?. The remaining ? candidates must be selected with some
+contribution by voters in N?. Also note that voters in N? must contribute their weight
+to candidates in C? before they contribute to candidates that come later. They can only
+contribute to candidates after C? once all the candidates in C? have been removed.
+However we argue that at most |C?| ? ? candidates can be deleted from C?. At any
+point when the candidates in N? have voting weight at least ??q and the voters in N?
+form a solid coalition for ?? candidates, then by a similar argument as in proof of the
+previous proposition, all the ?? candidates have to be selected. This implies that at
+most |C?|?? candidates can be deleted from C? and that ? candidates must be selected
+from C?. ??
+5 EAR (Expanding Approvals Rule)
+We now present EAR (Expanding Approvals Rule). The rule utilises the idea of j-
+approval voting whereby every voter is asked to approve their j most preferred can-
+didates, for some positive integer j. At a high level, EAR works as follows.
+14 Haris Aziz, Barton Lee
+An index j is initialised to 1. The voting weight of each voter is initially 1.
+We use a quota q that is between n/(k + 1) and n/k. While k candidates have
+not been selected, we do the following. We perform j-approval voting with
+respect to the voters’ current voting weights. If there exists a candidate c with
+approval support at least a quota q, we select such a candidate with the highest
+support and reduce the weight of all voters who approved of c by a total of q. If
+there are multiple such candidates, we use rank-maximality (defined below)
+to break ties. If there exists no such candidate, we increment j by one and
+repeat until k candidates have been selected.
+The rule is formally specified as Algorithm 2. It is well-defined for weak prefer-
+ences. EAR is a novel rule that has not been formalised or analyzed before. However
+it is based on a combination of several natural ideas that have been used in the design
+of voting rules.
+(i) Candidates are selected in a sequential manner.
+(ii) A candidate needs to have at least n/(k+ 1) (roughly Droop quota) ‘support’ to
+be selected.
+(iii) The voting weight of a voter is reduced if some of her voting weight has al-
+ready been used to select some candidate. The way voting weight is reduced is
+fractional.8
+(iv) We use j-approval voting for varying j. When considering weak orders, we
+adapt j-approval voting so that in j-approval voting, a voter not only approves
+her j most preferred candidates but also any candidate that is at least as pre-
+ferred as the j-th most preferred candidate.
+(v) Among candidates with support at least q, rank maximality is used for the order
+of selection (defined below).
+For any candidate a, its corresponding rank vector is r(a) = (r1(a), . . . , rm(a))
+where r j(a) is the number of voters who have a in his j-th most preferred equivalence
+class. We compare rank vectors lexicographically. One rank vector r = (r1, . . . , rm) is
+better than r? = (r?
+1
+, . . . , r?m) if for the smallest i such that ri , r
+?
+i
+, it must hold that
+ri > r
+?
+i
+.
+In EAR, we have specified how to perform the priority tie-breaking (Step 1) and
+how exactly to do the fractional reweighting (Step 11). However these specifications
+are not critical for satisfying the PR properties of EAR. On the other hand, the default
+of quota of q = n
+k+1
++ 1
+m+1
+(
+? n
+k+1
+? + 1 ? n
+k+1
+)
+is useful to satisfy (Generalised) Droop-
+PSC. The reason for choosing this quota is that q can be viewed as q = n
+k+1
++ ? where
+? is small enough so that that for any ? ? k, ? · q < ? n
+k+1
++ 1. The specific way we
+perform the priority tie-breaking (Step 1) is useful for ensuring that EAR satisfies
+RRCM.
+In the following example, we demonstrate how EAR works.
+8 Fractional reweighting in STV has been referred to as Gregory or ‘senatorial’ (see e.g., Janson, 2016;
+Tideman, 1995)
+Achieving Proportional Representation via Voting 15
+Algorithm 2 EAR
+Input: (N,C,%, k) parametrised by quota q ? ( n
+k+1
+, n
+k
+]. {% can contain weak orders;
+if a voter i expresses her preferences over a subset C? ? C, then C\C? is considered
+the last equivalence class of the voter.}
+Output: W ? C such that |W | = k
+1: Construct a priority ordering L over C that is with respect to rank maximality
+under %. In case of ties, use lexicographic tie-breaking.
+2: Default quota q is set as follows.
+q =
+n
+k + 1
++
+1
+m + 1
+(
+?
+n
+k + 1
+? + 1 ?
+n
+k + 1
+)
+.
+3: C? ?? C; W ?? ?
+4: wi ?? 1 for each i ? N
+5: j?? 1
+6: while |W | < k do
+7: while there does not exist a candidate in C \ W with support at least q in a
+j-approval vote do
+8: j?? j + 1
+9: end while
+10: Among the candidates with weight support at least q in a j-approval election,
+select the candidate c from C? that has highest ranking wrt L. {Voters are asked
+to approve their j most preferred candidates and any candidates that are at least
+as preferred as the j–th most preferred candidate.}
+11: Modify the weights of voters who supported c in the j-approval election. If the
+total support for c is T , then for each i ? N who supported c:
+wi ?? wi ×
+T ? q
+T
+.
+12: W ?? W ? {c}
+13: C? ?? C? \ {c}
+14: end while
+15: return W
+Example 4 (Illustration of EAR) Consider the profile with 9 voters and where k = 3.
+Note that the Droop quota is 9/4 = 2.25.
+1 : c1, c2, c3, e1, e2, e3, e4, d1
+2 : c2, c3, c1, e1, e2, e3, e4, d1
+3 : c3, c1, d1, c2, e1, e2, e3, e4
+4 : e1, e2, e3, e4, c1, c2, c3, d1
+5 : e1, e2, e3, e4, c1, c2, c3, d1
+6 : e1, e2, e3, e4, c1, c2, c3, d1
+7 : e1, e2, e3, e4, c1, c2, c3, d1
+8 : e1, e2, e3, e4, c1, c2, c3, d1
+9 : e1, e2, e3, e4, c1, c2, c3, d1
+16 Haris Aziz, Barton Lee
+In the first round e1 is selected and the total weight of the voters in set
+{4, 5, 6, 7, 8, 9} goes down by slightly above 9/4 = 2.25.
+In the second round, since no other candidate has sufficient weight when we run
+1-approval, we consider 2-approval voting. Under 2-approval, candidate e2 receives
+more than 2.25 support. When e2 is selected, the total weight of the voters in set
+{4, 5, 6, 7, 8, 9} goes down by again slightly above 9/4 = 2.25. At this point the total
+weight of voters in set {4, 5, 6, 7, 8, 9} is at most 1 and no unselected candidate has
+approval support more than 2.25, under 2-approval. So EAR considers 3-approval
+whereby, candidates c1 and c3 both get support 3. Hence EAR selects c1, due to the
+priority ordering L, and the winning committee is {e1, e2, c1}.
+We point out the rule’s outcome can be computed efficiently.
+Proposition 7 EAR runs in polynomial time O(n + m)2.
+Proof. In each round, the smallest j is found for which there are some candidates in
+C \W that have an approval score of at least q. The candidate c with the highest score
+is identified. All voters who approved of c have their weight modified accordingly
+which takes linear time. Hence the whole algorithm takes polynomial time. ??
+A possible criticism of EAR is that the choice of quota as well as reweighting
+makes it complicated enough to not be usable by hand or to be easily understood
+by the general public. However we have shown that without resorting to fractional
+reweighting, STV already fails weak PSC. Secondly, even simpler versions of STV
+elections are best used by the help of computers.
+Since EAR is designed for proportional representation which is only meaningful
+for large enough k, EAR may not be the ideal rule for k = 1. Having said that, we
+mention the following connection with a single-winner rule from the literature.
+Remark 3 For k = 1 and under linear orders with every candidate in the list, EAR is
+equivalent to the fall-back voting rule of Brams and Sanver (2009).
+Under dichotomous preferences and using Hare quota, EAR bears similarity to
+Phragme?n’s first method (also called Enstro?m’s method) described by Janson (2016)
+(page 59). However the latter method when extended to strict preferences does not
+satisfy Hare-PSC. Although EAR has connections with previous rules, extending
+them to the case of multiple-winners and to handle dichotomous, strict and weak pref-
+erences simultaneously and satisfy desirable PR properties requires careful thought.
+We observe some simple properties of the rule. It is anonymous (the names of the
+voters do not matter). It is also neutral as long as lexicographic tie-breaking is not
+required to be used. Under linear orders and when using EAR with the default quota,
+if more than half the voters most prefer a candidate, then that candidate is selected.
+We defer the proof the next section because the statement is implied by a stronger
+statement. We note that using the default quota of EAR is crucial for the majority
+property.
+Achieving Proportional Representation via Voting 17
+6 Proportional Representation and Candidate Monotonicity under EAR
+6.1 Proportional Representation under EAR
+We argue that EAR satisfies the central PR axioms. In order to build intuition, we
+first give an argument that EAR satisfies Droop-PSC under linear orders. We will
+then extend the argument for weak orders.
+Proposition 8 Under linear orders, EAR satisfies Droop-PSC.
+Proof. For the purpose of a contradiction suppose that Droop-PSC is not satis-
+fied for some EAR outcome W. That is, there exists a solid coalition N? such that
+|N?| > ?n/(k + 1) for some candidate subset C? and |W ? C?| < min{?, |C?|}. Let ? be
+the smallest positive integer such that the previous statement holds and let C? be a
+minimally sized candidate subset which N? supports as a solid coalition (?).
+First we claim that the |C?|-approval election must be reached. Suppose not, then
+it must be that |W | = k at some earlier j-approval election where j < |C?|. But if
+|W | = k this implies that after reweighting
+?
+i?N
+wi = n ? kq <
+n
+k + 1
+since q >
+n
+k + 1
+, (3)
+and since C? is minimal (recall (?)) it follows that
+?
+i?N?
+wi > ?
+n
+k + 1
+? (? ? 1)
+n
+k + 1
+=
+n
+k + 1
+. (4)
+This contradicts (3).
+Now, at the |C?|-approval election every voter in N? only supports candidates in C?.
+Under the original weightings
+?
+i?N? wi > ?n/(k + 1), since the EAR elects candidate
+with support at least q and scales down weightings after each elected candidate it is
+clear that at least min{?, |C?|}-candidates from C? must be elected into W, providing
+the contradiction required. ??
+Corollary 3 EAR satisfies Hare-PSC.
+Corollary 4 Under linear orders, EAR with the default quota satisfies the majority
+principle.
+Proof. Under linear orders, Droop-PSC implies the majority principle. ??
+Proposition 9 Under weak orders, EAR satisfies generalised Droop-PSC.
+Proof. Let W be an outcome of the EAR and suppose for the purpose of a contradic-
+tion that generalised Droop-PSC is not satisfied. That is, there exists a positive integer
+? and a solid coalition N? such that |N?| > ?n/(k+ 1) supporting a candidate subset C?
+and for every set C?? ? W with |C??| ? min{?, |C?|} there exists c?? ? C?? such that
+?i ? N? c(i,|C
+? |) ?i c
+??. (5)
+18 Haris Aziz, Barton Lee
+Let ? be the smallest positive integer such that the above statement holds and let C?
+be a minimally sized candidate subset which N? supports (?).
+Let j? be the smallest approval election which include C? in the approvals of all
+voters in N?. We claim that the j?-approval election must be reached. Suppose not,
+then it must be that |W | = k at some earlier j-approval election where j < j?. But if
+|W | = k this implies that after reweighting
+?
+i?N
+wi = n ? kq <
+n
+k + 1
+since q >
+n
+k + 1
+, (6)
+and since C? is minimal (recall (?)) it follows that
+?
+i?N?
+wi > ?
+n
+k + 1
+? (? ? 1)
+n
+k + 1
+=
+n
+k + 1
+. (7)
+This contradicts (6).
+Now, at the j?-approval election every voter in N? supports candidates in C? and
+possibly some other candidates whom are at least as preferred as their |C?|-th most
+preferred candidate. Let C?? be the super-set of C? which is equal to the set of candi-
+dates supported by voters in N?. Note that C?? need not equal C?.
+Under the original weightings
+?
+i?N? wi > ?n/(k + 1), since the EAR elects candi-
+dates with support at least q and scales down weightings after each elected candidate
+it is clear that at least min{?, |C?|} candidates from C?? must be elected into W. But for
+every candidate c?? ? C?? at least one voter weakly prefers c?? to c(i,|C
+? | (by construction
+of C??) which contradicts (5). ??
+Remark 4 Note that EAR satisfying PSC or generalised PSC does not depend on
+what priority tie-breaking is used (Step 1) or how the fractional reweighting is applied
+(Step 11).
+Corollary 5 Under weak orders, EAR satisfies generalised Hare-PSC.
+We get the following corollary of the above corollary.
+Corollary 6 EAR satisfies proportional justified representation.
+Proof. We had observed that under dichotomous preferences, generalised Hare-PSC
+implies PJR. ??
+Since EAR satisfies generalised PSC, it implies that there exists a polynomial-
+time algorithm to compute a committee satisfying generalised PSC. Interestingly, we
+already observed that checking whether a given committee satisfies generalised PSC
+is coNP-complete.
+Achieving Proportional Representation via Voting 19
+6.2 Candidate Monotonicity under EAR
+We show that EAR satisfies rank respecting candidate monotonicity (RRCM). In what
+follows we shall refer to the profile of all voter preferences (weak or strict) as simply
+the profile - often denoted by P.
+Proposition 10 EAR satisfies rank respecting candidate monotonicity (RRCM).
+Proof. Consider a profile P with election outcome W and let ci ? W. Now consider
+another modified profile P? in which ci’s rank is improved while not harming the rank
+of other winning candidates, relative to P, and denote the election outcome under
+P? by W?. Let the order of candidates selected under P be c1, . . . , ci, . . . , c|W |. In the
+modified profile P?, let us trace the order of candidates selected. For the first candidate
+c1, either it is selected first for exactly the same reason as it is selected first under P or,
+alternatively, now c is selected. If c is selected, our claim has been proved. Otherwise,
+the same argument is used for candidates after c1 until ci is selected. ??
+This leads immediately to the following corollaries of the above proposition.
+Corollary 7 EAR satisfies non-crossing candidate monotonicity (NCCM).
+Corollary 8 For k = 1, EAR satisfies candidate monotonicity (CM).
+Corollary 9 For dichotomous preferences, EAR satisfies candidate monotonicity.
+Proof. Consider dichotomous profile P and another profile dichotomous P? in which
+winning candidate ci’s rank is improved while not harming the rank of other winning
+candidates. This implies that the rank of ci is improved while not affecting the ranks
+of any other alternatives including the winning candidates. Since EAR satisfies rank
+respecting candidate monotonicity (RRCM), it follows that for dichotomous prefer-
+ences, EAR satisfies candidate monotonicity. ??
+On the other hand, EAR does not satisfy CM or WCM for k > 1.
+Proposition 11 EAR does not satisfy WCM.
+Proof. Let N = {1, 2, 3, 4}, C = {a, b, . . . , f } and let strict preferences be given by the
+following preference profile P:
+1 : a, c, f , d, ...
+2 : d, b, f , c, ...
+3 : a, d, c, f , ...
+4 : c, e, f , d, ...
+With this preference profile EAR will output the winning committee W = {a, f }.
+Noting that q ? ( 4
+3
+, 2], first a is selected into W and each weight of voters in {1, 2}
+is reduced to
+2?q
+2
+? [0, 1
+3
+). Moving to the 2-approval election no candidate receives
+support of at least q, finally in the 3-approval election the only candidate with support
+at least q is candidate f and hence f is also selected into W.
+20 Haris Aziz, Barton Lee
+Now consider a reinforcement of f by voter 1 (shift f from third to first place),
+this is described by the following preference profile P?:
+1 : f , a, c, d, ...
+2 : d, b, f , c, ...
+3 : a, d, c, f , ...
+4 : c, e, f , d, ...
+With these preferences the winning committee is W? = {d, c}. In the 2-approval elec-
+tion both candidates a and d attain support of at least q, however due to the priority
+ordering L (rank maximality) candidate d is selected into W and each voter in {2, 3}
+has their weight reduced to
+2?q
+2
+? [0, 1
+3
+). In the 3-approval election both candidates
+c and f attain support of at least 2 ? q. Furthermore, c and f are equally ranked
+with respect to the priority ordering L - applying lexicographic tie-breaking leads to
+c being elected into W?. ??
+Remark 5 The above proposition is for any q ? ( n
+k+1
+, n
+k
+], which includes the default
+quota of EAR.
+7 Other Rules
+In the literature, several rules have been defined for PR purposes. We explain how
+EAR is better in its role at achieving a strong degree of PR or has other relative
+merits.
+7.1 QBS (Quota Borda System)
+Dummett (1984) proposed a counterpart to STV called QPS (Quota Preference Score)
+or a more specific version QBS (Quota Borda System). The rule works for complete
+linear orders and is designed to obtain a committee that satisfies Droop-PSC. It does
+so by examining the prefixes (of increasing sizes) of the preference lists of voters and
+checking whether there exists a corresponding solid coalition for a set of voters. If
+there is such a solid set of voters, then the appropriate number of candidates with the
+highest Borda count are selected. 9
+Although Dummett did not show that the rule satisfies some axiom which STV
+does not, he argued that QPS satisfies the Droop proportionality criterion and is some-
+what less “chaotic” than STV. Schulze (2002) argues that QBS is chaotic as well and
+his Example 3 implicitly shows that QBS in fact violates WCM.10 Tideman also feels
+that QBS is overly designed to satisfy Droop-PSC but is not robust enough to go
+beyond this criterion especially if voters in a solid coalition perturb their preferences.
+EAR has some important advantages over QBS: (1) it can easily handle indif-
+ferences whereas QBS is not well-defined for indifferences. In particular, in order for
+9 The description of the rule is somewhat informal and long in the original books of Dummett which
+may have lead to The Telegraph terming the rule as a “a highly complex arrangement” (Telegraph, 2011).
+10 Geller (2002) wrongly claims that QBS satisfies CM.
+Achieving Proportional Representation via Voting 21
+QBS to be suitably generalised for indifferences and to still satisfy generalised PSC, it
+may become an exponential-time rule11, (2) EAR can easily handle voters expressing
+partial lists by implicitly having a last indifference class whereas QBS cannot achieve
+this, (3) EAR rule satisfies an established PR property called PJR for the case for di-
+chotomous preferences. As said earlier, QBS is not well-defined for indifferences and
+even for dichotomous preferences, (4) EAR addresses a criticism of Tideman (2006):
+“Suppose there are voters who would be members of a solid coalition except that
+they included an “extraneous” candidate, which is quickly eliminated among their
+top choices. These voters’ nearly solid support for the coalition counts for nothing
+which seems to me inappropriate.” We demonstrate the last flaw of QBS pointed out
+by Tideman in the explicit example below. EAR does not have this flaw.
+Example 5 Consider the profile with 9 voters and where k = 3.
+1 : c1, c2, c3, e1, e2, e3, e4, d1
+2 : c2, c3, c1, e1, e2, e3, e4, d1
+3 : c3, c1, d1, c2, e1, e2, e3, e4
+4 : e1, e2, e3, e4, c1, c2, c3, d1
+5 : e1, e2, e3, e4, c1, c2, c3, d1
+6 : e1, e2, e3, e4, c1, c2, c3, d1
+7 : e1, e2, e3, e4, c1, c2, c3, d1
+8 : e1, e2, e3, e4, c1, c2, c3, d1
+9 : e1, e2, e3, e4, c1, c2, c3, d1
+In the example, {e1, e2, e3} is the outcome of QBS. Although PSC is not violated for
+voters in {1, 2, 3} but the outcome appears to be unfair to them because they almost
+have a solid coalition. Since they form one-third of the electorate they may feel that
+they deserve that at least one candidate such as c1, c2 or c3 should be selected.
+7.2 Chamberlain-Courant and Monroe
+There are other rules that have been proposed within the class of “fully proportional
+representation” rules such as Monroe (Monroe, 1995) and Chamberlain-Courant
+(CC) (Chamberlin and Courant, 1983). Recently, variants of the rules called Greedy
+Monroe, and Greedy CC (Elkind et al., 2014, 2017) have been discussed. However
+none of the rules satisfy even weak PSC (Elkind et al., 2014, 2017). Even though
+Monroe and CC have been extensively studied with respect to PR, they do not seem
+to satisfy any compelling PR axiom. A reason for this is that voters are assumed to
+not care about how many of their highly preferred candidates are in the committee
+11 QBS checks for PSC requirements and adds suitable number of candidates to represent the corre-
+sponding solid coalition of voters. In order to work for generalised PSC, QBS will have to identify whether
+solid coalitions of voters and meet their requirement which means that it will need to solve the problem of
+testing generalised-PSC which is coNP-complete.
+22 Haris Aziz, Barton Lee
+as long the most preferred is present. Monroe and CC are also NP-hard to com-
+pute (Procaccia et al., 2008).
+7.3 Phragmen’s Methods
+A compelling rule is Phragmen’s Ordered Method (also called SeqPhragmen) that
+can even be generalised for weak orders. Under strict preferences, it satisfies weak
+Droop-PSC (Theorem 16.1 (ii), Janson, 2016). On the other hand, even under strict
+preferences, it does not satisfy Droop-PSC (page 51, Janson, 2016). If we are willing
+to forego PSC, then SeqPhragmen seems to be an exceptionally useful rule for strict
+preferences because unlike STV it satisfies both candidate monotonicity and com-
+mittee monotonicity (Janson, 2016). Committee monotonicity requires that for any
+outcome W of size k, there is a possible outcome W? of size k + 1 such that W? ? W.
+7.4 Phragme?n’s First Method
+Phragme?n’s first method was first considered by Phragme?n but not published or pur-
+sued by him (Janson, 2016). In the method, voters approve of most preferred candi-
+date that has not yet been selected. The candidate with highest weight of approval
+is selected. The total weight of the voters whose approved candidate was selected is
+reduced by the Hare quota if the total weight is more than the Hare quota. Otherwise
+all such voters’ weights are set to zero. The method does not satisfy Hare-PSC even
+under strict preferences. See the example below.
+Example 6 Consider the profile with 9 voters and where k = 3.
+1 : c1, c2, c3,
+2 : c2, c3, c1,
+3 : c3, c1, c3,
+4 : e1, c1, c2, c3,
+5 : e2, c1, c2, c3,
+6 : e3, c1, c2, c3,
+7 : e4, c1, c2, c3,
+8 : e5, c1, c2, c3,
+9 : e6, c1, c2, c3
+In the example, {e1, e2, e3} is a possible outcome of rule. When e1 is selected,
+voter 4’s weight goes to zero. Then when e2 is selected, voter 5’s weight goes to zero.
+Finally e3 is selected. Hare-PSC requires that c1 or c2, or c3 is selected.
+Achieving Proportional Representation via Voting 23
+7.5 Thiele’s Methods
+Thiele’s methods are based on identifying candidates that are most preferred by the
+largest weight of voters. For any voter who has had j candidates selected has current
+weight 1/( j+1). Janson (2016) presented Examples 13.14 and 13.15 that can be used
+to show that Thiele’s methods do not satisfy weak Droop-PSC even under strict or
+under dichotomous preferences.
+7.6 CPO-STV rules
+A class of STV related rules is CPO-STV that was proposed by Tideman (2006). The
+rules try to achieve a PR-type objective while ensuring that for k = 1, a Condorcet
+winner is returned if there exists a Condorcet winner. One particular rule within this
+class is Schulz-STV (Schulze, 2011). All of these rules are only defined for linear or-
+ders and hence do not satisfy generalised PSC. Furthermore, they all require enumera-
+tion of all possible committees and then finding pairwise comparisons between them.
+Hence they are exponential-time rules and impractical for large elections. Tideman
+(1995) writes that CPO-STV is “computationally tedious, and for an election with
+several winners and many candidates it may not be feasible.” Tideman (2006) also
+considered whether CPO-STV rules satisfy Droop-PSC but was unable to prove that
+they satisfy PSC (page 282). In any case, having an exponential-time rule satisfying
+PSC may not be compelling because there exists a trivial exponential-time algorithm
+that satisfies PSC: enumerate committees, check whether they satisfy PSC, and then
+return one of them.
+8 Conclusions
+STV QBS EAR
+Generalised D-PSC / H-PSC no no yes
+Generalised weak D-PSC / H-PSC no no yes
+PJR no no yes
+D-PSC / H-PSC yes yes yes
+Weak D-PSC / H-PSC yes yes yes
+CM no no no
+CM for dichotomous preferences no no yes
+CM for k = 1 no yes yes
+RRCM no no yes
+NCCM no yes yes
+polynomial-time yes yes yes
+Table 1 Properties satisfied by STV, QBS, and EAR. QBS and STV are the only rules from the literature
+that satisfy PSC and are polynomial-time. STV does not satisfy weak PSC if discrete reweighting is used.
+24 Haris Aziz, Barton Lee
+Complexity of Complexity of
+Computing Testing
+PSC in P in P
+Weak PSC in P in P
+Generalised PSC in P coNP-complete
+Generalised weak PSC in P coNP-complete
+Table 2 Computational complexity of computing a committee satisfying a PR property and testing
+whether a given committee satisfies a property.
+In this paper, we undertook a formal study of proportional representation under
+weak preferences. The generalised PSC axiom we proposed generalises several well-
+studied PR axioms in the literature. We then devised a rule that satisfies the axiom.
+Since it has relative merits over STV and Dummet’s QBS (two known rules that sat-
+isfy PSC), it appears to be a compelling solution for achieving PR via voting. At the
+very least, it appears to be another useful option in the toolbox of representative vot-
+ing rules and deserves further consideration and study. The relative merits of STV,
+QBS, and EAR are summarised in Table 1. Our work also sheds light on the com-
+plexity of computing committees that satisfy PR axioms as well the the complexity
+of testing whether a given a committee satisfies a given PR axiom. We found that
+whereas a polynomial-time algorithm such as EAR finds a committee that satisfies
+generalised PSC, testing whether a given committee satisfies properties such as gen-
+eralised PSC or generalised weak PSC is computationally hard. These findings are
+summarised in Table 2.
+Acknowledgments
+Haris Aziz is supported by a Julius Career Award. Barton Lee is supported by a
+Scientia PhD fellowship. The authors thank Bill Zwicker for valuable comments.
+References
+K. V. K. Aiyar. Proportional Representation by The Single Transferable Vote: The
+System and its Methods. The Madras Law Journal Press, 1930.
+F. Aleskerov and A. Karpov. A new single transferable vote method and its axiomatic
+justification. Social Choice and Welfare, 40(13):771–786, 2013.
+H. Aziz and S. Huang. Computational complexity of testing proportional justified
+representation. Technical Report arXiv:1612.06476, arXiv.org, 2016.
+H. Aziz and S. Huang. A polynomial-time algorithm to achieve extended justified
+representation. Technical Report arXiv:1703.10415, arXiv.org, 2017.
+H. Aziz, M. Brill, V. Conitzer, E. Elkind, R. Freeman, and T. Walsh. Justified repre-
+sentation in approval-based committee voting. Social Choice and Welfare, 2017.
+D. Black. The Theory of Committees and Elections. Cambridge University Press,
+1958.
+Achieving Proportional Representation via Voting 25
+S. Bowler and B. Grofman. Introduction: STV as an Embedded Institution. In Elec-
+tions in Australia, Ireland, and Malta under the Single Transferable Vote: Reflec-
+tions on an Embedded Institution, pages 1–14, 2000.
+S. Brams and R. Sanver. Voting systems that combine approval and preference. In The
+Mathematics of Preference, Choice and Order, pages 215–237. Springer, 2009.
+J. R. Chamberlin and P. N. Courant. Representative deliberations and representative
+decisions: Proportional representation and the Borda rule. The American Political
+Science Review, 77(3):718–733, 1983.
+M. Dummett. Voting Procedures. Oxford University Press, 1984.
+M. Dummett. Principles of Electoral Reform. Oxford University Press, 1997.
+E. Elkind, P., Faliszewski, P. Skowron, and A. Slinko. Properties of multiwinner
+voting rules. In Proceedings of the 13th International Joint Conference on Au-
+tonomous Agents and Multi-Agent Systems (AAMAS), pages 53–60, 2014.
+E. Elkind, P. Faliszewski, P. Skowron, and A. Slinko. Properties of multiwinner
+voting rules. Social Choice and Welfare, 2017.
+P. Faliszewski, P. Skowron, A. Slinko, and N. Talmon. Multiwinner voting: A new
+challenge for social choice theory. In U. Endriss, editor, Trends in Computational
+Social Choice, chapter 2. 2017. Forthcoming.
+W. V. Gehrlein. The Condorcet criterion and committee selection. Mathematical
+Social Sciences, 10(3):199–209, 1985.
+C. Geller. Single transferable vote with borda elimination: a new vote-counting sys-
+tem. Technical Report 2201, Deakin University, Faculty of Business and Law,
+2002.
+I. D. Hill. Difficulties with equality of preference. Voting Matters, (13), 2001.
+S. Janson. Phragme?n’s and Thiele’s election methods. Technical Report
+arXiv:1611.08826 [math.HO], arXiv.org, 2016.
+B. L. Meek. A new approach to the single transferable vote, paper ii. Voting Matters,
+(1), 1994.
+B. L. Monroe. Fully proportional representation. The American Political Science
+Review, 89(4):925–940, 1995.
+A. D. Procaccia, J. S. Rosenschein, and A. Zohar. On the complexity of achieving
+proportional representation. Social Choice and Welfare, 30:353–362, 2008.
+L. Sa?nchez-Ferna?ndez, E. Elkind, and M. Lackner. Committees providing ejr can be
+computed efficiently. Technical Report arXiv:1704.00356, arXiv.org, 2017a.
+L. Sa?nchez-Ferna?ndez, E. Elkind, M. Lackner, N. Ferna?ndez, J. A. Fisteus, P. Basanta
+Val, and P. Skowron. Proportional justified representation. In Proceedings of the
+31st AAAI Conference on Artificial Intelligence (AAAI). AAAI Press, 2017b.
+R. Sanver and W. S. Zwicker. Monotonicity properties and their adaptation to irreso-
+lute social choice rules. Social Choice and Welfare, 39:371–398, 2012.
+M. Schulze. On Dummett’s ’Quota Borda System’. Voting matters, 15(3), 2002.
+M. Schulze. Free riding and vote management under proportional representation by
+single transferable vote. 2011.
+The Telegraph. Professor Sir Michael Dummett, December 2011.
+N. Tideman. The single transferable vote. Journal of Economic Perspectives, 9(1):
+27–38, 1995.
+26 Haris Aziz, Barton Lee
+N. Tideman and D. Richardson. Better voting methods through technology: The
+refinement-manageability trade-off in the single transferable vote. Public Choice,
+103(1-2):13–34, 2000.
+T. N. Tideman. Collective Decisions And Voting: The Potential for Public Choice.
+Ashgate, 2006.
+D. Woodall. Properties of preferential election rules. Voting Matters, 3, 1994.
+D. R. Woodall. Monotonicity of single-seat preferential election rules. Discrete
+Applied Mathematics, 77(1):81–98, 1997.
+W. S. Zwicker. Introduction to the theory of voting. In F. Brandt, V. Conitzer, U. En-
+driss, J. Lang, and A. D. Procaccia, editors, Handbook of Computational Social
+Choice, chapter 2. Cambridge University Press, 2016.
+A Complexity of Testing PSC
+Proposition 12 Under linear orders, it can be tested in polynomial time whether a committee satisfies
+PSC.
+Proof. For each i from 1 to m one can look at prefixes of preference lists of sizes i. For these prefixes, we
+can see check whether there exists a corresponding solid coalition. For such solid coalitions we can check
+whether the appropriate number of candidates are selected or not. ??
+The same idea can be used for weak PSC.
+Proposition 13 Under linear orders, it can be tested in polynomial time whether a committee satisfies
+weak PSC.
+Proposition 14 Under dichotomous preference, the problem of testing generalised PSC is coNP-complete.
+Proof. Under dichotomous preferences, generalised PSC is equivalent to PJR. Since Aziz and Huang
+(2017) showed that testing PJR is coNP-complete, it follows that that testing Generalised PSC is coNP-
+complete as well. ??

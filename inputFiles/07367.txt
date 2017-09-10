@@ -1,0 +1,2963 @@
+ar
+X
+iv
+:1
+70
+8.
+07
+36
+7v
+1 
+ [
+m
+at
+h.
+ST
+] 
+ 2
+4 
+A
+ug
+ 2
+01
+7
+MIXING TIME ESTIMATION IN REVERSIBLE MARKOV
+CHAINS FROM A SINGLE SAMPLE PATH
+DANIEL HSU, ARYEH KONTOROVICH, DAVID A. LEVIN, YUVAL PERES,
+AND CSABA SZEPESVA?RI
+Abstract. The spectral gap ?? of a finite, ergodic, and reversible Markov
+chain is an important parameter measuring the asymptotic rate of convergence.
+In applications, the transition matrix P may be unknown, yet one sample of
+the chain up to a fixed time n may be observed. We consider here the problem
+of estimating ?? from this data. Let ? be the stationary distribution of P , and
+?? = minx ?(x). We show that if n = O?
+(
+1
+????
+)
+, then ? can be estimated to
+within multiplicative constants with high probability. When ? is uniform on
+d states, this matches (up to logarithmic correction) a lower bound of ??
+(
+d
+??
+)
+steps required for precise estimation of ??. Moreover, we provide the first
+procedure for computing a fully data-dependent interval, from a single finite-
+length trajectory of the chain, that traps the mixing time tmix of the chain at
+a prescribed confidence level. The interval does not require the knowledge of
+any parameters of the chain. This stands in contrast to previous approaches,
+which either only provide point estimates, or require a reset mechanism, or
+additional prior knowledge. The interval is constructed around the relaxation
+time trelax = 1/??, which is strongly related to the mixing time, and the width
+of the interval converges to zero roughly at a 1/
+?
+n rate, where n is the length
+of the sample path.
+1. Introduction
+This work tackles the challenge of constructing confidence intervals for the mixing
+time of reversible Markov chains based on a single sample path. Let (Xt)t=1,2,... be
+an irreducible, aperiodic time-homogeneous Markov chain on a finite state space
+[d] := {1, 2, . . . , d} with transition matrix P . Under this assumption, the chain
+converges to its unique stationary distribution ? = (?i)
+d
+i=1 regardless of the initial
+state distribution q:
+lim
+t??
+Prq (Xt = i) = lim
+t??
+(qP t)i = ?i for each i ? [d].
+The mixing time tmix of the Markov chain is the number of time steps required for
+the chain to be within a fixed threshold of its stationary distribution:
+tmix := min
+{
+t ? N : sup
+q
+max
+A?[d]
+|Prq (Xt ? A)? ?(A)| ? 1/4
+}
+.(1)
+Here, ?(A) =
+?
+i?A ?i is the probability assigned to set A by ?, and the supremum
+is over all possible initial distributions q. The problem studied in this work is the
+construction of a non-trivial confidence interval Cn = Cn(X1, X2, . . . , Xn, ?) ?
+[0,?], based only on the observed sample path (X1, X2, . . . , Xn) and ? ? (0, 1),
+that succeeds with probability 1? ? in trapping the value of the mixing time tmix.
+This problem is motivated by the numerous scientific applications and machine
+learning tasks in which the quantity of interest is the mean ?(f) =
+?
+i ?if(i) for
+1
+2 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+some function f of the states of a Markov chain. This is the setting of the celebrated
+Markov Chain Monte Carlo (MCMC) paradigm (J. S. Liu 2001), but the problem
+also arises in performance prediction involving time-correlated data, as is common
+in reinforcement learning (Sutton and Barto 1998). Observable, or a posteriori
+bounds on mixing times are useful in the design and diagnostics of these methods;
+they yield effective approaches to assessing the estimation quality, even when a
+priori knowledge of the mixing time or correlation structure is unavailable.
+1.1. Main results. Consider a reversible ergodic Markov chain on d states with
+absolute spectral gap ?? and stationary distribution minorized by ??. As is well-
+known (see, for example, Levin, Peres, andWilmer (2009, Theorems 12.3 and 12.4)),
+(2) (trelax ? 1) ln 2 ? tmix ? trelax ln
+4
+??
+where trelax := 1/?? is the relaxation time. Hence, it suffices to estimate ?? and ??.
+Our main results are summarized as follows.
+(1) In Section 3.1, we show that in some problems n = ?((d log d)/?? + 1/??)
+observations are necessary for any procedure to guarantee constant multi-
+plicative accuracy in estimating ?? (Theorems 3.1 and 3.2). Essentially, in
+some problems every state may need to be visited about log(d)/?? times,
+on average, before an accurate estimate of the mixing time can be provided,
+regardless of the actual estimation procedure used.
+(2) In Section 3.2, we give a point estimator ??? for ??, based an a single sample
+path, and prove in Theorem 3.4 that | ????? ?1| < ? with high probability if the
+path is of length O?(1/(?????
+2)). (The O?(·) notation suppresses logarith-
+mic factors.) We also provide and analyze a point estimator for ??. This
+establishes the feasibility of estimating the mixing time in this setting, and
+the dependence on ?? and ?? in the path length matches our lower bound
+(up to logarithmic factors) in the case where 1/?? = ?(d). We note, how-
+ever, that these results give only a priori confidence intervals that depend
+on the unknown quantities ?? and ??. As such, the results do not lead to
+a universal (chain-independent) stopping rule for stopping the chain when
+the relative error is below the prescribed accuracy.
+(3) In Section 4, we propose a procedure for a posteriori constructing confidence
+intervals for ?? and ?? that depend only on the observed sample path and
+not on any unknown parameters. We prove that the intervals shrink at a
+O?(1/
+?
+n) rate (Theorems 4.1 and 4.2). These confidence intervals trivially
+lead to a universal stopping rule to stop the chain when a prescribed relative
+error is achieved.
+1.2. Related work. There is a vast statistical literature on estimation in Markov
+chains. For instance, it is known that under the assumptions on (Xt)t from above,
+the law of large numbers guarantees that the sample mean ?n(f) :=
+1
+n
+?n
+t=1 f(Xt)
+converges almost surely to ?(f) (Meyn and Tweedie 1993), while the central limit
+theorem tells us that as n ? ?, the distribution of the deviation ?n(?n(f)??(f))
+will be normal with mean zero and asymptotic variance limn?? nVar (?n(f)) (Kip-
+nis and Varadhan 1986).
+Although these asymptotic results help us understand the limiting behavior of
+the sample mean over a Markov chain, they say little about the finite-time non-
+asymptotic behavior, which is often needed for the prudent evaluation of a method
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 3
+or even its algorithmic design (Kontoyiannis, Lastras-Montan?o, and Meyn 2006;
+Flegal and Jones 2011; Gyori and Paulin 2014). To address this need, numerous
+works have developed Chernoff-type bounds on Pr(|?n(f) ? ?(f)| > ?), thus pro-
+viding valuable tools for non-asymptotic probabilistic analysis (Gillman 1998; Leo?n
+and Perron 2004; Kontoyiannis, Lastras-Montan?o, and Meyn 2006; Kontorovich
+and Weiss 2014; Paulin 2015). These probability bounds are larger than the corre-
+sponding bounds for independent and identically distributed (iid) data due to the
+temporal dependence; intuitively, for the Markov chain to yield a fresh draw Xt?
+that behaves as if it was independent of Xt, one must wait ?(tmix) time steps. Note
+that the bounds generally depend on distribution-specific properties of the Markov
+chain (e.g., P , tmix, ??), which are often unknown a priori in practice. Conse-
+quently, much effort has been put towards estimating these unknown quantities,
+especially in the context of MCMC diagnostics, in order to provide data-dependent
+assessments of estimation accuracy (e.g., Garren and R. L. Smith 2000; Jones and
+Hobert 2001; Flegal and Jones 2011; Atchade? 2016; Gyori and Paulin 2014). How-
+ever, these approaches generally only provide asymptotic guarantees, and hence fall
+short of our goal of empirical bounds that are valid with any finite-length sample
+path. In particular, they also fail to provide universal stopping rules that allow the
+estimation of (for example) the mixing time with a fixed relative accuracy.
+Learning with dependent data is another main motivation to our work. Many
+results from statistical learning and empirical process theory have been extended to
+sufficiently fast mixing, dependent data (e.g., Yu 1994; Karandikar and Vidyasagar
+2002; Gamarnik 2003; Mohri and Rostamizadeh 2008; Steinwart and Christmann
+2009; Steinwart, Hush, and Scovel 2009), providing learnability assurances (e.g.,
+generalization error bounds). These results are often given in terms of mixing co-
+efficients, which can be consistently estimated in some cases (McDonald, Shalizi,
+and Schervish 2011). However, the convergence rates of the estimates from McDon-
+ald, Shalizi, and Schervish (2011), which are needed to derive confidence bounds,
+are given in terms of unknown mixing coefficients. When the data comes from a
+Markov chain, these mixing coefficients can often be bounded in terms of mixing
+times, and hence our main results provide a way to make them fully empirical, at
+least in the limited setting we study.
+It is possible to eliminate many of the difficulties presented above when allowed
+more flexible access to the Markov chain. For example, given a sampling oracle that
+generates independent transitions from any given state (akin to a “reset” device),
+the mixing time becomes an efficiently testable property in the sense studied by
+Batu, Fortnow, Rubinfeld, W. D. Smith, and White (2000), Batu, Fortnow, Rubin-
+feld, W. D. Smith, and White (2013), and Bhattacharya and Valiant (2015). Note
+that in this setting, Bhattacharya and Valiant (2015) asked if one could approximate
+tmix (up to logarithmic factors) with a number of queries that is linear in both d and
+tmix; our work answers the question affirmatively (up to logarithmic corrections) in
+the case when the stationary distribution is near uniform. Finally, when one only
+has a circuit-based description of the transition probabilities of a Markov chain over
+an exponentially-large state space, there are complexity-theoretic barriers for many
+MCMC diagnostic problems (Bhatnagar, Bogdanov, and Mossel 2011).
+This paper is based on the conference paper of Hsu, Kontorovich, and Szepesva?ri
+(2015), combined with the results in the unpublished manuscript of Levin and Peres
+(2016).
+4 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+2. Preliminaries
+2.1. Notations. We denote the set of positive integers by N, and the set of the first
+d positive integers {1, 2, . . . , d} by [d]. The non-negative part of a real number x is
+[x]+ := max{0, x}, and ?x?+ := max{0, ?x?}. We use ln(·) for natural logarithm,
+and log(·) for logarithm with an arbitrary constant base > 1. Boldface symbols
+are used for vectors and matrices (e.g., v, M), and their entries are referenced
+by subindexing (e.g., vi, Mi,j). For a vector v, ?v? denotes its Euclidean norm;
+for a matrix M , ?M? denotes its spectral norm. We use Diag(v) to denote the
+diagonal matrix whose (i, i)-th entry is vi. The probability simplex is denoted by
+?d?1 = {p ? [0, 1]d :?di=1 pi = 1}, and we regard vectors in ?d?1 as row vectors.
+2.2. Setting. Let P ? (?d?1)d ? [0, 1]d×d be a d × d row-stochastic matrix for
+an ergodic (i.e., irreducible and aperiodic) Markov chain. This implies there is a
+unique stationary distribution ? ? ?d?1 with ?i > 0 for all i ? [d] (Levin, Peres,
+and Wilmer 2009, Corollary 1.17). We also assume that P is reversible (with
+respect to ?):
+?iPi,j = ?jPj,i, i, j ? [d].(3)
+The minimum stationary probability is denoted by ?? := mini?[d] ?i.
+Define the matrices
+M := Diag(?)P and L := Diag(?)?1/2M Diag(?)?1/2 .
+The (i, j)th entry of the matrix Mi,j contains the doublet probabilities associated
+with P : Mi,j = ?iPi,j is the probability of seeing state i followed by state j
+when the chain is started from its stationary distribution. The matrix M is
+symmetric on account of the reversibility of P , and hence it follows that L is
+also symmetric. (We will strongly exploit the symmetry in our results.) Further,
+L = Diag(?)1/2P Diag(?)?1/2, hence L and P are similar and thus their eigen-
+value systems are identical. Ergodicity and reversibility imply that the eigenvalues
+of L are contained in the interval (?1, 1], and that 1 is an eigenvalue of L with
+multiplicity 1 (Levin, Peres, and Wilmer 2009, Lemmas 12.1 and 12.2). Denote and
+order the eigenvalues of L as
+1 = ?1 > ?2 ? · · · ? ?d > ?1.
+Let ?? := max{?2, |?d|}, and define the (absolute) spectral gap to be ?? := 1? ??,
+which is strictly positive on account of ergodicity.
+Let (Xt)t?N be a Markov chain whose transition probabilities are governed by
+P . For each t ? N, let ?(t) ? ?d?1 denote the marginal distribution of Xt, so
+?(t+1) = ?(t)P , t ? N.
+Note that the initial distribution ?(1) is arbitrary, and need not be the stationary
+distribution ?.
+The goal is to estimate ?? and ?? from the length n sample path (Xt)t?[n],
+and also to construct confidence intervals that ?? and ?? with high probability; in
+particular, the construction of the intervals should be fully empirical and not depend
+on any unobservable quantities, including ?? and ?? themselves. As mentioned in
+the introduction, it is well-known that the mixing time of the Markov chain tmix
+(defined in Eq. (1)) is bounded in terms of ?? and ??, as shown in Eq. (2). Moreover,
+convergence rates for empirical processes on Markov chain sequences are also often
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 5
+given in terms of mixing coefficients that can ultimately be bounded in terms of ??
+and ?? (as we will show in the proof of our first result). Therefore, valid confidence
+intervals for ?? and ?? can be used to make these rates fully observable.
+3. Point estimation
+In this section, we present lower and upper bounds on achievable rates for esti-
+mating the spectral gap as a function of the length of the sample path n.
+3.1. Lower bounds. The purpose of this section is to show lower bounds on the
+number of observations necessary to achieve a fixed multiplicative (or even just
+additive) accuracy in estimating the spectral gap ??. By Eq. (2), the multiplicative
+accuracy lower bound for ?? gives the same lower bound for estimating the mixing
+time. Our first result holds even for two state Markov chains and shows that a
+sequence length of ?(1/??) is necessary to achieve even a constant additive accuracy
+in estimating ??.
+Theorem 3.1. Pick any ?? ? (0, 1/4). Consider any estimator ??? that takes as
+input a random sample path of length n ? 1/(4??) from a Markov chain starting from
+any desired initial state distribution. There exists a two-state ergodic and reversible
+Markov chain distribution with spectral gap ?? ? 1/2 and minimum stationary
+probability ?? ? ?? such that
+Pr [|??? ? ??| ? 1/8] ? 3/8.
+Next, considering d state chains, we show that a sequence of length ?(d log(d)/??)
+is required to estimate ?? up to a constant multiplicative accuracy. Essentially, the
+sequence may have to visit all d states at least log(d)/?? times each, on average.
+This holds even if ?? is within a factor of two of the largest possible value of 1/d
+that it can take, i.e., when ? is nearly uniform.
+Theorem 3.2. There is an absolute constant c > 0 such that the following holds.
+Pick any positive integer d ? 3 and any ??? ? (0, 1/2). Consider any estimator ???
+that takes as input a random sample path of length n < cd log(d)/??? from a d-state
+reversible Markov chain starting from any desired initial state distribution. There is
+an ergodic and reversible Markov chain distribution with spectral gap ?? ? [???, 2???]
+and minimum stationary probability ?? ? 1/(2d) such that
+Pr [|??? ? ??| ? ???/2] ? 1/4.
+The proofs of Theorems 3.1 and 3.2 are given in Section 5.
+3.2. A plug-in based point estimator and its accuracy. Let us now consider
+the problem of estimating ??. For this, we construct a natural plug-in estimator.
+Along the way, we also provide an estimator for the minimum stationary probability,
+allowing one to use the bounds from Eq. (2) to trap the mixing time.
+Define the random matrix M? ? [0, 1]d×d and random vector ?? ? ?d?1 by
+M?i,j :=
+|{t ? [n? 1] : (Xt, Xt+1) = (i, j)}|
+n? 1 , i, j ? [d] ,
+??i :=
+|{t ? [n] : Xt = i}|
+n
+, i ? [d] .
+Furthermore, define
+Sym(L?) :=
+1
+2
+(L?+ L?
+?
+)
+6 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+to be the symmetrized version of the (possibly non-symmetric) matrix
+L? := Diag(??)?1/2M? Diag(??)?1/2.
+Let ??1 ? ??2 ? · · · ? ??d be the eigenvalues of Sym(L?). Our estimator of the
+minimum stationary probability ?? is ??? := mini?[d] ??i, and our estimator of the
+spectral gap ?? is ??? := 1 ?min{1,max{??2, |??d|}} ? [0, 1]. The astute reader may
+notice that our estimator is ill-defined when ?? is not positive valued. In this case,
+we can simply set ??? = 0.
+These estimators have the following accuracy guarantees:
+Theorem 3.3. There exists an absolute constant C ? 1 such that the following
+holds. Let (Xt)
+n
+t=1 be an ergodic and reversible Markov chain with spectral gap
+?? and minimum stationary probability ?? > 0. Let ??? = ???((Xt)
+n
+t=1) and ??? =
+???((Xt)
+n
+t=1) be the estimators described above. For any ? ? (0, 1), with probability
+at least 1? ?,
+(4) |??? ? ??| ? C
+?
+?
+?
+?? log
+1
+???
+??n
++
+log 1???
+??n
+?
+?
+and
+(5) |??? ? ??| ? C
+?
+log d? · log n???
+????n
+.
+Theorem 3.3 implies that the sequence lengths sufficient to estimate ?? and ??
+to within constant multiplicative factors are, respectively,
+O?
+(
+1
+????
+)
+and O?
+(
+1
+???3?
+)
+.
+The proof of Theorem 3.3 is based on analyzing the convergence of the sample
+averages M? and ?? to their expectation, and then using perturbation bounds for
+eigenvalues to derive a bound on the error of ???. However, since these averages
+are formed using a single sample path from a (possibly) non-stationary Markov
+chain, we cannot use standard large deviation bounds; moreover applying Chernoff-
+type bounds for Markov chains to each entry of M? would result in a significantly
+worse sequence length requirement, roughly a factor of d larger. Instead, we adapt
+probability tail bounds for sums of independent random matrices (Tropp 2015) to
+our non-iid setting by directly applying a blocking technique of Bernstein (1927)
+as described in the article of Yu (1994). Due to ergodicity, the convergence rate
+can be bounded without any dependence on the initial state distribution ?(1). The
+proof of Theorem 3.3 is given in Section 6.
+3.3. Improving the plug-in estimator. We can bootstrap the plug-in estimator
+in Eq. (5) to show that in fact, to obtain any prescribed multiplicative accuracy,
+O?(1/(????)) steps suffice to estimate ??. The idea is to apply the estimator ??? from
+Eq. (5) to the a-skipped chain (Xas)
+n/a
+s=1 for some a ? 1. This chain has spectral
+gap ??(a) = 1 ? (1 ? ??)a. Thus, letting ???(a) be the plug-in estimator for ??(a)
+based on the a-skipped chain, a natural estimator of ?? is 1? (1? ???(a))1/a.
+Why may this improve on the original plug-in estimator from Section 3.2? Ob-
+serve that ??(a) = ?(??a) for a ? 1/??, so the additive accuracy bound from
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 7
+Eq. (5) for the plug-in estimator on (Xas)
+n/a
+s=1 is roughly the same for all a ? 1/??.
+However, when ??(a) is bounded away from 0 and 1, a small additive error in esti-
+mating ??(a) with ???(a) translates to a small multiplicative error in estimating ??
+using 1? (1? ???(a))1/a. So it suffices to use the skipped chain estimator with some
+a = O(1/??). Since ?? is not known (of course), we use a doubling trick to find a
+suitable value of a.
+The estimator is defined as follow. For simplicity, assume n is a power of two.
+Initially, set k := 0. Let a := 2k and ???(a) := ???((Xas)
+n/a
+s=1). If ???(a) > 0.31 or
+a = n, then set A := a and return ??? := 1? (1? ???(A))1/A. Otherwise, increment
+k by one and repeat.
+Theorem 3.4. There exists a polynomial function L of the logarithms of ??1? , ??1? ,
+??1, and d such that the following holds. Let (Xt)
+n
+t=1 be an ergodic and reversible
+Markov chain with spectral gap ?? and minimum stationary probability ?? > 0.
+Let ??? = ???((Xt)
+n
+t=1) be the estimator defined above. For any ?, ? ? (0, 1), if
+n ? L/(?????2), then with probability at least 1? ?,????
+???
+??
+? 1
+???? ? ?.
+The definition of L is in Eq. (34). The proof of Theorem 3.4 is given in Section 7.
+The result shows that to estimate both ?? and ?? to within constant multiplicative
+factors, a single sequence of length O?(1/(????)) suffices.
+4. A posteriori confidence intervals
+In this section, we describe and analyze a procedure for constructing confidence
+intervals for the stationary probabilities and the spectral gap ??.
+4.1. Procedure. We first note that the point estimators from Theorem 3.3 and
+Theorem 3.4 fall short of being directly suitable for obtaining a fully empirical, a
+posteriori confidence interval for ?? and ??. This is because the deviation terms
+themselves depend inversely both on ?? and ??, and hence can never rule out 0 (or
+an arbitrarily small positive value) as a possibility for ?? or ??.
+1 In effect, the fact
+that the Markov chain could be slow mixing and the long-term frequency of some
+states could be small makes it difficult to be confident in the estimates provided by
+??? and ???.
+The main idea behind our procedure, given as Algorithm 1, is to use the Markov
+property to eliminate the dependence of the confidence intervals on the unknown
+quantities (including ?? and ??). Specifically, we estimate the transition probabili-
+ties from the sample path using simple state visit counts: as a consequence of the
+Markov property, for each state, the frequency estimates converge at a rate that
+depends only on the number of visits to the state, and in particular the rate (given
+the visit count of the state) is independent of the mixing time of the chain.
+With confidence intervals for the entries of P in hand, it is possible to form
+a confidence interval for ?? based on the eigenvalues of an estimated transition
+probability matrix by appealing to the Ostrowski-Elsner theorem (cf. Theorem 1.4
+on Page 170 of Stewart and Sun (1990).) However, directly using this perturbation
+1Using Theorem 3.3, it is possible to trap ?? in the union of two empirical confidence intervals—
+one around ??? and the other around zero, both of which shrink in width as the sequence length
+increases.
+8 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+Algorithm 1 Confidence intervals
+Input: Sample path (X1, X2, . . . , Xn), confidence parameter ? ? (0, 1).
+1: Compute state visit counts and smoothed transition probability estimates:
+Ni := |{t ? [n? 1] : Xt = i}| , i ? [d];
+Ni,j := |{t ? [n? 1] : (Xt, Xt+1) = (i, j)}| , (i, j) ? [d]2;
+P?i,j :=
+Ni,j + 1/d
+Ni + 1
+, (i, j) ? [d]2.
+2: Let A?# be the group inverse of A? := I ? P? .
+3: Let ?? ? ?d?1 be the unique stationary distribution for P? .
+4: Compute eigenvalues ??1???2? · · · ???d of Sym(L?), where L? :=
+Diag(??)1/2P? Diag(??)?1/2.
+5: Spectral gap estimate:
+??? := 1?max{??2, |??d|}.
+6: Bounds for |P?i,j?Pi,j | for (i, j) ? [d]2: c := 1.1, ?n,? := inf{t ? 0 : 2d2(1 +
+?logc 2nt ?+)e?t ? ?}, and
+B?i,j :=
+?
+??
+?
+c?n,?
+2Ni
++
+????c?n,?
+2Ni
++
+?
+2cP?i,j(1? P?i,j)?n,?
+Ni
++
+4
+3?n,? + |P?i,j ? 1d |
+Ni
+?
+??
+2
+.
+7: Relative sensitivity of ?:
+?? :=
+1
+2
+max
+{
+A?#j,j ?min
+{
+A?#i,j : i ? [d]
+}
+: j ? [d]
+}
+.
+8: Bounds for maxi?[d] |??i ? ?i| and max
+?
+i?[d]{|
+?
+?i/??i ? 1|, |
+?
+??i/?i ? 1|}:
+b? := ??max
+{
+B?i,j : (i, j) ? [d]2
+}
+, ?? :=
+1
+2
+max
+?
+i?[d]
+{
+b?
+??i
+,
+b?
+[??i ? b?]+
+}
+.
+9: Bounds for |??? ? ??|:
+w? := 2??+ ??2 + (1 + 2??+ ??2)
+( ?
+(i,j)?[d]2
+??i
+??j
+B?2i,j
+)1/2
+.
+result leads to very wide intervals, shrinking only at a rate of O(n?1/(2d)). We
+avoid this slow rate by constructing confidence intervals for the symmetric matrix
+L, so that we can use a stronger perturbation result (namely Weyl’s inequality, as
+in the proof of Theorem 3.3) available for symmetric matrices.
+To form an estimate of L based on an estimate of the transition probabilities,
+one possibility is to estimate ? using state visit counts as was done in Section 3, and
+appeal to the relation L = Diag(?)1/2P Diag(?)?1/2 to form a plug-in estimate of
+L. However, it is not clear how to construct a confidence interval for the entries of
+? because the accuracy of this estimator depends on the unknown mixing time.
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 9
+We adopt a different strategy for estimating ?. We form the matrix P? using
+smoothed frequency estimates of P (Step 1), then compute the group inverse A?#
+of A? = I ? P? (Step 2), followed by finding the unique stationary distribution
+?? of P? (Step 3), this way decoupling the bound on the accuracy of ?? from the
+mixing time. The group inverse A?# of A? is uniquely defined; and if P? defines an
+ergodic chain (which is the case here due to the use of the smoothed estimates),
+A?# can be computed at the cost of inverting an (d?1)×(d?1) matrix (Meyer Jr.
+1975, Theorem 5.2).2 Further, given A?#, the unique stationary distribution ?? of
+P? can be read out from the last row of A?# (Meyer Jr. 1975, Theorem 5.3). The
+group inverse is also used to determine the relative sensitivity of ?? to P? , which is
+quantified by
+(6) ?? :=
+1
+2
+max
+{
+A?#j,j ?min
+{
+A?#i,j : i ? [d]
+}
+: j ? [d]
+}
+.
+We can regard ?? as a plug-in estimator for ?, which is defined by substituting the
+group inverse A# of A in for A?
+#
+in Eq. (6).
+We can now follow the strategy based on estimating L alluded to above. Using
+?? and P? , we construct the plug-in estimate L? of L, and use the eigenvalues of its
+symmetrization to form the estimate ??? of the spectral gap (Steps 4 and 5). In the
+remaining steps, we use matrix perturbation analyses to relate ?? and ?, viewing P
+as the perturbation of P? ; and also to relate ??? and ??, viewingL as a perturbation of
+Sym(L?). Both analyses give error bounds entirely in terms of observable quantities
+(e.g., ??), tracing back to empirical error bounds for the estimate of P .
+The most computationally expensive step in Algorithm 1 is the computation
+of the group inverse A?#, which, as noted earlier, reduces to matrix inversion.
+Thus, with a standard implementation of matrix inversion, the algorithm’s time
+complexity is O(n+ d3), while its space complexity is O(d2).
+4.2. Main result. We now state our main theorems. Below, the big-O notation
+should be interpreted as follows. For a random sequence (Yn)n?1 and a (non-
+random) positive sequence (??,n)n?1 parameterized by ?, we say “Yn = O(??,n)
+holds almost surely as n ? ?” if there is some universal constant C > 0 such that
+for all ?, lim supn?? Yn/??,n ? C holds almost surely.
+Theorem 4.1. Suppose Algorithm 1 is given as input a sample path of length n
+from an ergodic and reversible Markov chain and confidence parameter ? ? (0, 1).
+Let ?? > 0 denote the spectral gap, ? the unique stationary distribution, and ?? > 0
+the minimum stationary probability. Then, on an event of probability at least 1? ?,
+?i ? [??i ? b?, ??i + b?] for all i ? [d], and ?? ? [??? ? w?, ??? + w?].
+Moreover,
+b? = O
+(
+max
+(i,j)?[d]2
+?
+?
+Pi,j log logn
+?in
+)
+, w? = O
+(
+?
+??
+?
+log log n
+??n
++
+?
+d log logn
+??n
+)
+almost surely as n ? ?.
+2 The group inverse of a square matrix A, a special case of the Drazin inverse, is the unique
+matrix A# satisfying AA#A = A, A#AA# = A# and A#A = AA#.
+10 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+The proof of Theorem 4.1 is given in Section 8. As mentioned above, the obstacle
+encountered in Theorem 3.3 is avoided by exploiting the Markov property. We
+establish fully observable upper and lower bounds on the entries of P that converge
+at a
+?
+(log logn)/n rate using standard martingale tail inequalities; this justifies
+the validity of the bounds from Step 6. Properties of the group inverse (Meyer Jr.
+1975; Cho and Meyer 2001) and eigenvalue perturbation theory (Stewart and Sun
+1990) are used to validate the empirical bounds on ?i and ?? developed in the
+remaining steps of the algorithm.
+The first part of Theorem 4.1 provides valid empirical confidence intervals for
+each ?i and for ??, which are simultaneously valid at confidence level ?. The second
+part of Theorem 4.1 shows that the width of the intervals decrease as the sequence
+length increases. The rate at which the widths shrink is given in terms of P , ?, ?,
+and n. We show in Section 8.5 (Lemma 8.8) that
+? ? 1
+??
+min{d, 8 + log(4/??)},
+and hence
+b? = O
+(
+max
+(i,j)?[d]2
+min{d, log(1/??)}
+??
+?
+Pi,j log logn
+?in
+)
+,
+w? = O
+(
+min{d, log(1/??)}
+????
+?
+log logn
+??n
+)
+.
+It is easy to combine Theorems 3.3 and 4.1 to yield intervals whose widths
+shrink at least as fast as both the non-empirical intervals from Theorem 3.3 and
+the empirical intervals from Theorem 4.1. Specifically, determine lower bounds
+on ?? and ?? using Algorithm 1, ?? ? mini?[d][??i ? b?]+ , ?? ? [??? ? w?]+; then
+plug-in these lower bounds for ?? and ?? in the deviation bounds in Eq. (5) from
+Theorem 3.3. This yields a new interval centered around the estimate of ?? from
+Theorem 3.3 and the new interval no longer depends on unknown quantities. The
+interval is a valid 1 ? 2? probability confidence interval for ??, and for sufficiently
+large n, the width shrinks at the rate given in Eq. (5). We can similarly construct an
+empirical confidence interval for ?? using Eq. (4), which is valid on the same 1? 2?
+probability event.3 Finally, we can take the intersection of these new intervals with
+the corresponding intervals from Algorithm 1. This is summarized in the following
+theorem, which we prove in Section 9.
+Theorem 4.2. The following holds under the same conditions as Theorem 4.1.
+For any ? ? (0, 1), the confidence intervals U? and V? described above for ?? and ??,
+respectively, satisfy ?? ? U? and ?? ? V? with probability at least 1?2?. Furthermore,
+|U? | = O
+(?
+?? log
+d
+???
+??n
+)
+and |V? | = O
+(
+min
+{?
+log d
+?
+·log(n)
+????n
+, w?
+})
+almost surely as
+n ? ?, where w? is the width from Algorithm 1.
+Finally, note that a stopping rule that stops when ?? and ?? are estimated with a
+given relative error ? can be obtained as follows. At time n:
+3For the ?? interval, we only plug-in lower bounds on ?? and ?? only where these quantities
+appear as 1/?? and 1/?? in Eq. (4). It is then possible to “solve” for observable bounds on ??.
+See Section 9 for details.
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 11
+1: if n = 2k for an integer k then
+2: Run Algorithm 1 (or the improved variant from Theorem 4.2) with inputs
+(X1, X2, . . . , Xn) and ?/(k(k + 1)) to obtain intervals for ?? and ??.
+3: Stop if, for each interval, the interval width divided by the lower bound on
+estimated quantity falls below ?.
+4: end if
+It is easy to see then that with probability 1? ?, the algorithm only stops when the
+relative accuracy of its estimate is at least ?. Combined with the lower bounds, we
+conjecture that the expected stopping time of the resulting procedure is optimal
+up to log factors.
+5. Proofs of Theorems 3.1 and 3.2
+In this section, we prove Theorem 3.1 and Theorem 3.2.
+5.1. Proof of Theorem 3.1. Fix ?? ? (0, 1/4). Consider two Markov chains given
+by the following stochastic matrices:
+P (1) :=
+[
+1? ?? ??
+1? ?? ??
+]
+, P (2) :=
+[
+1? ?? ??
+1/2 1/2
+]
+.
+Each Markov chain is ergodic and reversible; their stationary distributions are,
+respectively, ?(1) = (1 ? ??, ??) and ?(2) = (1/(1 + 2??), 2??/(1 + 2??)). We have
+?? ? ?? in both cases. For the first Markov chain, ?? = 0, and hence the spectral
+gap is 1; for the second Markov chain, ?? = 1/2? ??, so the spectral gap is 1/2+ ??.
+In order to guarantee |??? ? ??| < 1/8 < |1? (1/2+ ??)|/2, it must be possible to
+distinguish the two Markov chains. Assume that the initial state distribution has
+mass at least 1/2 on state 1. (If this is not the case, we swap the roles of states 1
+and 2 in the constructions above.) With probability at least half, the initial state is
+1; and both chains have the same transition probabilities from state 1. The chains
+are indistinguishable unless the sample path eventually reaches state 2. But with
+probability at least 3/4, a sample path of length n < 1/(4??) starting from state
+1 always remains in the same state (this follows from properties of the geometric
+distribution and the assumption ?? < 1/4). 
+5.2. Proof of Theorem 3.2. We consider d-state Markov chains of the following
+form:
+Pi,j =
+{
+1? ?i if i = j;
+?i
+d? 1 if i 6= j
+for some ?1, ?2, . . . , ?d ? (0, 1). Such a chain is ergodic and reversible, and its unique
+stationary distribution ? satisfies
+?i =
+1/?i?d
+j=1 1/?j
+.
+We fix ? := d?1d/2 ?? and set ?
+? := d/2?1d?1 ? < ?. Consider the following d + 1 different
+Markov chains of the type described above:
+• P (0): ?1 = · · · = ?d = ?. For this Markov chain, ?2 = ?d = ?? = 1? dd?1?.
+• P (i) for i ? [d]: ?j = ? for j 6= i, and ?i = ??. For these Markov chains,
+?2 = 1? ?? ? 1d?1? = 1?
+d/2
+d?1?, and ?d = 1? dd?1?. So ?? = 1?
+d/2
+d?1?.
+12 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+The spectral gap in each chain satisfies ?? ? [??, 2??]; in P (i) for i ? [d], it is half of
+what it is in P (0). Also ?i ? 1/(2d) for each i ? [d].
+In order to guarantee |??????| < ??/2, it must be possible to distinguish P (0) from
+each P (i), i ? [d]. But P (0) is identical to P (i) except for the transition probabilities
+from state i. Therefore, regardless of the initial state, the sample path must visit
+all states in order to distinguish P (0) from each P (i), i ? [d]. For any of the d+ 1
+Markov chains above, the earliest time in which a sample path visits all d states
+stochastically dominates a generalized coupon collection time T = 1 +
+?d?1
+i=1 Ti,
+where Ti is the number of steps required to see the (i + 1)-th distinct state in
+the sample path beyond the first i. The random variables T1, T2, . . . , Td?1 are
+independent, and are geometrically distributed, Ti ? Geom(? ? (i ? 1)?/(d ? 1)).
+We have that
+E[Ti] =
+d? 1
+?(d? i) , var(Ti) =
+1? ? d?id?1(
+? d?id?1
+)2 .
+Therefore
+E[T ] = 1 +
+d? 1
+?
+Hd?1, var(T ) ?
+(
+d? 1
+?
+)2
+?2
+6
+where Hd?1 = 1 + 1/2 + 1/3 + · · ·+ 1/(d? 1). By the Paley-Zygmund inequality,
+Pr
+(
+T >
+1
+3
+E[T ]
+)
+? 1
+1 + var(T )(1?1/3)2E[T ]2
+? 1
+1 +
+( d?1? )
+2 ?2
+6
+(4/9)( d?1? H2)
+2
+? 1
+4
+.
+Since n < cd log(d)/?? ? (1/3)(1 + (d? 1)Hd?1/(2??)) = E[T ]/3 (for an appropriate
+absolute constant c), with probability at least 1/4, the sample path does not visit
+all d states. 
+6. Proof of Theorem 3.3
+In this section, we prove Theorem 3.3.
+6.1. Accuracy of ???. We start by proving the deviation bound on ?? ? ???, from
+which we may easily deduce Eq. (4) in Theorem 3.3.
+Lemma 6.1. Pick any ? ? (0, 1), and let
+(7) ?n :=
+ln
+(
+d
+?
+?
+2
+??
+)
+??n
+.
+With probability at least 1? ?, the following inequalities hold simultaneously:
+|??i ? ?i| ?
+?
+8?i(1? ?i)?n + 20?n for all i ? [d];(8)
+|??? ? ??| ? 4
+?
+???n + 47?n.(9)
+Proof. We use the following Bernstein-type inequality for Markov chains of Paulin
+(2015, Theorem 3.3): letting P? denote the probability with respect to the sta-
+tionary chain (where the marginal distribution of each Xt is ?), we have for every
+? > 0,
+P
+? (|??i ? ?i| > ?) ? 2 exp
+(
+? n???
+2
+4?i(1? ?i) + 10?
+)
+, i ? [d].
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 13
+To handle possibly non-stationary chains, as is our case, we combine the above
+inequality with Paulin (2015, Proposition 3.10), to obtain for any ? > 0,
+P (|??i ? ?i| > ?) ?
+?
+1
+??
+P? (|??i ? ?i| > ?) ?
+?
+2
+??
+exp
+(
+? n???
+2
+8?i(1? ?i) + 20?
+)
+.
+Using this tail inequality with ? :=
+?
+8?i(1? ?i)?n +20?n and a union bound over
+all i ? [d] implies that the inequalities in Eq. (8) hold with probability at least 1??.
+Now assume this 1? ? probability event holds; it remains to prove that Eq. (9)
+also holds in this event. Without loss of generality, we assume that ?? = ?1 ?
+?2 ? · · · ? ?d. Let j ? [d] be such that ??? = ??j . By Eq. (8), we have |?i ? ??i| ??
+8?i?n + 20?n for each i ? {1, j}. Since ??? ? ??1,
+??? ? ?? ? ??1 ? ?1 ?
+?
+8???n + 20?n ? ?? + 22?n
+where the last inequality follows by the AM/GM inequality. Furthermore, using the
+fact that a ? b?a+ c ? a ? b2 + b?c+ c for nonnegative numbers a, b, c ? 0 (see,
+e.g., Bousquet, Boucheron, and Lugosi 2004) with the inequality ?j ?
+?
+8?n
+?
+?j +
+(??j + 20?n) gives
+?j ? ??j +
+?
+8(??j + 20?n)?n + 28?n.
+Therefore
+?????? ? ?j???j ?
+?
+8(??? + 20?n)?n+28?n ?
+?
+8(2?? + 42?n)?n+28?n ? 4
+?
+???n+47?n
+where the second-to-last inequality follows from the above bound on ??? ? ??, and
+the last inequality uses
+?
+a+ b ? ?a+
+?
+b for nonnegative a, b ? 0. 
+6.2. Accuracy of ???. Let us now turn to proving Eq. (5), i.e., the bound on the
+error of the spectral gap estimate ???. The accuracy of ??? is based on the accuracy
+of Sym(L?) in approximating L via Weyl’s inequality:
+|??i ? ?i| ? ? Sym(L?)?L? for all i ? [d].
+Moreover, the triangle inequality implies that symmetrizing L? can only help:
+? Sym(L?)?L? ? ?L??L?.
+Therefore, we can deduce Eq. (5) in Theorem 3.3 from the following lemma.
+Lemma 6.2. There exists an absolute constant C > 0 such that the following holds.
+For any ? ? (0, 1), if
+(10) n ? C
+(
+log 1???
+????
++
+logn
+??
+)
+,
+then with probability at least 1? ?, the bounds from Lemma 6.1 hold, and
+?L??L? ? C
+(?
+?+ ?+ ?2
+)
+,
+where
+? :=
+(
+log d?
+)(
+log n???
+)
+????n
+.
+14 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+We briefly describe how to obtain the bound on |??? ? ??| that appears in
+Eq. (5), which is of the form C?
+?
+?. Observe that if ? > 1/C?, then, owing
+to C? ? 1, the bound on |??? ? ??| is trivial. So we may assume that ? ?
+1/C?, which implies n/ logn ? C?(log(d/?))/(????) (and thus n ? 2), and also
+n ? C?(log(d/?))(log(1/(???)))/(????). These inequalities imply that n satisfies
+the condition in Eq. (10), so by Lemma 6.2, we have |??? ? ??| ? ?L? ? L? ?
+C(
+?
+?+ ?+ ?2) ? C???.
+The remainder of this section is devoted to proving this lemma.
+When ?? is positive valued, the error L??L may be written as
+L??L = EM + E?L+LE? + E?LE? + E?EM + EME? + E?EME? ,
+where
+E? := Diag(??)
+?1/2 Diag(?)1/2 ? I and
+EM := Diag(?)
+?1/2
+(
+M? ?M
+)
+Diag(?)?1/2 .
+Therefore
+?L??L? ? ?EM?+ (?EM?+ ?L?)
+(
+2?E??+ ?E??2
+)
+.
+If ?E?? ? 1 also holds, then, thanks to ?L? ? 1,
+?L??L? ? ?EM?+ ?EM?2 + 3?E??.(11)
+6.3. A bound on ?E??. Since E? is diagonal,
+?E?? = max
+i?[d]
+????
+?
+?i
+??i
+? 1
+???? .
+Assume that
+(12) n ?
+108 ln
+(
+d
+?
+?
+2
+??
+)
+????
+,
+in which case ?
+8?i(1? ?i)?n + 20?n ?
+?i
+2
+,
+where ?n is as defined in Eq. (7). Therefore, on the 1 ? ? probability event from
+Lemma 6.1, we have |?i? ??i| ? ?i/2 for each i ? [d], and moreover, 2/3 ? ?i/??i ? 2
+for each i ? [d]. In particular, it also holds that ?? is positive valued. Further, for
+this range of ?i/??i, we have ????
+?
+?i
+??i
+? 1
+???? ?
+????
+??i
+?i
+? 1
+???? .
+We conclude that if n satisfies Eq. (12), then on this 1 ? ? probability event from
+Lemma 6.1, ?? is positive valued and
+(13) ?E?? ? max
+i?[d]
+????
+??i
+?i
+? 1
+???? ? maxi?[d]
+?
+8?i(1? ?i)?n + 20?n
+?i
+?
+?
+8?n
+??
++
+20?n
+??
+=
+????8 ln
+(
+d
+?
+?
+2
+??
+)
+????n
++
+20 ln
+(
+d
+?
+?
+2
+??
+)
+????n
+? min{C?(
+?
+?+ ?), 1}
+for some suitable constant C? > 0, where ? as defined in Lemma 6.2.
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 15
+6.4. Accuracy of doublet frequency estimates (bounding ?EM?). In this
+section we prove a bound on ?EM?. For this, we decompose EM = Diag(?)?1/2(M??
+M)Diag(?)?1/2 into E (EM ) and EM ? E (EM ), the first measuring the effect of
+a non-stationary start of the chain, while the second measuring the variation due
+to randomness.
+6.4.1. Bounding ?E (EM ) ?: The price of a non-stationary start. Let ?(t) be the
+distribution of states at time step t. We will make use of the following proposition,
+which can be derived by following Montenegro and Tetali (2006, Proposition 1.12):
+Proposition 6.3. For t ? 1, let ?(t) be the vector with ?(t)i =
+?
+(t)
+i
+?i
+and let ? · ?2,?
+denote the ?-weighted 2-norm
+?v?2,? :=
+(
+d?
+i=1
+?iv
+2
+i
+)1/2
+.(14)
+Then,
+(15) ??(t) ? 1?2,? ?
+(1 ? ??)t?1?
+??
+.
+An immediate corollary of this result is that
+???Diag(?(t))Diag(?)?1 ? I
+??? ? (1? ??)
+t?1
+??
+.(16)
+Now note that
+E(M? ) =
+1
+n? 1
+n?1?
+t=1
+Diag(?(t))P
+and thus
+E (EM ) = Diag(?)
+?1/2
+(
+E(M? )?M
+)
+Diag(?)?1/2
+=
+1
+n? 1
+n?1?
+t=1
+Diag(?)?1/2(Diag(?(t))?Diag(?))P Diag(?)?1/2
+=
+1
+n? 1
+n?1?
+t=1
+Diag(?)?1/2(Diag(?(t))Diag(?)?1 ? I)M Diag(?)?1/2
+=
+1
+n? 1
+n?1?
+t=1
+(Diag(?(t))Diag(?)?1 ? I)L .
+Combining this, ?L? ? 1 and Eq. (16), we get
+?E(EM )? ?
+1
+(n? 1)??
+n?1?
+t=1
+(1? ??)t?1 ?
+1
+(n? 1)????
+.(17)
+6.4.2. Bounding ?EM ? E (EM ) ?: Application of a matrix tail inequality. In this
+section we analyze the deviations of EM ? E (EM ). By the definition of EM ,
+?EM ? E (EM ) ? = ?Diag(?)?1/2
+(
+M? ? EM?
+)
+Diag(?)?1/2? .(18)
+16 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+The matrix M??E
+(
+M?
+)
+is defined as a sum of dependent centered randommatrices.
+We will use the blocking technique of Bernstein (1927) to relate the likely deviations
+of this matrix to that of a sum of independent centered random matrices. The
+deviations of these will then bounded with the help of a Bernstein-type matrix tail
+inequality due to Tropp (2015).
+We divide [n ? 1] into contiguous blocks of time steps; each has size a ? n/3
+except possibly the first block, which has size between a and 2a? 1. Formally, let
+a? := a+ ((n? 1) mod a) ? 2a? 1, and define
+F := [a?],
+Hs := {t ? [n? 1] : a? + 2(s? 1)a+ 1 ? t ? a? + (2s? 1)a},
+Ts := {t ? [n? 1] : a? + (2s? 1)a+ 1 ? t ? a? + 2sa},
+for s = 1, 2, . . . . Let µH (resp., µT ) be the number of non-empty Hs (resp., Ts)
+blocks. Let nH := aµH (resp., nT := aµT ) be the number of time steps in ?sHs
+(resp., ?sTs). We have
+M? =
+1
+n? 1
+n?1?
+t=1
+eXte
+?
+Xt+1
+=
+a?
+n? 1 ·
+1
+a?
+?
+t?F
+eXte
+?
+Xt+1
+? ?? ?
+M?F
++
+nH
+n? 1 ·
+1
+µH
+µH?
+s=1
+(
+1
+a
+?
+t?Hs
+eXte
+?
+Xt+1
+)
+? ?? ?
+M?H
++
+nT
+n? 1 ·
+1
+µT
+µT?
+s=1
+(
+1
+a
+?
+t?Ts
+eXte
+?
+Xt+1
+)
+? ?? ?
+M?T
+.(19)
+Here, ei is the i-th coordinate basis vector, so eie
+?
+j ? {0, 1}d×d is a d× d matrix of
+all zeros except for a 1 in the (i, j)-th position.
+The contribution of the first block is easily bounded using the triangle inequality:
+(20)
+a?
+n? 1
+???Diag(?)?1/2
+(
+M?F ? E(M?F )
+)
+Diag(?)?1/2
+???
+? 1
+n? 1
+?
+t?F
+{?????
+eXte
+?
+Xt+1?
+?Xt?Xt+1
+?????+
+?????E
+(
+eXte
+?
+Xt+1?
+?Xt?Xt+1
+)?????
+}
+? 2a
+?
+??(n? 1)
+.
+It remains to bound the contributions of the Hs blocks and the Ts blocks. We
+just focus on the the Hs blocks, since the analysis is identical for the Ts blocks.
+Let
+Y s :=
+1
+a
+?
+t?Hs
+eXte
+?
+Xt+1 , s ? [µH ],
+so
+M?H =
+1
+µH
+µH?
+s=1
+Y s,
+an average of the random matrices Y s. For each s ? [µH ], the random matrix Y s
+is a function of
+(Xt : a
+? + 2(s? 1)a+ 1 ? t ? a? + (2s? 1)a+ 1)
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 17
+(note the +1 in the upper limit of t), so Y s+1 is a time steps ahead of Y s. When
+a is sufficiently large, we will be able to effectively treat the random matrices Y s
+as if they were independent. In the sequel, we shall always assume that the block
+length a satisfies
+(21) a ? a? :=
+1
+??
+ln
+2(n? 2)
+???
+for ? ? (0, 1).
+Define
+?(Hs) :=
+1
+a
+?
+t?Hs
+?(t), ?(H) :=
+1
+µH
+µH?
+s=1
+?(Hs).
+Observe that
+E(Y s) = Diag(?
+(Hs))P
+so
+E
+(
+1
+µH
+µH?
+s=1
+Y s
+)
+= Diag(?(H))P .
+Define
+Zs := Diag(?)
+?1/2 (Y s ? E(Y s)) Diag(?)?1/2.
+We apply a matrix tail inequality to the average of independent copies of the Zs’s.
+More precisely, we will apply the tail inequality to independent copies Z?s, s ? [µH ]
+of the random variables Zs and then relate the average of Z?s to that of Zs. The
+following probability inequality is from Tropp (2015, Theorem 6.1.1.).
+Theorem 6.4 (Matrix Bernstein inequality). Let Q1,Q2, . . . ,Qm be a sequence of
+independent, random d1 × d2 matrices. Assume that E (Qi) = 0 and ?Qi? ? R for
+each 1 ? i ? m. Let S =?mi=1 Qi and let
+v = max
+{
+?E?i QiQ?i ?, ?E
+?
+iQ
+?
+i Qi?
+}
+.
+Then, for all t ? 0,
+P (?S? ? t) ? 2(d1 + d2) exp
+(
+? t
+2/2
+v +Rt/3
+)
+.
+In other words, for any ? ? (0, 1),
+P
+(
+?S? >
+?
+2v ln
+2(d1 + d2)
+?
++
+2R
+3
+ln
+2(d1 + d2)
+?
+)
+? ? .
+To apply Theorem 6.4, it suffices to bound the spectral norms of Zs (almost
+surely), E(ZsZ
+?
+s ), and E(Z
+?
+s Zs).
+Range bound. By the triangle inequality,
+?Zs? ? ?Diag(?)?1/2Y s Diag(?)?1/2?+ ?Diag(?)?1/2E(Y s)Diag(?)?1/2? .
+For the first term, we have
+?Diag(?)?1/2Y s Diag(?)?1/2? ?
+1
+??
+.(22)
+18 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+For the second term, we use the fact ?L? ? 1 to bound
+?Diag(?)?1/2(E(Y s)?M)Diag(?)?1/2? = ?
+(
+Diag(?(Hs))Diag(?)?1 ? I
+)
+L?
+? ?Diag(?(Hs))Diag(?)?1 ? I? .
+Then, using Eq. (16),
+(23) ?Diag(?(Hs))Diag(?)?1 ? I? ? (1 ? ??)
+a?+2(s?1)a
+??
+? (1? ??)
+a
+??
+? 1 ,
+where the last inequality follows from the assumption that the block length a sat-
+isfies Eq. (21). Combining this with ?Diag(?)?1/2M Diag(?)?1/2? = ?L? ? 1, it
+follows that
+?Diag(?)?1/2E(Y s)Diag(?)?1/2? ? 2(24)
+by the triangle inequality. Therefore, together with Eq. (22), we obtain the range
+bound
+?Zs? ?
+1
+??
++ 2.
+Variance bound. We now determine bounds on the spectral norms of E(ZsZ
+?
+s ) and
+E(Z?s Zs). Observe that
+E(ZsZ
+?
+s )
+=
+1
+a2
+?
+t?Hs
+E
+(
+Diag(?)?1/2eXte
+?
+Xt+1 Diag(?)
+?1eXt+1e
+?
+Xt Diag(?)
+?1/2
+)
+(25)
++
+1
+a2
+?
+t6=t?
+t,t??Hs
+E
+(
+Diag(?)?1/2eXte
+?
+Xt+1 Diag(?)
+?1eXt?+1e
+?
+Xt?
+Diag(?)?1/2
+)
+(26)
+?Diag(?)?1/2E(Y s)Diag(?)?1E(Y ?s )Diag(?)?1/2.(27)
+The first sum, Eq. (25), easily simplifies to the diagonal matrix
+1
+a2
+?
+t?Hs
+d?
+i=1
+d?
+j=1
+Pr(Xt = i,Xt+1 = j) ·
+1
+?i?j
+eie
+?
+j eje
+?
+i
+=
+1
+a2
+?
+t?Hs
+d?
+i=1
+d?
+j=1
+?
+(t)
+i Pi,j ·
+1
+?i?j
+eie
+?
+i =
+1
+a
+d?
+i=1
+?
+(Hs)
+i
+?i
+?
+?
+d?
+j=1
+Pi,j
+?j
+?
+?eie?i .
+For the second sum, Eq. (26), a symmetric matrix, consider
+u?
+?
+???
+1
+a2
+?
+t6=t?
+t,t??Hs
+E
+(
+Diag(?)?1/2eXte
+?
+Xt+1 Diag(?)
+?1eXt?+1e
+?
+Xt?
+Diag(?)?1/2
+)
+?
+???u
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 19
+for an arbitrary unit vector u. By Cauchy-Schwarz and AM/GM, this is bounded
+from above by
+1
+2a2
+?
+t6=t?
+t,t??Hs
+[
+E
+(
+u? Diag(?)?1/2eXte
+?
+Xt+1 Diag(?)
+?1eXt+1e
+?
+Xt Diag(?)
+?1/2u
+)
++ E
+(
+u? Diag(?)?1/2eXt?e
+?
+Xt?+1
+Diag(?)?1eXt?+1e
+?
+Xt?
+Diag(?)?1/2u
+)]
+,
+which simplifies to
+a? 1
+a2
+u?E
+(?
+t?Hs
+Diag(?)?1/2eXte
+?
+Xt+1 Diag(?)
+?1eXt+1e
+?
+Xt Diag(?)
+?1/2
+)
+u .
+The expectation is the same as that for the first term, Eq. (25).
+Finally, the spectral norm of the third term, Eq. (27), is bounded using Eq. (24):
+?Diag(?)?1/2E(Y s)Diag(?)?1/2?2 ? 4.
+Therefore, by the triangle inequality, the bound ?
+(H)
+i /?i ? 2 from Eq. (23), and
+simplifications,
+?E(ZsZ?s )? ? max
+i?[d]
+?
+?
+d?
+j=1
+Pi,j
+?j
+?
+? ?
+(H)
+i
+?i
++ 4 ? 2max
+i?[d]
+?
+?
+d?
+j=1
+Pi,j
+?j
+?
+?+ 4.
+We can bound E(Z?s Zs) in a similar way; the only difference is that the re-
+versibility needs to be used at one place to simplify an expectation:
+1
+a2
+?
+t?Hs
+E
+(
+Diag(?)?1/2eXt+1e
+?
+Xt Diag(?)
+?1eXte
+?
+Xt+1 Diag(?)
+?1/2
+)
+=
+1
+a2
+?
+t?Hs
+d?
+i=1
+d?
+j=1
+Pr(Xt = i,Xt+1 = j) ·
+1
+?i?j
+eje
+?
+j
+=
+1
+a2
+?
+t?Hs
+d?
+i=1
+d?
+j=1
+?
+(t)
+i Pi,j ·
+1
+?i?j
+eje
+?
+j
+=
+1
+a2
+?
+t?Hs
+d?
+j=1
+(
+d?
+i=1
+?
+(t)
+i
+?i
+· Pj,i
+?i
+)
+eje
+?
+j
+where the last step uses Eq. (3). As before, we get
+?E(Z?s Zs)? ? max
+i?[d]
+?
+?
+d?
+j=1
+Pi,j
+?j
+·
+?
+(H)
+j
+?j
+?
+?+ 4 ? 2max
+i?[d]
+?
+?
+d?
+j=1
+Pi,j
+?j
+?
+?+ 4
+again using the bound ?
+(H)
+i /?i ? 2 from Eq. (23).
+Independent copies bound. Let Z?s for s ? [µH ] be independent copies of Zs for
+s ? [µH ]. Applying Theorem 6.4 to the average of these random matrices, we have
+(28) P
+?
+?
+?????
+1
+µH
+µH?
+s=1
+Z?s
+????? >
+?
+4 (dP + 2) ln
+4d
+?
+µH
++
+2
+(
+1
+??
++ 2
+)
+ln 4d?
+3µH
+?
+? ? ?
+20 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+where
+dP := max
+i?[d]
+d?
+j=1
+Pi,j
+?j
+? 1
+??
+.
+The actual bound. To bound the probability that ?
+?µH
+s=1 Zs/µH? is large, we
+appeal to the following result (a consequence of Yu 1994, Corollary 2.7). For each
+s ? [µH ], let X(Hs) := (Xt : a? + 2(s ? 1)a + 1 ? t ? a? + (2s ? 1)a + 1), which
+are the random variables determining Zs. Let P denote the joint distribution of
+(X(Hs) : s ? [µH ]); let Ps be its marginal over X(Hs), and let P1:s+1 be its marginal
+over (X(H1), X(H2), . . . , X(Hs+1)). Let P? be the product distribution formed from
+the marginals P1,P2, . . . ,PµH , so P? governs the joint distribution of (Z?s : s ? [µH ]).
+The result from Yu (1994, Corollary 2.7) implies for any event E,
+|P(E)? P?(E)| ? (µH ? 1)?(P)
+where
+?(P) := max
+1?s?µH?1
+E
+(???P1:s+1(· |X(H1), X(H2), . . . , X(Hs))? Ps+1
+???
+tv
+)
+.
+Here, ? · ?tv denotes the total variation norm. The number ?(P) can be recog-
+nized to be the ?-mixing coefficient of the stochastic process {X(Hs)}s?[µH ]. This
+result implies that the bound from Eq. (28) for ??µHs=1 Z?s/µH? also holds for
+??µHs=1 Zs/µH?, except the probability bound increases from ? to ?+(µH?1)?(P):
+(29)
+P
+?
+?
+?????
+1
+µH
+µH?
+s=1
+Zs
+????? >
+?
+4 (dP + 2) ln
+4d
+?
+µH
++
+2
+(
+1
+??
++ 2
+)
+ln 4d?
+3µH
+?
+? ? ? + (µH ? 1)?(P).
+By the triangle inequality,
+?(P) ? max
+1?s?µH?1
+E
+(???P1:s+1(· |X(H1), X(H2), . . . , X(Hs))? P?
+???
+tv
++ ?Ps+1 ? P??tv
+)
+where P? is the marginal distribution of X(H1) under the stationary chain. Using
+the Markov property and integrating out Xt for t > minHs+1 = a
+? + 2sa+ 1,
+???P1:s+1(· |X(H1), X(H2), . . . , X(Hs))? P?
+???
+tv
+=
+??L(Xa?+2sa+1 |Xa?+(2s?1)a+1)? ?
+??
+tv
+where L(Y |Z) denotes the conditional distribution of Y given Z. We bound this
+distance using standard arguments for bounding the mixing time in terms of the
+relaxation time 1/?? (see, e.g., the proof of Theorem 12.3 of Levin, Peres, and
+Wilmer 2009): for any i ? [d],
+??L(Xa?+2sa+1 |Xa?+(2s?1)a+1 = i)? ?
+??
+tv
+= ?L(Xa+1 |X1 = i)? ??tv ?
+exp (?a??)
+??
+.
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 21
+The distance ?Ps+1 ? P??tv can be bounded similarly:
+?Ps+1 ? P??tv = ?L(Xa?+2sa+1)? ??tv
+=
+?????
+d?
+i=1
+P(X1 = i)L(Xa?+2sa+1 |X1 = i)? ?
+?????
+tv
+?
+d?
+i=1
+P(X1 = i) ?L(Xa?+2sa+1 |X1 = i)? ??tv
+? exp (?(a
+? + 2sa)??)
+??
+? exp (?a??)
+??
+.
+We conclude
+(µH ? 1)?(P) ? (µH ? 1)
+2 exp(?a??)
+??
+? 2(n? 2) exp(?a??)
+??
+? ?
+where the last step follows from the block length assumption Eq. (21).
+We return to the decomposition from Eq. (19). We apply Eq. (29) to both the
+Hs blocks and the Ts blocks, and combine with Eq. (20) to obtain the following
+probabilistic bound. Pick any ? ? (0, 1), let the block length be
+a := ?a?? =
+?
+1
+??
+ln
+2(n? 2)
+???
+?
+,
+so
+min{µH , µT } =
+?
+n? 1? a?
+2a
+?
+? n? 1
+2
+(
+1 + 1?? ln
+2(n?2)
+???
+) ? 2 =: µ.
+If
+(30) n ? 7 + 6
+??
+ln
+2(n? 2)
+???
+? 3a,
+then with probability at least 1? 4?,
+???Diag(?)?1/2
+(
+M? ? E[M? ]
+)
+Diag(?)?1/2
+???
+?
+4
+?
+1
+??
+ln 2(n?2)???
+?
+??(n? 1)
++
+?
+4 (dP + 2) ln
+4d
+?
+µ
++
+2
+(
+1
+??
++ 2
+)
+ln 4d?
+3µ
+.
+6.4.3. The bound on ?EM?. Combining the probabilistic bound from above with
+the bound on the bias from Eq. (17), we obtain the following. Assuming the
+condition on n from Eq. (30), with probability at least 1? 4?,
+(31) ?EM? ?
+1
+(n? 1)????
++
+4
+?
+1
+??
+ln 2(n?2)???
+?
+??(n? 1)
++
+?
+4 (dP + 2) ln
+4d
+?
+µ
++
+2
+(
+1
+??
++ 2
+)
+ln 4d?
+3µ
+? C?
+(?
+?+ ?
+)
+,
+for some suitable constant C? > 0, where ? as defined in Lemma 6.2.
+22 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+6.5. Overall error bound. Observe that the assumption on the sequence length
+in Eq. (10) implies the conditions in Eq. (12) and Eq. (30) for a suitable choice of
+C > 0. With this assumption, there is a 1? 5? probability event in which Eqs. (8),
+(9) and (31) hold; in particular, we have the bound on ?EM? from Eq. (31). In
+this event, the bound on ?E?? in Eq. (13) also holds, and the claimed bound on
+?L?? L? follows from combining the bound in Eq. (11) with the bounds on ?E??
+and ?EM?:
+?L??L? ? ?EM?+ ?EM?2 + 3?E??
+? 4C?
+(?
+?+ ?
+)
++ C?
+2 (?
+?+ ?
+)2 ? C
+(?
+?+ ?+ ?2
+)
+,
+where ? is defined in the statement of Lemma 6.2. The proof of Lemma 6.2 now
+follows by replacing ? with ?/5. 
+7. Proof of Theorem 3.4
+In this section, we prove Theorem 3.4.
+We call ??? of Theorem 3.3 the initial estimator. Let C be the constant from
+Theorem 3.3, and define
+n1 = n1(?; ?, ??) :=
+3C2
+?2????
+·
+(
+log
+d
+?
+)
+·
+(
+log
+3C2
+?2?2????
+)
+and
+M(n; ?, ??) := C
+?
+log d? · log n???
+????n
+,
+which is the right-hand side of Eq. (5). Observe that
+M(n1; ?, ??) ? ?
+???? log
+3C2
+?2?2????
++ log log d? + log log
+3C2
+?2?2????
+3 log 3C
+2
+?2?2??
+2
+??
+? ?.
+(Each term in the numerator under the radical is at most a third of the denominator.
+We have used that ?? ? 1/d in comparing the second term in the numerator to the
+denominator.)
+For a > 0, the spectral gap of the chain with transition matrix P a is denoted by
+??(a), and the initial estimator of ??(a), based on n/a steps of P
+a, is denoted by
+???(a). Note that
+??(a) = 1? (1? ??)a .
+Define K?? := ?log2(1/??)? and, for any ? ? (0, 1), ??? = ???(?) := ?/(K?? + 1).
+Proposition 7.1. Fix ? ? (0, 0.01) and ? ? (0, 1). Let A be the random vari-
+able defined in the estimator of Theorem 3.4 (which depends on (Xt)
+n
+t=1). If
+n > n1(?/
+?
+2; ??? , ??), then there is an event G(?) having probability at least 1? ?,
+such that on G(?),
+0.30 < ??(A) < 0.54 if ?? < 1/2 ,
+A = 1 if ?? ? 1/2 .
+Moreover, on G(?), the initial estimator ???(A) applied to the chain (XAs)
+n/A
+s=1 sat-
+isfies
+|???(A) ? ??(A)| ? ? .(32)
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 23
+The proof of Proposition 7.1 is based on the following lemma.
+Lemma 7.2. Fix n ? n1(?/
+?
+2; ?, ??). If a?? ? 1, then
+Pr(|??(a)? ???(a)| ? ?) > 1? ?.
+Proof. Recall the bound M(n; ?, ??) on the right-hand side of Eq. (5). If ??(a) ?
+??a/2, then
+M(n/a; ?, ??(a)) ?
+?
+2M(n; a?, ??) ?
+?
+2M(n; ?, ??) ?
+?
+2 · ??
+2
+= ? ,
+and the lemma follows from applying Theorem 3.3 to the P a-chain. We now show
+that ??(a) ? ??a/2. A Taylor expansion of (1 ? ??)a implies that there exists
+? ? [0, ??] ? [0, 1/a] such that
+??(a) = 1? (1? ??)a = ??a?
+a(a? 1)(1? ?)a?2?2?
+2
+? ??a
+2
+.
+(We have used the hypothesis a?? ? 1 in the inequality.) 
+Proof of Proposition 7.1. Define the events G(a; ?) := {|??(a) ? ???(a)| ? ?}, and
+G = G(?) :=
+?K??
+k=0 G(2
+k; ?). If k ? K?? , then ??2k ? ??2log2(1/??) ? 1 and
+Lemma 7.2 implies that
+Pr(Gc) ?
+K???
+k=0
+Pr(G(2k; ?)c) ? (K?? + 1) ·
+?
+K?? + 1
+= ? .
+On G, if ?? ? 1/2, then |??? ? ??| ? 0.01, and consequently ??? ? 0.49 > 0.31. In
+this case, A = 1 on G.
+On the event G, if the algorithm has not terminated by step k ? 1, then the
+following hold:
+(1) If ??(2
+k) ? 0.30, then the algorithm does not terminate at step k.
+(2) If ??(2
+k) > 0.32, then the algorithm terminates at step k.
+Also, assuming ?? ? 1/2,
+??(2
+K?? ) ? 1? (1? ??)
+1
+2?? ? 1? e?1/2 ? 0.39 ,
+so the algorithm always terminates before k = K?? on G and thus (32) holds on G.
+Finally, on G, if A > 1, then ??(A/2) ? 0.32, whence
+??(A) = 1? (1? ??(A/2))2 ? 1? (0.68)2 < 0.54 .
+If ?? < 1/2 and A = 1, then ??(A) = ?? ? 1/2. 
+We now prove Theorem 3.4.
+Proof of Theorem 3.4. Let
+(33) n0(?; ?, ??, ??) = n0(?) :=
+L
+?????2
+,
+where
+(34)
+L := 3·(16
+?
+2)2·
+(
+log
+d(?log2(1/??)?+ 1)
+?
+)
+·
+(
+log
+3 · (16
+?
+2)2 · C2(?log2(1/??)?+ 1)
+?2?2????
+)
+,
+and C is the constant in Eq. (5).
+24 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+Fix n > n0(?) = n1(?/(16
+?
+2); ??? , ??). Let A and G be as defined in Proposi-
+tion 7.1. Assume we are on the event G = G(?/16) for the rest of this proof.
+Suppose first that ?? < 1/2. We have 0.30 < ??(A) < 0.54, and
+|???(A)? ??(A)| ?
+?
+16
+< 0.01 ,
+so both ??(A) and ???(A) are in [0.29, 0.55], say.
+Let h(x) = 1?(1?x)1/A, so ?? = h(??(A)) and ??? = h(???(A)). Since (1?x)1/A ?
+1? x/A, we have
+1
+1? (1 ? x)1/A ?
+A
+x
+.
+Consequently, on [0.29, 0.55],
+????
+d
+dx
+log h(x)
+???? =
+1
+A (1? x)1/A?1
+1? (1 ? x)1/A ?
+1
+A(1 ? x)
+A
+x
+=
+1
+(1? x)x ?
+1
+(0.45)(0.29)
+< 8 .
+Thus, | ddx log h(x)| is bounded (by 8) on [0.29, 0.55]. We have
+| log(h(???(A))/??)| = | log h(??(A))? log h(???(A))| ? 8|??(A)? ???(A)| ? 8
+?
+16
+? ?
+2
+.
+Thus,
+???
+??
+=
+h(???(A))
+??
+? e?/2 ? 1 + ? .
+Similarly, ??h(???(A)) ? e
+?/2, so
+???
+??
+=
+h(???(A))
+??
+? e??/2 ? 1? ? .
+Now instead suppose that ?? ? 1/2. Then A = 1 on the event G, and
+|??? ? ??| <
+?
+16
+,
+so ????
+???
+??
+? 1
+???? <
+?
+16??
+? ? . 
+8. Proof of Theorem 4.1
+In this section, we derive Algorithm 1 and prove Theorem 4.1.
+8.1. Estimators for ? and ??. The algorithm forms the estimator P? of P using
+Laplace smoothing:
+P?i,j :=
+Ni,j + ?
+Ni + d?
+where
+Ni,j := |{t ? [n? 1] : (Xt, Xt+1) = (i, j)}| , Ni := |{t ? [n? 1] : Xt = i}|
+and ? > 0 is a positive constant, which we set beforehand as ? := 1/d for simplicity.
+As a result of the smoothing, all entries of P? are positive, and hence P? is a
+transition probability matrix for an ergodic Markov chain. We let ?? be the unique
+stationary distribution for P? . Using ??, we form an estimator Sym(L?) of L using:
+Sym(L?) :=
+1
+2
+(L?+ L?
+?
+), L? := Diag(??)1/2P? Diag(??)?1/2.
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 25
+Let ??1 ? ??2 ? · · · ? ??d be the eigenvalues of Sym(L?) (and in fact, we have
+1 = ??1 > ??2 and ??d > ?1). The algorithm estimates the spectral gap ?? using
+??? := 1?max{??2, |??d|}.
+8.2. Empirical bounds for P . We make use of a simple corollary of Freedman’s
+inequality for martingales (Freedman 1975, Theorem 1.6).
+Theorem 8.1 (Freedman’s inequality). Let (Yt)t?N be a bounded martingale dif-
+ference sequence with respect to the filtration F0 ? F1 ? F2 ? · · · ; assume for
+some b > 0, |Yt| ? b almost surely for all t ? N. Let Vk :=
+?k
+t=1 E
+(
+Y 2t |Ft?1
+)
+and
+Sk :=
+?k
+t=1 Yt for k ? N. For all s, v > 0,
+Pr [?k ? N s.t. Sk > s ? Vk ? v] ?
+(
+v/b2
+s/b+ v/b2
+)s/b+v/b2
+es/b = exp
+(
+? v
+b2
+· h
+(
+bs
+v
+))
+,
+where h(u) := (1 + u) ln(1 + u)? u.
+Observe that in Theorem 8.1, for any x > 0, if s :=
+?
+2vx+bx/3 and z := b2x/v,
+then the probability bound on the right-hand side becomes
+exp
+(
+?x · h
+(?
+2z + z/3
+)
+z
+)
+? e?x
+since h(
+?
+2z + z/3)/z ? 1 for all z > 0 (see, e.g., Audibert, Munos, and Szepesva?ri
+(2009, proof of Lemma 5)).
+Corollary 8.2. Under the same setting as Theorem 8.1, for any n ? 1, x > 0,
+and c > 1,
+Pr
+[
+?k ? [n] s.t. Sk >
+?
+2cVkx+ 4bx/3
+]
+? (1 + ?logc(2n/x)?+) e?x.
+Proof. Define vi := c
+ib2x/2 for i = 0, 1, 2, . . . , ?logc(2n/x)?+, and let v?1 := ??.
+Then, since Vk ? [0, b2n] for all k ? [n],
+Pr
+[
+?k ? [n] s.t. Sk >
+?
+2max{v0, cVk}x+ bx/3
+]
+=
+?logc(2n/x)?+?
+i=0
+Pr
+[
+?k ? [n] s.t. Sk >
+?
+2max{v0, cVk}x+ bx/3 ? vi?1 < Vk ? vi
+]
+?
+?logc(2n/x)?+?
+i=0
+Pr
+[
+?k ? [n] s.t. Sk >
+?
+2max{v0, cvi?1}x+ bx/3 ? vi?1 < Vk ? vi
+]
+?
+?logc(2n/x)?+?
+i=0
+Pr
+[
+?k ? [n] s.t. Sk >
+?
+2vix+ bx/3 ? Vk ? vi
+]
+? (1 + ?logc(2n/x)?+) e?x ,
+where the final inequality uses Theorem 8.1. The conclusion now follows because
+?
+2cVkx+ 4bx/3 ?
+?
+2max{v0, cVk}x+ bx/3
+for all k ? [n]. 
+26 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+Lemma 8.3. The following holds for any constant c > 1 with probability at least
+1? ?: for all (i, j) ? [d]2,
+(35) |P?i,j ?Pi,j | ?
+?(
+Ni
+Ni + d?
+)
+2cPi,j(1? Pi,j)?n,?
+Ni + d?
++
+(4/3)?n,?
+Ni + d?
++
+|?? d?Pi,j |
+Ni + d?
+,
+where
+(36)
+?n,? := inf
+{
+t ? 0 : 2d2 (1 + ?logc(2n/t)?+) e?t ? ?
+}
+= O
+(
+log
+(
+d log(n)
+?
+))
+.
+Proof. Let Ft be the ?-field generated by X1, X2, . . . , Xt. Fix a pair (i, j) ? [d]2.
+Let Y1 := 0, and for t ? 2,
+Yt := 1 {Xt?1 = i} (1 {Xt = j} ? Pi,j),
+so that
+n?
+t=1
+Yt = Ni,j ?NiPi,j .
+The Markov property implies that the stochastic process (Yt)t?[n] is an (Ft)-adapted
+martingale difference sequence: Yt is Ft-measurable and E (Yt|Ft?1) = 0, for each
+t. Moreover, for all t ? [n],
+Yt ? [?Pi,j , 1? Pi,j ] ,
+and for t ? 2,
+E
+(
+Y 2t |Ft?1
+)
+= 1 {Xt?1 = i}Pi,j(1? Pi,j) .
+Therefore, by Corollary 8.2 and union bounds, we have
+|Ni,j ?NiPi,j | ?
+?
+2cNiPi,j(1? Pi,j)?n,? +
+4?n,?
+3
+for all (i, j) ? [d]2. 
+Equation (35) can be viewed as constraints on the possible value that Pi,j may
+have (with high probability). Since Pi,j is the only unobserved quantity in the
+bound from Eq. (35), we can numerically maximize |P?i,j ? Pi,j | subject to the
+constraint in Eq. (35) (viewing Pi,j as the optimization variable). Let B
+?
+i,j be this
+maximum value, so we have
+Pi,j ?
+[
+P?i,j ?B?i,j , P?i,j +B?i,j
+]
+in the same event where Eq. (35) holds.
+In the algorithm, we give a simple alternative to computing B?i,j that avoids nu-
+merical optimization, derived in the spirit of empirical Bernstein bounds (Audibert,
+Munos, and Szepesva?ri 2009). Specifically, with c := 1.1 (an arbitrary choice), we
+compute
+(37)
+B?i,j :=
+?
+??
+?
+c?n,?
+2Ni
++
+????c?n,?
+2Ni
++
+?
+2cP?i,j(1 ? P?i,j)?n,?
+Ni
++
+(4/3)?n,? + |?? d?P?i,j |
+Ni
+?
+??
+2
+for each (i, j) ? [d]2, where ?n,? is defined in Eq. (36). We show in Lemma 8.4 that
+Pi,j ?
+[
+P?i,j ? B?i,j , P?i,j + B?i,j
+]
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 27
+again, in the same event where Eq. (35) holds. The observable bound in Eq. (37)
+is not too far from the unobservable bound in Eq. (35).
+Lemma 8.4. In the same 1 ? ? event as from Lemma 8.3, we have Pi,j ? [P?i,j ?
+B?i,j , P?i,j + B?i,j ] for all (i, j) ? [d]2, where B?i,j is defined in Eq. (37).
+Proof. Recall that in the 1 ? ? probability event from Lemma 8.3, we have for all
+(i, j) ? [d]2,
+|P?i,j ? Pi,j | =
+????
+Ni,j ?NiPi,j
+Ni + d?
++
+?? d?Pi,j
+Ni + d?
+????
+?
+?
+2cNiPi,j(1 ? Pi,j)?n,?
+(Ni + d?)2
++
+(4/3)?n,?
+Ni + d?
++
+|?? d?Pi,j |
+Ni + d?
+.
+Applying the triangle inequality to the right-hand side, we obtain
+|P?i,j ? Pi,j | ?
+?
+2cNi(P?i,j(1? P?i,j) + |P?i,j ? Pi,j |)?n,?
+(Ni + d?)2
++
+(4/3)?n,?
+Ni + d?
++
+|?? d?P?i,j |+ d?|P?i,j ? Pi,j |
+Ni + d?
+.
+Since
+?
+A+B ?
+?
+A +
+?
+B for non-negative A,B, we loosen the above inequality
+and rearrange it to obtain
+(
+1? d?
+Ni + d?
+)
+|P?i,j ? Pi,j | ?
+?
+|P?i,j ? Pi,j | ·
+?
+2cNi?n,?
+(Ni + d?)2
++
+?
+2cNiP?i,j(1 ? P?i,j)?n,?
+(Ni + d?)2
++
+(4/3)?n,? + |?? d?P?i,j |
+Ni + d?
+.
+Whenever Ni > 0, we can solve a quadratic inequality to conclude |P?i,j ? Pi,j | ?
+B?i,j . 
+8.3. Empirical bounds for ?. Recall that ?? is obtained as the unique stationary
+distribution for P? . Let A? := I ? P? , and let A?# be the group inverse of A?—i.e.,
+the unique square matrix satisfying the following equalities:
+A?A?#A? = A?, A?#A?A?# = A?#, A?#A? = A?A?#.
+The matrix A?#, which is well defined no matter what transition probability matrix
+P? we start with (Meyer Jr. 1975), is a central quantity that captures many prop-
+erties of the ergodic Markov chain with transition matrix P? (Meyer Jr. 1975). We
+denote the (i, j)-th entry of A?# by A?#i,j . Define
+?? :=
+1
+2
+max
+{
+A?
+#
+j,j ?min
+{
+A?
+#
+i,j : i ? [d]
+}
+: j ? [d]
+}
+.
+Analogously define
+A := I ? P ,
+A# := group inverse of A,
+? :=
+1
+2
+max
+{
+A
+#
+j,j ?min
+{
+A
+#
+i,j : i ? [d]
+}
+: j ? [d]
+}
+.
+28 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+We now use the following perturbation bound from Cho and Meyer (2001, Section
+3.3) (derived from Haviv and Van der Heyden (1984) and Kirkland, Neumann, and
+Shader (1998)).
+Lemma 8.5 (Haviv and Van der Heyden 1984; Kirkland, Neumann, and Shader
+1998). If |P?i,j ? Pi,j | ? B?i,j for each (i, j) ? [d]2, then
+max {|??i ? ?i| : i ? [d]} ? min{?, ??}max{B?i,j : (i, j) ? [d]2}
+? ??max{B?i,j : (i, j) ? [d]2}.
+This establishes the validity of the confidence intervals for the ?i in the same
+event from Lemma 8.3.
+We now establish the validity of the bounds for the ratio quantities
+?
+??i/?i and?
+?i/??i.
+Lemma 8.6. If max{|??i ? ?i| : i ? [d]} ? b?, then
+max
+?
+i?[d]
+{|
+?
+?i/??i ? 1|, |
+?
+??i/?i ? 1|} ?
+1
+2
+max
+?
+i?[d]
+{
+b?
+??i
+,
+b?
+[??i ? b?]+
+}
+.
+Proof. By Lemma 8.5, we have for each i ? [d],
+|??i ? ?i|
+??i
+? b?
+??i
+,
+|??i ? ?i|
+?i
+? b?
+?i
+? b?
+[??i ? b?]+
+.
+Therefore, using the fact that for any x > 0,
+max
+{
+|
+?
+x? 1|, |
+?
+1/x? 1|
+}
+? 1
+2
+max {|x? 1|, |1/x? 1|}
+we have for every i ? [d],
+max
+{
+|
+?
+?i/??i ? 1|, |
+?
+??i/?i ? 1|
+}
+? 1
+2
+max {|?i/??i ? 1|, |??i/?i ? 1|}
+? 1
+2
+max
+{
+b?
+??i
+,
+b?
+[??i ? b?]+
+}
+. 
+8.4. Empirical bounds for L. By Weyl’s inequality and the triangle inequality,
+max
+i?[d]
+|?i ? ??i| ? ?L? Sym(L?)? ? ?L? L??.
+It is easy to show that |??? ? ??| is bounded by the same quantity. Therefore, it
+remains to establish an empirical bound on ?L? L??.
+Lemma 8.7. If |P?i,j ? Pi,j | ? B?i,j for each (i, j) ? [d]2 and max{|??i ? ?i| : i ?
+[d]} ? b?, then
+?L??L? ? 2??+ ??2 + (1 + 2??+ ??2)
+( ?
+(i,j)?[d]2
+??i
+??j
+B?2i,j
+)1/2
+,
+where
+?? :=
+1
+2
+max
+?
+i?[d]
+{
+b?
+??i
+,
+b?
+[??i ? b?]+
+}
+.
+MIXING TIME ESTIMATION FROM A SINGLE SAMPLE PATH 29
+Proof. We use the following decomposition of L? L?:
+L? L? = EP + E?,1L?+ L?E?,2 + E?,1EP + EPE?,2 + E?,1L?E?,2 + E?,1EPE?,2
+where
+EP := Diag(??)
+1/2(P ? P? )Diag(??)?1/2,
+E?,1 := Diag(?)
+1/2 Diag(??)?1/2 ? I,
+E?,2 := Diag(??)
+1/2 Diag(?)?1/2 ? I.
+Therefore
+?L? L?? ? ?E?,1?+ ?E?,2?+ ?E?,1??E?,2?
++ (1 + ?E?,1?+ ?E?,2?+ ?E?,1??E?,2?) ?EP ?.
+Observe that for each (i, j) ? [d]2, the (i, j)-th entry of EP is bounded in absolute
+value by
+|(EP )i,j | = ??1/2i ??
+?1/2
+j |Pi,j ? P?i,j | ? ??
+1/2
+i ??
+?1/2
+j B?i,j .
+Since the spectral norm of EP is bounded above by its Frobenius norm,
+?EP ? ?
+( ?
+(i,j)?[d]2
+(EP )
+2
+i,j
+)1/2
+?
+( ?
+(i,j)?[d]2
+?i
+?j
+B?2i,j
+)1/2
+.
+Finally, the spectral norms of E?,1 and E?,2 satisfy
+max {?E?,1?, ?E?,2?} = max
+?
+i?[d]
+{|
+?
+?i/??i ? 1|, |
+?
+??i/?i ? 1|},
+which can be bounded using Lemma 8.6. 
+This establishes the validity of the confidence interval for ?? in the same event
+from Lemma 8.3.
+8.5. Asymptotic widths of intervals. Let us now turn to the asymptotic be-
+havior of the interval widths (regarding b?, ??, and w? all as functions of n).
+A simple calculation gives that, almost surely, as n ? ?,
+?
+n
+log logn
+b? = O
+(
+max
+i,j
+?
+?
+Pi,j
+?i
+)
+,
+?
+n
+log logn
+?? = O
+(
+?
+?
+3/2
+?
+)
+.
+Here, we use the fact that ?? ? ? as n ? ? since A?# ? A# as P? ? P (Li and
+Wei 2001; Ben??tez and X. Liu 2012).
+Further, since
+?
+n
+log logn
+(?
+i,j
+??i
+??j
+B?2i,j
+)1/2
+= O
+?
+?
+(?
+i,j
+?i
+?j
+· Pi,j(1? Pi,j)
+?i
+)1/2?
+? = O
+(?
+d
+??
+)
+,
+we thus have
+?
+n
+log logn
+w? = O
+(
+?
+?
+3/2
+?
++
+?
+d
+??
+)
+.
+This completes the proof of Theorem 4.1. 
+30 D. HSU, A. KONTOROVICH, D.A. LEVIN, Y. PERES, AND CS. SZEPESVA?RI
+The following lemma provides a bound on ? in terms of the number of states
+and the spectral gap.
+Lemma 8.8. ? ? 1?? min{d, 8 + ln(4/??)}
+Before proving this, we prove a lemma of independent interest.
+Lemma 8.9. Let ?j be the first positive time that state j is visited by the Markov
+chain. Then
+(38) Ei?j ? 2
+(
+tmix + 8
+trelax
+?j
+)
+.
+Proof. By taking f to be the indicator of state j in Theorem 12.19 of Levin, Peres,
+and Wilmer (2009), for any i, if t = tmix + 8trelax/?j , then
+Pri(?j > t) ?
+1
+2
+.
+Thus, Pri(?j > tk) ? 2?k, whence Eq. (38) follows. 
+Proof of Lemma 8.8. It is established by Cho and Meyer (2001) that
+? ? max
+i,j
+|A#i,j | ? sup
+?v?1=1,?v,1?=0
+?v?A#?1
+(our ? is the ?4 quantity from Cho and Meyer (2001)), and Seneta (1993) establishes
+sup
+?v?1=1,?v,1?=0
+?v?A#?1 ?
+d
+??
+.
+Since it is shown in Cho and Meyer (2001) that
+? =
+1
+2
+max
+j
+[
+max
+i6=j
+Ei(?j)
+]
+?j ,
+it follows from Lemma 8.9 that
+? ? tmix + 8trelax ? trelax(8 + ln(4/??)) . 
+9. Proof of Theorem 4.2
+Let ???,lb and ???,lb be the lower bounds on ?? and ??, respectively, computed
+from Algorithm 1. Let ??? and ??? be the estimates of ?? and ?? computed using the
+estimators from Theorem 3.3. By a union bound, we have by Theorems 3.3 and 4.1
+that with probability at least 1? 2?,
+(39) |??? ? ??| ? C
+?
+?
+?
+?? log
+d
+???,lb?
+???,lbn
++
+log d???,lb?
+???,lbn
+?
+?
+and
+(40) |??? ? ??| ? C
+?
+?
+?
+log d? · log n???,lb?
+???,lb???,lbn
++
+log d? · log n???,lb?
+???,lb???,lbn
++
+log 1???,lb
+???,lbn
+?
+? .
+REFERENCES 31
+The bound on |???? ??| in Eq. (40)—call it w??—is fully observable and hence yields
+a confidence interval for ??. The bound on |??????| in Eq. (39) depends on ??, but
+from it one can derive
+|??? ? ??| ? C?
+?
+?
+?
+??? log
+d
+???,lb?
+???,lbn
++
+log d???,lb?
+???,lbn
+?
+?
+using the approach from the proof of Lemma 8.4. Here, C? > 0 is an absolute con-
+stant that depends only on C. This bound—call it b??—is now also fully observable.
+We have established that in the 1? 2? probability event from above,
+?? ? U? := [??? ? b??, ??? + b??], ?? ? V? := [??? ? w??, ??? + w??].
+It is easy to see that almost surely (as n ? ?),
+?
+n
+logn
+w?? = O
+(?
+log(d/?)
+????
+)
+and
+?
+nb?? = O
+?
+?
+?
+?? log
+d
+???
+??
+?
+? .
+This completes the proof of Theorem 4.2. 
+10. Discussion
+The construction used in Theorem 4.2 applies more generally: Given a confidence
+interval of the form In = In(??, ??, ?) for some confidence level ? and a confidence
+set En(?) for (??, ??) for the same level, I
+?
+n = En(?) ? ?(?,?)?En(?)In(?, ?, ?) is a
+valid 2?-level confidence interval whose asymptotic width matches that of In up
+to lower order terms under reasonable assumptions on En and In. In particular,
+this suggests that future work should focus on closing the gap between the lower
+and upper bounds on the accuracy of point-estimation. The bootstrap estimator
+of Theorem 3.4 closes most of the gap when ? is uniform. Another interesting
+direction is to reduce the computation cost: the current cubic cost in the number
+of states can be too high even when the number of states is only moderately large.
+Perhaps more important, however, is to extend our results to large state space
+Markov chains. In most practical applications the state space is continuous or is
+exponentially large in some natural parameters. To subvert our lower bounds, we
+must restrict attention to Markov chains with additional structure. Parametric
+classes, such as Markov chains with factored transition kernels with a few factors,
+are promising candidates for such future investigations. The results presented here
+are a first step in the ambitious research agenda outlined above, and we hope that
+they will serve as a point of departure for further insights on the topic of fully
+empirical estimation of Markov chain parameters based on a single sample path.
+References
+Atchade?, Y. F. (2016). “Markov chain Monte Carlo confidence intervals”. In: Bernoulli
+22.3, pp. 1808–1838. issn: 1350-7265. doi: 10.3150/15-BEJ712.
+32 REFERENCES
+Audibert, J.-Y., R. Munos, and Cs. Szepesva?ri (2009). “Exploration-exploitation
+Tradeoff using Variance Estimates in Multi-armed Bandits”. In: Theoretical Com-
+puter Science 410.19, pp. 1876–1902.
+Batu, T., L. Fortnow, R. Rubinfeld, W. D. Smith, and P. White (2000). “Testing
+that distributions are close”. In: FOCS. IEEE, pp. 259–269.
+– (2013). “Testing closeness of discrete distributions”. In: Journal of the ACM
+(JACM) 60.1, 4:2–4:25.
+Ben??tez, J. and X. Liu (2012). “On the continuity of the group inverse”. In: Oper-
+ators and Matrices 6.4, pp. 859–868.
+Bernstein, S. (1927). “Sur l’extension du theoreme limite du calcul des probabilites
+aux sommes de quantites dependantes”. In: Mathematische Annalen 97, pp. 1–
+59.
+Bhatnagar, N., A. Bogdanov, and E. Mossel (2011). “The computational complexity
+of estimating MCMC convergence time”. In: RANDOM. Springer, pp. 424–435.
+Bhattacharya, B. B. and G. Valiant (2015). “Testing Closeness With Unequal Sized
+Samples”. In: Advances in Neural Information Processing Systems 28: Annual
+Conference on Neural Information Processing Systems 2015, December 7-12,
+2015, Montreal, Quebec, Canada, pp. 2611–2619.url: http://papers.nips.cc/paper/5908-testing-closeness-with-unequal-sized-samples.
+Bousquet, O., S. Boucheron, and G. Lugosi (2004). “Introduction to statistical
+learning theory”. In: Lecture Notes in Artificial Intelligence 3176, pp. 169–207.
+Cho, G. and C. Meyer (2001). “Comparison of perturbation bounds for the sta-
+tionary distribution of a Markov chain”. In: Linear Algebra and its Applications
+335, pp. 137–150.
+Flegal, J. M. and G. L. Jones (2011). “Implementing MCMC: estimating with
+confidence”. In: Handbook of Markov chain Monte Carlo. Chapman & Hall/CRC,
+pp. 175–197.
+Freedman, D. (1975). “On tail probabilities for martingales”. In: The Annals of
+Probability 3.1, pp. 100–118.
+Gamarnik, D. (2003). “Extension of the PAC framework to finite and countable
+Markov chains”. In: IEEE Transactions on Information Theory 49.1, pp. 338–
+345.
+Garren, S. T. and R. L. Smith (2000). “Estimating the second largest eigenvalue of
+a Markov transition matrix”. In: Bernoulli 6, pp. 215–242.
+Gillman, D. (1998). “A Chernoff bound for random walks on expander graphs”. In:
+SIAM Journal on Computing 27.4, pp. 1203–1220.
+Gyori, B. M. and D. Paulin (2014). “Non-asymptotic confidence intervals for MCMC
+in practice”. arXiv:1212.2016.
+Haviv, M. and L. Van der Heyden (1984). “Perturbation bounds for the stationary
+probabilities of a finite Markov chain”. In: Advances in Applied Probability 16,
+pp. 804–818.
+Hsu, D., A. Kontorovich, and Cs. Szepesva?ri (2015). “Mixing Time Estimation in
+Reversible Markov Chains from a Single Sample Path”. In: Advances in Neural
+Information Processing Systems 28. Ed. by C. Cortes, N. D. Lawrence, D. D.
+Lee, M. Sugiyama, and R. Garnett. Curran Associates, Inc.
+Jones, G. L. and J. P. Hobert (2001). “Honest Exploration of Intractable Probability
+Distributions via Markov Chain Monte Carlo”. In: Statist. Sci. 16.4, pp. 312–334.
+doi: 10.1214/ss/1015346317. url: http://dx.doi.org/10.1214/ss/1015346317.
+REFERENCES 33
+Karandikar, R. L. and M. Vidyasagar (2002). “Rates of uniform convergence of
+empirical means with mixing processes”. In: Statistics and Probability Letters
+58.3, pp. 297–307.
+Kipnis, C. and S. R. S. Varadhan (1986). “Central limit theorem for additive func-
+tionals of reversible Markov processes and applications to simple exclusions”. In:
+Comm. Math. Phys. 104.1, pp. 1–19. url: http://projecteuclid.org/euclid.cmp/1104114929.
+Kirkland, S., M. Neumann, and B. Shader (1998). “Applications of Paz’s inequality
+to perturbation bounds for Markov chains”. In: Linear Algebra and its Applica-
+tions 268, pp. 183–196.
+Kontorovich, A. and R. Weiss (2014). “Uniform Chernoff and Dvoretzky-Kiefer-
+Wolfowitz-type inequalities for Markov chains and related processes”. In: Journal
+of Applied Probability 51.4, pp. 1100–1113.
+Kontoyiannis, I., L. A. Lastras-Montan?o, and S. P. Meyn (2006). “Exponential
+bounds and stopping rules for MCMC and general Markov chains”. In: VALUE-
+TOOLS, p. 45.
+Leo?n, C. A. and F. Perron (2004). “Optimal Hoeffding bounds for discrete reversible
+Markov chains”. In: Annals of Applied Probability, pp. 958–970.
+Levin, D. A. and Y. Peres (2016). Estimating the Spectral Gap of a Reversible
+Markov Chain from a Short Trajectory. arXiv: 1612.05330 [math.ST/stat.TH].
+Levin, D. A., Y. Peres, and E. L. Wilmer (2009). Markov chains and mixing times.
+With a chapter by James G. Propp and David B. Wilson. American Mathemat-
+ical Society, Providence, RI.
+Li, X. and Y. Wei (2001). “An improvement on the perturbation of the group inverse
+and oblique projection”. In: Linear Algebra and its Applications 338, pp. 53–66.
+Liu, J. S. (2001). Monte Carlo Strategies in Scientific Computing. Springer Series
+in Statistics. Springer-Verlag.
+McDonald, D., C. Shalizi, and M. Schervish (2011). “Estimating beta-mixing coef-
+ficients”. In: AISTATS, pp. 516–524.
+Meyer Jr., C. D. (1975). “The Role of the Group Generalized Inverse in the Theory
+of Finite Markov Chains”. In: SIAM Review 17.3, pp. 443–464.
+Meyn, S. P. and R. L. Tweedie (1993). Markov Chains and Stochastic Stability.
+Springer.
+Mohri, M. and A. Rostamizadeh (2008). “Stability bounds for non-iid processes”.
+In: NIPS.
+Montenegro, R. and P. Tetali (2006). Mathematical Aspects of Mixing Times in
+Markov Chains. Now Publishers.
+Paulin, D. (2015). “Concentration inequalities for Markov chains by Marton cou-
+plings and spectral methods”. In: Electronic Journal of Probability 20, pp. 1–
+32.
+Seneta, E. (1993). “Sensitivity of finite Markov chains under perturbation”. In:
+Statistics & Probability Letters 17, pp. 163–168.
+Steinwart, I. and A. Christmann (2009). “Fast Learning from Non-i.i.d. Observa-
+tions”. In: NIPS.
+Steinwart, I., D. Hush, and C. Scovel (2009). “Learning from dependent observa-
+tions”. In: Journal of Multivariate Analysis 100.1, pp. 175–194.
+Stewart, G. W. and J. Sun (1990). Matrix perturbation theory. Boston: Academic
+Press. isbn: 0126702306.
+34 REFERENCES
+Sutton, R. S. and A. G. Barto (1998). Reinforcement Learning: An Introduction
+(Adaptive Computation and Machine Learning). A Bradford Book. isbn: 9780262193986.
+Tropp, J. (2015). “An Introduction to Matrix Concentration Inequalities”. In: Foun-
+dations and Trends in Machine Learning.
+Yu, B. (1994). “Rates of convergence for empirical processes of stationary mixing
+sequences”. In: The Annals of Probability 22.1, pp. 94–116.
+Computer Science Department, Columbia University, New York, NY 10027
+E-mail address: djhsu@cs.columbia.edu
+Ben-Gurion University
+E-mail address: karyeh@cs.bgu.ac.il
+Department of Mathematics, University of Oregon, Eugene, OR 97403-1220
+E-mail address: dlevin@uoregon.edu
+Microsoft Research
+E-mail address: peres@microsoft.com
+University of Alberta
+E-mail address: csaba.szepesvari@gmail.com

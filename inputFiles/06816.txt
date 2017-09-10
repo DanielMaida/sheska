@@ -1,0 +1,2222 @@
+Analysis of the Impact of Negative Sampling
+on Link Prediction in Knowledge Graphs
+Bhushan Kotnis
+Dept. of Computational Linguistics, Heidelberg University
+Heidelberg, Germany
+kotnis@cl.uni-heidelberg.de
+Vivi Nastase
+Dept. of Computational Linguistics, Heidelberg University
+Heidelberg, Germany
+nastase@cl.uni-heidelberg.de
+ABSTRACT
+Knowledge graphs are large, useful, but incomplete knowledge
+repositories. They encode knowledge through entities and relations
+which define each other through the connective structure of the
+graph. This has inspired methods for the joint embedding of en-
+tities and relations in continuous low-dimensional vector spaces,
+that can be used to induce new edges in the graph, i.e., link pre-
+diction in knowledge graphs. Learning these representations relies
+on contrasting positive instances with negative ones. Knowledge
+graphs include only positive relation instances, leaving the door
+open for a variety of methods for selecting negative examples. In
+this paper we present an empirical study on the impact of negative
+sampling on the learned embeddings, assessed through the task of
+link prediction. We use state-of-the-art knowledge graph embed-
+dings – Rescal , TransE, DistMult and ComplEX – and evaluate on
+benchmark datasets – FB15k and WN18. We compare well known
+methods for negative sampling and additionally propose embed-
+ding based sampling methods. We note a marked difference in the
+impact of these sampling methods on the two datasets, with the
+"traditional" corrupting positives method leading to best results
+on WN18, while embedding based methods benefiting the task on
+FB15k.
+KEYWORDS
+knowledge graphs, negative sampling, embedding models, link
+prediction
+1 INTRODUCTION
+Representing knowledge efficiently is crucial for AI tasks such as
+question answering and natural language dialogue systems. Much
+of human knowledge can be formalized in terms of real world
+entities, abstract concepts, categories and the relations between
+them. Thus, a knowledge graph (KG) that models relations be-
+tween concepts is a natural candidate for representing relations
+and linked concepts. A few examples of large knowledge graphs
+that contain millions of entities and facts include NELL (Carlson
+et al., 2010), Freebase (Bollacker et al., 2008) and YAGO (Suchanek
+et al., 2007). These KGs represent real world facts as a set of triples,
+each consisting of two entities connected by a binary relation, e.g.,
+(concept:city:London, relation:country_capital, concept:country:UK).
+Here entities such as London and UK are represented as nodes and
+the relation country_capital is represented as a binary link that con-
+nects these nodes. The same two nodes may be connected by more
+than one type of relations, making a KG a multi-graph. KGs have
+found applications in question answering systems (Miller et al.,
+2016), evaluating trustworthiness of web content (Dong et al., 2015),
+and web search (Dong et al., 2014).
+Although KGs such as Freebase consist of millions of entities
+and billions of facts, they are still incomplete (West et al., 2014)
+which limits their application. However, it is possible to infer new
+(missing) facts from known facts. Recently, latent factor models that
+capture global statistical patterns from the entire knowledge graph
+have received considerable attention. These latent factor models
+learn a representation of the graph in a continuous vector space by
+learning embeddings that capture the graph structure. Since these
+models learn global statistical patterns, they can also be used for
+tasks such as learning an ontology (schema), clustering entities,
+and probabilistic factoid question answering. The Rescal model
+(Nickel et al., 2011) is an example of one such latent factor model.
+Rescal represents every node as a d dimensional vector and a
+relation as a d × d dimensional matrix. A triple is modeled as a
+tensor product of the entity pair (all pairwise entity latent factor
+interactions) weighted by the relation matrix.
+Predicting new edges to automatically add new facts to a knowl-
+edge graph helps bypass the text analysis stage and bootstrap new
+knowledge based on what is already captured in the knowledge
+graph. Similar to other problems in processing natural language,
+such as parsing for example, existing data consists (almost) exclu-
+sively of positive instances. A solution to this issue is using implicit
+negative evidence, whereby instances that have not been observed
+are considered negatives, and are used for contrastive estimation
+(Smith and Eisner, 2005), where the aim is to rank observed in-
+stances higher than negative (unobserved) ones. Negative instances
+can be generated using a variety of methods. Understanding the
+impact of negative instance sampling will have at least two uses:
+providing the basis for choosing the negative sampling method
+to build the best model for a given method, and allowing us to
+place in the right context results reported in the literature that were
+produced while using different negative sampling methods.
+In this article we present the results of our investigation on the
+impact of several negative sampling methods on state-of-the-art
+knowledge graph embedding models. Additionally we propose two
+negative sampling strategies for fine tuning the model.
+2 LINK PREDICTION IN KNOWLEDGE
+GRAPHS
+Knowledge graphs KG = (E,R) contain knowledge in the form of
+relation triples (s, r , t), where s, t ? E are entities, and r ? R is a
+relation. These knowledge graphs are not complete, and additional
+links (facts) can be inferred, based on the idea that similar nodes
+have similar relations – e.g. all countries have a capital city. The KG
+ar
+X
+iv
+:1
+70
+8.
+06
+81
+6v
+1 
+ [
+cs
+.A
+I]
+  2
+2 
+A
+ug
+ 2
+01
+7
+, , Bhushan Kotnis and Vivi Nastase
+can be encoded using different modeling techniques, which results
+in encodings for both the entities and the relations.
+A variety of such techniques have been proposed (Nickel et al.,
+2011; Socher et al., 2013; Bordes et al., 2013; Yang et al., 2015; Lin
+et al., 2015; Nickel et al., 2016b). These methods learn a model for
+the processed KG as a large set of parameters, induced based on
+optimizing a loss function with respect to positive and negative
+instances of links representing different relation types. Methods
+such as Rescal (Nickel et al., 2011) and Neural Tensor Networks
+(Socher et al., 2013) learn millions of parameters that makes them
+more flexible, enabling them to model well a variety of relations,
+but at the cost of increased computational complexity and potential
+overfitting. Methods such as TransE (Bordes et al., 2013), DistMult
+(Yang et al., 2015) learn simpler models (with far fewer parameters)
+and are easier to train but are unable to model certain types of
+relations such as many-to-one (TransE) and asymmetric relations
+(DistMult). Recent work such as (Nickel et al., 2016b) achieve the
+modeling power of Rescal with a smaller number of parameters
+by compressing the tensor product. Complex valued embeddings
+(ComplEx) (Trouillon et al., 2017) extend the DistMult to model
+antisymmetric relations by using complex valued embeddings. Fi-
+nally, (Guu et al., 2015) showed that most latent factor models can
+be modified to learn from paths rather than individual triples which
+improves performance. Recurrent Neural Networks that learn path
+representations have also been used for link prediction (Neelakan-
+tan et al., 2015; Das et al., 2016). All these models require negative
+samples during training. Thus efficient negative sampling is critical
+for learning a good model.
+We focus our analysis on four state-of-the-art methods with
+respect to link prediction based on knowledge graphs: ComplEx,
+DistMult, Rescal , TransE. We did not include the recent state-
+of-the-art Holographic Embedding (HolE) model, since ComplEx
+performs as well as HolE.
+2.1 Rescal
+The Rescalmodel (Nickel et al., 2011, 2012) weights the interaction
+of all pairwise latent factor between the source and target entity for
+predicting a relation. It represents every entity as a d dimensional
+vector (x ? Rd ), and every relation as a d × dmatrixW ? Rd×d .
+This model represents the triple (s, r , t) as a score given by
+sc (s, r , t) = xTs Wr xt
+These vectors and matrices are learned by using a loss function that
+contrasts the score of a correct triple to incorrect ones. Commonly
+used loss functions include cross-entropy loss (Toutanova et al.,
+2016), binary negative log likelihood (Trouillon et al., 2017), and
+margin loss (Guu et al., 2015; Nickel et al., 2016b). Here we use the
+max-margin loss:
+L(? ) =
+N?
+i
+?
+t ??N (t )
+[1 ? sci + s ?ci ]
++ (1)
+where sci = sc (si , ri , ti ) and s
+?
+ci = sc (si , ri , t
+?
+i ). N (t) is the set of
+incorrect targets and ? is the sigmoid function. Similar triples are
+And also because HolE is very similar to ComplEx. This was verified through personal
+correspondence with an author of the ComplEx paper.
+used where the relation and target are shared, but the source entity
+is corrupted.
+2.2 TransE
+TransE (Bordes et al., 2013) interprets relations as a translation
+operation from the source to the target mediated by the relation.
+More specifically, it embeds a triple spatially such that the source
+vector can travel to the target vector through the relation vector,
+i.e., xs +xr ? xt . The scoring function sc (s, r , t) for TransE is given
+by
+sc (s, r , t) = ?d(xs + xr ? xt )
+where xs , xr , xt are d dimensional vectors, and d(x) is either the
+L1 or L2-norm of x . We use TransE with L2-norm. For learning
+embeddings, we use max-margin loss (1).
+Compared to Rescal , TransE has much fewer parameters, but it
+also is more limited in the variety of relations it can model, because
+the translation operation assumes 1 ? to ? 1 relations.
+2.3 DistMult
+DistMult (Yang et al., 2015) is a special case of the Rescal model,
+where the relation matrix is assumed to be diagonal. This results in
+a sparse relation matrix and consequently fewer parameters. How-
+ever this simplicity results in reduction of modeling power. The
+DistMult model is symmetric and hence can only model symmetric
+relations. However, DistMult performs well on FB15K benchmark
+dataset, since the test data contains only a few instances of asym-
+metric triples. The DistMult scoring function is given by
+sc (s, r , t) = xTs Diag(Wr ) xt
+This can also be written as a three way inner product
+sc (s, r , t) = ?xs ,xr ,xt ?
+where ?xs ,xr ,xt ? =
+?
+i xsi xri xti andxr = Diag(Wr ) andxs ,xr ,xt ?
+Rd . As before we use the margin loss (1) for learning these vectors.
+2.4 ComplEx
+The ComplEx model (Trouillon et al., 2017) performs sparse tensor
+factorization of the knowledge graph in the complex domain. Nodes
+and relations are modeled by d dimensional vectors with a real and
+imaginary part (Re(x), Im(x)). This allows ComplEx to model anti-
+symmetric relations since the three way dot product (inner product)
+in the complex domain is not symmetric. ComplEx can be seen as
+DistMult with complex embeddings. The score function of ComplEx
+is given by
+sc (s, r , t) = Re(?xs ,xr , x?t ?)
+= ?Re(xs ),Re(xr ),Re(xt )? + ?Im(xs ),Re(xr ), Im(xt )?
++ ?Re(xs ), Im(xr ), Im(xt )? ? ?Im(xs ), Im(xr ),Re(xt )?
+Authors of ComplEx train the model with negative log-likelihood,
+however tomaintain the same experimental conditions for assessing
+efficacy of negative sampling, we train ComplEx with max margin
+loss (1).
+Analysis of the Impact of Negative Sampling
+on Link Prediction in Knowledge Graphs , ,
+3 NEGATIVE SAMPLING
+Knowledge Graphs capture knowledge in the form of <entity, rela-
+tion, entity> triples, with entities mapped to nodes and relations to
+edges. As such, KGs contain only positive instances.While one-class
+classification solutions have been around for some time (Moya et al.,
+1993), in the type of approach on which we focus, using negative
+instances for learning leads to better models.
+Negative instances are not marked in a knowledge graph. The
+task of link prediction has much in common with other tasks in
+natural language processing where (most of) the observed data
+consists of positive instances. (Smith and Eisner, 2005) proposed
+contrastive estimation, whereby instances that were produced by
+perturbing the observed ones (and that themselves have not been
+observed) will serve as negative instances, and the aim is to rank
+observed instances higher than the unobserved ("negative") ones. In
+neural probabilistic language models, negative sampling was first
+proposed in (Bengio and Senécal, 2008) as importance sampling. A
+sampling solution that was more stable than importance sampling
+was introduced by (Mnih and Teh, 2012), who built upon the noise-
+contrastive estimation (Gutmann and Hyvarinen, 2012). In these
+approaches negative samples are drawn from a non-parametric
+noise distribution.
+For knowledge graphs in particular there are many different
+ways to produce negative instances based on the graph structure.
+We present an overview of techniques for producing negative in-
+stances from a knowledge graph, and we evaluate their impact on
+knowledge graph completion, or link prediction.
+3.1 Random sampling : R
+The simplest form of sampling negative instances is to assume
+a closed world hypothesis and consider any triple that does not
+appear in the KG as a negative instance. Let
+K = K+ = {(si , ri , ti )|yi = 1; i = 1, 2, · · · ,N }
+denote the complete knowledge graph, where yi = 1 represents
+the presence of triple (si , ri , ti ) (a positive instance) and yi = 0
+represents absence. According to the closed world assumption, the
+set of negatives K? is given by
+K? = {(si , ri , ti )|yi = 0; i = 1, 2, · · · ,N }
+However, if the knowledge graph is incomplete then this set will
+contain positive triples not present in the KG. Furthermore this set
+might be very large because the number of incorrect facts (O(N 2))
+far outnumber the number of correct ones.
+A simple solution to the scalability problem is randomly sam-
+pling a small number of samples from K?. Given a positive triple
+(s, r , t) we generate ns negative triples by sampling ns target en-
+tities from the entity set E. Since the sampling is random, we do
+not check whether the sampled triples are present in the train and
+development set, because the probability they are present in K+ is
+negligible. The same procedure is used to generate negative sources.
+The negatives produced by random sampling may not be very
+useful. For example consider the positive triple (Tom_Cruise, starred_in,
+Top_Gun), negative targets such as London or Mount_Everest seem
+irrelevant. Examples of relevant negative targets include entities
+that are movies, such as Forrest_Gump,Terminator,Inception, etc.
+To obtain such negatives it is necessary to constrain the set of enti-
+ties from which samples are drawn. We explore such constraints in
+the following sections.
+3.2 Corrupting positive instances : C
+We use a method described in (Socher et al., 2013) that generates
+negative instances by corrupting positive instances. This ensures
+that the sampled negative targets belong are relevant to the relation.
+For every relation r , Socher et al. (2013) collects the sets
+S = {s |(s, r , ?) ? K+} and T = {t |(?, r , t) ? K+},
+and produce triples
+(s ?, r , t), s ? ? S and (s, r , t ?), t ? ? T ,
+such that:
+(s ?, r , t) < K+ and (s, r , t ?) < K+.
+During training K+ consists of triples from training and devel-
+opment set. We sample a number ns of negative samples from set S
+andT . Such a method produces negative instances that are closer to
+the positive ones than those produced through random sampling.
+An issue with this method is that for relations with very few pos-
+itive instances, there will not be a large enough pool of source and
+target candidates to corrupt the positive instances. The data analy-
+sis shows that this is an issue for the FB15k dataset. For relations
+where not enough corrupted negative instances can be produced,
+we supplement this set with randomly produced negative samples.
+3.3 Typed Sampling : T
+Knowledge graphs such as FreeBase and NELL (Carlson et al., 2010)
+have strongly typed relations. For example, a relation born_in holds
+between entities of type person and entities of type city. Relevant
+negative candidates (sources or targets) can be mined by constrain-
+ing the entities to belong to the same type as that of the source
+(or target). This can help bypass the problem mentioned for the
+corrupt method, when some relations in the dataset have very few
+instances.
+For every relation r ,
+if S = {s |s has type St } and T = {t |t has type Tt },
+with St and Rt the domain and range respectively of r , negative
+instances will consist of triples
+(s ?, r , t), s ? ? S and (s, r , t ?), t ? ? T ,
+such that
+(s ?, r , t) < R and (s, r , t ?) < K+.
+We then sample ns number of negative samples from S and T .
+It is possible that an entity may have several types (e.g. Al-
+bert_Einstein has types person, scientist). If the set of types associated
+with an entity contains the required domain/range of a relation, we
+take the entity as a potential source/target for negative instances.
+Like the positive instance corruption, such a method produces near-
+miss negative instances, which should lead to a better model. We
+obtain category data for the Freebase dataset from Freebase relation
+metadata released in (Gardner and Mitchell, 2015). A few examples
+of entities and types are described in Table 1 We do not use typed
+sampling for Wordnet. The hypernym/hyponym relations are the
+de facto type relations in WordNet, but are hierachical rather than
+the mapping onto a given small set of predetermined types as in
+Freebase.
+, , Bhushan Kotnis and Vivi Nastase
+Source Type Source Relation Target Target Type
+f ilm star_wars_episode_IV produced_by ?eor?e_lucas f ilm_producer
+person alexandre_dumas people_pro f ession writer pro f ession
+academic_post pro f essor pro f ession_people albert_einstein award_winner
+Table 1: Entity Types in Freebase: Examples of source and target entity types from Freebase used for generating negative
+samples.
+As entity type information we obtain Freebase category data
+from (Gardner and Mitchell, 2015), and then the entity type by
+mapping the Freebase entity identifier to the Freebase category.
+This results in 101,353 instances of the category relation which
+is used in the training stage to produce typed negative samples.
+Domain and range types for Freebase relations are provided by
+Freebase itself.
+3.4 Relational Sampling : REL
+Although typed or corrupt relation sampling can generate relevant
+negative candidates, due to the incompleteness of the KG, some of
+these candidates could be unknown positives. If we assume that
+source target pairs participate in only one relation, then sampling
+targets (sources) that are connected to the current source (target)
+through relations other than the current relation can yield true
+negatives. This is a common procedure in multi-class learning for
+example.
+More formally, for positive triple (s, r , t) the negative candidate
+source set S = {s |(s, r ?, t ?), ? r ? ? R, r ? , r } and target set T =
+{t |(s ?, r ?, t), ? r ? ? R, r ? , r }. As before, after computing S and
+T we filter out positive triples from train and development set and
+sample a number ns of samples.
+3.5 Nearest Neighbor sampling : NN
+Algorithm 1: Algorithm 1 Nearest Neighbor Sampling
+Input :Triple (s,r,t),Entity Set E, Positive source and targets
+Ps and Pt , Negative Sampling Embedding Model fn ,
+Number of negative samples ns
+Output :Set of ns negative samples
+Ns ? E\Ps , Nt ? E\Pt ;
+X sn ? f (Ns ), X tn ? f (Nt ) ;
+Initialize K ball tree with X sn and X tn ;
+xt ? fn (t) ;
+xs ? fn (s) ;
+S ? nearest_neighbors(xs ,num=ns );
+T ? nearest_neighbors(xt ,num=ns );
+return S,T
+Most negative sampling methods generate negative samples
+based on either the closed world assumption, functional constraints
+such as type constraints, and triple perturbation (Nickel et al.,
+2016a). We introduce a negative sampling method which uses a
+pre-trained embedding model for generating negative samples. We
+term this pre-trained embedding model as the ‘negative sampling
+model’. We use the negative sampling model to generate negative
+targets (sources) that are close to the positive target (source) in vec-
+tor space. This would help the model learn to discriminate between
+positives and negatives very similar to the positives.
+Given a positive triple (s, r , t), and xt is the vector representation
+of target t obtained from the negative sampling model, then the
+the set of negative samples are top ns nearest neighbors of xt (that
+are not positive) obtained from the negative sampling model. The
+negative sampling model may be different than the model that is
+being trained. For example, we use the Rescal model trained with
+100 typed (T) negative samples as a negative sampling model for
+the FB15K dataset. Note that the Rescal model parameters are
+frozen (not updated), it is simply used for generating negatives
+that are used for training another model. Algorithm 1 describes
+the procedure for a single triple, in practice we use a batch of
+triples and the nearest neighbor search is performed using the Ball
+Tree algorithm which is constructed only once since the negative
+sampling model is not updated.
+Nearest neighbor sampling is computationally expensive com-
+pared to methods discussed in previous sections. This is because
+a search over all entities needs to be performed for source and
+target entities for every triple. Therefore we use a model trained
+using typed negative sampling methods for Freebase and corrupted
+sampling for Wordnet to initialize the parameters and then fine
+tune the model using nearest neighbor sampling for 5 epochs.
+3.6 Adversarial sampling : ADV
+Algorithm 2: Algorithm 2 Adversarial Sampling using
+Rescal negative sampler
+Input :Triple (s,r,t),Entity Set E, Positive source and targets
+Ps and Pt , Negative Sampling Embedding Model fn ,
+Number of negative samples ns
+Output :Set of ns negative samples
+Ns ? E\Ps , Nt ? E\Pt ;
+X sn ? f (Ns ), X tn ? f (Nt ) ;
+Initialize K ball tree with X sn and X tn ;
+xs ? fn (s), xt ? fn (r ),Wr ? fn (r ) ;
+vs ? xTs Wr , vt ?Wr xt ;
+S ? nearest_neighbors(vs ,num=ns );
+T ? nearest_neighbors(vt ,num=ns );
+return S,T
+The nearest neighbor sampler generates negatives that are sim-
+ilar to positives in vector space. Some of those negatives maybe
+ranked higher than the positive, thus exposing such negatives to
+the classifier can help the model learn a better discriminator. Ex-
+posing the model to highly ranked negatives can help the model
+Analysis of the Impact of Negative Sampling
+on Link Prediction in Knowledge Graphs , ,
+0 2000 4000 6000 8000 10000 12000 14000
+100
+101
+102
+103
+104 Argument_1
+train
+dev
+test
+0 2000 4000 6000 8000 10000 12000 14000
+100
+101
+102
+103
+104 Argument_2
+train
+dev
+test
+0 200 400 600 800 1000 1200
+100
+101
+102
+103
+104
+105
+Fr
+eq
+ue
+nc
+y
+Relation
+train
+dev
+test
+Figure 1: FB15k dataset frequency statistics
+learn a better discriminator. We term this setting as adversarial,
+because the generated negatives are top ranked candidates which
+makes it difficult for the model to classify them as negatives. To
+generate highly ranked negatives, we collect the top ns targets
+(sources) closest to the predicted target (source) vector. Like the
+nearest neighbor sampler, we use the negative sampling model for
+obtaining the predicted vector and entity embeddings. The negative
+sampling model is not updated.
+Given a positive triple (s, r , t) we obtain the predicted vector
+vt = x
+T
+s Wr where xs , Wr are entity and relation embeddings
+of source s and relation r obtained using the negative sampling
+model. Note that vt may not be the same as xt , the target entity
+representation. The set of (target) negative samples are the top ns
+nearest neighbors of the predicted vector vt . Algorithm 2 describes
+the procedure for a single triple, in practice we use a batch and the
+Ball Tree is constructed only once.
+Like nearest neighbor sampling, adversarial sampling is also
+computationally expensive. Therefore, instead of learning from
+randomly initialized parameters, we tune a pre-trained model for 5
+epochs.
+4 DATA
+We evaluate the impact of negative sampling on the Freebase dataset
+(FB15k) and on the WordNet dataset (WN18) introduced by (Bordes
+Data set |E | |R| Training Development Test
+FB15K 14,951 1345 483,142 50000 59071
+WN18 40,943 18 141,442 5000 5000
+Table 2: Dataset Details: |E | represents the number of enti-
+ties, and |R |, the number of relations.
+et al., 2013). They are very different in coverage – FB15k contains
+mostly named entities connected through strongly typed relations,
+while WN18 contains mostly common nouns connected through
+lexical and semantic relations. Dataset details are included in Table
+2.
+4.1 FB15k
+FB15k (Bordes et al., 2013) consists of approximately 15,000 entities
+and 1345 relations. We use the split supplied by the dataset: 483,142
+train, 50,000 validation and 59,071 positive test instances.
+The training data contains relations that have high variation
+in the number of instances – 39% of the relations have at most
+10 instances, while the most frequent relation has almost 16000.
+This disparity is also reflected in the distribution of node degrees
+– 12% of the entities have degree equal or less than 10 (appear
+in at most 10 instances). The average degree of a node in FB15k
+is approximately 13.2 overall, and 32.4 on the training data. The
+distribution of relations and node degrees is presented in Figure 1.
+The type of relations included in Freebase connect named entities.
+They are extrinsic relations, in that they do not hold based on
+the intrinsic properties of the connected entities, but are due to
+external circumstances. For example, the people_profession relation
+connecting people and their professions are not determined by
+intrinsic properties of people and professions. Relations in FreeBase
+are strongly types – the domain and range of the relations are types,
+e.g. the country_capital relation has countries as the first argument,
+and cities as the second.
+4.2 WN18
+This dataset consists of a subset of relations from the WordNet lex-
+ical database, split into training, development and testing: 141442/
+5000/ 5000. There are 18 relations. There is less variation in the
+number of instances per relation compared to the Freebase dataset,
+as can be seen in Figure 2. There is one relation with less than 100
+instances (similar_to), while the most frequent relations (hypernym,
+hyponym) have approximately 35,000.
+From a graph structure point of view, WN18 nodes have low
+connectivity – the average degree on the entire dataset is approxi-
+mately 1.2, and on the training data alone approximately 3.45. This
+translates into sparser data for factorization, compared to Freebase.
+WordNet contains lexical and semantic relations. Lexical rela-
+tions – such as derivationally_related_form connect lemmas from
+different parts of speech that are morphologically connected. The
+semantic relations cover is_a relations (hypernym / hyponym, in-
+stance hypernym/hyponym), three types of part_of relations (mem-
+ber, substance and part). The semantic relations in WordNet are
+/award/award_nominee/award_nominations./award/award_nomination/award_nominee
+https://wordnet.princeton.edu/
+, , Bhushan Kotnis and Vivi Nastase
+0 10000 20000 30000 40000
+100
+101
+102
+103 Argument_1
+train
+dev
+test
+0 10000 20000 30000 40000
+100
+101
+102
+103 Argument_2
+train
+dev
+test
+0 2 4 6 8 10 12 14 16 18
+100
+101
+102
+103
+104
+105
+Fr
+eq
+ue
+nc
+y
+Relation
+train
+dev
+test
+Figure 2: WordNet18 dataset frequency statistics
+intrinsic, as they reflect or arise from intrinsic properties of the
+connected entities. For example, a cat is_a animal, and cat has_part
+paws not because of external circumstances, but because of what it
+is. Compared to FreeBase, WordNet relations are not typed – there
+is no clear domain and range for the WordNet relations.
+5 EXPERIMENTS
+5.1 Implementation
+For fair comparison we reimplemented all the models (Rescal ,
+TransE, DistMult, ComplEx) using PyTorch, and test them using
+the same experimental setting – i.e. same loss (max-margin loss),
+embedding size (100), and data. We use the Adam (Kingma and
+Ba, 2014) SGD optimizer for training because it addresses the prob-
+lem of decreasing learning rate in AdaGrad. We ensure that entity
+embeddings for all the models have unit norm. We performed ex-
+haustive randomized grid search (Bergstra and Bengio, 2012) for
+the L2 regularizer on the validation set for all models and we tuned
+the training duration using early stopping. The learning rate (lr )
+and ? (the L2 norm coefficient) are presented in Table 3. The code
+is available on the following Github repository
+The different methods for negative sampling described in Section
+3 were used to produce negative instances for training the models.
+https://github.com/bhushank/kge-rl
+Model lr ?
+Freebase
+ComplEx 0.001 1.31E-06
+DistMult 0.001 4.93E-06
+Rescal 0.001 0.0002084
+TransE 0.001 0.00024036
+Wordnet
+ComplEx (ns ? {1, 2, 5}) 0.005 2.82E-05
+ComplEx (ns >= 10) 0.01 2.82E-05
+DistMult (ns ? {1, 2, 5}) 0.005 3.12E-06
+DistMult (ns >= 10) 0.01 3.12E-06
+Rescal (ns ? {1, 2, 5}) 0.005 7.48E-05
+Rescal (ns >= 10) 0.01 7.48E-05
+TransE (ns ? {1, 2, 5}) 0.005 0.0001863777692
+TransE (ns >= 10) 0.01 0.0001863777692
+Table 3: Parameter values
+In the FB15K dataset, some relations do not have enough sources
+or targets to generate negative triples by corrupting positive triples.
+If the number of generated triples are less than the required (ns ),
+we complete the set of negative samples with randomly generated
+triples.
+For the nearest neighbor and adversarial settings, we used the
+best performing model for initializing the parameters, and used the
+Rescal model tuned on typed negative samples (100 negative sam-
+ples) as the negative sampling model for FB15K and Rescal trained
+by corrupting positive samples (100 negative samples) for WN18.
+5.2 Test data
+The test data is the same across all experiments. The negative
+instances for the test data were generated as described in (Bordes
+et al., 2013) – corrupting positive instances using all entities of
+the dictionary instead of the correct source and target, without
+sampling.
+Also following the procedure of (Bordes et al., 2013), we use the
+filtered setting: the negative samples added to the training data
+are filtered with respect to the test data to avoid (known) false
+negatives in training.
+5.3 Evaluation metrics
+For evaluation we use the mean reciprocal rank (MRR) and hits@K
+that are commonly used for link prediction.
+For a list of N answers for link prediction, the mean reciprocal
+rank is defined as:
+MRR =
+1
+N
+N?
+i=1
+1
+ranki
+where ranki is the rank of the positive instance i predicted by the
+model with respect to the negative samples.
+hits@K for N instances is defined as:
+hits@K =
+|{i |ranki < K}|
+N
+For FB15k we use hits@10, for WN18, hits@1.
+Analysis of the Impact of Negative Sampling
+on Link Prediction in Knowledge Graphs , ,
+5.4 Results
+We present the results of link prediction on FB15k and WN18 in
+terms of MRR and hits@10 for FB15k, and hits@1 for WN18, when
+the number ns of negative samples for each positive instance takes
+values from {1, 2, 5, 10, 20, 50, 100} in Figures 3 and 4 (complete
+results are in Figures 7-10 in the Appendix). The x axis is on a
+logarithmic scale to visualize the variation in performance at low
+values of ns .
+The results show that the different sampling methods have dif-
+ferent effects on different datasets. The types of relations the two
+datasets contain are very different, and the types of entities – named
+entities vs. common nouns – is different as well. This however may
+not be a factor here, because link prediction is based exclusively on
+embedding the given graphs. Freebase has higher average node de-
+grees than WordNet. This is reflected in the sparsity of the relation
+adjacency matrices.
+As suggested my machine learning theories, selecting difficult
+negative instances produces better models: adversarial sampling
+leads to better results on the Freebase dataset for most embeddings
+methods. The reason embedding based sampling works well on
+FreeBase is primarily because the negative samples generated by
+the pre-trained embedding model are very close to the discrimi-
+nator boundary. For example, the adversarial sampling involves
+generating negative target entities that are highly ranked by the
+embedding model. These entities are likely to be highly ranked by
+the model that is being trained. Therefore providing these entities
+as negatives allows the system to learn a model that ranks them
+below the positive target using the max-margin loss. Note that the
+samples generated by the embedding model are close to each other
+in vector space due to the ability of the embedding model to cluster
+entities. Therefore almost all the generated negative samples are
+close to the discriminator boundary. We treated the negative sam-
+pling model (pre-trained model) as a hyper parameter. We found
+that the RESCAL model worked best. We speculate that this might
+be due to the superior ability of RESCAL model to cluster similar
+entities.
+Corrupting positive instances, which is the method most fre-
+quently used for link prediction, is the least competitive on Free-
+base, but fits well with WordNet, particularly for Rescal . DistMult
+does not seem to be very sensitive to the type of negative sampling
+on WN18, except for the nearest neighbor method with which it
+does not perform well.
+To understand why corrupting positive instances works best on
+Wordnet, we look at the nature of the data and the graph statistics.
+TheWN18 dataset has 18 relations while with FB15k has about 1495
+relations. Due to per relation data sparsity in FB15K, see Fig. 1 and 2,
+negative sampling using corrupted triples works poorly for FB15K,
+as it often has to fall back on random sampling when not enough
+positive instances with a shared source(target are available for
+"corruption". Corrupt sampling seems to work better in an instance
+rich scenario.
+Apart from data sparsity, the nature of Wordnet and Freebase
+relations may also affect performance of negative sampling meth-
+ods. Wordnet relations have open ended ranges and domains while
+Freebase relations have typed ranges and domains: e.g. the range
+of Wordnet relation hypernym contains hypernyms that may be-
+long to any category while the range of Freebase relation place_of
+_birth connects entities of type person with entities that are loca-
+tions. Embedding based methods, such as the adversarial sampling
+method we implemented, work on the basis of clustering similar
+entities, and do not function well for domains such as WordNet
+where the relations do not have domains and ranges that reflect
+conceptual/semantic clusters.
+We have discussed the differences in performance of sampling
+methods for the two knowledge graphs used. There are also differ-
+enceswith respect to the link predictionmethods. Random sampling
+works best for the TransE model. At first, this may be surprising
+but understandable considering that the theoretical model behind
+TransE assumes one-to-one relations. Providing it with negative
+entities that are clustered together (using typed, corrupted or em-
+bedding methods) does not result in improvement. This is because
+the negative entities generated using typed, corrupt or embeddings
+are close to each other in vector space and the model will ultimately
+be unable to distinguish between them. This is less likely to happen
+when doing random sampling, thus TransE is not perturbed by too
+close negatives.
+ComplEx and DistMult perform well with both adversarial and
+nearest neighbour sampling on the Freebase data. Rescal performs
+best with adversarial sampling on this data, and with corrupting
+positive samples for WordNet. For middle-range ns relational sam-
+pling performs best.
+As described in Section 4, the training data for both methods
+varies quite a bit in terms of the frequency of the relations covered.
+Freebase is more extreme, in that approximately 39% of the relations
+have at most 10 positive instances to train on. We analyzed the
+effects of negative sampling on different slices of the data, split by
+the order of magnitude (oom) of the frequency of the relations in
+the training data. More precisely, we group relations into sets Gn
+indexed by the order of magnitude n:
+Gn = {r |10n < f req(n, training data) <= 10(n+1)}.
+Freebase has 5 slices (0..4) and WordNet has 4 (1..4). The results
+(both as MRR and hits@K) for slices representing relations with
+order of magnitude 2 or more closely mirror the overall results.
+We include the results on the low frequency relations in Figures 5
+and 6, and the complete results are in the Appendix. With respect
+to the relative behaviour of the sampling algorithms on the graph
+embedding methods, the hits@K score are similar to the MRR ones,
+so we do not include them.
+While the results on the low frequency relations cannot be ana-
+lyzed separately from the other relations because the embeddings
+process relies on processing and inducing jointly all relation and
+entity representations, we can note that the performance on link
+prediction for these relations with very few instances varies much
+with the negative sampling method. Overall, the best results are ob-
+tained with the same sampling method as for their more populous
+counterparts, but for specific ranges of the number of generated neg-
+ative samples other methods would work best (e.g. nearest neighbor
+and relational sampling for WordNet data).
+We include relations that have only one instance in G0 .
+The complete set of plots accompanies the code and will be shared.
+, , Bhushan Kotnis and Vivi Nastase
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+complex MRR distmult MRR rescal MRR transE MRR
+100 101 102
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+complex hits@10
+100 101 102
+distmult hits@10
+100 101 102
+rescal hits@10
+100 101 102
+transE hits@10
+adversarial corrupt nn random relational typed
+Figure 3: Link prediction on FB15k, evaluated in terms of MRR and hits@10. The x axis (on a logarithmic scale) indicates ns ,
+the number of negative samples generated (1, 2, 5, 10, 20, 50, 100)
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+complex MRR distmult MRR rescal MRR transE MRR
+100 101 102
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+complex hits@1
+100 101 102
+distmult hits@1
+100 101 102
+rescal hits@1
+100 101 102
+transE hits@1
+adversarial corrupt nn random relational
+Figure 4: Link prediction on WN18, evaluated in terms of MRR and hits@1. The x axis (on a logarithmic scale) indicates ns ,
+the number of negative samples generated (1, 2, 5, 10, 20, 50, 100)
+The reported experiments were performed using the max margin
+loss function. In Table 4 we include the state of the art results on
+DistMult, Rescal and TransE obtained with a max margin loss
+function reported in (Yang et al., 2015) and corrupting tripes, to
+compare with the results obtained with the best negative sampling
+method for the dataset. Slight differences in the learning rate and
+? account for the differences in performance when using corrupt
+positive instances as negative samples for the WN18 dataset.
+Recently, (Trouillon et al., 2017) used the log-likelihood objective,
+which leads to improvements over the published results for the
+methods they compared (TransE, ComplEx, HolE, DistMult). We
+plan to analyze the negative sampling methods while using this
+new loss function.
+6 CONCLUSION
+We report an analysis of the impact of six negative sampling meth-
+ods on the performance of link prediction in knowledge graphs, for
+Analysis of the Impact of Negative Sampling
+on Link Prediction in Knowledge Graphs , ,
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+complex -- oom 0.0 complex -- oom 1.0
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+distmult -- oom 0.0 distmult -- oom 1.0
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+rescal -- oom 0.0 rescal -- oom 1.0
+100 101 102
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+transE -- oom 0.0
+100 101 102
+transE -- oom 1.0
+adversarial
+corrupt
+nn
+random
+relational
+typed
+Figure 5: Results on the two sets of lowest frequency rela-
+tions in FB15k (MRRs)
+four methods for graph embedding – ComplEx, DistMult, Rescal ,
+TransE. The analysis is performed with respect to two datasets –
+a subset of Freebase (FB15k) and a subset of WordNet (WN18) –
+that are very different in the type of knowledge they cover: Free-
+base contains facts about named entities, that cover a form of
+extrinsic knowledge (in the sense that the relations do not arise
+from intrinsic properties of the entities, as is the case for exam-
+ple for a person starring in a movie), while WordNet covers a
+more general type of knowledge, such as hypernymy/hyponymy
+and holonymy/meronymy between concepts denoted by common
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+complex -- oom 1.0 complex -- oom 2.0
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+distmult -- oom 1.0 distmult -- oom 2.0
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+rescal -- oom 1.0 rescal -- oom 2.0
+100 101 102
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+transE -- oom 1.0
+100 101 102
+transE -- oom 2.0
+adversarial
+corrupt
+nn
+random
+relational
+Figure 6: Results on the two sets of lowest frequency rela-
+tions in WN18 (MRRs)
+nouns that can be seen as intrinsic to these entities (e.g. cat being
+an animal and having paws).
+The results indicate that different approaches to negative sam-
+pling work best for the two resources. The proposed adversarial
+sampling worked best for Freebase with most of the graph embed-
+ding methods, while corrupting positive tripes leads to best results
+on WordNet. The newly proposed adversarial and nearest neighbor
+negative sampling work best for Freebase, for three out of the four
+graph embeddings methods. The nature of the relations in these
+graphs (typed with respect to their domain and range vs. open) as
+well as the statistics of the knowledge graph (number of positive
+, , Bhushan Kotnis and Vivi Nastase
+Yang et al. (2015) Negative sampling
+MRR HITS@10 neg. sampling MRR HITS@10
+FB15k
+DistMult 0.35 57.7 adversarial 0.46 70.64
+Rescal 0.31 51.9 adversarial 0.42 64.34
+TransE 0.32 53.9 adversarial 0.37 62.97
+WN18
+DistMult 0.83 94.2 corrupt 0.82 94.06
+Rescal 0.89 92.8 corrupt 0.92 93.91
+TransE 0.38 90.9 corrupt 0.40 86.98
+Table 4: Previous state of the art results on DistMult,
+Rescal , TransE using a max margin loss function and cor-
+rupting positive instances, and the best performing negative
+sampling from our system
+instances per relation) explain the different behaviour with respect
+to negative sampling.
+REFERENCES
+Yoshua Bengio and Jean-Sébastien Senécal. 2008. Adaptive importance sampling to
+accelerate training of a neural probabilistic language model. IEEE Transactions on
+Neural Networks 4(19):713–722.
+James Bergstra and Yoshua Bengio. 2012. Random search for
+hyper-parameter optimization. J. Mach. Learn. Res. 13:281–305.
+http://dl.acm.org/citation.cfm?id=2188385.2188395.
+Kurt Bollacker, Colin Evans, Praveen Paritosh, Tim Sturge, and Jamie Taylor. 2008.
+Freebase: A collaboratively created graph database for structuring human knowl-
+edge. In Proceedings of the 2008 ACM SIGMOD International Conference on Man-
+agement of Data. ACM, New York, NY, USA, SIGMOD ’08, pages 1247–1250.
+https://doi.org/10.1145/1376616.1376746.
+Antoine Bordes, Nicolas Usunier, Alberto Garcia-Duran, Jason Weston, and Oksana
+Yakhnenko. 2013. Translating embeddings for modeling multi-relational data. In
+C. J. C. Burges, L. Bottou, M. Welling, Z. Ghahramani, and K. Q. Weinberger, editors,
+Advances in Neural Information Processing Systems 26, Curran Associates, Inc., pages
+2787–2795. http://papers.nips.cc/paper/5071-translating-embeddings-for-modeling-
+multi-relational-data.pdf.
+Andrew Carlson, Justin Betteridge, Bryan Kisiel, Burr Settles, Estevam R. Hruschka,
+and Tom M. Mitchell. 2010. Toward an architecture for never-ending language
+learning. In AAAI .
+Rajarshi Das, Arvind Neelakantan, David Belanger, and Andrew McCallum. 2016.
+Chains of reasoning over entities, relations, and text using recurrent neural net-
+works. arXiv preprint arXiv:1607.01426 .
+Xin Dong, Evgeniy Gabrilovich, Geremy Heitz, Wilko Horn, Ni Lao, Kevin Murphy,
+Thomas Strohmann, Shaohua Sun, and Wei Zhang. 2014. Knowledge vault: a
+web-scale approach to probabilistic knowledge fusion. In KDD.
+Xin Luna Dong, Evgeniy Gabrilovich, Kevin Murphy, Van Dang, Wilko Horn, Camillo
+Lugaresi, Shaohua Sun, and Wei Zhang. 2015. Knowledge-based trust: Esti-
+mating the trustworthiness of web sources. Proc. VLDB Endow. 8(9):938–949.
+https://doi.org/10.14778/2777598.2777603.
+Matt Gardner and Tom Mitchell. 2015. Efficient and expressive knowledge base com-
+pletion using subgraph feature extraction. In Proceedings of the 2015 Conference on
+Empirical Methods in Natural Language Processing. Association for Computational
+Linguistics, pages 1488–1498. https://doi.org/10.18653/v1/D15-1173.
+Michael Gutmann and Aapo Hyvarinen. 2012. Noise-contrastive estimation of un-
+normalized statistical mod- els, with applications to natural image statistics. The
+Journal of Machine Learning Research (13):307â??361.
+Kelvin Guu, John Miller, and Percy Liang. 2015. Traversing knowledge graphs in
+vector space. In Proceedings of the 2015 Conference on Empirical Methods in Natural
+Language Processing. Association for Computational Linguistics, pages 318–327.
+https://doi.org/10.18653/v1/D15-1038.
+Diederik Kingma and Jimmy Ba. 2014. Adam: A method for stochastic optimization.
+arXiv preprint arXiv:1412.6980 .
+Yankai Lin, Zhiyuan Liu, Maosong Sun, Yang Liu, and Xuan Zhu. 2015. Learning
+entity and relation embeddings for knowledge graph completion. In Proceedings of
+the Twenty-Ninth AAAI Conference on Artificial Intelligence. AAAI Press, AAAI’15,
+pages 2181–2187. http://dl.acm.org/citation.cfm?id=2886521.2886624.
+Alexander Miller, Adam Fisch, Jesse Dodge, Amir-Hossein Karimi, Antoine Bordes,
+and Jason Weston. 2016. Key-value memory networks for directly reading doc-
+uments. In Proceedings of the 2016 Conference on Empirical Methods in Natural
+Language Processing. Association for Computational Linguistics, pages 1400–1409.
+http://aclweb.org/anthology/D16-1147.
+Andriy Mnih and Yee Whye Teh. 2012. A fast and simple algorithm for training neural
+probabilistic language models. In Proc. of ICML.
+M. Moya, M. Koch, and L Hostetler. 1993. One-class classifier networks for target recog-
+nition applications. In Proc. of the World Congress on Neural Networks. International
+Neural Network Society, INNS, Portland, OR., page 797â??801.
+Arvind Neelakantan, Benjamin Roth, and AndrewMcCallum. 2015. Compositional vec-
+tor space models for knowledge base completion. In Proceedings of the 53rd Annual
+Meeting of the Association for Computational Linguistics and the 7th International
+Joint Conference on Natural Language Processing (Volume 1: Long Papers). Associa-
+tion for Computational Linguistics, pages 156–166. https://doi.org/10.3115/v1/P15-
+1016.
+M. Nickel, K. Murphy, V. Tresp, and E. Gabrilovich. 2016a. A review of relational
+machine learning for knowledge graphs. Proceedings of the IEEE 104(1):11–33.
+https://doi.org/10.1109/JPROC.2015.2483592.
+Maximilian Nickel, Lorenzo Rosasco, and Tomaso Poggio. 2016b. Holographic
+embeddings of knowledge graphs. In Proceedings of the Thirtieth AAAI
+Conference on Artificial Intelligence. AAAI Press, AAAI’16, pages 1955–1961.
+http://dl.acm.org/citation.cfm?id=3016100.3016172.
+Maximilian Nickel, Volker Tresp, and Hans-Peter Kriegel. 2011. A three-way model
+for collective learning on multi-relational data. In ICML.
+Maximilian Nickel, Volker Tresp, and Hans-Peter Kriegel. 2012. Factorizing yago:
+Scalable machine learning for linked data. In Proceedings of the 21st International
+Conference on World Wide Web. ACM, New York, NY, USA, WWW ’12, pages
+271–280. https://doi.org/10.1145/2187836.2187874.
+Noah A Smith and Jason Eisner. 2005. Contrastive estimation: Training log-linear
+models on unlabeled data. In Proceedings of the 43rd Annual Meeting on Association
+for Computational Linguistics. Association for Computational Linguistics, pages
+354–362.
+Richard Socher, Danqi Chen, Christopher DManning, and AndrewNg. 2013. Reasoning
+with neural tensor networks for knowledge base completion. In C. J. C. Burges,
+L. Bottou, M. Welling, Z. Ghahramani, and K. Q. Weinberger, editors, Advances
+in Neural Information Processing Systems 26, Curran Associates, Inc., pages 926–
+934. http://papers.nips.cc/paper/5028-reasoning-with-neural-tensor-networks-for-
+knowledge-base-completion.pdf.
+Fabian M. Suchanek, Gjergji Kasneci, and Gerhard Weikum. 2007. Yago: A core
+of semantic knowledge. In Proceedings of the 16th International Conference
+on World Wide Web. ACM, New York, NY, USA, WWW ’07, pages 697–706.
+https://doi.org/10.1145/1242572.1242667.
+Kristina Toutanova, Victoria Lin, Wen-tau Yih, Hoifung Poon, and Chris Quirk. 2016.
+Compositional learning of embeddings for relation paths in knowledge base and
+text. In Proceedings of the 54th Annual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers). Association for Computational Linguistics,
+pages 1434–1444. https://doi.org/10.18653/v1/P16-1136.
+Théo Trouillon, Christopher R Dance, Johannes Welbl, Sebastian Riedel, Éric Gaussier,
+and Guillaume Bouchard. 2017. Knowledge graph completion via complex tensor
+factorization. arXiv preprint arXiv:1702.06879 .
+Robert West, Evgeniy Gabrilovich, Kevin Murphy, Shaohua Sun, Rahul Gupta, and
+Dekang Lin. 2014. Knowledge base completion via search-based question answering.
+In Proceedings of the 23rd International Conference on World Wide Web. ACM, New
+York, NY, USA, WWW ’14, pages 515–526. https://doi.org/10.1145/2566486.2568032.
+Bishan Yang, Wen-tau Yih, Xiaodong He, Jianfeng Gao, and Li Deng. 2015. Embedding
+entities and relations for learning and inference in knowledge bases. In Proceedings
+of the 2015 International Conference on Representation Learning.
+Analysis of the Impact of Negative Sampling
+on Link Prediction in Knowledge Graphs , ,
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+co
+m
+pl
+ex
+co
+m
+pl
+ex
+ --
+ o
+om
+ -1
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 0
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 1
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 2
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 3
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 4
+.0
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+di
+st
+m
+ul
+t
+di
+st
+m
+ul
+t -
+- o
+om
+ -1
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 0
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 1
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 2
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 3
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 4
+.0
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+re
+sc
+al
+re
+sc
+al
+ --
+ o
+om
+ -1
+.0
+re
+sc
+al
+ --
+ o
+om
+ 0
+.0
+re
+sc
+al
+ --
+ o
+om
+ 1
+.0
+re
+sc
+al
+ --
+ o
+om
+ 2
+.0
+re
+sc
+al
+ --
+ o
+om
+ 3
+.0
+re
+sc
+al
+ --
+ o
+om
+ 4
+.0
+10
+0
+10
+1
+10
+2
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+tr
+an
+sE
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ -1
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 0
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 1
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 2
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 3
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 4
+.0
+nn
+ty
+pe
+d
+ra
+nd
+om
+ad
+ve
+rs
+ar
+ia
+l
+co
+rr
+up
+t
+re
+la
+tio
+na
+l
+Figure 7: MRR results by order of magnitude of relation frequency in FB15k
+, , Bhushan Kotnis and Vivi Nastase
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+co
+m
+pl
+ex
+co
+m
+pl
+ex
+ --
+ o
+om
+ -1
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 0
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 1
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 2
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 3
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 4
+.0
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+di
+st
+m
+ul
+t
+di
+st
+m
+ul
+t -
+- o
+om
+ -1
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 0
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 1
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 2
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 3
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 4
+.0
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+re
+sc
+al
+re
+sc
+al
+ --
+ o
+om
+ -1
+.0
+re
+sc
+al
+ --
+ o
+om
+ 0
+.0
+re
+sc
+al
+ --
+ o
+om
+ 1
+.0
+re
+sc
+al
+ --
+ o
+om
+ 2
+.0
+re
+sc
+al
+ --
+ o
+om
+ 3
+.0
+re
+sc
+al
+ --
+ o
+om
+ 4
+.0
+10
+0
+10
+1
+10
+2
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+tr
+an
+sE
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ -1
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 0
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 1
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 2
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 3
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 4
+.0
+nn
+ty
+pe
+d
+ra
+nd
+om
+ad
+ve
+rs
+ar
+ia
+l
+co
+rr
+up
+t
+re
+la
+tio
+na
+l
+Figure 8: HITS@10 results by order of magnitude of relation frequency in FB15k
+Analysis of the Impact of Negative Sampling
+on Link Prediction in Knowledge Graphs , ,
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+co
+m
+pl
+ex
+co
+m
+pl
+ex
+ --
+ o
+om
+ 1
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 2
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 3
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 4
+.0
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+di
+st
+m
+ul
+t
+di
+st
+m
+ul
+t -
+- o
+om
+ 1
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 2
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 3
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 4
+.0
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+re
+sc
+al
+re
+sc
+al
+ --
+ o
+om
+ 1
+.0
+re
+sc
+al
+ --
+ o
+om
+ 2
+.0
+re
+sc
+al
+ --
+ o
+om
+ 3
+.0
+re
+sc
+al
+ --
+ o
+om
+ 4
+.0
+10
+0
+10
+1
+10
+2
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+tr
+an
+sE
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 1
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 2
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 3
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 4
+.0
+co
+rr
+up
+t
+re
+la
+tio
+na
+l
+ra
+nd
+om
+ad
+ve
+rs
+ar
+ia
+l
+nn
+Figure 9: MRR results by order of magnitude of relation frequency in WN18
+, , Bhushan Kotnis and Vivi Nastase
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+co
+m
+pl
+ex
+co
+m
+pl
+ex
+ --
+ o
+om
+ 1
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 2
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 3
+.0
+co
+m
+pl
+ex
+ --
+ o
+om
+ 4
+.0
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+di
+st
+m
+ul
+t
+di
+st
+m
+ul
+t -
+- o
+om
+ 1
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 2
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 3
+.0
+di
+st
+m
+ul
+t -
+- o
+om
+ 4
+.0
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+re
+sc
+al
+re
+sc
+al
+ --
+ o
+om
+ 1
+.0
+re
+sc
+al
+ --
+ o
+om
+ 2
+.0
+re
+sc
+al
+ --
+ o
+om
+ 3
+.0
+re
+sc
+al
+ --
+ o
+om
+ 4
+.0
+10
+0
+10
+1
+10
+2
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+tr
+an
+sE
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 1
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 2
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 3
+.0
+10
+0
+10
+1
+10
+2
+tr
+an
+sE
+ --
+ o
+om
+ 4
+.0
+co
+rr
+up
+t
+re
+la
+tio
+na
+l
+ra
+nd
+om
+ad
+ve
+rs
+ar
+ia
+l
+nn
+Figure 10: HITS@1 results by order of magnitude of relation frequency in WN18

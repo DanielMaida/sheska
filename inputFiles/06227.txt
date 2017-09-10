@@ -1,0 +1,769 @@
+1
+Recognizing Involuntary Actions from 3D Skeleton
+Data Using Body States
+Mozhgan Mokari, Hoda Mohammadzade, Benyamin Ghojogh
+Abstract—Human action recognition has been one of the
+most active fields of research in computer vision for last years.
+Two dimensional action recognition methods are facing serious
+challenges such as occlusion and missing the third dimension of
+data. Development of depth sensors has made it feasible to track
+positions of human body joints over time. This paper proposes
+a novel method of action recognition which uses temporal 3D
+skeletal Kinect data. This method introduces the definition of
+body states and then every action is modeled as a sequence of
+these states. The learning stage uses Fisher Linear Discriminant
+Analysis (LDA) to construct discriminant feature space for
+discriminating the body states. Moreover, this paper suggests the
+use of the Mahalonobis distance as an appropriate distance metric
+for the classification of the states of involuntary actions. Hidden
+Markov Model (HMM) is then used to model the temporal
+transition between the body states in each action. According to
+the results, this method significantly outperforms other popular
+methods, with recognition rate of 88.64% for eight different
+actions and up to 96.18% for classifying fall actions.
+Index Terms—Human Action Recognition, Activity Recogni-
+tion, Fisher, Linear Discriminant Analysis (LDA), Kinect, 3D
+skeleton data, Hidden Markov Model (HMM).
+I. INTRODUCTION
+S INCE last two decades, human action recognition hasdrawn lots of attention from researches in computer vision
+and machine learning fields. In early attempts for action
+recognition, RGB video was used as input of recognition
+system. Various valuable methods and algorithms were pro-
+posed for recognizing actions and activities using RGB data.
+However, several problems exist in action recognition using
+RGB frames such as occlusion and different orientations of
+camera. Existence of other objects in addition to human bodies
+and the lack of information of the third dimension can be
+mentioned as other challenges in this category of methods [16],
+[17], [18], [19], [20], [21]. In order to address these problems,
+methods for recognizing action from multiple views have been
+also introduced; however, they are typically very expensive in
+calculations and are not suitable for real time recognition [22].
+Due to the mentioned problems and by introducing 3D
+Kinect sensors in market, researchers started to work on 3D
+data for the purpose of action recognition. The Kinect sensor
+provides both depth and skeleton data in addition to capturing
+RGB frames. Different methods were proposed for either depth
+or skeleton data.
+Mozhgan Mokari’s e-mail: mokari mozhgan@ee.sharif.edu
+Hoda Mohammadzade’s e-mail: hoda@sharif.edu
+Benyamin Ghojogh’s e-mail: ghojogh benyamin@ee.sharif.edu
+All authors are with Department of Electrical Engineering, Sharif University
+of Technology, Tehran, Iran
+Fig. 1: Applications of human action recognition.
+Fig. 2: A human action recognition system for fall detection.
+Action recognition can have a variety kinds of applications.
+According to a vantage point, all actions can be categorized
+in one of two categories, i.e., normal actions and involuntary
+actions (see Fig. 1). Daily actions, actions for gaming, and
+interactions between human and computer can be considered
+as normal actions. On the other hand, involuntary actions can
+be seen in different situations, such as health surveillance and
+chaos detection. One of the most frequent involuntary actions
+is falling which can happen by patients in hospitals. Old
+people are also subject to dangerous falls, which if detected
+by surveillance systems for elderly cares can reduce serious
+injuries and fatalities. Another example of involuntary actions
+can be found in public surveillance systems which can detect
+chaos and abnormal actions in the crowd or interactions, and
+alert accordingly. Although, the proposed method in this work
+can be applied for both normal and involuntary actions, its
+focus is on involuntary actions. Figure 2 depicts a human
+action recognition system used for fall detection.
+This paper proposes a new method for human action recog-
+nition. In this method, an action is modeled as sequence of
+several body states. The definition of body states is introduced
+and then a method based on Fisher Linear Analysis (LDA) is
+proposed for their classification. The recognized body states
+ar
+X
+iv
+:1
+70
+8.
+06
+22
+7v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+1 
+A
+ug
+ 2
+01
+7
+2
+are then fed to Hidden Markov Models (HMM) in order
+to model and classify actions. Mahalanobis distance is also
+utilized in this work in order to consider the different variations
+in performing involuntary actions. The results show that we
+can get high recognition accuracy even by using a a simple
+and linear classification method such as Fisher LDA for state
+recognition.
+This paper is organized as follows. Section II reviews related
+work. Section III proposes the main algorithm of proposed
+method which includes modeling human body and action
+recognition using Fisher Linear Discriminant Analysis (LDA)
+and Hidden Markov Model (HMM). Section IV introduces
+the utilized dataset and experimental results. Finally, Section
+V concludes the article.
+II. RELATED WORK
+According to the importance of action recognition and its
+large amount of applications, lots of different methods have
+been proposed in this field. Facing some challenges such as
+coverage of some part of body by others and introducing 3D
+methods, encouraged Li et al. [1] to recognize the human’s
+action by sampling the 3D points of depth image and creating
+an action graph. In this method, they model the position of
+human’s body by projecting the contour of body shape onto
+the different planes and sampling them. Then, the state of
+human body is modeled with these bags of 3D points. The
+states are considered as nodes of a graph, modeling the action.
+Although this method is not robust against the changing of
+viewing angle and human’s body scale, it has recognized 90
+percent of actions and the error is halved compared to 2D
+methods.
+Zhao et al. [2] classified human’s actions by utilizing
+information of RGB and depth image. They have obtained
+spatio-temporal interest points from RGB image and used
+combined descriptor of RGB and depth images.
+By developing Kinect sensors and related software for
+tracking humans in images and detecting positions of human’s
+joints in 3D space, several methods were proposed to recog-
+nize action using this information. One of these methods in-
+troduced Cov3DJ descriptor [3] that separates different action
+classes by finding covariance matrix of positions of the joints
+during the action and used Support Vector Machine (SVM)
+for classification.
+Reddy et al. [4] recognized action by considering mean,
+minimum and maximum of position of joints as features and
+compared them to features obtained by using principle compo-
+nent analysis (PCA) on position of joints. In a similar research,
+Martnez-Zarzuela et al. [5] tried to recognize actions by taking
+a sequence of positions of joints as a signal and extracting
+the five first Fast Fourier Transform (FFT) components as a
+feature vector, which is fed into a neural network. However,
+this method did not perform very well for complex actions
+that involve different parts of body.
+As different actions involve different joints, Anjum et al.
+[6] selected important and effective joints in the training level,
+according to the type of action. In their proposed method, each
+action is determined by three joints. Results showed that this
+method performs better with less information, but joints should
+be selected in training for each action; therefore, extending
+this algorithm for other new actions is time consuming and
+difficult.
+Haynh et al. [7] proposed a new method more robust to
+human scale and changes of position. It was performed by
+categorizing joints into three classes of stable, active and
+highly active joints and using angles of 10 important joints and
+vectors connecting moving joints to stable joints. Their method
+performed better than using only raw position of joints.
+Xia et al. [8] used middle and side hip joints to extract a
+histogram of position of other joints, which is used as feature.
+They reduced the dimension of feature vector using Linear
+Discriminant Analysis (LDA) and used K-means method to
+cluster the feature vectors. Each cluster constitutes a visual
+word. Each action is determined as a time sequence of these
+visual words and modeled by Hidden Markov Model (HMM).
+Results showed that this method has partially overcome chal-
+lenges such as different lengths of actions and the same action
+done in different ways and view angles.
+Papadopoulos et al. [9] obtained orientation of body using
+the positions of shoulders and hip joints and there by, extracted
+orthogonal basis vectors for each frame. Therefore, a new
+space is constructed for every person according to its orienta-
+tion of body. According to these vectors and the new space, the
+spherical angles of joints are used instead of position of joints.
+Using angles instead of position of joints, made method more
+robust against human’s body scale and changes in the shape
+of body. This method also uses energy function to overcome
+the challenge of same actions done by opposite hands or feet.
+Although there are lots of proposed methods for action
+recognition, but many problems and challenges are still un-
+solved. This paper tries to face some of them such as different
+distributions of actions in statistical feature space, in order
+to improve the existing methods, especially for involuntary
+actions.
+III. METHODOLOGY
+In order to recognize actions, at the first step, the actions
+should be modeled in an appropriate way. Modeling actions
+depends on various facts such as application, types of actions
+and method of classification. One of the most important
+applications of action recognition is online recognition which
+performs in real time. This article goals this type of recog-
+nition. In this category, the action should be modeled so that
+the model can be updated during completion of action and
+finally recognize the type of performed action. Therefore, in
+this article, each action is supposed to be a sequence composed
+of several states of body.
+In the next step, position of joints in the 3D space are
+utilized in order to model the state of body. The position of
+joints are prepared by the output of Kinect sensor. The skeleton
+consists of several joints, which are 25 joints for the dataset
+used for experiments in this paper. Several joints are, however,
+so close to each other without any important difference in
+movements; therefore, their information are almost redundant.
+With respect to the actions addressed in this paper, merely
+3
+Fig. 3: Selected joints out of available joints in the skeletal
+data. The joints used for alignment are also shown.
+Fig. 4: Alignment of skeleton using the left and right shoulders
+to cancel the orientation of skeleton.
+12 important joints, which are right and left ankles, right
+and left knees, right and left wrists, right and left shoulders,
+head, middle spine, hip and spine shoulder are selected out
+of the skeleton. Position of spine base (hip) and right and left
+shoulders are used for alignment in order to correctly describe
+the state of body in different persons and runs. The selected
+joints and also joints required for alignment are shown in Fig.
+3. State modeling and skeleton alignment are detailed in the
+following.
+A. Modeling State of Body
+In order to model and describe the state of body, a proper
+descriptor should be created. This descriptor models the action
+as a time sequence of states and tries to recognize the action.
+Different locations and orientations of body in the frames
+forces the need to aligning the skeleton.
+1) Aligning Skeleton: As already mentioned, 12 joints
+positions are used in 3D space, in order to describe the state
+of body. In order to cancel the location of body skeleton, the
+position of hip joint is subtracted from the position of all joints.
+This is performed for every frame in the sequence.
+Moreover, different orientations of skeleton or camera
+makes recognizing similar states difficult and even wrong.
+Thus, in order to cancel different orientations of body skele-
+tons, the body is rotated around y axis making the projection
+of the vector connecting the left and right shoulder onto the xz
+plane parallel to the x axis. By performing this rotation, the
+skeleton directly faces the camera. This procedure is illustrated
+in Fig. 4. The axes can be seen in Fig. 3. In literature,
+alignment of skeleton is also common, but the methods or used
+Fig. 5: An example of Fisher and PCA directions.
+joints for that might differ. For example, in [8], left and right
+hip joints are utilized rather than shoulder joints for alignment.
+2) Creating feature vector: To determine the state of body
+in each frame, proper feature vectors are required. Three joints
+out of the 12 joints are used for alignment and the remaining
+nine joints are used to create the feature vectors. Fisher Linear
+Discriminant Analysis (LDA) [10] is utilized for having proper
+features. In Fisher LDA method, the dimension of feature
+vector is reduced to C?1, where C is the number of states. In
+LDA, the within- (Sw) and between-class (Sb) scatter matrices
+are
+Sw =
+C?
+i=1
+?
+xk?Xi
+(xk ? µi)(xk ? µi)T , (1)
+Sb =
+C?
+i=1
+Ni(µi ? µ)(µi ? µ)T , (2)
+in order to minimize the within class covariance and maximize
+the between class covariance [11], [12], where µi and µ
+denote the mean of ith state and mean of means, respectively.
+The Fisher projection space is created by the eigenvectors of
+S?1w Sb. By its projection in this space, the feature vector F
+for an input skeleton state is obtained.
+After projection onto Fisher space, the obtained feature
+vectors are located relative to each other such that similar and
+various states respectively fall close and apart. By this fact,
+recognition of states becomes available.
+There are also other methods for feature reduction which
+can be used for classification. One of the most popular meth-
+ods of this category is Principle Component Analysis (PCA)
+[11], [12]. However, PCA method cannot always classify the
+data as well as LDA does. As an example, suppose that the
+distribution of classes are similar to that depicted in Fig. 5. In
+this example, the Fisher LDA direction is perpendicular to the
+direction of PCA. As is obvious in this figure, Fisher LDA
+tries to lower within-class variance and maximize between-
+class variance in order to classify them.
+The final feature vector is used for training and testing the
+state of body. The action will be defined as a time sequence
+of multiple specific states. The state of body is recognized in
+test phase, by finding the minimum distance as described in
+the following sections.
+4
+3) Finding the minimum distance: In every frame denoted
+as f , the state of body should be recognized. For reaching
+this goal, the distances between feature vector F of this frame
+and the means of all feature vectors of states are found. The
+minimum distance determines the state of the frame f . If F?i
+denotes the mean of feature vectors of the ith class, the state
+is found as,
+state(f) = arg min
+i
+d(F, F?i), (3)
+where d is the distance measurement function which can be
+one of the two followings:
+• Euclidean Distance: One of the popular methods for
+calculating the distance of two vectors is Euclidean
+distance, which is used as one of the distance methods
+in this article. The function of Euclidean distance can be
+formulated as,
+d(F, F?i) =
+??
+j
+(Fj ? F?ij)2, (4)
+where Fj and F?ij are the jth component of F and F?i,
+respectively.
+• Mahalanobis Distance: As the minimum distance from
+the means of states is used for recognizing the state,
+defining the distance has much important influence on
+the accuracy of recognition. Therefore, the distribution of
+final feature vectors in the feature space should be con-
+sidered and the distance measurement should be defined
+according to it.
+As the dimension of final feature (Fisher) vectors is C ?
+1 and the states of utilized dataset are categorized into
+eight classes, the dimension of final feature vectors is
+seven. The dimensions higher than two or three cannot
+be illustrated; although, the distribution of feature vectors
+can be analyzed in higher dimensions by calculating their
+covariance matrices. The first two directions of Fisher
+space are used for illustration of distribution of each state.
+Figure. 6 illustrates the training samples projected onto
+the space constructed by the first two Fisher directions.
+As shown in this figure, distribution of projected states
+are various in different directions.
+The more differently people perform an action containing
+a state, the more distributed the state would be. The more
+distributed states usually are between the states with low
+variance, during the completion of an involuntary action.
+For instance, as shown in Fig. 6, after projection on
+constructed Fisher space, normal states such as standing
+and sit are less distributed than the states occurred in
+abnormal actions, such as lay front and lay back. In
+order to handle the challenge of different distributions of
+projected states, a distance measurement function should
+be used which considers the distributions rather than
+Euclidean distance.
+Mahalanobis distance considers variances of distributions
+in its calculation. The Mahalanobis distance is calculated
+as,
+d(F, F?i) =
+?
+(F ? F?i)TS?1(F ? F?i), (5)
+Fig. 6: Projection of samples of states onto Fisher space. As
+can be seen, the states have different distributions.
+Fig. 7: A three state HMM model [13].
+where S denotes the covariance matrix of the feature
+vectors of a class. As is obvious in equation (5), the
+covariance matrix S is modeling a weight for each class
+according to its distribution. Therefore, the importance
+of distance in a particular dimension is considered in
+calculating the distances. In other words, the distance in a
+direction with smaller variance is less valuable, yielding
+to S?1 in the equation.
+Mahalanobis distance is actually an extension to the
+standard deviation from the mean, in multi-dimensional
+space. Experiments reported in following sections, show
+outperformance of this distance in comparison with Eu-
+clidean distance.
+B. Classyfing Actions Using Hidden Markov Model
+As previously mentioned, every action can be modeled as
+a sequence of consequent states. After recognizing states of
+body using Fisher LDA, Hidden Markov Model (HMM) is
+utilized in this work to classify actions.
+For every action, a separate HMM is used. HMM uses
+several sequences of states as observations and models the
+particular pattern that occurs during an action. Note that the
+state of body should not be confused with state of HMM,
+here. In HMM, each state have a probability of happening and
+also there exist transitional probabilities between states. For
+instance, a three state HMM and its transitional probabilities
+are illustrated in Fig. 7 [13].
+In order to decrease computational cost of the algorithm, the
+frame per second rate has been reduced by down sampling.
+After constructing a HMM for each action, an unknown
+sequence is recognized by feeding it to each HMM. After
+feeding the test sequence of frames to all trained HMMs,
+every HMM outputs a probability of occurrence for that
+5
+Fig. 8: The overall structure of proposed framework.
+sequence. The maximum probability determines the action of
+that sequence.
+For each action, the sequences that are used for training
+HMM are set to have the same lengths (number of states).
+However, this equalization of the length of sequences is not
+related to the length and speed of action performed by different
+persons. This equalization is performed by manually repeating
+the last state done by the person; so that the total number of
+states of all actions become similar.
+The advantage of HMM, in this work, is that it considers
+solely the dynamic of sequence and is not sensitive to various
+paces and lengths of actions. In fact, the number of repeats
+of a state does not significantly impact the recognition of that
+action. This gives the method robustness to different paces of
+actions and even different speeds of one action. For instance,
+there exist sequences of lengths 75 frames upto 463 frames
+with different speeds of actions in TST fall dataset [14],
+[15], and these sequences have been successfully handled and
+recognized by this method.
+The overall structure of the proposed framework is summa-
+rized in Fig. 8.
+IV. EXPERIMENTAL RESULTS
+To examine the proposed method, TST Fall Detection
+dataset [14] is used. The details of this dataset are explained
+in next section following by modeling the actions. At the end,
+the results of experiments are presented.
+A. Dataset
+TST Fall Detection dataset [14], [15] is used for verifying
+the effectiveness of this method. There are two main categories
+of actions in this dataset, i.e., daily living activities and fall
+actions. 11 different persons perform every action for three
+times. The daily living activities are sit, lying down, grasp
+and walk and the fall actions are falling front, back, side and
+end up sit.
+This dataset has prepared information of 3D position of
+joints and depth data obtained by the Kinect sensor V2,
+which is more accurate than previous Kinect sensors. Only
+the skeletal data of this dataset is used in this work for
+experiments. This work concentrated mostly on the involuntary
+actions such as falling down which exist sufficiently in this
+dataset.
+As previously depicted in Fig. 2, one of the possible goals in
+human action recognition is surveillance application especially
+for controlling elderly or patient people. The main goal of
+detecting involuntary actions and improvements of Kinect V2
+encouraged this work to use the mentioned dataset.
+(a) Sit (b) Grasp
+(c) Walk (d) Lay down
+(e) Fall front (f) Fall back
+(g) Fall side (h) End up sit
+Fig. 9: An example of actions in TST dataset [14].
+In this dataset, the significant challenge is existence of
+abnormal and involuntary actions such as falling, in addition to
+the normal actions. As fall actions are performed involuntarily,
+different states and conditions from normal actions appear in
+different people. The challenge is to develop a method which
+can detect and analyze these actions and also recognize them
+from each other. Hence, the methods proposed for recognizing
+normal actions, may not necessarily perform as well for fall
+actions.
+In addition, existing methods for recognizing fall actions
+cannot be utilized; because they have concentrated on features
+such as speed and acceleration which distinguish fall actions
+from all normal actions. These features do not discriminate
+the normal actions from each other and therefore do not help
+recognizing the actions in general.
+Several samples of depth images of actions in TST dataset
+are shown in Fig. 9.
+B. Recognition of states
+In the dataset only the actions are labeled and labeling states
+should be performed manually. According to the actions, eight
+different states are chosen and labeled to be used in LDA. The
+chosen states should include the main states of actions in the
+dataset and should not contain unnecessary states which are
+close to other states. The chosen states are stand, crouching,
+lay back, lay front, lay side, bend, sit on chair and sit on
+ground. An example of each state is shown in Fig. 10.
+6
+(a) Stand (b) Crouching (c) Lay down back
+(d) Lay down front (e) Lay down side (f) Bend
+(g) Sit on chair (h) Sit on ground
+Fig. 10: An example of the selected states.
+TABLE I: Correctness rate of recognizing state of body
+State Euclidean Mahalanobis
+Stand 99.38% 94.26%
+Crouching 50.00% 70.00%
+Lay back 80.71% 81.22%
+Lay front 67.50% 85.00%
+Lay side 88.89% 82.22%
+Bend 62.90% 90.32%
+Sit 86.87% 69.70%
+Sit on ground 72.15% 79.91%
+Total 76.03% 81.57%
+The “leave one subject out” cross validation is used for the
+experiments. In each iteration, the entire samples of a person
+is considered as test samples and the samples of other subjects
+are used for training system. This type of cross validation is
+fairly difficult because the system does not see any sample
+from the test subject in training phase. The state recognition
+experiment is repeated using both of the distance methods and
+the results are listed in Table I.
+Table I shows that the Mahalanobis distance outperforms
+the Euclidean distance in general. As was expected, the
+recognition rates of crouching, lay front and bend have been
+improved significantly using Mahalanobis distance. The reason
+is that the variances of training data for these states are huge
+and this fact is not taken into account when Euclidean distance
+is used.
+It is worth noting that using the Mahalanobis distance, the
+recognition rate of bend state has been improved at the cost
+of reducing the recognition rate of stand state. Closer look
+at Fig. 6 reveals that there exists an overlapping region of
+distributions between the two states. Euclidean distance which
+does not consider the distribution of classes, mostly recognizes
+the overlapping region as the stand state. On the other hand,
+the Mahalanobis distance mostly recognizes this region as the
+bend state, because the variance of standing state is much
+less than bend. This fact can also be seen from the confusion
+matrix of different states which are depicted in Fig. 11 for
+both distances.
+C. Action Recognition & Comparison
+In the last step, an action is divided into several states
+in order to be described as a sequence of states. Each state
+in this sequence is recognized by projecting into the LDA
+7
+(a) Euclidean
+(b) Mahalanobis
+Fig. 11: Confusion matrix of states.
+space and utilizing a distance measure. Then, the probability
+of each HMM (note that there is an HMM for each specific
+action) generating the input sequence of states is calculated
+and maximum probability determines the recognized action.
+The number of states parameter for HMM’s (note that the
+state here is different from the state of body) affects the
+recognition performance. Therefore, different number of states
+were tested for HMM’s in this work and were compared to
+each other. Results of three different numbers of state for
+HMM’s are reported in Table II. The experiments of this table
+are performed with Mahalanobis distance. As was expected
+according to the nature of states and actions in the TST Fall
+dataset [14], [15], HMM’s with three states perform better
+and hence, the number of states for HMM’s is considered to
+be three in this work. It is worth nothing that, combination of
+optimum number of states for each action was also considered,
+but the experiments showed that use of a constant number of
+states for all HMM’s results in better performance.
+In this article, the proposed method is compared with the
+method of Xia et al. [8] which has received considerable
+attention in literature [23], [24], [25], [26] and has been used
+for comparison in very recent methods [27], [28], [29], [30],
+[31]. Note that all the above methods has experimented with
+datasets created using an older version of Kinect sensor and
+TABLE II: Effect of number of states of HMM on the
+recognition rate
+Action 2 states 3 states 4 states
+Sit 87.88% 90.91% 90.91%
+Grasp 90.91% 90.91% 87.88%
+Walk 93.94% 93.94% 93.94%
+Lay 84.85% 96.97% 90.91%
+Front 84.85% 81.82% 81.82%
+Back 84.85% 84.85% 78.79%
+Side 81.82% 81.82% 81.82%
+End up sit 84.85% 87.88% 84.85%
+Total 86.74% 88.64% 86.36%
+TABLE III: Comparison of results of our method and method
+[8] for TST dataset
+Action Euclidean Mahalanobis [8]
+Sit 84.85% 90.91% 81.82%
+Grasp 96.97% 90.91% 84.85%
+Walk 100% 93.94% 90.91%
+Lay 75.76% 96.97% 90.91%
+Front 54.54% 81.82% 48.49%
+Back 69.70% 84.85% 66.67%
+Side 81.82% 81.82% 69.70%
+End up sit 69.70% 87.88% 33.33%
+Total 79.16% 88.64% 70.83%
+not containing involuntary actions.
+For implementing method [8] and fairly comparing it with
+the proposed method using the TST dataset, several necessary
+adjustments were performed in its settings. First, for LDA,
+the states are labeled in the same way as in the proposed
+method. Second the number of states for HMM’s was chosen
+to be three, according to the actions of the dataset. Third the
+best number of clusters for histogram was experimented to be
+eight, which conforms with the number of classes of states in
+the proposed method.
+Results are listed in Table III. The proposed method using
+both distance methods are compared with the method of Xia
+et al. [8]. Results reveal that in all actions, the proposed
+method using each of the two distance measures outperforms
+the method [8]. Although method [8] has utilized LDA and
+clustering methods in preparing data for training HMM; it has
+made several states so close to each other by using a histogram
+concept and has increased error. As an example, in fall actions
+the angular positions of joints are much similar and the use
+of histogram ignores their differences.
+Using Mahalanobis distance has significantly enhanced the
+performance of recognition, especially in fall actions. In other
+words, improving the performance of recognizing difficult
+involuntary states such as crouching and lay front, has im-
+proved the total recognition rate. As mentioned before, the
+main reason of this fact is that the intrinsic variance of states
+are considered in Mahalanobis distance.
+The confusion matrix of action recognition is reported in
+Fig. 12. This matrix shows that the actions that are similar to
+8
+(a) Euclidean
+(b) Mahalanobis
+Fig. 12: Confusion matrix of actions.
+TABLE IV: Comparison of results, considering all abnormal
+actions to be fall event
+Euclidean Mahalanobis [8]
+Recognition Rate
+(true positive rate) 78.78% 96.18% 77.27%
+Specificity Rate
+(true negative rate) 90.15% 96.21% 90.90%
+False Alarm Rate
+(false positive rate) 9.15% 3.78% 9.09%
+each other, are sometimes confused and wrongly recognized.
+Actions such as falling on front, side and back are sometimes
+confused with each other; because their distribution (and
+therefore their behavior) are similar and wider than others,
+as is obvious in Fig. 6. These actions are referred to as
+abnormal actions. In some cases such as anomaly detection
+in actions, this wrong recognition might not matter. Based on
+application, considering all abnormal and all normal actions
+as two different high-level groups, the recognition rate will
+improve from 88.64% to 96.18%. And as can be seen in Table
+IV, false alarm rate has also been significantly reduced. It
+indicates that the possibility of wrongly recognizing a normal
+action as fall action is considerably low.
+V. CONCLUSION
+A new action recognition method was proposed in this
+paper, especially for recognizing the actions that have some
+complexities such as different forms of falling. Since this
+method uses feature vectors with low dimension and does not
+have big computational overhead, can be used in real time
+purposes. Experiments showed that this method outperforms
+the other methods especially for unusual actions.
+In this method, a feature vector is created for determining
+the state of body in each frame, using the Kinect data and
+Fisher LDA method. Actions are classified and recognized by
+feeding the sequence of recognized states of body to HMMs.
+Because of using HMM, this method is robust to different
+paces and lengths of actions. Moreover, the Mahalanobis
+distance is utilized for considering the variance of data in order
+to enhance the recognition rate.
+Data was preprocessed by skeleton alignment, to make the
+algorithm robust against the orientation of camera. As future
+work, the angles between the joints can be used instead of their
+positions in order to get more robustness. In addition, recog-
+nizing more complex and longer actions can be considered as
+a future work.
+VI. ACKNOWLEDGMENT
+This work was supported by a grant from Iran National
+Science Foundation (INSF).
+REFERENCES
+[1] W. Li, Z. Zhang, Z. Liu, “Action recognition based on a bag of 3d points,”
+In Computer Vision and Pattern Recognition Workshops (CVPRW), IEEE
+Computer Society Conference on, IEEE, pp. 9–14, 2010.
+[2] Y. Zhao, Z. Liu, L. Yang, H. Cheng, “Combing RGB and depth map fea-
+tures for human activity recognition,” In Signal & Information Processing
+Association Annual Summit and Conference (APSIPA ASC), Asia-Pacific,
+IEEE, pp. 1–4, 2012.
+[3] M. E. Hussein, M. Torki, M. A. Gowayyed, M. El-Saban, “Human action
+recognition using a temporal hierarchy of covariance descriptors on 3d
+joint locations,” In Proceedings of the Twenty-Third international joint
+conference on Artificial Intelligence, AAAI Press, pp. 2466–2472, 2013.
+[4] V. R. Reddy, T. Chattopadhyay, “Human activity recognition from kinect
+captured data using stick model,” In Human-Computer Interaction. Ad-
+vanced Interaction Modalities and Techniques, Springer, pp. 305–315 ,
+2014.
+[5] M. Mart??nez-Zarzuela, F. J. D??az-Pernas, A. Tejeros-de-Pablos, D.
+Gonza?lez-Ortega, M. Anto?n-Rodr??guez, “Action recognition system based
+on human body tracking with depth images,” Advances in Computer
+Science: an International Journal, vol. 3(1), pp. 115–123, 2014.
+[6] M. L. Anjum, O. Ahmad, S. Rosa, J. Yin, B. Bona, “Skeleton Tracking
+Based Complex Human Activity Recognition Using Kinect Camera,”
+International Journal of Social Robotics, Springer, pp. 23–33, 2014.
+[7] L. Huynh, T. Ho, Q. Tran, T. B. Dinh, T. Dinh, “Robust classification
+of human actions from 3D data,” In Signal Processing and Information
+Technology (ISSPIT), IEEE International Symposium on, IEEE, pp. 263–
+268, 2012.
+[8] L. Xia, C. C. Chen, J. K. Aggarwal, “View invariant human action recog-
+nition using histograms of 3d joints,” In Computer Vision and Pattern
+Recognition Workshops (CVPRW), IEEE Computer Society Conference
+on, IEEE, pp. 20–27, 2012.
+[9] G. T. Papadopoulos, A. Axenopoulos, P. Daras, “Real-time skeleton-
+tracking-based human action recognition using kinect data,” MultiMedia
+Modeling, Springer, pp. 473–483, 2014.
+[10] R. A. Fisher, “The Use of Multiple Measures in Taxonomic Problems,”
+Ann. Eugenics, vol. 7, pp. 179–188, 1936.
+[11] T. Hastie, R. Tibshirani, J. Friedman, “The Elements of Statistical
+Learning, Data Mining, Inference, and Prediction,” Springer, second
+edition, 2008.
+9
+[12] C. M. Bishop, “Pattern Recognition and Machine Learning,” Springer,
+2006.
+[13] S. Theodoridis, K. Koutroumbas, “Pattern Recognition,” Elsevier, edition
+4, chapter 9, 2009.
+[14] TST Fall Detection dataset,
+http://www.tlc.dii.univpm.it/blog/databases4kinect.
+[15] S. Gasparrini, E. Cippitelli, E. Gambi, S. Spinsante, J. Whsln, I. Orhan,
+T. Lindh, “Proposal and Experimental Evaluation of Fall Detection
+Solution Based on Wearable and Depth Data Fusion,” ICT Innovations
+2015, Advances in Intelligent Systems and Computing, Springer, vol. 399,
+pp. 99–108, 2016.
+[16] A. Yao, J. Gall, L. V. Gool, “Coupled action recognition and pose
+estimation from multiple views,” International journal of computer vision,
+vol. 100, no. 1, pp. 16–37, 2012.
+[17] K. Guo, P. Ishwar, J. Konrad, “Action recognition from video using
+feature covariance matrices,” IEEE Transactions on Image Processing,
+vol. 22, no. 6, pp. 2479–2494, 2013.
+[18] H. Wang, A. Klser, C. Schmid, C.L. Liu, “Dense trajectories and motion
+boundary descriptors for action recognition,” International journal of
+computer vision, vol. 103, no. 1, pp. 60–79, 2013.
+[19] J. Liu, J. Luo, M. Shah, “Recognizing realistic actions from videos
+in the wild,” Computer Vision and Pattern Recognition (CVPR), IEEE
+Conference on, IEEE, 2009.
+[20] H. Wang, A. Klser, C. Schmid, C.L. Liu, “Action recognition by dense
+trajectories,” Computer Vision and Pattern Recognition (CVPR), IEEE
+Conference on, IEEE, 2011.
+[21] J. Niebles, H. Wang, Li Fei-Fei, “Unsupervised learning of human
+action categories using spatial-temporal words,” International journal of
+computer vision, vol. 79, no. 3, pp. 299–318, 2008.
+[22] M. B. Holte, C. Tran, M.M. Trivedi, T.B. Moeslund, “Human action
+recognition using multiple views: a comparative perspective on recent
+developments,” Proceedings of the 2011 joint ACM workshop on Human
+gesture and behavior understanding, ACM, 2011.
+[23] J,K, Aggarwal, L. Xia,“Human activity recognition from 3d data: A
+review,” Pattern Recognition Letters, vol. 48, pp. 70–80, 2014.
+[24] J. Han, L. Shao, D. Xu, J. Shotton, “Enhanced computer vision with
+microsoft kinect sensor: A review,” IEEE Transactions on Cybernetics,
+vol. 43, no. 5, pp. 1318–1334, 2013.
+[25] L. Chen, H. Wei, J. Ferryman, “A survey of human motion analysis
+using depth imagery,” Pattern Recognition Letters, vol. 34, no. 15, pp.
+1995–2006, 2013.
+[26] M. Ye, Q. Zhanq, L. Wang, J. Zhu, R. Yang, J. Gall, “A survey on human
+motion analysis from depth data,” Time-of-Flight and Depth Imaging.
+Sensors, Algorithms, and Applications, pp. 149–187, 2013.
+[27] J. Wang, Z. Liu, Y. Wu, J. Yuan, “Learning actionlet ensemble for 3D
+human action recognition,” IEEE Transactions on Pattern Analysis and
+Machine Intelligence, vol. 36, no. 5, pp. 914–927, 2014.
+[28] S. Althloothi, M.H. Mahoor, X. Zhang, R.M. Voyles, “Human activity
+recognition using multi-features and multiple kernel learning,” Pattern
+recognition, Elsevier, vol. 47, no. 5, pp. 1800–1812, 2014.
+[29] I. Theodorakopoulos, D. Kastaniotis, G. Economou, S. Fotopoulos,
+“Pose-based human action recognition via sparse representation in dis-
+similarity space,” Journal of Visual Communication and Image Represen-
+tation, vol. 25, no. 1, pp. 12–23, 2014.
+[30] I. Kapsouras, N. Nikolaidis, “Action recognition on motion capture
+data using a dynemes and forward differences representation,” Journal
+of Visual Communication and Image Representation, vol. 25, no. 6, pp.
+1432–1445, 2014.
+[31] A. A. Liu, W.Z. Nie, Y.T. Su, L. Ma, T. Hao, Z.X. Yang, “Coupled
+hidden conditional random fields for RGB-D human action recognition,”
+Signal Processing, Elsevier, vol. 112, pp. 74–82, 2015.
+Mozhgan Mokari received her BSc degree in electrical engineering from
+Amirkabir University of Technology (Tehran Polytechnic), Tehran, Iran, in
+2014. She also received her MSc degree in electrical engineering from Sharif
+University of Technology, Tehran, Iran, in 2016. She is currently studying for
+PhD of electrical engineering in Sharif University of technology. Her research
+interests are machine learning, computer vision and signal processing.
+Hoda Mohammadzade received her BSc degree from Amirkabir University
+of Technology (Tehran Polytechnic), Iran, in 2004, the MSc degree from
+the University of Calgary, Canada, in 2007, and the PhD degree from the
+University of Toronto, Canada, in 2012, all in electrical engineering. She is
+currently an assistant professor of electrical engineering at Sharif University
+of Technology, Tehran, Iran. Her research interests include signal and image
+processing, computer vision, pattern recognition, biometric systems, and
+bioinformatics.
+Benyamin Ghojogh obtained his first and second BSc degrees in electrical
+engineering (Electronics and Telecommunications fields) from Amirkabir
+University of technology, Tehran, Iran, in 2015 and 2017 respectively. He also
+received his MSc degree in electrical engineering (Digital Electronic Systems
+field) from Sharif University of technology, Tehran, Iran, in 2017. One of his
+honors is taking the second rank of Electrical Engineering Olympiad of Iran
+in 2015. His research interests include machine learning and computer vision.

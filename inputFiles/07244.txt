@@ -1,0 +1,1143 @@
+ar
+X
+iv
+:1
+70
+8.
+07
+24
+4v
+1 
+ [
+cs
+.L
+G
+] 
+ 2
+4 
+A
+ug
+ 2
+01
+7
+On the Compressive Power of Deep Rectifier Networks
+for High Resolution Representation of Class Boundaries
+Senjian An SENJIAN.AN@UWA.EDU.AU
+School of Computer Science and Software Engineering
+The University of Western Australia
+Mohammed Bennamoun MOHAMMED.BENNAMOUN@UWA.EDU.AU
+School of Computer Science and Software Engineering
+The University of Western Australia
+Farid Boussaid FARID.BOUSSAID@UWA.EDU.AU
+School of Electrical, Electronic and Computer Engineering
+The University of Western Australia
+Editor:
+Abstract
+This paper provides a theoretical justification of the superior classification performance of deep
+rectifier networks over shallow rectifier networks from the geometrical perspective of piecewise
+linear (PWL) classifier boundaries. We show that, for a given threshold on the approximation
+error, the required number of boundary facets to approximate a general smooth boundary grows
+exponentially with the dimension of the data, and thus the number of boundary facets, referred
+to as boundary resolution, of a PWL classifier is an important quality measure that can be used to
+estimate a lower bound on the classification errors. However, learning naively an exponentially
+large number of boundary facets requires the determination of an exponentially large number of
+parameters and also requires an exponentially large number of training patterns. To overcome
+this issue of “curse of dimensionality”, compressive representations of high resolution classifier
+boundaries are required. To show the superior compressive power of deep rectifier networks over
+shallow rectifier networks, we prove that the maximum boundary resolution of a single hidden
+layer rectifier network classifier grows exponentially with the number of units when this number is
+smaller than the dimension of the patterns. When the number of units is larger than the dimension
+of the patterns, the growth rate is reduced to a polynomial order. Consequently, the capacity of
+generating a high resolution boundary will increase if the same large number of units are arranged
+in multiple layers instead of a single hidden layer. Taking high dimensional spherical boundaries as
+examples, we show how deep rectifier networks can utilize geometric symmetries to approximate a
+boundary with the same accuracy but with a significantly fewer number of parameters than single
+hidden layer nets.
+Keywords: Deep Learning, Rectifier Neural Network, Compressive Power, Classifier Boundaries
+1. Introduction
+Although as few as one hidden layer neural networks are capable of approximating any Borel mea-
+surable functions (Hornik et al., 1989), deeper neural networks have outperformed shallower neu-
+1
+ral networks in a wide range of applications such as handwritten digit recognition (Ciresan et al.,
+2012), object detection Ren et al. (2015) and image classification (Krizhevsky et al., 2012; He et al.,
+2016a,b). The benefits of neural networks’ depth have been investigated extensively in recent years,
+from the superior power of deep networks in function approximation (Delalleau and Bengio, 2011;
+Eldan and Shamir, 2016; Cohen et al., 2015; Mhaskar et al., 2016), to the superior capacity of deep
+networks in separating the input space into a large number of regions of linearity (Pascanu et al.,
+2014; Montu?far et al., 2014; Raghu et al., 2016). From these theoretical analyses, one can conclude
+that, for some functions that can be represented or approximated by both deep neural networks and
+single hidden layer networks, the representation provided by deep networks can be much more
+compact (i.e, with fewer parameters) and thus generalises better. However, the functions consid-
+ered so far have been limited to certain families of polynomial functions or hand-coded functions,
+which have been chosen to demonstrate the expressive power of deep neural networks. It is unlikely
+that practically trained neural networks will fall into one of these analysed categories of functions.
+A good understanding of how and why deep neural networks achieve their empirical successes is
+thus still missing (Raghu et al., 2016).
+This paper aims to theoretically justify the superior classification performances of deep rectifier
+networks over shallow rectifier networks from the geometrical perspective of PWL classifier bound-
+aries. Given a dataset comprising several classes, according to learning theory (Vapnik and Vapnik,
+1998), a simpler learning model with a smaller sample complexity usually generalises better. How-
+ever, approximation models of a simple geometric surface can be quite complex, and a large differ-
+ence may exist between the complexity of the approximation model and that of the original model.
+For instance, (Dudley, 1974) shows that an exponentially large number of facets is required to ap-
+proximate a spherical surface in d dimensional space. This is despite the fact that a spherical surface
+is a simple geometric model which can be represented with d + 1 parameters (one for the radius,
+the others for the center). We will show that the required number of units is at least a polynomial
+function of the dimension of the patterns if single hidden layer rectifier networks are used to approx-
+imate a spherical boundary (Theorem 7, Sec. 5). We will present an upper bound on the number
+of facets with respect to the number of units of a single hidden layer rectifier network. This up-
+per bound shows that the capacity of single hidden layer rectifier nets to generate facets increases
+exponentially when the number of units is smaller than the dimension of the input. However, the
+growth rate is reduced to a polynomial order when the number of units is larger than the dimension
+of the patterns (Lemma 6, Sec. 5). Consequently, the capacity of generating facets will increase
+if the same large number of units are arranged in multiple layers instead of a single hidden layer.
+With spherical surfaces as examples, we will show that deep rectifier nets can be exponentially more
+efficient than single hidden layer nets. The main contributions of this paper include:
+i) The introduction of boundary resolution for PWL classifiers (Sec. 3). The resolution of
+PWL classifier boundaries is a measure of the classifier quality, which can be used to estimate
+a lower bound on the classification errors. The introduction of this new concept provides a
+new approach to analyse the benefits of rectifier networks’ depth.
+ii) The first investigation on the efficiency of deep rectifier networks in approximating class
+boundaries (Sec. 5-6). Given that the ultimate goal of deep learning for classification tasks
+is to learn class boundaries rather than classifier functions, it is critical to investigate the
+properties of deep neural networks in generating class boundaries in order to understand the
+benefits of networks’ depth for classification tasks.
+2
+iii) An explicit upper bound is provided on the number of facets that a single hidden layer
+rectifier can generate with a given number of units (Sec. 5). This upper bound shows the
+limitations of single hidden layer networks and implies that deep nets have the potential to
+improve efficiency. For approximations of general convex boundaries in Rd, we show that the
+required number of facets is O
+(
+(
+d
+?
+)
+d?1
+2
+)
+for a threshold ? on the approximation error. To
+learn a convex PWL classifier with this large number of facets using a simple maxout network
+of some linear units, O
+(
+(
+d
+?
+)
+d?1
+2
+)
+linear units are required and O
+(
+d
+(
+d
+?
+)
+d?1
+2
+)
+weights need
+to be learnt (Sec. 4). To use single hidden layer rectifier networks, the number of weights to be
+learnt is at least O
+(
+d2
+(
+d
+?
+)
+1
+2
+)
+for approximations of general convex boundaries (including
+spherical surfaces). (Sec. 5).
+iv) The superior compressive power of deep rectifier networks is demonstrated by con-
+structing a rectifier network for spherical boundary approximation. The constructed
+network can learn the spherical boundary with O
+(
+d log
+(
+d
+?
+))
+units, each requiring at most
+5 parameters to be learnt (Sec. 6). As deep rectifier networks have the advantage to use a
+significantly smaller number of parameters to model the classifier boundaries, they usually
+thus generalize better than single hidden layer rectifier neural networks.
+The rest of this paper is organised as follows. Section 2 addresses related work. Section 3 de-
+fines the resolution of PWL classifier boundaries and relates the resolution of convex PWL classifier
+boundaries to the number of linear units in the maxout representation of convex PWL classifiers.
+Section 4 addresses the required resolution of general convex classifier boundaries and show that
+an exponentially large number of facets is required to approximate a convex boundary even for
+spherical surfaces (the simplest convex surfaces). Section 5 presents the limit of single hidden layer
+rectifier networks in reducing the number of weights to be learnt for high resolution boundary rep-
+resentation. In Section 6, a solution with deep rectifier networks for the approximation of Euclidean
+balls is presented to show its superior efficiency over single hidden layer nets. Concluding remarks
+are provided in Section 7.
+2. Related Work
+The depth of neural networks has been investigated extensively in recent years to show the supe-
+rior expressive power of deep neural networks over shallow networks. Delalleau and Bengio (2011)
+showed that the deep network representation of a certain family of polynomials can be much more
+compact (i.e., with fewer hidden units) than that provided by a shallow network. Similarly, with
+the same number of hidden units, deep networks are able to split their input space into many more
+regions of linearity than their shallow counterparts (Pascanu et al., 2014; Montu?far et al., 2014).
+Eldan and Shamir (2016) presented an example function that is expressible by a small 3-layer neural
+networks, but cannot be approximated by a 2-layer network to a certain constant accuracy unless its
+width is exponential to the dimension of the data. Cohen et al. (2015) proved that, except for a neg-
+ligible set, all functions that can be implemented by a deep network of polynomial size, require an
+exponential size in order to be realized (or even approximated) by a shallow network. Mhaskar et al.
+(2016) demonstrated that deep networks can approximate the class of compositional functions with
+the same accuracy as shallow networks, but with an exponentially lower number of training param-
+3
+eters. The superior expressive power of deep residual nets was analysed in (Veit et al., 2016) which
+showed that residual nets can be viewed as a collection of many paths of differing lengths, enabling
+very deep networks by activating only the short paths during training.
+The most related work to this paper is the analysis about the maximum number of regions that
+can be split by a rectifier neural network with a given number of units. With hand-coded construc-
+tion of deep rectifier nets, Montu?far et al. (2014) showed that deep nets can be exponentially more
+efficient in splitting the space into a large number of regions, while Raghu et al. (2016) presented
+an upper bound on the number of the split regions by a single hidden layer network with a given
+number of linear units. From these results, one can conclude that the complexity on the split regions
+by rectifier networks could grow exponentially with depth. However, it is not yet understood why
+the growth in complexity on the split regions of linearity improves generalization performance.
+All these related works focus on the properties of functions that can be represented by neural
+networks. However, the ultimate goal of classification is to find class boundaries whose function
+representations, however, are not unique. Furthermore, the complexity of the different function
+representations of one identical class boundary can be arbitrarily large. For example, the boundary
+{x : g{f(x)} = 0} is the same as the boundary {x : f(x) = 0} for any strictly increasing function
+g(z) with g(0) = 0. Consequently, the complexity analysis on the functions represented by neural
+networks is not directly on the complexity of class boundaries. Fortunately, there is a rich history on
+the approximations of Euclidean Balls (Gordon et al., 1994) and general convex bodies (Macbeath,
+1951), which will be shown to be closely related to rectifier/maxout networks. This paper will
+investigate the approximations of convex class boundaries and show the superior power of deep
+rectifier networks over single hidden layer networks.
+3. Resolution of PWL Classifier Boundaries
+In this section, we first define the resolution of a PWL classifier boundary as the number of exposed
+facets on the boundary, and consider the resolution of convex PWL classifier boundaries in particu-
+lar. Since a general class boundary consists of one or more convex or concave subsets, the required
+resolution for the approximation of convex boundaries provides a lower bound on the required res-
+olution for the approximation of general class boundaries.
+Consider the boundary, namely
+Bf , {x : f(x) = 0}, (1)
+of a binary PWL classifier f(x) which classifies the patterns x to be positive if f(x) > 0 or negative
+otherwise. Since f(x) is a PWL classifier, its boundary consists of a number of facets each satisfying
+a linear equation aTk x+ ck = 0, more precisely
+Bf =
+n
+?
+k=1
+?k
+?k , {x : aTk x+ bk = 0, f(x) = 0}.
+(2)
+Without loss of generality, we assume that none of the facets is redundant, that is,
+?
+k 6=i
+?k 6= Bf , ? i. (3)
+4
+If there are any redundancies, one can always remove them and the remaining is then a set of facets
+without redundancy. We say Bf has n facets if it has n distinct facets and none of them is redundant.
+Since any continuous function can be approximated by a PWL function, the boundary of any
+classifier that can be represented by a continuous function can also be approximated by a sufficiently
+larger number of facets around the boundary. For high accuracy approximation, a large number of
+facets is required in general. The resolution of PWL classifier boundaries is similar to the reso-
+lution of digital images, the later represents the quality of digital images for the approximation of
+natural scenes while the former represents the quality of PWL classifiers for the approximation of
+class boundaries. In this paper, we focus on the approximations of convex boundaries with con-
+vex PWL classifiers. A general smooth class boundary can be viewed as the union of a number of
+convex/concave surfaces. Next, we address the resolution of convex PWL classifier boundaries.
+3.1 Convex PWL classifiers and Their Resolutions
+A PWL function f(x) is said to be convex if the set {x : f(x) ? 0} is convex. For a convex PWL
+function f(x) in Rd, the set {x : f(x) ? 0} is a polytope which can be described as the intersection
+of a finite number, say m, of half planes, i.e.,
+{x : f(x) ? 0} =
+m
+?
+i=1
+{x : wTi x+ bi ? 0} = {x : max
+1?i?m
+w
+T
+i x+ bi ? 0} (4)
+where wi ? Rd and bi ? R. Therefore, any convex PWL classifier has a maxout representation, i.e.
+f(x) = max
+1?i?m
+w
+T
+i x+ bi. (5)
+A maxout representation, as in Eq. (5), of a convex PWL classifier f(x) is said to be irreducible if
+{x : f(x) ? 0} 6? {x : wTk x+ bk ? 0}, ? 1 ? k ? m. (6)
+A convex PWL classifier with an irreducible maxout representation of m units has m facets on
+its boundary Bf and therefore its resolution is exactly the number of units in its maxout representa-
+tion. Hereafter, we assume that the maxout representation of a PWL classifier is irreducible. If any
+unit is reducible, one can always remove it and the classifier remains the same (i.e., the classified
+label of any pattern x is invariant). For convenience, we use Mm to denote the set of convex PWL
+classifiers with irreducible maxout representation of m units, i,e,
+Mm , {f(x) = max
+1?i?m
+w
+T
+i x+ bi : wi ? Rd, bi ? R}. (7)
+For any convex PWL classifier f(x) ? Mm, we will use Pf to denote the polytope where f(x)
+is not positive, i.e.,
+Pf , {x : f(x) ? 0}. (8)
+In the next section, we will consider the required resolutions of convex PWL classifiers for the
+approximation of general convex boundaries. The required resolution (i.e., the number of required
+facets) will be used in Section 5 to estimate the number of required units for a single hidden layer
+rectifier network to approximate general smooth convex boundaries in high dimensional spaces.
+5
+4. Required Resolution for the Approximations of Smooth Convex Boundaries
+This section starts with spherical boundaries and then moves to general smooth convex boundaries.
+Surprisingly, for a given threshold on the approximation errors, the required resolution for a general
+convex surfaces is no higher than the required resolution for spherical surfaces (the simplest convex
+surfaces except for hyperplanes).
+4.1 Approximation of Spherical Boundaries
+Given that the boundary of a convex body is convex and the convex combinations of the points
+in a convex boundary form a convex body, the approximation of convex boundaries with convex
+PWL classifiers, which generates polytopic boundaries, is equivalent to the volume approximation
+of convex bodies with polytopes. Next, we will use the results on the polytopic approximations of
+Euclidean balls (Gordon et al., 1994) to derive the required number of facets to approximate spheri-
+cal boundaries with given error thresholds. The approximation of general convex boundaries will be
+addressed in Section 4.2 using the results on the polytopic approximations of general convex bod-
+ies (Macbeath, 1951; Schneider, 1967; Paouris and Pivovarov, 2017). From (Gordon et al., 1994)
+[Theorem 5.2], we have
+Proposition 1 Let Bd2 be the unit Euclidean ball in R
+d:
+Bd2 =
+{
+x ? Rd : ?x?2 ? 1
+}
+. (9)
+There exists two constants C1, C (i.e., independent of d) such that for every integer n ? C1 (log d)d,
+it is possible to construct a polytope Pn containing B
+d
+2 , with at most n facets, such that
+|Pn\Bd2 |
+|Bd2 |
+? C d
+n
+2
+d?1
+(10)
+where the |S| represents the volume of a compact set S and
+Pn\Bd2 ,
+{
+x : x ? Pn,x 6? Bd2
+}
+. (11)
+Proposition 1 shows that, for a given threshold ? on the approximation error, the number of
+facets required to approximate an Euclidean ball is
+(
+Cd
+?
+)
+d?1
+2
+. (12)
+Note that
+O
+(
+(log d)d
+)
+? O
+(
+(
+d
+?
+)
+d?1
+2
+)
+, (13)
+we have the following corollary from Proposition 1:
+Corollary 2 For the unit Euclidean ball Bd2 in R
+d, there exists a constant C(i.e., independent of d)
+such that for every small positive number ? and every integer
+n ?
+(
+Cd
+?
+)
+d?1
+2
+, (14)
+6
+it is possible to construct a polytope Pn containing B
+d
+2 , with at most n facets, such that
+|Pn\Bd2 |
+|Bd2 |
+? ?. (15)
+Corollary 2 provides the required number of facets to approximate Euclidean balls. The next
+section will generalize this result to general convex bodies and show that the required resolution is
+no higher than the approximation of Eulidean balls.
+4.2 Approximation of General Convex Boundaries
+Let Pm be the set of convex polytopes with m vertices, K be a convex body (i.e., a bounded closed
+convex set with inner points), both in Rd. Then define the function of a convex body
+?m(K) , sup
+P?K,P?Pm
+|P |
+|K| (16)
+where | · | denotes the volume of a convex body. According to Macbeath (1951),
+?m(K) ? ?m(Bd2 ) (17)
+holds for any convex body K .
+Similarly, let P?m be the set of convex polytopes with m facets and define the function of a
+convex body
+??m(K) , inf
+K?P,P?P?m
+|P |
+|K| . (18)
+From (Schneider, 1967) (or (Paouris and Pivovarov, 2017)[Corollary 5.2] for a recent reference),
+we have
+??m(K) ? ??m(Bd2). (19)
+This indicates that, for a given threshold on the approximation errors, the approximation of a
+general convex body requires a smaller or equal number of facets than the approximation of the
+Euclidean balls. Combine the above discussions with Corollary 2 and the definition of Mm in Eq.
+(7), we have
+Theorem 3 Let ? > 0 be a small positive number. There is a constant C (independent of the
+dimension d) such that for any bounded convex body K and any
+m ?
+(
+Cd
+?
+)
+d?1
+2
+, (20)
+there exists f(x) ? Mm such that K ? Pf and
+|Pf\K|
+|K| ? ? (21)
+where Pf , {x : f(x) ? 0} is a polytope with m facets.
+7
+Theorem 3 shows that the representation of a general convex boundary requires an exponentially
+high resolution no matter the shape of the boundary is simple or complex. Learning the parameters
+of the linear units in a maxout network to approximate a spherical boundary will be more prone to
+overfitting than searching for the center and radius directly. To overcome the overfitting problem,
+more compact PWL representations are required. Thanks to the symmetry of Euclidean balls, a
+group of facets that can be represented compactly with a small number of independent parameters,
+such as those in a regular polytope, can be used to approximate a spherical boundary. In the next
+section, we will show the limitations of single hidden layer nets in compressing the representation
+of high resolution class boundaries. The superior compressive power of deep rectifier networks will
+be considered in Section 6.
+5. Limit on the Compressive Power of Single Hidden Layer Rectifier Networks
+The number of facets that can be generated by a single hidden layer rectifier network is closely
+related to the number of regions into which the space is partitioned by the linear units of the net-
+work. In this section, we first give a brief review on results relating to the partition of space Rd
+by Hyperplanes. We then show how these results relate to the compressive power of single hidden
+layer rectifier networks.
+Let H be a family of m distinct hyperplanes in the d-dimensional space, we denote by GH(d,m)
+the number of regions into which the space Rd is partitioned by the hyperplanes in H. We denote
+by G(d,m) the maximum of GH(d,m) across all the possible sets, namely H, of m hyperplanes in
+R
+d, that is,
+G(d,m) = max
+H
+GH(d,m). (22)
+A set H of m hyperplanes, namely {x : wTi x+ bi = 0}, in Rd is said to be in general position
+if for each 1 ? k < d, no k+1 members of H contain a common (d? k)-dimensional affine subset
+of Rd, that is, any (d + 1) of m hyperplanes has no common point if m > d, and all the wi are
+independent if m ? d.
+A region D in Rd is called cone-like if whenever an (d ? 1)-dimensional plane cuts into com-
+ponents D1 and D2, such that the cross-section is bounded, one of the two components will be
+bounded and the other unbounded.
+From Ho and Zimmerman (2006), we have
+Proposition 4 The maximum number, denoted by G(d,m), of regions in a d-dimensional space cut
+by m hyperplanes is achieved when these m hyperplanes are in general position and
+G(d,m) =
+d
+?
+k=0
+(
+m
+k
+)
+. (23)
+Furthermore, for any set of m planes in general position in Rd, among the G(d,m) regions cut by
+these m planes,
+(
+m? 1
+d
+)
+of them are bounded, and each of the remaining
+C(d,m) , G(d,m) ?
+(
+m? 1
+d
+)
+= 2
+d?1
+?
+k=0
+(
+m? 1
+k
+)
+(24)
+unbounded regions is always cone-like.
+8
+Next, we present the main result of this section, regarding the limit on the resolution of single
+hidden layer rectifier networks.
+Theorem 5 Let SHL(d,m) be the set of PWL functions that can be described by a single hidden
+layer rectifier network with m rectifier linear units in Rd, i.e.,
+SHL(d,m) =
+{
+f(x) = aT max(0,Wx+ b) + c : a,b ? Rm,W ? Rm×d, c ? R,x ? Rd
+}
+.
+(25)
+where a,W,b, c are parameters of the function while x is the variable. Then the maximum number
+of facets of the boundaries Bf (, {x : f(x) = 0}) across all the PWL functions in SHL(d,m) is
+between C(d,m) and G(d,m), that is
+C(d,m)? 1 ? max
+f(x)?SHL(d,m)
+#(Bf ) ? G(d,m) (26)
+where #(Bf ) denotes the number of facets of Bf , and G(d,m), C(d,m) are defined in Eq. (23)
+and Eq. (24) respectively.
+Proof: Let hi(x) = w
+T
+i x+ bi (1 ? i ? m) be the m linear units of f(x) = aT max(0,Wx+
+b)+ c where wTi is the i
+th row of W and bi is the i
+th element of b. According to Proposition 4, the
+space Rd can be cut into at most G(d,m) regions by the m hyperplanes {x : hi(x) = 0}. Within
+each of these regions, the sign of hi(x) is invariant and thus f(x) is a linear function when x is
+constrained within one of these regions. Therefore the boundary Bf has at most one facet in each
+of these regions and the maximum number of facets of Bf across all the functions in SHL(d,m) is
+upper bounded by G(d,m).
+For the lower bound (C(d,m) ? 1), we consider the conditions under which Bf has exactly
+(C(d,m) ? 1) facets. First, let us choose the linear units such that the associated m hyperplanes
+{hi(x) = 0} are in general position. Then, according to Proposition 4, these m hyperplanes cut
+the space Rd into G(d,m) regions where C(d,m) of them are unbounded. Since f(x) is linear
+when x is constrained within each of the G(d,m) regions, f(x) has a bounded maximum in the
+(G(d,m)?C(d,m)) bounded and closed regions. Furthermore, in the C(d,m) unbounded regions,
+there is at most one region within which all the linear units hi(x) are negative and therefore f(x) is
+unbounded in at least (C(d,m)? 1) of the unbounded regions. Hence, if all the elements of aT are
+positive, and c is sufficiently small (e.g. approaching to ??) such that f(x) is negative in all the
+bounded regions, then Bf has a facet in each of the C(d,m) unbounded regions except the one (if
+any) within which all the linear units hi(x) are negative. Thus, the maximum number of facets of
+Bf across all f(x) ? SHL(d,m) is lower bounded by (C(d,m)? 1).
+
+To estimate the required number of units to approximate a general convex boundary by an SHL
+rectifier network, the following lemma is also required.
+Lemma 6 Let G(d,m) be the maximum number of regions in a d-dimensional space cut by m
+hyperplanes, then
+G(d,m) = 2m, ? m ? d, (27)
+G(d,m) ? 1
+(d? 1)!m
+d, ? m ? d. (28)
+9
+Proof: Note that
+m
+?
+k=0
+(
+m
+k
+)
+= 2m (29)
+and
+(
+m
+k
+)
+= 0 if k > m. Then Eq. (27) follows from Proposition 4.
+For the proof of Eq. (28), by induction, it suffices to prove the following three statements:
+i) Eq. (28) holds when d = 2;
+ii) Eq. (28) holds when m = d;
+iii) For any k ? 2, l ? k + 1, if Eq. (28) holds when m = l, d = k, k + 1, then Eq. (28) holds
+when m = l + 1, d = k + 1.
+For the proof of statement i), it is easy to check that G(2,m) = m+ 1+ m(m?1)2 and therefore
+G(2,m) ? m2 when m ? 2. Thus Eq. (28) holds when d = 2. This proves i).
+Next we prove statement ii), i.e.
+2d ? 1
+(d? 1)!d
+d. (30)
+This can be done by induction. It is easy to check that Eq. (30) holds when d = 2. Now assume
+that Eq. (30) holds when d = k for some k ? 2, that is
+2k ? 1
+(k ? 1)!k
+k. (31)
+Note that, for any integer n ? 2 and any positive number x > 0, we have
+(x+ 1)n =
+n
+?
+i=0
+(
+n
+i
+)
+xi ? xn + nxn?1 (32)
+and therefore
+(k + 1)k+1 ? kk+1 + (k + 1)kk (33)
+which implies that
+1
+k!
+(k + 1)k+1 ? k
+k+1
+k!
++
+(k + 1)kk
+k!
+? 2 k
+k
+(k ? 1)! . (34)
+Then, from (31), it follows
+1
+k!
+(k + 1)k+1 ? 2k+1. (35)
+That is, Eq. (30) holds for d = k+1 as well. This completes the induction and completes the proof
+of Eq. (30).
+For the proof of statement iii), assume that Eq. (28) holds when m = l, d = k, k + 1, that is
+G(k, l) ? 1(k?1)! lk
+G(k + 1, l) ? 1
+k! l
+k+1.
+(36)
+10
+From the following recursive relations of combinations
+(
+l + 1
+i
+)
+=
+(
+l
+i
+)
++
+(
+l
+i? 1
+)
+, (37)
+we have
+G(k + 1, l + 1) =
+k+1
+?
+i=0
+(
+l + 1
+i
+)
+=
+k+1
+?
+i=0
+(
+l
+i
+)
++
+k+1
+?
+i=1
+(
+l
+i? 1
+)
+= G(k + 1, l) +
+k
+?
+j=0
+(
+l
+j
+)
+= G(k + 1, l) +G(k, l).
+(38)
+Then, from (36), it follows that
+G(k + 1, l + 1) ? 1
+k! l
+k+1 + 1(k?1)! l
+k
+= 1
+k!{lk+1 + klk}
+? 1
+k!(l + 1)
+k+1
+(39)
+which implies that Eq. (28) holds for d = k + 1,m = l + 1 and the proof is completed.
+
+Now we are ready to estimate the required number of units for a single hidden layer network to
+approximate general convex boundaries.
+From Eq. (28), to generate
+(
+Cd
+?
+)
+d?1
+2
+(40)
+number of facets by a single hidden layer net, the number of units, namely m, should satisfy
+1
+(d? 1)!m
+d ?
+(
+Cd
+?
+)
+d?1
+2
+, (41)
+and therefore
+m ?
+(
+Cd
+?
+)
+d?1
+2d {(d? 1)!}
+1
+d
+?
+(
+Cd
+?
+)
+1
+2 {(d? 1)!}
+1
+d
+(42)
+From Stirling’s formula for approximation of n! (Romik, 2000), we have
+d! ?
+?
+2?dd+0.5e?d (43)
+and therefore
+m ?
+(
+Cd
+?
+)
+1
+2 {(d? 1)!}
+1
+d
+?
+(
+Cd
+?
+)
+1
+2 d?1
+e
+(44)
+where e ? 2.7183 is the Euler number.
+Theorem 7 below summarises the result of this section.
+11
+Theorem 7 To approximate the Euclidean ball in d dimensional space with
+(
+Cd
+?
+)
+d?1
+2 facets by a
+single hidden layer rectifier net, at least
+Ns =
+(
+Cd
+?
+)
+1
+2 d? 1
+e
+(45)
+units are required, with
+Nsp = (d+ 1)Ns =
+(
+Cd
+?
+)
+1
+2 d2 ? 1
+e
+(46)
+parameters to be learnt.
+In the next section, we will show that a deep rectifier net is able to approximate Euclidean balls
+with a much smaller number of units and parameters.
+6. Superior Compressive Power of Deep Rectifier Networks
+We will first construct a deep rectifier network for two dimensional data in Section 6.1 and then
+construct a deep rectifier network in Section 6.2 for efficient approximation of high dimensional
+spherical boundaries.
+6.1 Two Dimensional Space
+Consider the approximation of the unit circle {x ? R2 : ?x? = 1}. From Theorem 5, if a single
+hidden layer net of m units is used, the maximum number of segments is G(2,m)(= m + 1 +
+m(m+1)
+2 ). Next we present a deep rectifier net which can approximate the unit circle more efficiently
+than single hidden layer nets.
+Lemma 8 Let ?k =
+?
+2k
+, and fk(x, y), f?k(x, y) be defined recursively as
+f1(x, y) = |x|, f?1(x, y) = |y|
+fk+1(x, y) = cos ?k+1fk(x, y) + sin ?k+1f?k(x, y)
+f?k+1(x, y) =
+?
+?? sin ?k+1fk(x, y) + cos ?k+1f?k(x, y)
+?
+? .
+(47)
+Then for any [x, y]T ? R2, k = 1, 2, · · · , we have
+1? ?2
+22k+1
+< cos ?k ? fk(x,y)?
+x2+y2
+? 1. (48)
+Proof: Let f0(x, y) = x = r cos t, f?0(x, y) = y = r sin t, t ? [0, 2?] where r =
+?
+x2 + y2,
+then
+f1(x, y) = |x| = r| cos t| = r cos t1; f?1(x, y) = |y| = r| sin t| = r sin t1 (49)
+where t1 ?
+[
+0, ?2
+]
+and
+t1 =
+?
+?
+?
+?
+?
+?
+?
+t; if t ? [0, ?/2];
+? ? t; if t ? (?/2, ?];
+t? ?; if t ? (?, 3?/2];
+2? ? t if t ? (3?/2, 2?].
+(50)
+12
+Next assume that fk = r cos tk, f?k = r cos tk holds some k ? 1 and some tk ? [0, ?k], where
+?k =
+?
+2k
+. Then
+fk+1 = r cos ?k+1 cos tk + r sin ?k+1 sin tk = r cos(tk ? ?k+1)
+f?k+1 = r |? sin ?k+1 cos tk + cos ?k+1 sin tk| = r| sin(tk ? ?k+1)|.
+(51)
+Let
+tk+1 = |tk ? ?k+1| ? [0, ?k+1], (52)
+then fk+1 = r cos tk+1, f?k+1 = r sin tk+1. By induction, for any k ? 1, fk = r cos tk, f?k =
+r cos tk holds for some tk ? [0, ?k] and therefore
+fk?
+x2+y2
+= r cos tk
+r
+? cos ?k (53)
+which completes the proof.
+
+To implement the function fk(x, y) for some integer k, the rectifier net can be constructed as
+follows:
+1). The first hidden layer has four nodes which are chosen as below:
+z1(1) = max(x1, 0)
+z1(2) = max(?x1, 0)
+z1(3) = max(x2, 0)
+z1(4) = max(?x2, 0)
+(54)
+2). The second hidden layer has three nodes:
+z2(1) = max(0, |x1| cos ?2 + |x2| sin ?2)
+z2(2) = max(0, |x1| cos ?2 ? |x2| sin ?2)
+z2(3) = max(0, |x2| sin ?2 ? |x1| cos ?2)
+(55)
+where
+?2 =
+?
+4
+|x1| = z1(1) + z1(2)
+|x2| = z1(3) + z1(4).
+(56)
+3). The (i+ 1)th(i = 2, · · · , k ? 2) layer has three nodes which are chosen as
+zi+1(1) = max {0, zi(1) cos ?i+1 + (zi(2) + zi(3)) sin ?i+1}
+zi+1(2) = max {0, zi(1) cos ?i+1 + (zi(2)? zi(3)) sin ?i+1}
+zi+1(3) = max {0, (zi(2) ? zi(3)) sin ?i+1 ? zi(1) cos ?i+1}
+(57)
+where
+?i+1 =
+?i
+2
+. (58)
+13
+4). The output layer is then
+fk = zk?1(1) cos ?k + (zk?1(2) + zk?1(3)) sin ?k ? 1 (59)
+where ?k =
+?k?1
+2 .
+The constructed rectifier net has 3(k ? 1) + 2 = 3k ? 1 units in total and can generated 2k
+segments to approximate a circle. The following Lemma summarises the main result of this section.
+Lemma 9 A rectifier net with m = 3k ? 1 units in k (? 2) layers exists to generate a polytope
+Pn = {(x, y)T : fk(x, y) ? 1}, (60)
+of n = 2
+m+1
+3 number of segments, to approximate the unit circle B22 such that B
+2
+2 ? Pn and
+|Pn ?B22 |
+|B22 |
+? 1
+cos2 ?k
+? 1 ? ?2k =
+?2
+22k
+(61)
+Proof: From Lemma 8, it follows that B22 ? Pn and
+x2 + y2 ? 1
+cos2 ?r
+, ? (x, y) ? Pn (62)
+which implies that Pn ? {(x, y)T : x2 + y2 ? 1cos2 ?k } and therefore
+|Pn ?B22 |
+|B22 |
+?
+| 1cos ?kB
+2
+2 | ? |B22 |
+|B22 |
+=
+1
+cos2 ?k
+? 1 ? ?2k =
+?2
+22k
+. (63)
+
+6.2 High Dimensional Spaces
+For high dimensional cases, we will first use the constructed 2D rectifier network to approximate
+?
+x21 + x
+2
+2 (i.e., the norm of the first two elements). Then with x3 as one input and the output of the
+previous 2D network as another input, we apply the same 2D network to approximate the norm of
+the first three elements. Sequentially, by applying the 2D rectifier net similarly for (d?1) times, the
+norm of d?dimensional vectors can be approximated. The following lemma will give the bound for
+the approximation error and will be used to estimate the approximation error for the approximation
+of unit balls using the constructed deep rectifier network.
+Lemma 10 Let x ? Rd and gl(x; k) be defined recursively as below
+g1(x; k) = fk(x1, x2)
+gl(x; k) = fk{gl?1(x; k), xl+1}, 2 ? l ? d? 1
+(64)
+where fk(·, ·) is a function defined in Lemma 8 with ?k = ?2k . Then for any x ? R
+d, k = 1, 2, · · · ,
+we have
+cosl ?k ? gl(x;k)?
+?l+1
+i=1 x
+2
+i
+? 1, ? 1 ? l ? d? 1. (65)
+14
+Proof: From Lemma 8, we have
+cos ?k ? g1(x;k)?
+x2
+1
++x2
+2
+? 1
+cos ?k ? gl(x;k)?
+g2
+l?1
++x2
+l+1
+? 1, ? l ? 2. (66)
+Hence Eq. (65) holds when l = 1.
+Next, assume that Eq. (65) holds for l = p for some p ? 1, that is
+cosp ?k ? gp(x;k)?
+?p+1
+i=1 x
+2
+i
+? 1. (67)
+Then from Eq. (66), we have
+g2p+1(x; k) ? g2p(x; k) + x2p+2 ?
+p+2
+?
+i=1
+x2i (68)
+and
+g2p+1(x; k) ? cos2 ?k
+{
+g2p(x; k) + x
+2
+p+2
+}
+? cos2 ?k
+(
+cos2p ?k
+?p+1
+i=1 x
+2
+i + x
+2
+p+2
+)
+? cos2p+2
+?p+2
+i=1 x
+2
+i .
+(69)
+which, together with Eq. (68), imply that Eq. (65) holds for l = p + 1. By induction, Eq. (65) is
+true for every l = 1, 2, · · · , d? 1.
+
+Next, we use Lemma 10 to estimate the required number of units to approximate Euclidean balls
+with a given threshold on the approximation errors. Consider the polytope
+P , {x : gd?1(x; k) ? 1} (70)
+where gd?1(x; k) is defined in Lemma 10.
+From Lemma 10, we have
+?x? cosd?1 ?k ? gd?1(x; k) ? ?x? (71)
+and therefore
+Bd2 ? P ? B
+(
+1
+cosd?1 ?k
+)
+(72)
+where B(r) , {x : ?x? ? r} is an Euclidean ball in Rd with radius r. Note that the volume of
+an Euclidean ball in Rd with radius r is proportional to rd, the approximation error of P to the unit
+ball Bd2 satisfies
+|P\Bd2 |
+|Bd
+2
+|
+<
+{
+1
+cosd?1 ?k
+}d
+? 1
+=
+{
+1
+cos ?k
+}(d?1)d
+? 1
+(73)
+15
+Note that ?k =
+?
+2k
+is very close to zero when k ? 10, and when x is close to zero,
+(
+1
+cos x
+)
+? 1 + 12x2
+(1 + 12x
+2)n ? 1 + n2x2.
+(74)
+We have
+|P\Bd
+2
+|
+|Bd
+2
+|
+< d(d?1)2 ?
+2
+k
+= d(d?1)?
+2
+22k+1
+.
+(75)
+To meet a threshold ? on the approximation error, it suffices to choose k such that
+2k + 1 ? 2 log(d) + log(??1) + 2 log(?) (76)
+or equivalently
+k ? log(d) + 1
+2
+log(??1)? 1
+2
++ log(?). (77)
+The following Theorem summarises the result of this section.
+Theorem 11 Let
+k? = log(d) +
+1
+2
+log(??1)? 1
+2
++ log(?). (78)
+There exists a rectifier network, with k?(d? 1) layers of
+Nd = (d? 1)(3k? ? 1) = (d? 1){3 log(d) + 1.5 log(??1) + 3 log(?)? 2.5} (79)
+units, which can approximate a d dimensional Euclidean ball such that
+|Pn\Bd2 |
+|Bd2 |
+? ?. (80)
+6.3 Advantages of Deep Rectifier Networks
+From Theorem 7 and Theorem 11, one can see that the ratio between Ns, the number of required
+units for single hidden layer nets to approximate Euclidean balls, and Nd is
+Ns
+Nd
+?
+(
+Cd
+?
+)
+1
+2
+e (3 log d+ 1.5 log(??1))
+(81)
+which shows that, with similar approximation accuracy, single hidden layer nets require much larger
+number of units than the constructed deep rectifier nets. In particular, when d is small, the number
+of required facets is dominated by the approximation accuracy and the constructed deep net is
+exponentially (with the depth) more efficient than single hidden layer nets. Note that each node of
+the constructed deep rectifier network is connected to 3 or 4 other nodes, each unit has at most 5
+parameters to be determined, while each unit of the single hidden layer net has (d + 1) parameters
+to learn. For large dimension d, the constructed deep rectifier network is at least O(d1.5/ log(d))
+more efficient than single hidden layer neural networks.
+16
+7. Concluding Remarks
+By introducing the boundary resolution of PWL classifiers, this paper has shown the superior com-
+pressive power of deep rectifier networks over single hidden layer rectifier networks for high res-
+olution representation of class boundaries. Due to the requirement of the universal approxima-
+tion capacity, non-polynomial activation functions such as rectifiers are used in neural networks,
+but at the cost of exponentially (with respect to data dimension) increased model complexity for
+the approximation of geometrically-simple class boundaries, such as spherical boundaries or other
+boundaries that can be represented by a small number of parameters. To learn such geometrically-
+simple boundaries, deep neural nets are required to learn compact models for the purpose of good
+generalization by exploiting the symmetric properties of class boundaries.
+References
+Dan Ciresan, Ueli Meier, and Ju?rgen Schmidhuber. Multi-column deep neural networks for image classifica-
+tion. In Computer Vision and Pattern Recognition (CVPR), 2012 IEEE Conference on, pages 3642–3649.
+IEEE, 2012.
+Nadav Cohen, Or Sharir, and Amnon Shashua. On the expressive power of deep learning: A tensor analysis.
+arXiv preprint arXiv:1509.05009, 554, 2015.
+Olivier Delalleau and Yoshua Bengio. Shallow vs. deep sum-product networks. In Advances in Neural
+Information Processing Systems, pages 666–674, 2011.
+Richard M Dudley. Metric entropy of some classes of sets with differentiable boundaries. Journal of Approx-
+imation Theory, 10(3):227–236, 1974.
+Ronen Eldan and Ohad Shamir. The power of depth for feedforward neural networks. In Conference on
+Learning Theory, pages 907–940, 2016.
+Yehoram Gordon, Mathieu Meyer, and Shlomo Reisner. Volume approximation of convex bodies by
+polytopes-a constructive method. Studia Mathematica, 1(111):81–95, 1994.
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recognition. In
+Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition, pages 770–778, 2016a.
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Identity mappings in deep residual networks. In
+European Conference on Computer Vision, pages 630–645. Springer, 2016b.
+Chungwu Ho and Seth Zimmerman. On the number of regions in an m-dimensional space cut by n hyper-
+planes. Gazette of the Australian Mathematical Society, 33(4):260–264, Sept. 2006.
+Kurt Hornik, Maxwell Stinchcombe, and Halbert White. Multilayer feedforward networks are universal
+approximators. Neural networks, 2(5):359–366, 1989.
+Alex Krizhevsky, Ilya Sutskever, and Geoffrey E Hinton. Imagenet classification with deep convolutional
+neural networks. In Advances in neural information processing systems, pages 1097–1105, 2012.
+AM Macbeath. An extremal property of the hypersphere. In Mathematical Proceedings of the Cambridge
+Philosophical Society, volume 47, pages 245–247. Cambridge University Press, 1951.
+Hrushikesh Mhaskar, Qianli Liao, and Tomaso Poggio. Learning functions: When is deep better than shallow.
+arXiv preprint arXiv:1603.00988, 2016.
+17
+Guido Montu?far, Razvan Pascanu, Kyunghyun Cho, and Yoshua Bengio. On the number of linear regions of
+deep neural networks. arXiv preprint arXiv:1402.1869, 2014.
+Grigoris Paouris and Peter Pivovarov. Random ball-polyhedra and inequalities for intrinsic volumes. Monat-
+shefte fu?r Mathematik, 182(3):709–729, 2017.
+Razvan Pascanu, Guido Montufar, and Yoshua Bengio. On the number of inference regions of deep feed
+forward networks with piece-wise linear activations. In International Conference on Learning Represen-
+tations 2014(Conference Track), April 2014. URL http://arxiv.org/abs/1312.6026.
+Maithra Raghu, Ben Poole, Jon Kleinberg, Surya Ganguli, and Jascha Sohl-Dickstein. On the expressive
+power of deep neural networks. arXiv preprint arXiv:1606.05336, 2016.
+Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun. Faster r-cnn: Towards real-time object detection
+with region proposal networks. In Advances in neural information processing systems, pages 91–99, 2015.
+Dan Romik. Stirling’s approximation for n!: The ultimate short proof? The American Mathematical Monthly,
+107(6):556, 2000.
+Rolf Schneider. Eine allgemeine extremaleigenschaft der kugel. Monatshefte fu?r Mathematik, 71(3):231–237,
+1967.
+Vladimir Naumovich Vapnik and Vlamimir Vapnik. Statistical learning theory, volume 2. Wiley New York,
+1998.
+Andreas Veit, Michael J Wilber, and Serge Belongie. Residual networks behave like ensembles of relatively
+shallow networks. In Advances in Neural Information Processing Systems, pages 550–558, 2016.
+18

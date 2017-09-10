@@ -1,0 +1,503 @@
+ar
+X
+iv
+:1
+70
+8.
+06
+74
+2v
+1 
+ [
+cs
+.L
+G
+] 
+ 2
+2 
+A
+ug
+ 2
+01
+7
+Twin Networks: Using the Future as a Regularizer
+Dmitriy Serdyuk1,2, Rosemary Nan Ke1,3,4, Alessandro Sordoni3,
+Chris Pal1,4, Yoshua Bengio1,2,†
+1MILA , 2 University of Montreal
+3 Microsoft Maluuba, 4 Polytechnique Montreal
+† CIFAR Senior Fellow
+serdyuk@iro.umontreal.ca, rosemary.nan.ke@gmail.com
+Abstract
+Being able to model long-term dependencies in sequential data,
+such as text, has been among the long-standing challenges of re-
+current neural networks (RNNs). This issue is strictly related to
+the absence of explicit planning in current RNN architectures.
+More explicitly, the RNNs are trained to predict only the next
+token given previous ones. In this paper, we introduce a simple
+way of encouraging the RNNs to plan for the future. In order
+to accomplish this, we introduce an additional neural network
+which is trained to generate the sequence in reverse order, and
+we require closeness between the states of the forward RNN and
+backward RNN that predict the same token. At each step, the
+states of the forward RNN are required to match the future infor-
+mation contained in the backward states. We hypothesize that
+the approach eases modeling of long-term dependencies thus
+helping in generating more globally consistent samples. The
+model trained with conditional generation for a speech recogni-
+tion task achieved 12% relative improvement (CER of 6.7 com-
+pared to a baseline of 7.6).
+Index Terms: recurrent neural networks, sequence generation,
+speech recognition, attention model
+1. Introduction
+Recurrent Neural Networks are the basis of state-of-art mod-
+els for generative modeling of sequential data, such as speech
+recognition. For conditional generation, encoder-decoder [1]
+state-of-art models take advantage of content-based soft atten-
+tion, e.g., for image captioning [2], speech recognition [3, 4],
+and machine translation [5]. The decoder model for an atten-
+tion model is a generative recurrent neural network which has
+as additional input the convex combination of contexts (outputs
+of the encoder), each corresponding to a different focus of at-
+tention. The soft attention mechanism assigns different weights
+to each context vector providing their convex combination to
+the decoder.
+Given a target sequence, RNNs are usually trained with
+teacher forcing: at each time-step, the hidden state of the RNN
+is trained to predict the next token given all the previously ob-
+served tokens. This corresponds to optimizing a one-step ahead
+prediction. Usually, samples from RNNs exhibit local coher-
+ence but lacks meaningful global structure [6]. As there is
+no explicit bias towards planning in the training objective, the
+model may prefer focusing on few previously generated tokens
+instead of capturing long-term dependencies in order to ensure
+global coherence.
+The issue of capturing long-term dependencies was raised
+and explored in several works [7, 8]. Gated architectures such as
+LSTMs [9] and GRUs [10] have been successful in easing the
+modeling of long term-dependencies. Recent work explicitly
+attempted to model planning by using a value function estima-
+tor during sequence decoding by biasing the decoding towards
+tokens that maximize the expected “success” at each step of the
+generation process [11].
+In this paper, we propose TwinNet, a simple way of regular-
+izing the recurrent network towards better implicit planning dur-
+ing the training phase. In addition to predicting the next token
+in the sequence, we require the hidden state to contain informa-
+tion about the whole future of the sequence. Succinctly, this is
+achieved as follows: we run a backward RNN that predicts the
+sequence in reverse and we encourage the forward hidden states
+to be close to the backward hidden states that predict the same
+token, i.e. we force overlap between past and future informa-
+tion about a specific token (Fig. 1). In our work, this is used as
+a decoder for the encoder-decoder attention model. Our model
+can be generalized to any conditional generative models for
+sequence-to-sequence tasks. Our model is specifically focused
+on conditional generation to model the conditioned probability
+of a sequence x given features f , P (x|f), which contains much
+less entropy than unconditional generation. To be more specific,
+this is to avoid the impossible challenge of making the first few
+tokens containing all the information of the future, which could
+have very high entropy in unconditional generative models. In
+this paper, we evaluate our model in the setting of conditional
+generation for speech recognition.
+We describe the model in details in the next section. Then
+we discuss the related work in Section3, present our experi-
+ments in Section 4 and conclude in Section 5.
+2. Model
+Given a dataset X = {x1, . . . ,xn}, where each x =
+{x1, . . . , xT } is an observed sequence, an RNN models a den-
+sity over the space of possible sequences p(x) and is trained
+to maximize the log-likelihood of the observed data L =
+?n
+i=1
+log p(xi). RNN factorizes the probability of the se-
+quence as
+p(x) = p(x1)p(x2|x1)... = p(x1)
+T
+?
+t=2
+p(xt|x<t). (1)
+In other words, it predicts the next element in the sequence
+given all the previous ones. At each step, the RNN updates
+a hidden state h
+f
+t , which iteratively summarizes the sequence
+values seen until time t, i.e. h
+f
+t = ?f (xt?1, h
+f
+t?1), where f
+symbolizes that the network reads the sequence in the forward
+x1 x2 x3 x4
+h
+f
+1
+h
+f
+2
+h
+f
+3
+h
+f
+4
+h
+b
+1
+h
+b
+2
+h
+b
+3
+h
+b
+4
+L1 L2 L3 L4
+Figure 1: The forward and the backward networks predict the
+sequence {x1, ..., x4} independently. The penalty matches the
+forward (or a parametric function of the forward) and the back-
+ward hidden states. The forward network receives the gradient
+signal from the log-likelihood objective as well as Li between
+states that predict the same token. The backward network is
+trained only by maximizing the data log-likelihood. During the
+evaluation part of the network colored with blue is discarded.
+The cost Li is either a Euclidean distance or a learned metric
+||g(hfi )? h
+b
+i ||2 with an affine transformation g. Best viewed in
+color.
+direction, and ?f is typically a non-linear function such as an
+LSTM [9] cell. The prediction of xt is performed using an-
+other non-linear transformation on top of h
+f
+t , i.e. pf (xt|x<t) =
+?f (h
+f
+t ). Therefore, h
+f
+t summarizes the information about the
+past in the sequence. The basic idea of our approach is to pro-
+mote h
+f
+t to contain information that is useful to predict xt but
+also compatible with the remaining upcoming symbols in the
+sequence. We run another network that predicts the sequence
+in reverse. Specifically, it updates its hidden state according to
+hbt = ?b(xt+1, h
+b
+t+1), and predicts pb(xt|x>t) = ?b(h
+b
+t) only
+using information about the future of the sentence. Then, we
+penalize the forward and backward hidden states for being far
+away according to some metric (see Fig. 1)
+Lt(x) = dt
+(
+g(hft ), h
+b
+t
+)
+, (2)
+where the dependence on x is implicit in the definition of
+h
+f
+t , h
+b
+t , and the loss d is the L2 loss. We introduce a class
+of functions g, where g can either be an identity matrix or a
+parametrized function. In our case, g is either an identity or
+a parametrized affine transformation. As we have shown ex-
+perimentally, the affine transformation gives the model more
+flexibility and therefore leads to better results as shown in Sec-
+tion 4. The total loss incurred by the model for a sequence x
+is a weighted sum of the forward and backward negative log-
+likelihoods and the penalty term:
+L(x) = ? log pf (x)? log pb(x) + ?
+?
+t
+Lt(x), (3)
+where ? controls the importance of the penalty term. In our
+work we propagate the gradient of the penalty term through the
+forward network only.
+The proposed method can be easily extended to the condi-
+tioned generation case. The hidden state transition is modified
+as
+h
+{f,b}
+t = ?f
+(
+xt?1,
+[
+h
+{f,b}
+t?1 , c
+])
+, (4)
+where c is task-dependent context information, the summariza-
+tion of the input. The context c is usually the attention over the
+input sequence.
+2.1. Regularization Loss
+We first started experimenting with L2 loss to match the for-
+ward and backward hidden states. This gave us some improve-
+ments, however, we found this loss to be too strict and did not
+allow enough flexibility for the model to generate slightly differ-
+ent forward and backward hidden states. Therefore, we experi-
+mented with a parametric function to match the forward hidden
+and backward states. In this case, we simply used a parametric
+affine transformation that allows the forward path to not exactly
+match the backward path, but it merely allows the forward hid-
+den states to contain the information about the backward hidden
+states. Experimentally, we found that a parametric loss gave our
+model big improvements for the conditional speech-to-text gen-
+eration task. To be more specific, we first used L2 regulariza-
+tion term dt(h
+f
+t , h
+b
+t) =
+?
+?
+?
+?
+?
+?
+h
+f
+t ? h
+b
+t
+?
+?
+?
+?
+?
+?
+2
+. The parametric regular-
+ization term we used is dt(h
+f
+t , h
+b
+t) =
+?
+?
+?
+?
+?
+?
+g(hft )? h
+b
+t
+?
+?
+?
+?
+?
+?
+2
+, where
+g(·) is a simple affine transformation on hft .
+3. Related Work
+Bidirectional neural networks [12] have been used as powerful
+feature extractors for sequence tasks. At each time step, the
+network makes use of both the information from past and future
+to perform the prediction. In other words, bidirectional RNNs
+have access to larger contexts, therefore act as better feature
+extractors than uniderictional ones. Unfortunately, they are al-
+most only used for classification and feature extraction rather
+than generation. One of the reasons being that it is not trivial
+to detect the end of the sequence for a generation task if the
+forward and backward generations do not agree.
+Bidirectional RNNs can also be seen as performing regu-
+larization for sequence tasks, which we have discussed in the
+earlier section 1. There have been many attempts on regular-
+izing RNNs. We list some of the most influential ideas in this
+section.
+One of the most popular methods for regularization of neu-
+ral networks is dropout [13]. It is usually applied to feed-
+forward networks, and it is not straightforward to translate this
+to RNNs due to the recurrent connections. There have been sev-
+eral attempts in applying dropout to RNNs. Some works pro-
+posed (for example, [14]) to drop the feed-forward connections
+only, and several works proposed [15, 16] solutions allowing to
+drop the recurrent connections. The approach of Zoneout [22]
+modifies the hidden state to regularize the network. This tech-
+nique randomly skips recurrent connections. This is equivalent
+to creating an ensemble of different length recurrent networks.
+Exposure bias is a known issue for training sequence gen-
+eration tasks. Overcoming exposure bias also helps with reg-
+ularization, as it is easier for the network to memorize smaller
+chunks of sequences where it does not have to learn the under-
+lying features, and since it is much more difficult for it to mem-
+orize longer sequences, that it helps to encourage the model
+to learn the underlying structure of the sequence. This im-
+plicitly helps with regularization of RNN training. Scheduled
+Sampling [17] is a popular RNN training method that helps to
+overcome exposure bias problem in sequence generation. Dur-
+ing training, the generative RNN is fed with either a ground-
+truth or a generated input chosen with a sampling probability
+that is annealed during the training procedure. Although this
+method works well in practice, [18] shows that the proposed
+loss is inconsistent in theory. Professor Forcing [19] is another
+attempt to solve the exposure bias problem using adversarial
+training [20]. Professor Forcing ensures that the distribution of
+the sampled output is similar to the teacher forcing output.
+Other methods proposed to help with regularization of
+RNN training is to constraint the hidden states in RNNs. The
+work [21] introduces a “norm stabilization” regularization term
+that ensures that the consecutive hidden states of an RNN have
+similar Euclidean norm. Other RNN regularization methods
+include the weight noise [23], gradient clipping [8], gradient
+noise [24].
+In comparison to the methods we discussed earlier, our
+model targets a particular type of regularization, which biases
+it towards planning for the future; and therefore could be com-
+bined with other regularization methods. Although, the inabil-
+ity to perform planning connected to the exposure bias problem,
+the TwinNet trained with the teacher forcing does not address it.
+4. Experimental Setup and Results
+In this section, we explore the difference in performance of the
+TwinNet with different loss, in this case a parametric loss and a
+fixed loss.
+We evaluated our approach on the conditioned genera-
+tion for character-level speech recognition, where the model
+is trained to convert the speech audio signal to the sequence
+of characters. The forward and backward RNNs are trained as
+conditional generative models with soft-attention [3]. The con-
+text information c is an encoding of the audio sequence and the
+target sequence x is the corresponding character sequence. We
+evaluate our model on the Wall Street Journal (WSJ) dataset
+closely following the setting described in [25]. We use 40 mel-
+filter bank features with delta and delta-deltas with their ener-
+gies as the acoustic inputs to the model, these features are gen-
+erated according to the Kaldi s5 [26] recipe. The resulting input
+feature dimension is 123.
+We observe the Character Error Rate (CER) for our vali-
+dation set, and we early stop on the best CER observed so far.
+We report CER for both our validation and test sets. For all our
+models and the baseline, we pretrain the model for 1 epoch, we
+then let the context window look freely and perform main train-
+ing for 15 epochs, we also then train with 2 different annealed
+learning rate for 3 epochs each. We use the AdaDelta optimizer
+for training. We weight the penalty by 1.0, 0.5, 0.25, and 0.1
+(hyper-parameter ?) and select1 the best one according to the
+CER on the validation set.
+We summarize our findings in Table 1. The learned met-
+ric shows the best performance. We decode from the network
+without any external language model to emphasize the role of
+the proposed regularizer. Our model shows relative improve-
+ment of 12% comparing to the baseline.
+5. Conclusion and Discussion
+We present a generative recurrent model which is regularized to
+anticipate the future states computed via a second network run-
+ning in the opposite direction. The experimental results show
+that the proposed regularization methods perform well.
+The computation complexity of this is double of the unidi-
+rectional RNN for the decoder. However, for the conditioned
+1The best hyperparameter was 0.5.
+Table 1: Average character error rate (CER%) on WSJ dataset.
+Experiment Beam size Test, % Valid, %
+Baseline 10 6.8 9.0
++ Twin (L2 ) 10 6.6 8.7
++ Twin (parametric) 10 6.2 8.4
+Baseline 1 7.6 8.8
++ Twin (L2) 1 7.3 8.4
++ Twin (parametric) 1 6.7 9.2
+case the encoder RNN is much larger than the decoder. There-
+fore, the additional time for training is negligible. The decoding
+speed stays the same since the second network is discarded for
+evaluation.
+The future work includes more detailed exploration and vi-
+sualization of the regularizer to understand better its internals.
+Other directions include experimental evaluation on different
+tasks and datasets.
+6. Acknowledgments
+The authors would like to acknowledge the support of the fol-
+lowing agencies for research funding and computing support:
+NSERC, Calcul Que?bec, Compute Canada, the Canada Re-
+search Chairs, CIFAR, and Samsung. We would also like to
+thank the developers of Theano [27] and Blocks and Fuel [28]
+for developments of great frameworks. We thank Marc Alexan-
+dre Cote?, Anirudh Goyal, Philemon Brakel, Devon Hjelm and
+Adam Trischler for useful discussions.
+7. References
+[1] I. Sutskever, O. Vinyals, and Q. V. Le, “Sequence to sequence
+learning with neural networks,” in Advances in neural information
+processing systems, 2014.
+[2] K. Xu, J. Ba, R. Kiros, K. Cho, A. Courville, R. Salakhudinov,
+R. Zemel, and Y. Bengio, “Show, attend and tell: Neural image
+caption generation with visual attention,” in International Confer-
+ence on Machine Learning, 2015.
+[3] J. K. Chorowski, D. Bahdanau, D. Serdyuk, K. Cho, and Y. Ben-
+gio, “Attention-based models for speech recognition,” in Ad-
+vances in Neural Information Processing Systems 28, 2015.
+[4] W. Chan, N. Jaitly, Q. V. Le, and O. Vinyals, “Listen, attend and
+spell,” 2015.
+[5] D. Bahdanau, K. Cho, and Y. Bengio, “Neural machine translation
+by jointly learning to align and translate,” 2014.
+[6] I. V. Serban, A. Sordoni, R. Lowe, L. Charlin, J. Pineau, A. C.
+Courville, and Y. Bengio, “A hierarchical latent variable encoder-
+decoder model for generating dialogues.” 2017.
+[7] Y. Bengio, P. Simard, and P. Frasconi, “Learning long-term de-
+pendencies with gradient descent is difficult,” IEEE transactions
+on neural networks, 1994.
+[8] R. Pascanu, T. Mikolov, and Y. Bengio, “On the difficulty of train-
+ing recurrent neural networks,” in International Conference on
+Machine Learning, 2013, pp. 1310–1318.
+[9] S. Hochreiter and J. Schmidhuber, “Long short-term memory,”
+Neural computation, 1997.
+[10] J. Chung, C?. Gu?lc?ehre, K. Cho, and Y. Bengio, “Empirical evalu-
+ation of gated recurrent neural networks on sequence modeling,”
+2014.
+[11] J. Li, W. Monroe, and D. Jurafsky, “Learning to decode for future
+success,” 2017.
+[12] M. Schuster and K. K. Paliwal, “Bidirectional recurrent neural
+networks,” IEEE Transactions on Signal Processing, 1997.
+[13] N. Srivastava, G. E. Hinton, A. Krizhevsky, I. Sutskever, and
+R. Salakhutdinov, “Dropout: a simple way to prevent neural net-
+works from overfitting.” Journal of machine learning research,
+2014.
+[14] W. Zaremba, I. Sutskever, and O. Vinyals, “Recurrent neural net-
+work regularization,” 2014.
+[15] T. Moon, H. Choi, H. Lee, and I. Song, “RNNDROP: A novel
+dropout for RNNs in ASR,” in Automatic Speech Recognition and
+Understanding (ASRU), 2015 IEEE Workshop on, 2015.
+[16] S. Semeniuta, A. Severyn, and E. Barth, “Recurrent dropout with-
+out memory loss,” 2016.
+[17] S. Bengio, O. Vinyals, N. Jaitly, and N. Shazeer, “Scheduled sam-
+pling for sequence prediction with recurrent neural networks,” in
+Advances in Neural Information Processing Systems, 2015.
+[18] F. Husza?r, “How (not) to train your generative model: Scheduled
+sampling, likelihood, adversary?” 2015.
+[19] A. M. Lamb, A. Goyal, Y. Zhang, S. Zhang, A. C. Courville, and
+Y. Bengio, “Professor forcing: A new algorithm for training re-
+current networks,” in Advances In Neural Information Processing
+Systems, 2016, pp. 4601–4609.
+[20] I. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu, D. Warde-
+Farley, S. Ozair, A. Courville, and Y. Bengio, “Generative adver-
+sarial nets,” in Advances in neural information processing sys-
+tems, 2014.
+[21] D. Krueger and R. Memisevic, “Regularizing RNNs by stabilizing
+activations,” 2015.
+[22] D. Krueger, T. Maharaj, J. Krama?r, M. Pezeshki, N. Ballas, N. R.
+Ke, A. Goyal, Y. Bengio, H. Larochelle, A. Courville, and C. Pal,
+“Zoneout: Regularizing rnns by randomly preserving hidden acti-
+vations,” 2016.
+[23] A. Graves, “Practical variational inference for neural networks,”
+in Advances in Neural Information Processing Systems, 2011.
+[24] A. Neelakantan, L. Vilnis, Q. V. Le, I. Sutskever, L. Kaiser, K. Ku-
+rach, and J. Martens, “Adding gradient noise improves learning
+for very deep networks,” 2015.
+[25] D. Bahdanau, J. Chorowski, D. Serdyuk, P. Brakel, and Y. Ben-
+gio, “End-to-end attention-based large vocabulary speech recog-
+nition,” 2015.
+[26] D. Povey, A. Ghoshal, G. Boulianne, L. Burget, O. Glembek,
+N. Goel, M. Hannemann, P. Motlicek, Y. Qian, P. Schwarz et al.,
+“The Kaldi speech recognition toolkit,” in IEEE 2011 workshop
+on automatic speech recognition and understanding.
+[27] Theano Development Team, “Theano: A Python framework for
+fast computation of mathematical expressions,” May 2016.
+[28] B. van Merrie?nboer, D. Bahdanau, V. Dumoulin, D. Serdyuk,
+D. Warde-Farley, J. Chorowski, and Y. Bengio, “Blocks and fuel:
+Frameworks for deep learning,” 2015.

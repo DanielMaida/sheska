@@ -1,0 +1,755 @@
+A Robust Indoor Scene Recognition Method
+based on Sparse Representation
+Guilherme Nascimento?, Camila Laranjeira, Vinicius Braz,
+Anisio Lacerda, and Erickson R. Nascimento
+Universidade Federal de Minas Gerais (UFMG), Brazil
+{gsn2009,camilalaranjeira,viniciusbraz30}@ufmg.br,anisio@decom.cefetmg.
+br,erickson@dcc.ufmg.br
+Abstract. In this paper, we present a robust method for scene recog-
+nition, which leverages Convolutional Neural Networks (CNNs) features
+and Sparse Coding setting by creating a new representation of indoor
+scenes. Although CNNs highly benefited the fields of computer vision
+and pattern recognition, convolutional layers adjust weights on a global-
+approach, which might lead to losing important local details such as
+objects and small structures. Our proposed scene representation relies
+on both: global features that mostly refers to environment’s structure,
+and local features that are sparsely combined to capture characteristics
+of common objects of a given scene. This new representation is based
+on fragments of the scene and leverages features extracted by CNNs.
+The experimental evaluation shows that the resulting representation out-
+performs previous scene recognition methods on Scene15 and MIT67
+datasets, and performs competitively on SUN397, while being highly ro-
+bust to perturbations in the input image such as noise and occlusion.
+Keywords: Indoor Scene Recognition, Sparse Coding, Convolutional Neural
+Networks
+1 Introduction
+Scene recognition is one of the most challenging tasks on image classification,
+since the characterization of a scene is performed by using visual features of
+the objects that compose it and its spatial layout. In other words, a scene is the
+result of objects compositions. A given environment is more likely to be classified
+as a bathroom when equipped with a bath and a shower. This is especially true
+when considering indoor images, which are the focus of this work. The rationale
+is that besides the constituent objects, the image of a room (i.e., an indoor scene)
+is similar to every scene and it is hard to distinguish among them.
+? This work is supported by grants from Vale Institute of Technology, CNPq, CAPES,
+FAPEMIG and CEFETMG; CNPq under Proc. 456166/2014-9 and 431458/2016-2;
+and FAPEMIG under Procs. APQ-00783-14 and APQ-03445-16, and FAPEMIG-
+PRONEX-MASWeb, Models, Algorithms and Systems for the Web APQ-01400-14.
+ar
+X
+iv
+:1
+70
+8.
+07
+55
+5v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+4 
+A
+ug
+ 2
+01
+7
+In this paper, we propose a novel method, which leverages features extracted
+by Convolutional Neural Networks (CNNs) using a sparse coding technique to
+represent discriminative regions of the scene. Specifically, we propose to com-
+bine global features from CNNs and local sparse feature vectors mixed with max
+spatial pooling. We built an over-complete dictionary whose base vectors are fea-
+ture vectors extracted from fragments of a scene. This approach makes our image
+representation less sensitive to noise, occlusion and local spatial translations of
+regions and provides discriminative vectors with global and local features.
+The main contributions of this paper are: i) a robust method that simulta-
+neously leverages global and local features to the scene recognition task, and ii)
+a thorough set of experiments to validate our requirements and the proposed
+scene recognition method. We evaluate our method on three different datasets
+(Scene15 [6], MIT67 [12] and SUN397 [18]) comparing it to previously proposed
+methods in the literature, and perform a robustness test against the work of
+Herranz et al. [3]. The experimental results show that our method outperforms
+the current state of the art on Scene15 and MIT67, while performing compet-
+itively on SUN397. Additionally, when subjected to image perturbations (i.e.,
+noise and occlusion), our proposal outperforms Herranz et al. [3] on all three
+datasets, surpassing it by a large margin on the most challenging one, SUN397.
+Related Work. Most solutions proposed in the past decade for scene recognition
+exploited handcrafted local [4] and global descriptors [10]. Methods to combine
+these descriptors and to build an image representation varied from Fisher Vec-
+tors [13] to Sparse Representation [11]. Sparse representation methods reached a
+great performance on image recognition, becoming popular in the last few years.
+Yang et al. [19] and Gao et al. [2] encoded SIFT [7] descriptors into a single
+sparse feature vector with the max-pooling method, achieving the best results
+on the Caltech-101 and the Scene-15 datasets.
+In recent years, methods based on CNNs achieved state of the art on the task
+of scene recognition. In Zhou et al. [21], the authors introduce the Places dataset
+and present a CNN method to learn deep features for scene recognition. The
+authors reached an accuracy of 70.8% on MIT67. Another line of investigation is
+to combine features from CNNs. Dixit et al. [1] use a network to extract posterior
+probability vectors from local image patches and combine them using a Gaussian
+mixture model. Features extracted from networks trained on ImageNet [9] and
+Places [21] are combined, achieving 79% accuracy on MIT67.
+Herranz et al. [3] analyzed the impact of object features in different scales in
+combination with global holistic features provided by scene features. According
+to the authors, the aggregation of local features brings robustness to semantic
+information in scene categorization. Herranz et al. [3] held the state of the art
+before Wang et al. [17] propose the architecture called PatchNet. This architec-
+ture models local representations from scene patches and aggregates them into
+a global representation using a newly semantic encoding method called VSAD.
+Differently from previous works, our approach is flexible to being used with
+any feature representation, not being restricted to a single dataset or network
+architecture. This is a key advantage, since the use of different sources of features
+yT
+y
+1
+y
+2
+y
+n...
+2
+x 2 0
+Sparse Coding
+Dictionary D
+...
+P
+O
+O
+L
+I
+N
+G
+Pooled Feature
+x
+1
+x
+n
+x
+3
+x
+2
+X
+Pooling
+argmin||y - Dx|| s.t. ||x|| ? L 
+k-means
++
+Dictionary Learning
+Dictionary Building
+min 1
+n
+_
+D, X
+?
+i=1
+n
+(||y - Dx || ? ||x || )ii i dl
+2
+2 1
+Feature
+Extraction
+Region Size 2
+Region Size 1
+Fig. 1: Overview of the sparse representation pipeline. For each type of local
+feature, a single dictionary is built and optimized for both scales, and later
+used to encode the sparse vectors in X. The final feature fT of a given scale is
+computed by pooling all sparse representations calculated on that scale.
+(e.g., ImageNet for object features and Places for structure) cannot be easily han-
+dled by training a single CNN or an autoencoder representation. Additionally,
+our method is attractive because it presents a small number of hyperparameters
+(the sparsity and dictionary size), which makes it much easier to train. Typical
+CNN or autoencoder approaches require selecting the batch size, learning rate
+and momentum, architecture, optimization algorithm, activation functions, the
+number of neurons in the hidden layer and dropout regularization.
+2 Methodology
+Our methodology is composed of four steps, namely: i) feature extraction and
+dictionary building; ii) feature sparse coding; iii) pooling, and iv) concatenation.
+The final feature vector feeds a Linear SVM used to classify the image. The three
+first steps are illustrated in Fig. 1.
+The overall idea of our approach is to extract features from two semantic
+levels of the image. Firstly, a global representation is computed from the entire
+image, encoding the structural features of the scene. Then, we move a sliding
+window over the image with I2 and
+I
+4 window sizes, where I represent the image
+dimensions, computing a feature vector for each fragment of the scene. These
+fragments contain local features that are potentially from objects or object’s
+parts. The stride was fixed to half of the window dimensions in both scales. The
+rationale is that features extracted from smaller regions will convey informa-
+tion regarding the constituent objects of the scenes. Thus, by combining these
+features we can represent an indoor scene as a composition of objects.
+Feature Extraction and Dictionary Building. Although our method can be in-
+stantiated with any feature extractor, such as a bag-of-features model, we use
+Convolutional Neural Networks to extract the features. We extract semantic fea-
+tures from the fc7 layer of VGGNet-16 [14]. For global information, the CNN was
+trained on Places [21], while two types of local information were extracted: the
+same model trained on Places to acquire information regarding local structures,
+and a second model trained on ImageNet to encode object features.
+The feature extraction step provided a feature vector y ? Rd for each frag-
+ment of the image. This process is performed for all samples, grouping the y
+vectors into k clusters using the k-means algorithm. Hence, a dictionary for
+scale i is represented by Ki = [v1,i, . . . ,vk,i] ? Rd×k, where vj,i ? Rd repre-
+sents the jth cluster in scale i. We define the matrix D0 as the concatenation of
+multiple c scales matrices {Ki|1 ? i ? c}: D0 = [K1,K2, . . . ,Kc].
+It is worth noting that, since we are considering a set of over-complete basis,
+we need ?ci=0 Ki  d, where Ki is the number of scale matrices in the dictionary
+and d is the dimension of each feature vector.
+We concatenate the dictionaries built on different patch sizes into a single
+dictionary, respecting the nature of the feature. This leaves us with two dictio-
+naries, one built from features extracted using the model trained on Places, and
+the other using the model trained on ImageNet. The idea is improving the prob-
+ability of finding a match in different scales, which offers a better discrimination
+and repeatability power. Once we have built the initial dictionary D0, we adjust
+the dictionary to matrix D by solving
+min
+D,X
+1
+n
+n?
+i=1
+(
+?yi ?Dxi?22 ?dl?xi?1
+)
+, (1)
+where ?·?2 is the L2-norm, ?·?1 is the L1-norm, ?dl is a regularization parameter
+for the dictionary learning and the vector xi is the ith column of matrix X.
+We applied a dictionary learning algorithm [8], which solves Eq. 1 alternating
+between D and X as variables, i.e., it minimizes over D while keeping X fixed.
+The dictionary D0 is used to start the optimization process.
+Sparse Coding. Despite the large number of possible objects that can compose
+a scene, each class of indoor environments has a small number of characteristic
+types of objects. The dictionary D provides a linear representation of each image
+fragment using a small number of basis functions. Thus, we find the sparse vector
+x by modeling the composition of a scene as a sparse coding problem.
+Considering the new domain of representation defined by the dictionary D,
+the representation of a feature vector yi extracted from a sample of indoor class
+i, can be rewritten as yi = Dxi, where xi is a vector whose entries are zero
+except those associated with the fragments of class i.
+We use as a basis for the vector representation the columns Di of a dictionary
+that is mixed with weights x to infer the vector y, which is the vector that
+reconstructs the input y with the smallest error. Each column Di is a descriptor
+representing an image fragment of the scene. We use a sparsity regularization
+term to select a small number of columns in the dictionary D.
+Let y ? Rd be a descriptor extracted from an image patch and D ? Rd×kc
+(d kc). The coding can be modeled as the following optimization problem:
+x? = argmin
+x
+?y ?Dx?22 s.t. ?x?0 ? L, (2)
+where ?·?0 is the L0-norm, indicating the number of nonzero values, and L
+controls the sparsity of vector x. The final vector x? ? Rkc is the set of basis
+weights that represents the descriptor y as a linear and sparse combination of
+fragments of scenes.
+Although the minimization problem of Eq. 2 is NP-hard, greedy approaches,
+such as Orthogonal Matching Pursuit (OMP) [16] or L1 norm relaxation, also
+know as LASSO [15], can be used to effectively solve it. In this paper, we use
+OMP because it achieved the best results on our tests.
+The pooling process refers to the final step of the diagram presented in Fig. 1.
+To create the vector encoding the scene features, we compute the final feature
+vector f ? Rkc by a pooling function f = F(X), where F is defined on each
+column of X ? Rm×kc. The rows of matrix X represent the sparse vectors of
+each feature vector extracted from m sliding-windows. We create kc-dimensional
+vectors according to the maximum pooling function, since according to Yang et
+al. [19], it gives the best results for sparse coded local features.
+These steps are executed for both scales, using both the model trained on
+Places and ImageNet. At the end, five features vectors are concatenated into one:
+the global features as originally output by the CNN, and four local features.
+3 Experiments
+We evaluated our approach on the standard datasets for scene recognition bench-
+mark: Scene15, MIT67 and SUN397. The specific attributes of each dataset al-
+lowed us to analyze different properties of our method. We trained the models
+on Places for global and local descriptors, and ImageNet for local descriptors,
+with VGGNet-16 which has shown the lowest classification error [14]. When con-
+sidering features from the VGGNet-16, we used PCA to reduce the descriptions
+from 4, 096 to 1, 000 on the second and third scales.
+To compose the dictionary, we set 2, 175 words for Scene15, 3, 886 words
+for MIT67 and 6, 907 words for SUN397, according to the number of regions
+extracted from both scales and the number of classes of each dataset. The regu-
+larization factor ?dl for the dictionary learning (Eq. 1) is set to 0.1. We set the
+same sparsity controller value L (Eq. 2) for all configurations when executing
+OMP. It was set to 0.03×Dc non-zeros, where Dc is the number of columns of
+the dictionary. All vectors were L2 normalized after each step and after concate-
+nation. We used a Linear Support Vector Machine to perform the classification.
+Robustness evaluation. We verified the descriptor robustness against occlusion
+and noise. For this purpose, we automatically generated squares randomly po-
+sitioned, to simulate occlusions (black squares) and noise (granular squares), as
+illustrated in Fig. 2. Experiments were performed for different sizes of windows
+W
+n , where W represents the dimensions of the image, with varying n values.
+Table 1 presents the results for occlusion and noise robustness tested against
+Herranz et al. [3]. Our methodology performs better in all cases, indicating that
+our method is less sensitive to perturbations on the image. This behaviour is even
+Table 1: Accuracy performance comparison for Occlusion and Noise scenarios.
+Our approach shows higher accuracy performance. It provides a better feature
+selection for scene patches instead of just max-pooling between CNN features.
+Scene15 MIT67 SUN397
+Window size W/10 W/8 W/6 W/4 W/10 W/8 W/6 W/4 W/10 W/8 W/6 W/4
+Occlusion Herranz et al. 94.07 93.87 93.97 92.93 83.79 84.01 83.79 83.56 39.95 40.05 38.99 35.61
+Ours 94.43 94.50 94.37 93.50 84.61 84.61 84.69 84.76 64.64 64.71 64.01 62.39
+Avg. gain 0.49 0.88 25.29
+Noise Herranz et al. 94.50 94.27 93.97 92.93 83.94 84.01 83.49 81.32 40.79 40.42 34.29 30.88
+Ours 95.30 94.57 94.40 93.50 84.24 85.28 84.69 82.74 65.20 65.29 57.25 50.83
+Avg. gain 0.53 1.05 23.05
+Fig. 2: Occlusion and Noise examples. The location of windows was randomly
+computed, and experiments were performed for different sizes of windows.
+more evident for SUN397, by far the most challenging of all three datasets, where
+the Herranz et al.’s methodology was inferior, on average 25.29% for occlusion,
+and 23.05% when noise was added.
+Discussion. Besides being highly robust to perturbations in the input image,
+one can clearly see in Table 2 that our methodology also leads the performance
+on Scene15 and MIT67, while performing competitively on SUN397. It is worth
+highlighting that our method surpasses human accuracy, which was measured
+for SUN397 at 68.5% [18]. To evaluate our assumption that local information can
+greatly benefit the task of indoor scene classification, Table 2 also presents the
+average accuracy achieved by a model trained solely on features from VGGNet-
+16 trained on Places, which composes the global portion of our methodology. On
+all datasets, global features by themselves showed inferior performance relative
+to our representation, revealing the complementary nature of local features.
+We also performed a detailed performance assessment by comparing the ac-
+curacies among each indoor class on MIT67. The relative accuracies considering
+VGGNet-16 as a baseline are shown in Fig. 3. As we can see, for the classes that
+present a large number of object information (e.g., children room, emphasized in
+Fig. 3) we have a significant increase in accuracy. We can draw the following two
+observations. First, since the class of these environments strongly depends on the
+object configuration, the image fragments containing features of common objects
+can be represented by the sparse features on different scales. Second, for envi-
+ronments such as movie theater (Fig. 3), the proposed approach is less effective,
+since such environments are strongly distinguished by their overall structure,
+and not necessarily by the constituent objects.
+ai
+rp
+or
+t_
+in
+si
+de
+ar
+ts
+tu
+di
+o
+au
+di
+to
+ri
+um
+ba
+ke
+ry
+ba
+r
+ba
+th
+ro
+om
+be
+dr
+oo
+m
+bo
+ok
+st
+or
+e
+bo
+w
+li
+ng
+bu
+ff
+et
+ca
+si
+no
+ch
+il
+dr
+en
+_r
+oo
+m
+ch
+ur
+ch
+_i
+ns
+id
+e
+cl
+as
+sr
+oo
+m
+cl
+oi
+st
+er
+cl
+os
+et
+cl
+ot
+hi
+ng
+st
+or
+e
+co
+m
+pu
+te
+rr
+oo
+m
+co
+nc
+er
+t_
+ha
+ll
+co
+rr
+id
+or
+de
+li
+de
+nt
+al
+of
+fi
+ce
+di
+ni
+ng
+_r
+oo
+m
+el
+ev
+at
+or
+fa
+st
+fo
+od
+_r
+es
+ta
+ur
+an
+t
+fl
+or
+is
+t
+ga
+m
+er
+oo
+m
+ga
+ra
+ge
+gr
+ee
+nh
+ou
+se
+gr
+oc
+er
+ys
+to
+re
+gy
+m
+ha
+ir
+sa
+lo
+n
+ho
+sp
+it
+al
+ro
+om
+in
+si
+de
+_b
+us
+in
+si
+de
+_s
+ub
+w
+ay
+je
+w
+el
+le
+ry
+sh
+op
+ki
+nd
+er
+ga
+rd
+en
+ki
+tc
+he
+n
+la
+bo
+ra
+to
+ry
+w
+et
+la
+un
+dr
+om
+at
+li
+br
+ar
+y
+li
+vi
+ng
+ro
+om
+lo
+bb
+y
+lo
+ck
+er
+_r
+oo
+m
+m
+al
+l
+m
+ee
+ti
+ng
+_r
+oo
+m
+m
+ov
+ie
+th
+ea
+te
+r
+m
+us
+eu
+m
+nu
+rs
+er
+y
+of
+fi
+ce
+op
+er
+at
+in
+g_
+ro
+om
+pa
+nt
+ry
+po
+ol
+in
+si
+de
+pr
+is
+on
+ce
+ll
+re
+st
+au
+ra
+nt
+re
+st
+au
+ra
+nt
+_k
+it
+ch
+en
+sh
+oe
+sh
+op
+st
+ai
+rs
+ca
+se
+st
+ud
+io
+m
+us
+ic
+su
+bw
+ay
+to
+ys
+to
+re
+tr
+ai
+ns
+ta
+ti
+on
+tv
+_s
+tu
+di
+o
+vi
+de
+os
+to
+re
+w
+ai
+ti
+ng
+ro
+om
+w
+ar
+eh
+ou
+se
+w
+in
+ec
+el
+la
+r
+-20%
+0%
+20%
+40%
+60%
+80%
+100%
+MIT67 Relative Comparison
+Classes
+R
+el
+at
+iv
+e 
+A
+cc
+ur
+ac
+ie
+s
+children room
+movie theater
+Fig. 3: Relative accuracy between VGGNet-16 and our method on MIT67. In
+most cases, our method leads the performance.
+Table 2: Comparing average accuracy against other approaches.
+Method SPM [5] ScSPM [19] MOP-CNN [20] SFV [1] VGGNet-16 Herranz et al. [3] VSAD [17] Ours
+Scene15 81.40% 80.28% - - 94.33% 95.18% - 95.73%
+MIT67 - - 68.88% 79.00% 80.88% 86.04% 86.2% 87.22%
+SUN397 - - 51.98% 61.72% 66.90% 70.17% 73.0% 71.08%
+4 Conclusion
+We proposed a robust method that combines both global and local features
+to compose a high discriminative representation of indoor scenes. Our method
+improves the accuracy of CNN features by composing local features using Sparse-
+Coding and a max-pooling technique, by creating an indoor scene representa-
+tion based on an over-complete dictionary, which is built from several image
+fragments. Our sparse coding-based composition approach was capable of en-
+coding local patterns and structures for indoor environments, and in cases of
+strong occlusion and noise, we lead the performance on scene recognition, which
+is explained by the advantages of sparse representations. Our representation out-
+performed VGGNet-16 in all cases, reflecting the complementary nature of local
+features, and outperformed the current state of the art on Scene15 and MIT67,
+while being competitive on SUN397.
+References
+1. Dixit, M., Chen, S., Gao, D., Rasiwasia, N., Vasconcelos, N.: Scene classification
+with semantic fisher vectors. In: IEEE Conf. on Comp. Vision and Pattern Recog.
+pp. 2974–2983. IEEE (2015)
+2. Gao, S., Tsang, I.W.H., Chia, L.T., Zhao, P.: Local features are not lonely - lapla-
+cian sparse coding for image classification. In: IEEE Conf. on Comp. Vision and
+Pattern Recog. pp. 3555–3561. IEEE Computer Society (2010)
+3. Herranz, L., Jiang, S., Li, X.: Scene recognition with cnns: Objects, scales and
+dataset bias. In: IEEE Conf. on Comp. Vision and Pattern Recog. (June 2016)
+4. Jaakkola, T., Haussler, D.: Exploiting generative models in discriminative classi-
+fiers. In: In Advances in Neural Information Processing Systems 11. pp. 487–493.
+MIT Press (1998)
+5. Lazebnik, S., Schmid, C., Ponce, J.: Beyond bags of features: Spatial pyramid
+matching for recognizing natural scene categories. In: IEEE Conf. on Comp. Vision
+and Pattern Recog. pp. 2169–2178. IEEE Computer Society (2006)
+6. Li, F.F., Perona, P.: A bayesian hierarchical model for learning natural scene cat-
+egories. In: IEEE Conf. on Comp. Vision and Pattern Recog. pp. 524–531. IEEE
+Computer Society, Washington, DC, USA (2005)
+7. Lowe, D.G.: Distinctive image features from scale-invariant keypoints. Interna-
+tional Journal of Computer Vision 60(2), 91–110 (Nov 2004)
+8. Mairal, J., Bach, F., Ponce, J., Sapiro, G.: Online dictionary learning for sparse
+coding. In: Proceedings of the 26th Annual International Conference on Machine
+Learning. pp. 689–696. ICML ’09, ACM, New York, NY, USA (2009)
+9. Olga, Deng, J., Su, H., Krause, J., Satheesh, S., Ma, S., Huang, Z., Karpathy, A.,
+Khosla, A., Bernstein, M., Berg, A.C., Fei-Fei, L.: ImageNet Large Scale Visual
+Recognition Challenge. International Journal of Computer Vision 115(3), 211–252
+(2015)
+10. Oliva, A., Torralba, A.: Modeling the shape of the scene: A holistic representation
+of the spatial envelope. International Journal of Computer Vision 42(3), 145–175
+(May 2001)
+11. Oliveira, G., Nascimento, E., Vieira, A., Campos, M.: Sparse spatial coding: A novel
+approach to visual recognition. IEEE Transactions on Image Processing 23(6),
+2719–2731 (June 2014)
+12. Quattoni, A., Torralba, A.: Recognizing indoor scenes. IEEE Conf. on Comp. Vi-
+sion and Pattern Recog. 0, 413–420 (2009)
+13. Sa?nchez, J., Perronnin, F., Mensink, T., Verbeek, J.: Image classification with
+the fisher vector: Theory and practice. International Journal of Computer Vision
+105(3), 222–245 (2013)
+14. Simonyan, K., Zisserman, A.: Very deep convolutional networks for large-scale
+image recognition. CoRR abs/1409.1556 (2014)
+15. Tibshirani, R.: Regression shrinkage and selection via the lasso. Journal of the
+Royal Statistical Society, Series B 58, 267–288 (1994)
+16. Tropp, J.A., Gilbert, A.C.: Signal recovery from random measurements via orthog-
+onal matching pursuit. IEEE Transactions on Information Theory 53(12), 4655–
+4666 (Dec 2007)
+17. Wang, Z., Wang, L., Wang, Y., Zhang, B., Qiao, Y.: Weakly supervised patchnets:
+Describing and aggregating local patches for scene recognition. IEEE Transactions
+on Image Processing (2017)
+18. Xiao, J., Hays, J., Ehinger, K.A., Oliva, A., Torralba, A.: Sun database: Large-
+scale scene recognition from abbey to zoo. In: IEEE Conf. on Comp. Vision and
+Pattern Recog. pp. 3485–3492. IEEE Computer Society (2010)
+19. Yang, J., Yu, K., Gong, Y., Huang, T.: Linear spatial pyramid matching using
+sparse coding for image classification. In: IEEE Conf. on Comp. Vision and Pattern
+Recog. (2009)
+20. Yunchao Gong, Liwei Wang, R.G.S.L.: Multi-scale orderless pooling of deep con-
+volutional activation features. CoRR abs/1403.1840 (2014)
+21. Zhou, B., Lapedriza, A., Xiao, J., Torralba, A., Oliva, A.: Learning deep features for
+scene recognition using places database. In: Ghahramani, Z., Welling, M., Cortes,
+C., Lawrence, N.D., Weinberger, K.Q. (eds.) Advances in Neural Information Pro-
+cessing Systems 27, pp. 487–495. Curran Associates, Inc. (2014)

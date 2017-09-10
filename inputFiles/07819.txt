@@ -1,0 +1,2198 @@
+Noname manuscript No.
+(will be inserted by the editor)
+Semantic Foggy Scene Understanding with Synthetic Data
+Christos Sakaridis · Dengxin Dai · Luc Van Gool
+Received: date / Accepted: date
+Abstract This work addresses the problem of seman-
+tic foggy scene understanding (SFSU). Although exten-
+sive research has been performed on image dehazing
+and on semantic scene understanding with weather-
+clear images, little attention has been paid to SFSU.
+Due to the difficulty of collecting and annotating foggy
+images, we choose to generate synthetic fog on real
+images that depict weather-clear outdoor scenes, and
+then leverage these synthetic data for SFSU by em-
+ploying state-of-the-art convolutional neural networks
+(CNN). In particular, a complete pipeline to generate
+synthetic fog on real, weather-clear images using in-
+complete depth information is developed. We apply our
+fog synthesis on the Cityscapes dataset and generate
+Foggy Cityscapes with 20550 images. SFSU is tackled
+in two fashions: 1) with typical supervised learning,
+and 2) with a novel semi-supervised learning, which
+combines 1) with an unsupervised supervision trans-
+fer from weather-clear images to their synthetic foggy
+counterparts. In addition, this work carefully studies
+the usefulness of image dehazing for SFSU. For eval-
+uation, we present Foggy Driving, a dataset with 101
+real-world images depicting foggy driving scenes, which
+come with ground truth annotations for semantic seg-
+mentation and object detection. Extensive experiments
+show that 1) supervised learning with our synthetic
+data significantly improves the performance of state-
+of-the-art CNN for SFSU on Foggy Driving ; 2) our
+semi-supervised learning strategy further improves per-
+formance; and 3) image dehazing marginally benefits
+SFSU with our learning strategy. The datasets, models
+C. Sakaridis · D. Dai · L. Van Gool
+ETH Zu?rich, Zurich, Switzerland
+L. Van Gool
+KU Leuven, Leuven, Belgium
+and code will be made publicly available to encourage
+further research in this direction.
+Keywords Foggy scene understanding · Semantic
+segmentation · Object detection · Depth denoising and
+completion · Dehazing · Supervision transfer
+1 Introduction
+Camera sensors and accompanying vision algorithms
+are widely used for surveillance [9], remote sensing [16],
+and automated cars [31], and their deployment keeps
+expanding. While these sensors and algorithms are con-
+stantly getting better, they are mainly designed to oper-
+ate on weather-clear images and videos [41]. As known,
+in any outdoor application such as autonomous driving
+and mobile mapping, it is hard to escape from “bad”
+weather. Thus, computer vision systems are highly ex-
+pected to also function under adverse weather condi-
+tions. This work focuses on the condition of fog.
+Fog degrades visibility of a scene significantly [42,
+55]. This causes problems not only to human observers,
+but also to computer vision algorithms. During the past
+years, a large body of research has been conducted on
+image defogging (dehazing) to increase scene visibil-
+ity [27, 43, 62]. Meanwhile, marked progress has been
+made in semantic scene understanding with weather-
+clear images and videos [14, 46, 63]. However, semantic
+understanding of foggy scenes has received little atten-
+tion so far, despite its importance in outdoor applica-
+tions. For instance, an automated car requires a robust
+detection of road lanes, traffic lights, and other traffic
+agents not only in a modest weather condition but also
+in the presence of fog. This work investigates the prob-
+lem of semantic foggy scene understanding (SFSU).
+ar
+X
+iv
+:1
+70
+8.
+07
+81
+9v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+5 
+A
+ug
+ 2
+01
+7
+2 Christos Sakaridis et al.
+Fig. 1 The pipeline of semantic foggy scene understanding with synthetic data: from a) fog simulation on real outdoor scenes,
+to b) training with pairs of synthetic foggy images and semantic annotations as well as pairs of foggy images and weather-clear
+images, and c) scene understanding of real foggy scenes. This figure is seen better on a screen
+High-level semantic scene understanding tasks are
+usually tackled with the strategy of learning with large
+amount of annotations of real images [14,51]. However,
+the difficulty of collecting and annotating images for un-
+usual weather conditions such as fog renders this stan-
+dard protocol problematic. To overcome this problem,
+we depart from this traditional paradigm and propose
+another route in this paper; we choose to generate syn-
+thetic fog into real images that contain weather-clear
+outdoor scenes, and then leverage these synthetic foggy
+images for SFSU.
+Given the fact that large-scale annotated data are
+available for weather-clear images [14, 18, 22, 51], we in
+this work present an automatic pipeline to generate syn-
+thetic yet high-quality fog on such datasets. Our fog
+simulation uses the standard optical model for daytime
+fog [36], which has been used extensively in image de-
+hazing, to overlay existing weather-clear images with
+synthetic fog in a physically sound way, simulating the
+underlying mechanism of foggy image formation. We
+leverage our fog simulation pipeline to create the Foggy
+Cityscapes dataset by adding fog to urban scenes from
+the Cityscapes dataset [14], leading to 550 carefully re-
+fined high-quality synthetic foggy images with fine se-
+mantic annotations inherited directly from Cityscapes,
+plus an additional 20000 synthetic foggy images. The
+resulting “synthetic-fog” images are used to train two
+semantic segmentation models [39,63] and an object de-
+tector [23] for foggy scenes. The models are trained in
+two fashions: 1) by the typical supervised learning us-
+ing the 550 high-quality foggy images and 2) by a novel
+semi-supervised learning which combines 1) with an un-
+supervised supervision transfer from weather-clear im-
+ages to their foggy counterparts of the same scenes us-
+ing the additional 20000 foggy images. For evaluation
+purposes, we collect and annotate a new dataset, Foggy
+Driving, with 101 images of driving scenes in a presence
+of fog. See Figure 1 for the whole pipeline of our work.
+In addition, this work carefully studies the usefulness of
+three state-of-the-art image dehazing (defogging) meth-
+ods in increasing visibility in real foggy outdoor scenes
+and helping SFSU.
+The main contributions of the paper are: 1) an au-
+tomatic and scalable pipeline to impose high-quality
+synthetic fog on real weather-clear images; 2) two new
+datasets, one synthetic and one real, to facilitate train-
+ing and evaluation of models used in SFSU; 3) a new
+semi-supervised learning approach for SFSU; and 4) a
+detailed study of the benefit of image dehazing for vis-
+ibility and semantic understanding of foggy scenes.
+The rest of the paper is organized as follows. Sec-
+tion 2 presents the relevant work. Section 3 is de-
+voted to our fog simulation pipeline, which is followed
+by Section 4 that introduces our two foggy datasets.
+Section 5 describes supervised learning with our syn-
+thetic foggy data and Section 6 extends the learning
+to a semi-supervised paradigm, where supervision is
+transferred from weather-clear images to their synthetic
+foggy counterparts. Finally, Section 5.2 is devoted to
+Semantic Foggy Scene Understanding with Synthetic Data 3
+studying the usefulness of image dehazing for SFSU and
+Section 7 concludes the paper.
+2 Related Work
+Our work is generally relevant to image defogging (de-
+hazing), depth denoising and completion, foggy scene
+understanding, and synthetic visual data.
+2.1 Image Defogging/Dehazing
+Fog fades the color of observed objects and reduces
+their contrast. Extensive research has been conducted
+on image defogging (dehazing) to increase the visibility
+of foggy scenes. This ill-posed problem has been tack-
+led from different perspectives. For instance, in contrast
+enhancement [42,55] the rationale is that weather-clear
+images have higher contrast than images degraded by
+fog. Depth and statistics of natural images are exploited
+as priors as well [5,19,43]. Another line of work is based
+on the dark channel prior [27], with the empirically val-
+idated assumption that pixels of weather-clear images
+are very likely to have low values in some of the three
+color channels. Due to its importance in outdoor ap-
+plications, methods have been developed for nighttime
+as well [38]. A fast dehazing approach has been devel-
+oped in [57] towards real-time applications. Recent ap-
+proaches also rely on trainable architectures [56], which
+have evolved to end-to-end models [47]. All these ap-
+proaches have achieved great performance in increasing
+visibility. Our work is complementary and focuses on
+semantic understanding of foggy scenes.
+2.2 Depth Denoising and Completion
+Synthesizing a foggy image from its real, clear counter-
+part generally requires an accurate depth map. In pre-
+vious works, the colorization approach of [37] has been
+used to inpaint depth maps of the indoor NYU Depth
+dataset [53]. Such inpainted depth maps have been used
+in state-of-the-art dehazing approaches such as [47] to
+generate training data in the form of synthetic indoor
+foggy images. On the contrary, our work considers real
+outdoor urban scenes from the Cityscapes dataset [14],
+which contains significantly more complex depth con-
+figurations than NYU Depth. Furthermore, the avail-
+able depth information in Cityscapes is not provided
+by a depth sensor, but it is rather an estimate of the
+depth resulting from the application of a semiglobal
+matching stereo algorithm based on [30]. This depth
+estimate usually contains a large amount of severe ar-
+tifacts and large holes (cf. Figure 1), which render it
+inappropriate for direct use in fog simulation. There are
+several recent approaches that handle highly noisy and
+incomplete depth maps, including stereoscopic inpaint-
+ing [61], spatio-temporal hole filling [11] and layer depth
+denoising and completion [52]. Our method builds on
+the framework of stereoscopic inpainting [61] which per-
+forms depth completion at the level of superpixels, and
+introduces a novel, theoretically grounded objective for
+the superpixel-matching optimization that is involved.
+2.3 Foggy Scene Understanding
+Semantic understanding of outdoor scenes is a cru-
+cial enabler for applications such as assisted or au-
+tonomous driving. Typical examples include road and
+lane detection [4], traffic light detection [32], car and
+pedestrian detection [22], and a dense, pixel-level seg-
+mentation of road scenes to most of the relevant se-
+mantic classes [8, 14]. While deep recognition networks
+have been developed [23, 39, 46, 63, 65] and large-scale
+datasets have been presented [14,22], the research focus
+of these works is mainly on clear weather. There is also
+a large body of work on image understanding of foggy
+scenes. For instance, fog detection has been tackled for
+daytime [6,7,44], nighttime [20], and for scenarios where
+time is at premium [54]. Classification of scenes into
+foggy and fog-free has been tackled as well [45]. In ad-
+dition, visibility estimation and analysis have been ex-
+tensively studied for both daytime [26,40,59] and night-
+time [21] in the context of assisted and autonomous
+driving. Among those, the closest work to ours is [59],
+in which synthetic fog are generated and foggy images
+are segmented to free-space area and vertical objects.
+Our work differs in that: 1) our semantic understand-
+ing task is more complex, with 19 semantic classes that
+are commonly involved in driving scenarios, 8 of which
+occur as distinct objects; 2) we tackle the problem with
+modern deep CNN for semantic segmentation [39, 63]
+and object detection [23], taking full advantage of the
+most recent advances in this field; and 3) we compile
+and will release a large-scale dataset of synthetic foggy
+images based on real scenes plus a dataset of real-world
+foggy scenes, both with dense pixel-level semantic an-
+notations and bounding box annotations for objects.
+2.4 Synthetic Visual Data
+The leap of computer vision in recent years is largely at-
+tributed to the availability of large labeled datasets [14,
+18, 51]. However, acquiring and annotating a dataset
+4 Christos Sakaridis et al.
+of this scale for each new problem is not a scalable
+alternative. Thus, learning with synthetic data is be-
+coming more attractive. We summarize some notable
+examples. Dosovitskiy et al. [17] use the renderings of
+a floating chair to train dense optical flow regression
+networks. Gupta et al. [24] impose text onto natural
+images to learn an end-to-end text detection system.
+Va?zquez et al. [60] train pedestrian detectors with vir-
+tual data. In [48, 49], the authors leverage video game
+engines to render images along with dense semantic an-
+notations that are subsequently used in combination
+with real data to improve semantic segmentation per-
+formance of modern CNN architectures on real scenes.
+Going one step further, [33] shows that for the task of
+vehicle detection, training a CNN model only on mas-
+sive amounts of synthetic images can outperform the
+same model which is trained on large-scale real datasets
+like Cityscapes. By contrast, our work tackles semantic
+segmentation and object detection for real foggy ur-
+ban scenes by generating synthetic images from exist-
+ing real images with clear weather. One exceptionally
+interesting work worth mentioning here is the project
+“FOG” [12], in which the team developed a prototype of
+a small-scale fog chamber which is able to produce sta-
+ble visibility levels and homogeneous fog to test driver
+reaction.
+3 Fog Simulation on Real Outdoor Scenes
+To simulate fog on input images that depict real scenes
+with clear weather, the standard approach is to model
+the effect of fog as a function that maps the radiance of
+the clear scene to the observed radiance at the camera
+sensor. Critically, this space-variant function is usually
+parameterized by the distance ` of the scene from the
+camera, which equals the length of the path along which
+light has traveled and is directly related to depth. As a
+result, the pair of the clear image and its corresponding
+depth map forms the basis of our foggy image synthesis.
+In this section, we first detail the optical model which
+we use for fog and then present our complete pipeline
+for fog simulation, with emphasis on our denoising and
+completion of the input depth. Finally, we present some
+criteria for selecting suitable images to generate high-
+quality synthetic fog.
+3.1 Optical Model of Choice for Fog
+In the image dehazing literature, various optical mod-
+els have been used to model the effect of haze on the
+appearance of a scene. For instance, optical models tai-
+lored for nighttime haze removal have been proposed
+in [38, 64], taking into account the space-variant light-
+ing that characterizes most nighttime scenes. This vari-
+ety of models is directly applicable to the case of fog as
+well, since the physical process for image formation in
+the presence of either haze or fog is essentially similar.
+For our synthesis of foggy images, we consider the stan-
+dard optical model of [36], which is used extensively in
+the literature [19,27,47,56,57] and is formulated as
+I(x) = R(x)t(x) + L(1? t(x)), (1)
+where I(x) is the observed foggy image at pixel x,
+R(x) is the clear scene radiance and L is the atmo-
+spheric light. This model assumes the atmospheric light
+to be globally constant, which is generally valid only
+for daytime images. The transmission t(x) determines
+the amount of scene radiance that reaches the cam-
+era. In case of a homogeneous medium, transmission
+depends on the distance `(x) of the scene from the cam-
+era through
+t(x) = exp (??`(x)) . (2)
+Parameter ? is named attenuation coefficient and it ef-
+fectively controls the thickness of fog: larger values of
+? mean thicker fog. The meteorological optical range
+(MOR), also known as visibility, is defined as the max-
+imum distance from the camera for which t(x) ? 0.02,
+which implies that if (2) is valid, then MOR = 3.912/?.
+Fog decreases the MOR to less than 1 km by defini-
+tion [1]. Therefore, the attenuation coefficient in homo-
+geneous fog is by definition
+? ? 3.912× 10?3 m?1, (3)
+where the lower bound corresponds to the lightest fog
+configuration. In our fog simulation, the value that is
+used for ? always obeys (3).
+Model (1) provides a powerful basis for simulating
+fog on outdoor scenes with clear weather. Even though
+its assumption of homogeneous atmosphere is strong, it
+generates synthetic foggy images that can act as good
+proxies for real world foggy images where this assump-
+tion might not hold exactly, as long as it is provided
+with an accurate transmission map t. Straightforward
+extensions of (1) are used in [58] to simulate heteroge-
+neous fog on synthetic scenes.
+To sum up, the necessary inputs for fog simulation
+using (1) are a color image R of the original clear scene,
+atmospheric light L and a dense transmission map t
+defined at each pixel of R. Our task is thus twofold:
+1. estimation of t, and
+2. estimation of L from R.
+Semantic Foggy Scene Understanding with Synthetic Data 5
+Step 2 is simple: we use the method proposed in [27]
+with the improvement of [56]. In the following, we focus
+on step 1 for the case of outdoor scenes with a noisy,
+incomplete estimate of depth serving as input.
+3.2 Depth Denoising and Completion for Outdoor
+Scenes
+The inputs that our method requires for generating an
+accurate transmission map t are:
+• the original, weather-clear color image R to add syn-
+thetic fog on, which constitutes the left image of a
+stereo pair,
+• the right image Q of the stereo pair,
+• the intrinsic calibration parameters of the two cam-
+eras of the stereo pair as well as the length of the
+baseline,
+• a dense, raw disparity estimate D for R of the same
+resolution as R, and
+• a set M comprising the pixels where the value of D
+is missing.
+These requirements can be easily fulfilled with a stereo
+camera and a standard stereo matching algorithm [30].
+The main steps of our pipeline are the following:
+1. calculation of a raw depth map d in meters,
+2. denoising and completion of d to produce a refined
+depth map d? in meters,
+3. calculation of a scene distance map ` in meters from
+d?,
+4. application of (2) to obtain an initial transmission
+map t?, and
+5. guided filtering [28] of t? using R as guidance to com-
+pute the final transmission map t.
+The central idea is to leverage the accurate structure
+that is present in the color images of the stereo pair
+in order to improve the quality of depth, before using
+the latter as input for computing transmission. We now
+proceed in explaining each step in detail. In step 1,
+we use the input disparity D in combination with the
+values of the focal length and the baseline to obtain
+d. The missing values for D, indicated by M , are also
+missing in d.
+Step 2 follows a segmentation-based depth filling
+approach, which builds on the stereoscopic inpainting
+method presented in [61]. More specifically, we use a
+superpixel segmentation of the clear image R to guide
+depth denoising and completion at the level of super-
+pixels, making the assumption that each individual su-
+perpixel corresponds roughly to a plane in the 3D scene.
+First, we apply a photo-consistency check between
+R and Q, using the input disparity D to establish pixel
+correspondences between the two images of the stereo
+pair, similar to Equation (12) in [61]. All pixels in R
+for which the color deviation (measured as difference in
+the RGB color space) from the corresponding pixel in
+Q has greater magnitude than  = 12/255 are deemed
+invalid regarding depth and hence are added to M .
+We then segment R into superpixels with SLIC [2],
+denoting the target number of superpixels as K? and
+the relevant range domain scale parameter as m = 10.
+For depth denoising and completion on Cityscapes, we
+use K? = 2048. The final number of superpixels that are
+output by SLIC is denoted by K. These superpixels are
+classified into reliable and unreliable ones with respect
+to depth information, based on the number of pixels
+with missing or invalid depth that they contain. More
+formally, we use the criterion of Equation (2) in [61],
+which states that a superpixel T is reliable if and only
+if
+card(T \M) ? max{P, ? card(T )}, (4)
+setting P = 20 and ? = 0.6.
+For each superpixel that fulfills (4), we fit a depth
+plane by running RANSAC on its pixels that have a
+valid value for depth. We use an adaptive inlier thresh-
+old to account for differences in the range of depth val-
+ues between distinct superpixels. For a superpixel T ,
+the inlier threshold is set as
+? = 0.01 median
+x?T\M
+{d(x)}. (5)
+We use adaptive RANSAC and set the maximum num-
+ber of iterations to 2000 and the bound on the probabil-
+ity of having obtained a pure inlier sample to p = 0.99.
+The greedy approach of [61] is used subsequently to
+match unreliable superpixels to reliable ones pairwise
+and assign the fitted depth planes of the latter to the
+former. Different than [61], we propose a novel objective
+function for matching pairs of superpixels. For a super-
+pixel pair (s, t), our proposed objective is formulated as
+E(s, t) = ?Cs ?Ct?2 + ??xs ? xt?2. (6)
+The first term measures the proximity of the two
+superpixels in the range domain, where we denote the
+average CIELAB color of superpixel s with Cs. In
+other words, we penalize the squared Euclidean dis-
+tance between the average colors of the superpixels in
+the CIELAB color space, which has been designed to
+increase perceptual uniformity [13]. On the contrary,
+the objective of [61] uses the cosine similarity of aver-
+age superpixel colors to form the range domain cost:
+1? Cs
+?Cs?
+· Ct
+?Ct?
+. (7)
+6 Christos Sakaridis et al.
+The disadvantage of (7) is that it assigns zero matching
+cost to dissimilar colors in certain cases. For instance,
+in the RGB color space, the pair of colors (?, ?, ?) and
+(1? ?, 1? ?, 1? ?), where ? is a small positive constant,
+is assigned zero penalty, even though the former color
+is very dark gray and the latter is very light gray.
+The second term on the right-hand side of (6) mea-
+sures the proximity of the two superpixels in the spatial
+domain as the squared Euclidean distance between their
+centroids xs and xt. By contrast, the spatial proximity
+term of [61] assigns zero cost to pairs of adjacent super-
+pixels and unit cost to non-adjacent pairs. This implies
+that close yet non-adjacent superpixels are penalized
+equally to very distant superpixels by [61]. As a result,
+a certain superpixel s can be erroneously matched to
+a very distant superpixel t which is highly unlikely to
+share the same depth plane as s, as long as the range
+domain term for this pair is minimal and all superpix-
+els adjacent to s are dissimilar to it with respect to ap-
+pearance. Our proposed spatial cost handles these cases
+successfully: t is assigned a very large spatial cost for
+being matched to s, and other superpixels that have
+less similar appearance yet smaller distance to s are
+preferred.
+In (6), ? > 0 is a parameter that weights the rela-
+tive importance of the spatial domain term versus the
+range domain term. Similarly to [2], we set ? = m2/S2,
+where S =
+?
+N/K and N denotes the total number of
+pixels in the image. Our matching objective (6) is simi-
+lar to the distance that is defined in SLIC [2] and other
+superpixel segmentation methods for assigning an in-
+dividual pixel to a superpixel. In our case though, this
+distance is rather used to measure similarity between
+pairs of superpixels.
+After all superpixels have been assigned a depth
+plane, we use these planes to complete the missing
+depth values for pixels belonging to M . In addition,
+we replace the depth values of pixels which do not be-
+long to M but constitute large-margin outliers with
+respect to their corresponding plane (deviation larger
+than ?? = 50m) with the values imputed by the plane.
+This results in a complete, denoised depth map d?, and
+concludes step 2.
+In step 3, we compute the distance `(x) of the scene
+from the camera at each pixel x based on d?(x), using
+the coordinates of the principal point plus the focal
+length of the camera.
+Finally, in step 5 we post-process the initial trans-
+mission map t? with guided filtering [28], in order to
+smooth transmission while respecting the boundaries
+of the clear image R. We fix the radius of the guided
+filter window to r = 20 and the regularization parame-
+ter to µ = 10?3, i. e. we use the same values as in the
+haze removal experiments of [28].
+Results of the presented pipeline for fog simulation
+on example images from Cityscapes are provided in
+Figure 2 for ? = 0.01, which corresponds to visibil-
+ity of ca. 400m. We compare our fog simulation against
+an alternative implementation, which employs nearest-
+neighbor interpolation to complete the missing values
+of the depth map before computing the transmission
+and does not involve guided filtering as a postprocess-
+ing step.
+3.3 Input Selection for High-Quality Fog Simulation
+Applying the presented pipeline to simulate fog on
+a large dataset with real outdoor scenes such as
+Cityscapes with the aim of producing synthetic foggy
+images of high quality calls for careful refinement of the
+input.
+To be more precise, the sky is clear in the majority
+of scenes in Cityscapes, with intense direct or indirect
+sunlight, as shown in Figure 3(a). These images usu-
+ally contain sharp shadows and have high contrast com-
+pared to images that depict foggy scenes. This causes
+our fog simulation to generate synthetic images which
+do not resemble real fog very well, e. g. Figure 3(b).
+Therefore, our first refinement criterion is whether the
+sky is overcast, ensuring that the light in the input real
+scene is not strongly directional.
+Secondly, we observe that atmospheric light estima-
+tion in step 2 of our fog simulation sometimes fails to
+select a pixel with ground truth semantic label sky as
+the representative of the value of atmospheric light. In
+rare cases, it even happens that the sky is not visible
+at all in an image. This results in an erroneous, phys-
+ically invalid value of atmospheric light being used in
+(1) to synthesize the foggy image. Consequently, our
+second refinement criterion is whether the pixel that
+is selected as atmospheric light is labeled as sky, and
+affords an automatic implementation.
+4 Foggy Datasets
+We present two distinct datasets for semantic un-
+derstanding of foggy scenes: Foggy Cityscapes and
+Foggy Driving. The former derives from the Cityscapes
+dataset [14] and constitutes a collection of synthetic
+foggy images generated with our proposed fog simu-
+lation that automatically inherit the semantic anno-
+tations of their real, clear counterparts. On the other
+hand, Foggy Driving is a collection of 101 real-world
+Semantic Foggy Scene Understanding with Synthetic Data 7
+(a) Input from Cityscapes (b) Nearest-neighbor depth completion (c) Our fog simulation
+Fig. 2 Comparison of our fog simulation to nearest-neighbor interpolation for depth completion on images from Cityscapes.
+This figure is better seen on a screen and zoomed in
+(a) Input image from Cityscapes
+(b) Output of our fog simulation
+Fig. 3 Sunny scene from Cityscapes along with the result of
+our fog simulation
+foggy road scenes with annotations for semantic seg-
+mentation and object detection, used as a benchmark
+for the domain of foggy weather.
+4.1 Foggy Cityscapes
+We apply the fog simulation pipeline that is presented
+in Section 3 to the complete set of images provided
+in the Cityscapes dataset. More specifically, we first
+obtain 20000 synthetic foggy images from the larger,
+coarsely annotated part of the dataset, and keep all of
+them, without applying the refinement criteria of Sec-
+tion 3.3. In this way, we trade the high visual quality
+of the synthetic images for a very large scale and vari-
+ability of the synthetic dataset. We do not make use
+of the original coarse annotations of these images for
+semantic segmentation; rather, we produce labellings
+with state-of-the-art semantic segmentation models on
+the original, clear images and use them as weak super-
+vision, as will be discussed in Section 6. We name this
+set Foggy Cityscapes-coarse.
+In addition, we use the two criteria of Section 3.3
+in conjunction to filter the finely annotated part of
+Cityscapes that originally comprises 2975 training and
+500 validation images, and obtain a refined set of 550
+images, 498 from the training set and 52 from the val-
+idation set, which fulfill both criteria. Running our fog
+simulation on this refined set provides us with a col-
+lection of high-quality synthetic foggy images with a
+moderate scale. This collection automatically inherits
+the original fine annotations for semantic segmentation,
+as well as bounding box annotations for object detec-
+tion which we generate by leveraging the instance-level
+semantic annotations that are provided in Cityscapes
+for the 8 classes person, rider, car, truck, bus, train,
+motorcycle and bicycle. We term this collection Foggy
+Cityscapes-refined.
+Since MOR can vary significantly in reality for dif-
+ferent instances of fog, we generate three distinct vari-
+ants of Foggy Cityscapes, each of which is character-
+ized by a constant simulated attenuation coefficient
+? in (2), hence a constant MOR. In particular, we
+use ? ? {0.005, 0.01, 0.02}, which correspond approxi-
+mately to MOR of 800m, 400m and 200m respectively.
+8 Christos Sakaridis et al.
+Figure 4 shows the synthesized fog of the three densities
+for a scene.
+4.2 Foggy Driving
+Foggy Driving consists of 101 color images depicting
+real-world foggy driving scenes. We captured 51 of these
+images with a cell phone camera in foggy conditions at
+various areas of Zurich, and the rest 50 images were
+carefully collected from the web. We note that all im-
+ages have been preprocessed so that they have a maxi-
+mum resolution of 960× 1280 pixels.
+We provide dense, pixel-level semantic annotations
+for all images of Foggy Driving. In particular, we use
+the 19 evaluation classes of Cityscapes: road, sidewalk,
+building, wall, fence, pole, traffic light, traffic sign, vege-
+tation, terrain, sky, person, rider, car, truck, bus, train,
+motorcycle and bicycle. Pixels that do not belong to any
+of the above classes or are not labeled are assigned the
+void label, and they are ignored for semantic segmenta-
+tion evaluation. At annotation time, we label individual
+instances of person, rider, car, truck, bus, train, motor-
+cycle and bicycle separately following the Cityscapes
+annotation protocol, which directly affords bounding
+box annotations for these 8 classes.
+In total, 33 images have been finely annotated (c.f.
+the last three rows of Figure 12) in the aforementioned
+procedure, and the rest 68 images have been coarsely
+annotated (c.f. the top three rows of Figure 12). We
+provide per-class statistics for the pixel-level semantic
+annotations of Foggy Driving in Figure 5. Furthermore,
+statistics for the number of objects in the bounding
+box annotations are shown in Figure 6. Because of the
+coarse annotation that is created for one part of Foggy
+Driving, we do not use this part in evaluation of object
+detection approaches, as difficult objects that are not
+included in the annotations may be detected by a good
+method and missed by a comparatively worse method,
+resulting in incorrect comparisons with respect to pre-
+cision. On the contrary, the coarsely annotated images
+are used without such issues in evaluation of seman-
+tic segmentation approaches, since predictions at unla-
+beled pixels are simply ignored and thus do not affect
+the measured performance.
+Foggy Driving may have a smaller size than other
+recent datasets for semantic scene understanding, how-
+ever, it features challenging foggy scenes with compara-
+tively high complexity. As Table 1 shows, the subset of
+33 images with fine annotations is roughly on par with
+Cityscapes regarding the average number of humans
+and vehicles per image. In total, Foggy Driving contains
+more than 500 vehicles and almost 300 humans. We also
+Table 1 Absolute and average number of annotated pixels,
+humans and vehicles for Foggy Driving (“Ours”), KITTI and
+Cityscapes. Only the training and validation sets of KITTI
+and Cityscapes are considered
+pixels humans vehicles h/im v/im
+Ours (fine) 38.3M 236 288 7.2 8.7
+Ours (coarse) 34.6M 54 221 0.8 3.3
+KITTI 0.23G 6.1k 30.3k 0.8 4.1
+Cityscapes 9.43G 24.0k 41.0k 7.0 11.8
+underline the fact that Table 1 compares Foggy Driv-
+ing — a dataset used purely for testing — against the
+unions of training and validation sets of KITTI [22] and
+Cityscapes, which are much larger than their respective
+testing sets that would provide a better comparison.
+As a final note, we identify the subset of the 19 an-
+notated classes that occur frequently in Foggy Driving.
+These “frequent” classes either have a larger number
+of total annotated pixels, e. g. road, or a larger number
+of total annotated polygons or instances, e. g. pole and
+person, compared to the rest of the classes. They are:
+road, sidewalk, building, pole, traffic light, traffic sign,
+vegetation, sky, person, and car. In the experiments that
+follow in Section 5.1, we occasionally use this set of fre-
+quent semantic classes as an alternative to the complete
+set of semantic classes for averaging per-class scores, in
+order to further verify the respective result with an-
+other result that is based only on classes with plenty of
+examples.
+5 Supervised Learning with Synthetic Fog
+We first show that our synthetic Foggy Cityscapes-
+refined dataset can be used per se for successfully
+adapting modern CNN models to the condition of fog
+with the usual supervised learning paradigm. Our ex-
+periments focus primarily on the task of semantic seg-
+mentation and additionally include comparisons on the
+task of object detection, evidencing clearly the useful-
+ness of our synthetic foggy data in understanding the
+semantics of real foggy scenes.
+More specifically, the general outline of our experi-
+ments can be summarized in two steps:
+1. fine-tuning a model that has been trained on the
+original Cityscapes dataset for clear weather by
+using only synthetic images of Foggy Cityscapes-
+refined, and
+2. evaluating the fine-tuned model on Foggy Driving
+and comparing its performance against the original
+model.
+In other words, all models are ultimately evaluated on
+data from a different domain than that of the data on
+Semantic Foggy Scene Understanding with Synthetic Data 9
+(a) weather-clear (b) light fog (c) medium fog (d) thick fog
+Fig. 4 Exemplar images in Foggy Cityscapes with varying fog thickness.
+flat construction nature vehicle sky object human
+104
+106
+108
+1 instances are distinguished
+ro
+a
+d
+si
+d
+ew
+a
+lk
+b
+u
+il
+d
+.
+fe
+n
+ce
+w
+a
+ll
+v
+eg
+et
+.
+te
+rr
+a
+in ca
+r1
+tr
+u
+ck
+1
+tr
+a
+in
+1
+b
+u
+s1
+b
+ic
+y
+cl
+e1
+m
+o
+to
+rc
+y
+cl
+e1
+sk
+y
+p
+o
+le
+tr
+a
+ffi
+c
+si
+g
+n
+tr
+a
+ffi
+c
+li
+g
+h
+t
+p
+er
+so
+n
+1
+ri
+d
+er
+1
+n
+u
+m
+b
+er
+o
+f
+p
+ix
+el
+s
+Fig. 5 Number of annotated pixels per class for Foggy Driving
+ca
+r
+tr
+uc
+k
+tr
+ai
+n
+bu
+s
+bi
+cy
+cl
+e
+m
+ot
+or
+cy
+cl
+e
+pe
+rs
+on
+ri
+de
+r
+0
+100
+200
+300
+400
+500
+n
+u
+m
+b
+er
+o
+f
+o
+b
+je
+ct
+s
+Fine
+Coarse
+tr
+uc
+k
+tr
+ai
+n
+bu
+s
+bi
+cy
+cl
+e
+m
+ot
+or
+cy
+cl
+e
+ri
+de
+r
+0
+10
+20
+30
+Fig. 6 Number of objects per class in Foggy Driving
+which they have been fitted, revealing their true gener-
+alization potential on previously unseen foggy scenes.
+We also examine the effect of dehazing on per-
+formance of semantic segmentation models, employing
+state-of-the-art dehazing methods in our experiments.
+5.1 Semantic Segmentation
+Our model of choice for conducting experiments on se-
+mantic segmentation with the supervised pipeline is the
+modern dilated convolutions network (DCN) [63]. In
+particular, we make use of the publicly available Di-
+lation10 model, which has been trained on the 2975
+images of the training set of Cityscapes. We wish to
+note that this model was originally trained and tested
+on 1396× 1396 image crops by the authors of [63], but
+due to GPU memory limitations we train it on 756×756
+crops and test it on 700 × 700 crops. Still, Dilation10
+enjoys a fair mean intersection over union (IoU) score
+of 34.9% on Foggy Driving.
+In the following experiments, we fine-tune Dila-
+tion10 on the training set of Foggy Cityscapes-refined
+which consists of 498 images, and reserve the 52 images
+of the respective validation set for additional evalua-
+tion. In particular, we fine-tune all layers of the origi-
+nal model for 3k iterations (ca. 6 epochs) using mini-
+batches of size 1. Unless otherwise mentioned, the at-
+tenuation coefficient ? used in Foggy Cityscapes is equal
+to 0.01.
+Comparison of Fog Simulation Approaches. First,
+we compare in Table 2 our proposed method for fog
+simulation on Cityscapes in terms of semantic segmen-
+tation performance on Foggy Driving against two alter-
+native approaches: the baseline that we considered in
+Figure 2 and a truncated version of our method, where
+we omit the guided filtering step. We consider two dif-
+10 Christos Sakaridis et al.
+Table 2 Comparison of our fog simulation against two base-
+lines, using different learning rate policies when fine-tuning
+the segmentation model. Mean IoU (%) over all classes is
+used to report results
+Constant l.r. “Poly” l.r.
+Nearest neighbor 32.9 36.2
+Ours w/o guided filtering 33.0 36.8
+Ours 34.4 37.8
+ferent policies for the learning rate when fine-tuning: a
+constant learning rate of 10?5 and a polynomially de-
+caying learning rate, commonly referred to as “poly”,
+with a base learning rate of 10?5 and a power parameter
+of 0.9. Our method for fog simulation consistently out-
+performs the two baselines and the “poly” learning rate
+policy allows the model to be fine-tuned more effectively
+than the constant policy. In the rest of our experiments
+with DCN, we use the “poly” learning rate policy with
+the parameters specified above for fine-tuning.
+Benefit of Fine-tuning on Synthetic Fog. The
+next experiment investigates the benefit of fine-tuning
+on Foggy Cityscapes-refined in improving semantic seg-
+mentation performance on Foggy Driving. We consider
+four different options regarding dehazing: applying no
+dehazing at all, dehazing with multi-scale convolutional
+neural networks (MSCNN) [47], dehazing using the
+dark channel prior (DCP) [27], and non-local image de-
+hazing [5]. In all cases, we first apply dehazing (if neces-
+sary) on the synthetic foggy images of Foggy Cityscapes-
+refined and then use the (optionally) dehazed images to
+fine-tune Dilation10. At evaluation time, we test each
+model on Foggy Driving after having applied the same
+dehazing step as the one that was used at training
+time. Results are provided in Table 3 for all annotated
+classes in Foggy Driving and Table 4 for frequent classes
+only. Indeed, all fine-tuned models outperform Dila-
+tion10 irrespective of which dehazing approach (if any)
+is applied, both for mean IoU over all classes and over
+frequent classes only. The best-performing fine-tuned
+model, which we refer to as FT-0.01, involves no dehaz-
+ing and outperforms Dilation10 significantly, giving a
+relative improvement of almost 10% for both measures.
+Note additionally that FT-0.01 has been fine-tuned on
+only 498 training images of Foggy Cityscapes-refined,
+compared to the 2975 training images of Cityscapes for
+Dilation10.
+Increasing Returns at Larger Distance. As can
+easily be deduced from (2), fog has a growing effect
+on the appearance of the scene as distance from the
+camera increases. Ideally, a model that is dedicated to
+foggy scenes must deliver a greater benefit for distant
+parts of the scene. In order to examine this aspect of
+Table 3 Comparison of Dilation10 versus fine-tuned ver-
+sions of it on Foggy Cityscapes-refined, for four different op-
+tions as far as dehazing is concerned. “FT” stands for using
+fine-tuning and “W/o FT” for not using fine-tuning. Mean
+IoU (%) over all classes is used to report results
+No dehazing MSCNN DCP Non-local
+W/o FT 34.9 34.7 29.9 29.3
+FT 37.8 37.1 37.4 36.6
+Table 4 Comparison of Dilation10 versus fine-tuned ver-
+sions of it on Foggy Cityscapes-refined, for four different op-
+tions as far as dehazing is concerned. “FT” stands for using
+fine-tuning and “W/o FT” for not using fine-tuning. Mean
+IoU (%) over frequent classes in Foggy Driving is used to
+report results
+No dehazing MSCNN DCP Non-local
+W/o FT 52.4 52.4 45.5 46.2
+FT 57.4 56.2 56.7 55.1
+semantic segmentation of foggy scenes, we use the com-
+pleted, dense distance maps of Cityscapes images that
+have been computed as an intermediate output of our
+fog simulation, given that Foggy Driving does not in-
+clude depth information. In more detail, we consider
+the validation set of Foggy Cityscapes-refined, the im-
+ages of which are unseen both for Dilation10 and our
+fine-tuned models, and bin the pixels according to their
+value in the corresponding distance map. Each distance
+range is considered separately for evaluation by ignoring
+all pixels that do not belong to it. In Figure 7, we com-
+pare mean IoU of Dilation10 and FT-0.01 individually
+for each distance range. FT-0.01 brings a consistent
+gain in performance across all distance ranges. What
+is more, this gain is larger in both absolute and rela-
+tive terms for pixels that are more than 50m away from
+the camera, implying that our model is able to han-
+dle better the most challenging parts of a foggy scene.
+Note that most pixels in the very last distance range
+(more than 400m away from the camera) belong to the
+sky class and their appearance does not change much
+between the clear and the synthetic foggy images.
+Training on Varying Levels of Synthetic Fog. Our
+final experiment on semantic segmentation considers
+three different versions of Foggy Cityscapes-refined for
+fine-tuning Dilation10, which correspond to three dif-
+ferent values of attenuation coefficient ?, as described
+in Section 4.1. Again, we use the same protocol regard-
+ing dehazing and measure the mean IoU performance of
+the 12 resulting models on Foggy Driving for all classes
+in Table 5 and frequent classes in Table 6.
+The two goals that have to be met in order for these
+models to achieve better performance are:
+Semantic Foggy Scene Understanding with Synthetic Data 11
+0–20 20–50 50–80 80–120 120–160 160–230 230–400 >400
+0
+10
+20
+30
+40
+50
+60
+70
+distance (meters)
+m
+ea
+n
+Io
+U
+(%
+)
+Dilation10
+Ours (FT-0.01 )
+Fig. 7 Performance of semantic segmentation models on
+Foggy Cityscapes-refined at distinct ranges of scene distance
+from the camera
+Table 5 Comparison of fine-tuned versions of Dilation10 on
+Foggy Cityscapes-refined, for three different values of attenu-
+ation coefficient ? in fog simulation and four different options
+with regard to dehazing. Mean IoU (%) over all classes is used
+to report results
+? = 0.005 ? = 0.01 ? = 0.02
+No dehazing 37.6 37.8 36.1
+MSCNN 38.3 37.1 36.9
+DCP 36.6 37.4 36.1
+Non-local 36.2 36.6 35.3
+Table 6 Comparison of fine-tuned versions of Dilation10 on
+Foggy Cityscapes-refined, for three different values of attenu-
+ation coefficient ? in fog simulation and four different options
+with regard to dehazing. Mean IoU (%) over frequent classes
+in Foggy Driving is used to report results
+? = 0.005 ? = 0.01 ? = 0.02
+No dehazing 57.0 57.4 56.2
+MSCNN 57.3 56.2 56.3
+DCP 56.0 56.7 55.2
+Non-local 55.1 55.1 54.5
+1. a good matching in the distributions of the synthetic
+training data and the real, testing data, and
+2. a clear appearance of both sets of data, in the sense
+that the segmentation model has an easy job in min-
+ing discriminative features from the data.
+Focusing on the case that does not involve dehazing,
+it is clear from Table 5 and Table 6 that our synthetic
+images of Foggy Cityscapes match better with images of
+Foggy Driving when lower values of ? are used, i. e. for
+light or medium fog.
+On the other hand, each of the three dehazing meth-
+ods that are examined has its own particularities in
+enhancing the appearance of foggy scenes while also
+introducing artifacts to the output. More specifically,
+MSCNN operates better at lighter fog, providing a sig-
+nificant improvement with regard to point 2 in this con-
+dition. Combined with our conclusion in the previous
+paragraph, this explains why MSCNN combined with
+fine-tuning on light fog (? = 0.005) delivers one of the
+two best overall results.
+By contrast, DCP is known to operate better at high
+levels of haze or fog, as its estimated transmission is
+biased towards lower values [56]. Consequently, DCP is
+not at its optimal operation point on Foggy Driving, as
+it degrades the quality of images with light fog. Even
+though it performs better on images with heavy fog
+than the other two approaches, these images are harder
+for the segmentation model to identify good features.
+For this reason, the performance of models that are fine-
+tuned on images dehazed with DCP peaks at medium
+rather than light fog, but it is still lower compared to
+the best MSCNN-based model. Additionally, non-local
+image dehazing uses a different model for estimating
+atmospheric light than the one that is shared by our
+fog simulation, MSCNN and DCP, which implies that
+it already faces greater difficulty in dehazing images
+from Foggy Cityscapes that are fed to the fine-tuning
+step, and thus exhibits lower performance.
+5.2 Evaluation of Image Dehazing Methods
+5.2.1 Effect on Semantic Segmentation
+In Section 5, we observe that providing dehazed images
+from Foggy Cityscapes-refined as intermediate results
+to the fine-tuning step does not result in a performance
+gain for SFSU. This can largely ascribed to two reasons.
+First, most of the popular dehazing approaches, in-
+cluding the three approaches that are examined here,
+rely on the optical model (1) for removing haze or
+fog. This model assumes a linear relation between the
+number of incident photons at a pixel and the actual
+value of the pixel in the processed hazy image. There-
+fore, these dehazing approaches require that an initial
+gamma correction step be applied to the pixel inten-
+sities before the image is dehazed, otherwise their per-
+formance may deteriorate significantly. This in turn im-
+plies that the value of gamma is known for each image,
+which is not the case for Cityscapes and Foggy Driving.
+Manually searching for the “best” value individually for
+each image is also infeasible for these large datasets. As
+a consequence, in the absence of any further informa-
+tion, we have used a constant value of 1 for gamma
+as the authors of [5] recommend in the implementation
+of their method, which is probably suboptimal for a
+large percentage of the images and apparently affects
+the measured performance for semantic segmentation.
+We thus wish to point out that future work on outdoor
+datasets, whether considering fog/haze or not, should
+ideally record the value of gamma for each image, so
+12 Christos Sakaridis et al.
+that dehazing methods can show their full potential
+on the original or derivative, synthetic images of such
+datasets.
+Second, in the real-world scenario of Foggy Driving,
+the homogeneity and uniformity assumptions of the op-
+tical model (1) that is used by all examined dehazing
+methods may not hold exactly. Of course, the same
+model is used in our fog simulation, however, foggy
+image synthesis is a forward problem, whereas image
+defogging/dehazing is an inverse problem, hence inher-
+ently more difficult. As a result, the similarity of syn-
+thetic foggy images of Foggy Cityscapes to real foggy
+images of Foggy Driving is apparently greater than the
+similarity of dehazed images from Foggy Cityscapes to
+dehazed images from Foggy Driving. This fact appears
+to compensate the slight increase in visibility for de-
+hazed images in terms of performance of fine-tuned
+DCN models.
+To better understanding the effect of image dehaz-
+ing, we investigate how much image dehazing increases
+the visibility of foggy images in our datasets, and how
+this correlates with the its usefulness for SFSU.
+5.2.2 Assessing the Visual Quality of Dehazed Images
+In order to provide a more complete picture of the ben-
+efit of dehazing, we compare the four aforementioned
+options with regard to dehazing individually on each
+image of our datasets. Figure 8 presents examples of
+the tetrads of images that we consider: the foggy im-
+age (either from Foggy Cityscapes-refined with ? = 0.01
+or Foggy Driving) and its dehazed versions using DCP,
+MSCNN and non-local dehazing. As an objective mea-
+sure for comparison, we leverage the mean IoU score of
+the respective fine-tuned segmentation models that are
+considered in Table 3, measured on each image individ-
+ually. The classes that do not occur in an image are
+not considered for computing mean IoU on this image.
+At the same time, we conduct a survey to acquire sub-
+jective comparisons of these four versions and examine
+whether they agree with the objective ones.
+User Study via Amazon Mechanical Turk. We
+aim at comparing the four options for dehazing from an
+observer’s perspective, more specifically from a driver’s
+perspective, as our images depict mainly road scenes.
+Humans are subjective and are not good at giving scores
+to individual image in a linear scale [35]. We thus follow
+the literature [50] and choose the paired comparisons
+technique. The participants are shown two images at
+a time, side by side, and are asked to simply choose
+the one for which their view is less disturbed by fog or
+any artifacts and enables safer driving. We use Amazon
+Mechanical Turk (AMTurk) for the annotation.
+We have performed the paired comparison over both
+Foggy Cityscapes-refined and Foggy Driving. In total, we
+obtain
+(
+4
+2
+)
+=6 per image × 651 = 3906 comparisons. The
+annotators are asked to perform five paired comparisons
+in each of the Human Intelligence Tasks (HITs). Each
+HIT posted to AMTurk has been completed by three
+independent Workers for a reliable evaluation. In order
+to guarantee a good quality for the user study, 1) we
+have only employed AMTurk Masters for the task, and
+2) we verify the answers via a Known Answer Review
+Policy. Masters are an elite group of Workers, who have
+demonstrated superior performance while completing
+thousands of HITs on AMTurk. For the Known An-
+swer Review Policy, we need pairs of images for which
+the correct answer for the side-by-side comparison is
+known. To this end, we sample two images of the same
+scene but with different degrees of fog. In particular,
+we use images of Cityscapes with clear weather, light
+fog, and medium fog, leading to
+(
+3
+2
+)
+=3 per image × 550
+= 1650 pairs. The preference is determined as follows:
+clear weather is better than light fog, which in turn is
+better than medium fog. In each HIT, we include five
+image pairs, of which three are the query pairs and two
+are pairs with known answers. At an initial step, the
+left-right order of every image pair is randomly swapped
+and the order of the five pairs are randomly shuffled,
+in order to avoid annotations based on memorized pat-
+terns.
+The overall quality of the user survey is shown in
+Figure 9, which makes clear that the workers have done
+a decent job: for 83% of the HITs, both known-answer
+questions are answered correctly. We only use results
+from these HITs for our analysis.
+Agreement. We study first the consistency of choices
+between annotators; all annotators would be in high
+agreement if the advantage of one method is obvious
+and consistent. On the contrast, high disagreement sig-
+nals difficulty in making choices, suggesting that neither
+method has dominant advantages. To measure this, we
+employ the coefficient of agreement [35]:
+µ =
+2?(
+m
+2
+)(
+t
+2
+) ? 1, with ? = t?
+i=1
+t?
+i=1
+(
+aij
+2
+)
+, (8)
+where aij is the number of times that method i is cho-
+sen over method j, m = 3 is the number of annotators
+for each image, and t = 4 is the number of options with
+regard to dehazing, including no dehazing. The maxi-
+mum of µ is 1 for complete agreement and the minimum
+is ?1/3 for complete disagreement. The agreement co-
+efficients for all the combinations of image pairs are
+shown in Table 7. The relatively low values in the table
+suggest that no single method has dominant advantage
+over another.
+Semantic Foggy Scene Understanding with Synthetic Data 13
+(a) Foggy (b) DCP (c) MSCNN (d) Non-local
+Fig. 8 Example images from Foggy Driving and their dehazed versions using three state-of-the-art dehazing methods that
+are examined in our experiments
+0 10 20 30 40 50 60 70 80
+Percentage (%)
+0
+50
+100
+C
+or
+re
+ct
+ne
+ss
+ (
+%
+)
+Fig. 9 Quality of our user survey on AMTurk, computed
+using known-answer questions
+Foggy vs. DCP 0.155
+Foggy vs. MSCNN 0.115
+Foggy vs. Non-local 0.010
+DCP vs. MSCNN 0.182
+DCP vs. Non-local 0.036
+MSCNN vs. Non-local 0.182
+Mean 0.113
+Table 7 Agreement coefficients for all pairwise combinations
+of the four dehazing options
+Ranking and Correlation. Figure 10 provides a com-
+plete overview of the subjective and objective compar-
+isons of the four examined dehazing options on Foggy
+Cityscapes-refined and Foggy Driving. In the middle row
+of Figure 10, we present the ranking of the four de-
+hazing options with respect to semantic segmentation
+performance: for each image in the dataset, the option
+that leads to the highest mean IoU score gets a vote.
+The rankings that are induced by the results of our sur-
+vey and the performance of the respective segmentation
+models for each image are used to compute a correlation
+score. In this work, we use the Kendall ? distance [34]
+to measure the degree of correlation of the two rank-
+ings, with ?1 ? ? ? 1, where a value of 1 implies per-
+fect agreement, ?1 implies perfect disagreement, and 0
+implies zero correlation. In this way, we obtain distribu-
+tions of ? over the entire datasets, which are presented
+in the bottom row of Figure 10.
+Based on the results of Figure 10, it is clear that
+none of the three examined methods for image de-
+hazing improves reliably the subjective clarity of syn-
+thetic foggy images from Foggy Cityscapes or real foggy
+images from Foggy Driving, as the foggy versions are
+ranked first for the largest percentage of images in
+both datasets. When a large training dataset such as
+Foggy Cityscapes is available, an end-to-end training
+can adapt the semantic segmentation model very well
+to the new domain of foggy images. Going to the in-
+termediate results by dehazing methods adds one more
+layer to the whole pipeline of semantic foggy scene un-
+derstanding, and thus introduces an additional source
+of error. This is more pronounced when the dehazing
+methods indeed do not improve the visual quality for
+the images of interest.
+The dehazing method which is ranked highest in our
+subjective evaluation is DCP. Moreover, this method
+is ranked first with respect to objective evaluation in
+most images of both datasets, beating the model that
+is fine-tuned on foggy images by a small margin. This
+result does not contradict the overall mean IoU re-
+sults for Foggy Driving that are reported in Table 3,
+as the resolution of images in Foggy Driving is not
+constant. We hypothesize that this improvement for
+DCP when switching from subjective to objective eval-
+uation is partly due to the robustness of CNN archi-
+tectures, such as DCN, to visual artifacts, allowing the
+model that is fine-tuned on the dehazed images to place
+greater importance on the appropriate features. On the
+other hand, human subjects may be distracted by ar-
+tifacts introduced by DCP or other dehazing methods
+(cf. Figure 8), and provide a comparatively lower assess-
+ment of the visual clarity of the dehazed image. In ad-
+dition, as we have previously mentioned in Section 5.1,
+DCP tends to be more aggressive in removing fog from
+an image, which helps improve contrast in parts of the
+14 Christos Sakaridis et al.
+S
+u
+b
+je
+ct
+iv
+e
+0
+10
+20
+25
+30
+Pe
+rc
+en
+ta
+ge
+Fo
+gg
+y
+D
+C
+P
+M
+SC
+N
+N
+N
+on
+Lo
+ca
+l
+0
+20
+40
+50
+60
+80
+100
+Pe
+rc
+en
+ta
+ge
+D
+C
+P
+M
+SC
+N
+N
+N
+on
+Lo
+ca
+l
+M
+SC
+N
+N
+N
+on
+Lo
+ca
+l
+N
+on
+Lo
+ca
+l
+Fo
+gg
+y
+Fo
+gg
+y
+Fo
+gg
+y
+D
+C
+P
+D
+C
+P
+M
+SC
+N
+N
+0
+10
+20
+25
+30
+P
+er
+ce
+nt
+ag
+e
+Fo
+gg
+y
+D
+C
+P
+M
+S
+C
+N
+N
+N
+on
+Lo
+ca
+l
+0
+20
+40
+50
+60
+80
+100
+P
+er
+ce
+nt
+ag
+e
+D
+C
+P
+M
+S
+C
+N
+N
+N
+on
+Lo
+ca
+l
+M
+S
+C
+N
+N
+N
+on
+Lo
+ca
+l
+N
+on
+Lo
+ca
+l
+F
+og
+gy
+F
+og
+gy
+F
+og
+gy
+D
+C
+P
+D
+C
+P
+M
+S
+C
+N
+N
+O
+b
+je
+ct
+iv
+e
+0
+10
+20
+25
+30
+Pe
+rc
+en
+ta
+ge
+Fo
+gg
+y
+D
+C
+P
+M
+SC
+N
+N
+N
+on
+Lo
+ca
+l
+0
+20
+40
+50
+60
+80
+100
+P
+er
+ce
+nt
+ag
+e
+D
+C
+P
+M
+S
+C
+N
+N
+N
+on
+Lo
+ca
+l
+M
+S
+C
+N
+N
+N
+on
+Lo
+ca
+l
+N
+on
+Lo
+ca
+l
+Fo
+gg
+y
+Fo
+gg
+y
+Fo
+gg
+y
+D
+C
+P
+D
+C
+P
+M
+S
+C
+N
+N
+0
+10
+20
+25
+30
+Pe
+rc
+en
+ta
+ge
+Fo
+gg
+y
+D
+C
+P
+M
+SC
+N
+N
+N
+on
+Lo
+ca
+l
+0
+20
+40
+50
+60
+80
+100
+Pe
+rc
+en
+ta
+ge
+D
+C
+P
+M
+SC
+N
+N
+N
+on
+Lo
+ca
+l
+M
+SC
+N
+N
+N
+on
+Lo
+ca
+l
+N
+on
+Lo
+ca
+l
+Fo
+gg
+y
+Fo
+gg
+y
+Fo
+gg
+y
+D
+C
+P
+D
+C
+P
+M
+SC
+N
+N
+C
+o
+rr
+el
+a
+ti
+o
+n
+-1 -0.5 0 0.5 1
+ distribution
+0
+5
+10
+15
+Pe
+rc
+en
+ta
+ge
+-1 -0.5 0 0.5 1
+ distribution
+0
+5
+10
+15
+20
+25
+Pe
+rc
+en
+ta
+ge
+(a) Foggy Cityscapes (b) Foggy Driving
+Fig. 10 Top: Results of our survey on comparing visual quality of foggy images (“Foggy”) and their dehazed versions using
+“DCP” [27], “MSCNN” [47], and “NonLocal” [5]. We show the percentage of images for which each version is annotated as
+the best over all versions on the left, and the respective percentages for pairwise comparisons of the four versions on the right.
+Middle: Similar to top, only that instead of the annotators’ votes we use the objective mean IoU scores of the fine-tuned DCN
+models that correspond to each of the four versions. For Foggy Cityscapes-refined, we restrict our evaluation on the 52 images
+of the validation set, which have not been presented to the models during training. Bottom: Distribution of the correlation of
+the four versions’ rankings on each image as measured by the survey and the mean IoU scores, taken over the entire datasets
+image which were originally concealed by fog and ap-
+parently facilitates semantic segmentation with CNN
+models to a greater extent. As a final note, our subjec-
+tive and objective evaluation criteria do exhibit a small
+positive correlation, based on the left-skewed distribu-
+tions of the ? distance in the bottom row of Figure 10,
+particularly for the more important, real-world case of
+Foggy Driving.
+5.3 Object Detection
+For our experiment on object detection in foggy scenes,
+we select the modern Fast R-CNN [23] as the architec-
+ture of the evaluated models. We prefer Fast R-CNN
+over more recent approaches such as Faster R-CNN [46]
+because the former involves a simpler training pipeline,
+making fine-tuning to foggy conditions straightforward.
+Consequently, we do not learn the front-end of the ob-
+ject detection pipeline which involves generation of ob-
+ject proposals; rather, we use multiscale combinatorial
+grouping [3] for this task.
+In order to ensure a fair comparison, we first ob-
+tain a baseline Fast R-CNN model for the original
+Cityscapes dataset, similarly to the preceding seman-
+tic segmentation experiments. Since no such model is
+publicly available, we begin with the model released by
+the author of [23] which has been trained on PASCAL
+VOC 2007 [18] and fine-tune it on the union of the
+training and validation sets of Cityscapes which com-
+prises 3475 images. Fine-tuning through all layers is run
+with the same configurations as in [23], except that we
+use the “poly” learning rate policy with a base learning
+rate of 2× 10?4 and a power parameter of 0.9, with 7k
+iterations (4 epochs).
+This baseline model that has been trained on the
+real Cityscapes with clear weather serves as initializa-
+tion for fine-tuning on our synthetic images from Foggy
+Cityscapes-refined. To this end, we use all 550 training
+and validation images of Foggy Cityscapes-refined and
+fine-tune with the same settings as before, only that
+the base learning rate is set to 10?4 and we run 1650
+iterations (6 epochs).
+We experiment with two values of the attenuation
+coefficient ? for Foggy Cityscapes-refined and present
+comparative performance on the 33 finely annotated
+images of Foggy Driving in Table 8. No dehazing is in-
+volved in this experiment. We concentrate on the classes
+car and person for evaluation, since they constitute the
+intersection of the set of frequent classes in Foggy Driv-
+ing and the set of annotated classes with distinct in-
+stances. Individual average precision (AP) scores for
+car and person are reported, as well as mean scores
+over these two classes (“mean frequent”) and over the
+complete set of 8 classes occurring in instances (“mean
+all”). For completeness, we note that the original VOC
+2007 model of [23] exhibits an AP of 2.1% for car and
+1.9% for person.
+Semantic Foggy Scene Understanding with Synthetic Data 15
+Fig. 11 Qualitative results for detection of cars on Foggy Driving. From left to right: ground truth annotation, baseline Fast
+R-CNN model trained on original Cityscapes, and our model FT-0.005 fine-tuned on Foggy Cityscapes-refined with light fog.
+This figure is seen better when zoomed in on a screen
+Table 8 Comparison of baseline Fast R-CNN model trained
+on Cityscapes (“W/o FT”) against fine-tuned versions of it on
+Foggy Cityscapes-refined. “FT” stands for using fine-tuning
+and “W/o FT” for not using fine-tuning. AP (%) is used to
+report results
+mean all car person mean frequent
+W/o FT 11.1 30.5 10.3 20.4
+FT ? = 0.01 11.1 34.6 10.0 22.3
+FT ? = 0.005 11.7 35.3 10.3 22.8
+Both of our fine-tuned models outperform the base-
+line model by a significant margin for car. At the same
+time, they are on a par with the baseline model for
+person. The overall winner is the model that has been
+fine-tuned on light fog, which we refer to as FT-0.005 :
+it outperforms the baseline model by 2.4% on average
+on the two frequent classes and it is also slightly better
+when taking all 8 classes into account.
+We provide a visual comparison of FT-0.005 and
+the baseline model for car detection on example images
+from Foggy Driving in Figure 11. Note the ability of our
+model to detect distant cars, such as the two cars in the
+image of the second row which are moving on the left
+side of the road and are visible from their front part.
+These two cars are both missed by the baseline model.
+6 Semi-supervised Learning with Synthetic Fog
+While standard supervised learning can improve the
+performance of SFSU using our synthetic fog, the
+paradigm still needs manual annotations for corre-
+sponding weather-clear images. In this section, we ex-
+tend the learning to a new paradigm which is also able
+16 Christos Sakaridis et al.
+(a) foggy image (b) ground truth (c) result by [39] (d) result by our SSL
+Void Road Sidewalk Building Wall Fence Pole Traffic Light Traffic Sign Vegetation
+Terrain Sky Person Rider Car Truck Bus Train Motorcycle Bicycle
+Fig. 12 Qualitative results for semantic segmentation on Foggy Driving, both for coarsely annotated images (top three rows)
+and finely annotated images (bottom three rows)
+to acquire knowledge from unlabeled pairs of foggy im-
+ages and weather-clear images. In particular, we train
+a semantic segmentation model on weather-clear im-
+ages using the standard supervised learning paradigm,
+and apply the model to an even larger set of clear
+but unlabeled images (e.g. our 20000 unlabeled images
+Semantic Foggy Scene Understanding with Synthetic Data 17
+of Foggy Cityscapes-coarse) to generate the class re-
+sponses. Since we have created a foggy version for the
+unlabeled dataset, these class responses can then be
+used to supervise the training of models for SFSU.
+This learning is inspired by the stream of work on
+model distillation [25,29] or imitation [10,15]. [10,15,29]
+transfer supervision from sophisticated models to sim-
+pler models for efficiency, and [25] transfers super-
+vision from the domain of images to other domains
+such as depth maps. In our case, supervision is trans-
+ferred from clear weather to foggy weather. The un-
+derpinnings of our proposed approach are the follow-
+ing: 1) in clear weather, objects are easier to recog-
+nize than in foggy weather, thus models trained on im-
+ages with clear weather in principle generalize better to
+new images of the same condition than those trained on
+foggy images; and 2) since the synthetic foggy images
+and their weather-clear counterparts depict exactly the
+same scene, recognition results should also be the same
+for both images ideally.
+We formulate the semi-supervised learning (SSL)
+for semantic segmentation as follows. Let us denote
+a weather-clear image by x, the corresponding foggy
+one by x?, and the corresponding human annotation
+by y. Then, the training data consist of both labeled
+data Dl = {(xi,x?i,yi)}li=1 and unlabeled data Du =
+{(xj ,x?j)}
+l+u
+j=l+1, where y
+m,n
+i ? {1, ...,K} is the label
+of pixel (m,n), and K is the total number of classes.
+l is the number of labeled training images, and u is
+the number of unlabeled training images. The aim is
+to learn a mapping function ?? : X ? 7? Y from Dl and
+Du. For our case, Dl consists of the 498 high-quality
+foggy images in the training set of Foggy Cityscapes-
+refined which have human annotations with fine details,
+and Du consists of the additional 20000 foggy images in
+Foggy Cityscapes-coarse which do not have fine human
+annotations.
+Since Du does not have class labels, we use the idea
+of supervision transfer to generate the supervisory la-
+bels for all the images therein. To this end, we first learn
+a mapping function ? : X 7? Y with Dl and then obtain
+the labels y?j = ?(xi) for xj and x
+?
+j , ?j ? {l+1, ..., l+u}.
+Du is then upgraded to D?u = {(xj ,x?j , y?j)}
+l+u
+j=l+1. The
+proposed scheme for training semantic segmentation
+models for foggy images x? is to learn a mapping func-
+tion ?? so that human annotations y and the transferred
+labels y? are both taken into account:
+min
+??
+l?
+i=1
+L(?(x?i),yi) + ?
+l+u?
+j=l+1
+L(?(x?j), y?j), (9)
+where L(., .) is the Categorical Cross Entropy Loss func-
+tion for classification, and ? = lu ×w is a parameter for
+balancing the contribution of the two terms, serving as
+the relative weight of each unlabeled image compared
+to each labeled one. We empirically set w = 5 in our
+experiment, but an optimal value can be obtained via
+cross-validation if needed. In our implementation, we
+approximate the optimization of (9) by mixing images
+from Dl and D?u in a proportion of 1 : ? and feeding the
+stream of hybrid data to a CNN for standard supervised
+training.
+We select Refinenet [39] as the CNN model for se-
+mantic segmentation, which is a more recent and bet-
+ter performing method than DCN [63] that is used in
+Section 5. The reason is that Refinenet had not been
+published yet at the time that we were conducting the
+experiments of Section 5. We would like to note that the
+state-of-the-art PSPNet [65], which has been trained on
+the Cityscapes dataset similarly to the original version
+of Refinenet that we use as our baseline, achieved a
+mean IoU of only 24.0% on Foggy Driving in our initial
+experiments.
+We use mean IoU for evaluation, similarly to Sec-
+tion 5. We compare the performance of three trained
+models: 1) original Refinenet [39] trained on Cityscapes,
+2) Refinenet fine-tuned on Dl, and 3) Refinenet fine-
+tuned on Dl and D?u. The mean IoU scores of the
+three models on Foggy Driving are 44.3%, 46.3%, and
+49.7% respectively. The 2% improvement of 2) over 1)
+again confirms the conclusion we draw in Section 5 that
+fine-tuning with our synthetic fog can indeed improve
+the performance of semantic foggy scene understand-
+ing. The 3.4% improvement of 3) over 2) validates the
+efficacy of the SSL paradigm. Figure 12 shows visual
+results of 1) and 3), along with the foggy images and
+human annotations. The re-trained model with our SSL
+learning paradigm can better segment certain parts of
+the images which are misclassified by the original Re-
+finenet. For instance, the pedestrian in the first exam-
+ple, the tram in the fourth one, and the sidewalk in the
+last one.
+Both the quantitative and qualitative results sug-
+gest that our approach is able to alleviate the need for
+collecting large-scale training data for semantic under-
+standing of foggy scenes, by training with the annota-
+tions that are already available for weather-clear images
+and the generated foggy images directly and by trans-
+ferring supervision from weather-clear images to foggy
+images of the same scenes.
+7 Conclusion
+In this paper, we have demonstrated the benefit of syn-
+thetic data that are based on real images for seman-
+tic understanding of foggy scenes. Two foggy datasets
+18 Christos Sakaridis et al.
+have been constructed to this end: the synthetic Foggy
+Cityscapes dataset which derives from Cityscapes, and
+the real-world Foggy Driving dataset, both with dense
+pixel-level semantic annotations for 19 classes and
+bounding box annotations for objects belonging to 8
+classes. We have shown that Foggy Cityscapes can be
+used to boost performance of state-of-the-art CNN
+models for semantic segmentation and object detection
+on the challenging real foggy scenes of Foggy Driving,
+both in a usual supervised setting and in a novel, semi-
+supervised setting. Last but not least, we have exposed
+through detailed experiments the fact that image de-
+hazing faces difficulties in working out of the box on
+real outdoor foggy data and thus is marginally help-
+ful for SFSU. In the future, we would like to combine
+dehazing and semantic understanding of foggy scenes
+into a unified, end-to-end learned pipeline, which can
+also leverage the type of synthetic foggy data we have
+introduced.
+Acknowledgements The authors would like to thank Kevis
+Maninis for useful discussions. This work is funded by Toyota
+Motor Europe via the research project TRACE-Zu?rich.
+References
+1. Federal Meteorological Handbook No. 1: Surface Weather
+Observations and Reports. U.S. Department of Com-
+merce / National Oceanic and Atmospheric Administra-
+tion (2005)
+2. Achanta, R., Shaji, A., Smith, K., Lucchi, A., Fua, P.,
+Su?sstrunk, S.: SLIC superpixels compared to state-of-
+the-art superpixel methods. IEEE Transactions on Pat-
+tern Analysis and Machine Intelligence 34(11), 2274–
+2282 (2012)
+3. Arbela?ez, P., Pont-Tuset, J., Barron, J., Marques, F.,
+Malik, J.: Multiscale combinatorial grouping. In: IEEE
+Conference on Computer Vision and Pattern Recognition
+(CVPR) (2014)
+4. Bar Hillel, A., Lerner, R., Levi, D., Raz, G.: Recent
+progress in road and lane detection: A survey. Mach.
+Vision Appl. 25(3), 727–745 (2014)
+5. Berman, D., Treibitz, T., Avidan, S.: Non-local image
+dehazing. In: IEEE Conference on Computer Vision and
+Pattern Recognition (CVPR) (2016)
+6. Bronte, S., Bergasa, L.M., Alcantarilla, P.F.: Fog detec-
+tion system based on computer vision techniques. In: In-
+ternational IEEE Conference on Intelligent Transporta-
+tion Systems (2009)
+7. Bronte, S., Bergasa, L.M., Alcantarilla, P.F.: Fog detec-
+tion system based on computer vision techniques. In: In-
+ternational IEEE Conference on Intelligent Transporta-
+tion Systems, pp. 1–6 (2009)
+8. Brostow, G.J., Shotton, J., Fauqueur, J., Cipolla, R.: Seg-
+mentation and recognition using structure from motion
+point clouds. In: ECCV, pp. 44–57 (2008)
+9. Buch, N., Velastin, S.A., Orwell, J.: A review of com-
+puter vision techniques for the analysis of urban traffic.
+IEEE Transactions on Intelligent Transportation Systems
+12(3), 920–939 (2011)
+10. BuciluC, C., Caruana, R., Niculescu-Mizil, A.: Model
+compression. In: International Conference on Knowledge
+Discovery and Data Mining (SIGKDD) (2006)
+11. Camplani, M., Salgado, L.: Efficient spatio-temporal hole
+filling strategy for Kinect depth maps. In: Proc. SPIE
+(2012)
+12. Colomb, M., Hirech, K., Andre?, P., Boreux, J.J., Lacote,
+P., Dufour, J.: An innovative artificial fog production de-
+vice improved in the European project “FOG”. Atmo-
+spheric Research 87(3), 242–251 (2008)
+13. Comaniciu, D., Meer, P.: Mean shift: a robust approach
+toward feature space analysis. IEEE Transactions on Pat-
+tern Analysis and Machine Intelligence 24(5), 603–619
+(2002)
+14. Cordts, M., Omran, M., Ramos, S., Rehfeld, T., En-
+zweiler, M., Benenson, R., Franke, U., Roth, S., Schiele,
+B.: The Cityscapes dataset for semantic urban scene un-
+derstanding. In: IEEE Conference on Computer Vision
+and Pattern Recognition (CVPR) (2016)
+15. Dai, D., Kroeger, T., Timofte, R., Van Gool, L.: Metric
+imitation by manifold transfer for efficient vision appli-
+cations. In: IEEE Conference on Computer Vision and
+Pattern Recognition (CVPR) (2015)
+16. Dai, D., Yang, W.: Satellite image classification via two-
+layer sparse coding with biased image representation.
+IEEE Geoscience and Remote Sensing Letters 8(1), 173–
+176 (2011)
+17. Dosovitskiy, A., Fischery, P., Ilg, E., Ha?usser, P., Hazir-
+bas, C., Golkov, V., v. d. Smagt, P., Cremers, D., Brox,
+T.: FlowNet: Learning optical flow with convolutional
+networks. In: IEEE International Conference on Com-
+puter Vision (ICCV) (2015)
+18. Everingham, M., Van Gool, L., Williams, C.K., Winn, J.,
+Zisserman, A.: The PASCAL visual object classes (VOC)
+challenge. IJCV 88(2), 303–338 (2010)
+19. Fattal, R.: Single image dehazing. ACM transactions on
+graphics (TOG) 27(3), 72 (2008)
+20. Gallen, R., Cord, A., Hautie?re, N., Aubert, D.: Towards
+night fog detection through use of in-vehicle multipurpose
+cameras. In: IEEE Intelligent Vehicles Symposium (IV)
+(2011)
+21. Gallen, R., Cord, A., Hautie?re, N., Dumont, E?., Aubert,
+D.: Nighttime visibility analysis and estimation method
+in the presence of dense fog. IEEE Transactions on In-
+telligent Transportation Systems 16(1), 310–320 (2015)
+22. Geiger, A., Lenz, P., Urtasun, R.: Are we ready for au-
+tonomous driving? The KITTI vision benchmark suite.
+In: IEEE Conference on Computer Vision and Pattern
+Recognition (CVPR) (2012)
+23. Girshick, R.: Fast R-CNN. In: International Conference
+on Computer Vision (ICCV) (2015)
+24. Gupta, A., Vedaldi, A., Zisserman, A.: Synthetic data for
+text localisation in natural images. In: IEEE Conference
+on Computer Vision and Pattern Recognition (2016)
+25. Gupta, S., Hoffman, J., Malik, J.: Cross modal distilla-
+tion for supervision transfer. In: The IEEE Conference
+on Computer Vision and Pattern Recognition (CVPR)
+(2016)
+26. Hautie?re, N., Tarel, J.P., Lavenant, J., Aubert, D.: Auto-
+matic fog detection and estimation of visibility distance
+through use of an onboard camera. Machine Vision and
+Applications 17(1), 8–20 (2006)
+27. He, K., Sun, J., Tang, X.: Single image haze removal using
+dark channel prior. IEEE Transactions on Pattern Anal-
+ysis and Machine Intelligence 33(12), 2341–2353 (2011)
+28. He, K., Sun, J., Tang, X.: Guided image filtering. IEEE
+Transactions on Pattern Analysis and Machine Intelli-
+gence 35(6), 1397–1409 (2013)
+Semantic Foggy Scene Understanding with Synthetic Data 19
+29. Hinton, G., Vinyals, O., Dean, J.: Distilling the
+knowledge in a neural network. arXiv preprint
+arXiv:1503.02531 (2015)
+30. Hirschmuller, H.: Stereo processing by semiglobal match-
+ing and mutual information. IEEE Transactions on Pat-
+tern Analysis and Machine Intelligence 30(2), 328–341
+(2008)
+31. Janai, J., Gu?ney, F., Behl, A., Geiger, A.: Computer
+vision for autonomous vehicles: Problems, datasets and
+state-of-the-art. arXiv preprint arXiv:1704.05519 (2017)
+32. Jensen, M.B., Philipsen, M.P., Møgelmose, A., Moes-
+lund, T.B., Trivedi, M.M.: Vision for looking at traffic
+lights: Issues, survey, and perspectives. IEEE Transac-
+tions on Intelligent Transportation Systems 17(7), 1800–
+1815 (2016)
+33. Johnson-Roberson, M., Barto, C., Mehta, R., Sridhar,
+S.N., Rosaen, K., Vasudevan, R.: Driving in the matrix:
+Can virtual worlds replace human-generated annotations
+for real world tasks? In: IEEE International Conference
+on Robotics and Automation (2017)
+34. Kendall, M.G.: A new measure of rank correlation.
+Biometrika 30(1/2), 81–93 (1938)
+35. Kendall, M.G., Smith, B.B.: On the method of paired
+comparisons. Biometrika 31(3/4), 324–345 (1940)
+36. Koschmieder, H.: Theorie der horizontalen Sichtweite.
+Beitrage zur Physik der freien Atmospha?re (1924)
+37. Levin, A., Lischinski, D., Weiss, Y.: Colorization using
+optimization. In: ACM SIGGRAPH (2004)
+38. Li, Y., Tan, R.T., Brown, M.S.: Nighttime haze removal
+with glow and multiple light colors. In: 2015 IEEE In-
+ternational Conference on Computer Vision (ICCV), pp.
+226–234 (2015)
+39. Lin, G., Milan, A., Shen, C., Reid, I.: Refinenet: Multi-
+path refinement networks with identity mappings for
+high-resolution semantic segmentation. In: IEEE Con-
+ference on Computer Vision and Pattern Recognition
+(CVPR) (2017)
+40. Miclea, R.C., Silea, I.: Visibility detection in foggy envi-
+ronment. In: International Conference on Control Sys-
+tems and Computer Science (2015)
+41. Narasimhan, S.G., Nayar, S.K.: Vision and the atmo-
+sphere. Int. J. Comput. Vision 48(3), 233–254 (2002)
+42. Narasimhan, S.G., Nayar, S.K.: Contrast restoration of
+weather degraded images. IEEE Trans. Pattern Anal.
+Mach. Intell. 25(6), 713–724 (2003)
+43. Nishino, K., Kratz, L., Lombardi, S.: Bayesian defogging.
+International Journal of Computer Vision 98(3), 263–278
+(2012)
+44. Pavlic?, M., Belzner, H., Rigoll, G., Ilic?, S.: Image based
+fog detection in vehicles. In: 2012 IEEE Intelligent Vehi-
+cles Symposium (2012)
+45. Pavlic?, M., Rigoll, G., Ilic?, S.: Classification of images
+in fog and fog-free scenes for use in vehicles. In: IEEE
+Intelligent Vehicles Symposium (IV) (2013)
+46. Ren, S., He, K., Girshick, R., Sun, J.: Faster R-CNN:
+Towards real-time object detection with region proposal
+networks. In: Advances in Neural Information Processing
+Systems, pp. 91–99 (2015)
+47. Ren, W., Liu, S., Zhang, H., Pan, J., Cao, X., Yang, M.H.:
+Single image dehazing via multi-scale convolutional neu-
+ral networks. In: European Conference on Computer Vi-
+sion (2016)
+48. Richter, S.R., Vineet, V., Roth, S., Koltun, V.: Play-
+ing for data: Ground truth from computer games. In:
+European Conference on Computer Vision, pp. 102–118.
+Springer (2016)
+49. Ros, G., Sellart, L., Materzynska, J., Vazquez, D., Lopez,
+A.M.: The SYNTHIA dataset: A large collection of syn-
+thetic images for semantic segmentation of urban scenes.
+In: The IEEE Conference on Computer Vision and Pat-
+tern Recognition (CVPR), pp. 3234–3243 (2016)
+50. Rubinstein, M., Gutierrez, D., Sorkine, O., Shamir,
+A.: A comparative study of image retargeting. ACM
+Trans. Graph. 29(6), 160:1–160:10 (2010). DOI 10.1145/
+1882261.1866186. URL http://doi.acm.org/10.1145/
+1882261.1866186
+51. Russakovsky, O., Deng, J., Su, H., Krause, J., Satheesh,
+S., Ma, S., Huang, Z., Karpathy, A., Khosla, A., Bern-
+stein, M., et al.: Imagenet large scale visual recogni-
+tion challenge. International Journal of Computer Vision
+115(3), 211–252 (2015)
+52. Shen, J., Cheung, S.C.S.: Layer depth denoising and com-
+pletion for structured-light RGB-D cameras. In: IEEE
+Conference on Computer Vision and Pattern Recognition
+(CVPR) (2013)
+53. Silberman, N., Hoiem, D., Kohli, P., Fergus, R.: Indoor
+segmentation and support inference from RGBD images.
+In: ECCV (2012)
+54. Spinneker, R., Koch, C., Park, S.B., Yoon, J.J.: Fast fog
+detection for camera based advanced driver assistance
+systems. In: International IEEE Conference on Intelligent
+Transportation Systems (ITSC) (2014)
+55. Tan, R.T.: Visibility in bad weather from a single image.
+In: IEEE Conference on Computer Vision and Pattern
+Recognition (CVPR) (2008)
+56. Tang, K., Yang, J., Wang, J.: Investigating haze-relevant
+features in a learning framework for image dehazing. In:
+2014 IEEE Conference on Computer Vision and Pattern
+Recognition, pp. 2995–3002 (2014)
+57. Tarel, J.P., Hautie?re, N.: Fast visibility restoration from
+a single color or gray level image. In: IEEE International
+Conference on Computer Vision (2009)
+58. Tarel, J.P., Hautie?re, N., Caraffa, L., Cord, A., Halmaoui,
+H., Gruyer, D.: Vision enhancement in homogeneous and
+heterogeneous fog. IEEE Intelligent Transportation Sys-
+tems Magazine 4(2), 6–20 (2012)
+59. Tarel, J.P., Hautie?re, N., Cord, A., Gruyer, D., Halmaoui,
+H.: Improved visibility of road scene images under het-
+erogeneous fog. In: IEEE Intelligent Vehicles Symposium,
+pp. 478–485 (2010)
+60. Va?zquez, D., Lopez, A.M., Marin, J., Ponsa, D., Geron-
+imo, D.: Virtual and real world adaptation for pedestrian
+detection. IEEE Transactions on Pattern Analysis and
+Machine Intelligence 36(4), 797–809 (2014)
+61. Wang, L., Jin, H., Yang, R., Gong, M.: Stereoscopic in-
+painting: Joint color and depth completion from stereo
+images. In: IEEE Conference on Computer Vision and
+Pattern Recognition (CVPR) (2008)
+62. Wang, Y.K., Fan, C.T.: Single image defogging by mul-
+tiscale depth fusion. IEEE Transactions on Image Pro-
+cessing 23(11), 4826–4837 (2014)
+63. Yu, F., Koltun, V.: Multi-scale context aggregation by
+dilated convolutions. In: ICLR (2016)
+64. Zhang, J., Cao, Y., Wang, Z.: Nighttime haze removal
+based on a new imaging model. In: IEEE International
+Conference on Image Processing (ICIP), pp. 4557–4561
+(2014)
+65. Zhao, H., Shi, J., Qi, X., Wang, X., Jia, J.: Pyramid scene
+parsing network. In: IEEE Conference on Computer Vi-
+sion and Pattern Recognition (CVPR) (2017)

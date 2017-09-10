@@ -1,0 +1,2599 @@
+Probabilistic Relation Induction in Vector Space Embeddings
+Zied Bouraoui
+Cardiff University, UK
+BouraouiZ@Cardiff.ac.uk
+Shoaib Jameel
+Cardiff University, UK
+JameelS1@Cardiff.ac.uk
+Steven Schockaert
+Cardiff University, UK
+SchockaertS1@Cardiff.ac.uk
+Abstract
+Word embeddings have been found to capture a surprisingly
+rich amount of syntactic and semantic knowledge. However,
+it is not yet sufficiently well-understood how the relational
+knowledge that is implicitly encoded in word embeddings can
+be extracted in a reliable way. In this paper, we propose two
+probabilistic models to address this issue. The first model is
+based on the common relations-as-translations view, but is
+cast in a probabilistic setting. Our second model is based on
+the much weaker assumption that there is a linear relationship
+between the vector representations of related words. Com-
+pared to existing approaches, our models lead to more accu-
+rate predictions, and they are more explicit about what can
+and cannot be extracted from the word embedding.
+Introduction
+A wide variety of methods have been proposed for represent-
+ing words in low-dimensional vector spaces (Deerwester et
+al. 1990; Turney and Pantel 2010; Mikolov, Yih, and Zweig
+2013; Pennington, Socher, and Manning 2014). While the
+primary motivation for most of these works has been to
+model similarity, recently there has been an increasing in-
+terest in the use of such vector space embeddings for learn-
+ing other types of lexical relations. In particular, it has been
+observed that many syntactic and semantic relationships can
+be modelled as vector translations. For instance, there may
+be a vector r that models the ‘captial of’ relation, such that
+e.g. pparis ? pfrance ? ptokyo ? pjapan ? ... ? r, where pw
+denotes the representation of word w.
+Although this remarkable property of word embeddings
+is now well-established, so far it has mainly been used as
+a tool for evaluating the quality of word embedding models
+(Pennington, Socher, and Manning 2014; Vylomova et al.
+2016). In particular, it remains unclear to what extent, or in
+what way, vector space embeddings can be used for learning
+relations in tasks such as knowledge base completion (Bor-
+des et al. 2013; West et al. 2014). To address this question,
+we focus on the following relation induction problem: given
+a set {(s1, t1), ..., (sn, tn)} of entity pairs that are related in
+a given way, identify new entity pairs (s, t) that are likely to
+be related in the same way. Throughout the paper, we will
+refer to s and t as the source and target word respectively.
+Copyright c© 2018, Association for the Advancement of Artificial
+Intelligence (www.aaai.org). All rights reserved.
+The context of knowledge base completion affects the re-
+lation induction task in a number of ways. First, it means
+that we need a model that can produce faithful confidence
+scores. This is important because adding incorrect infor-
+mation to a deductive system can have far-reaching conse-
+quences. Having faithful confidence scores means that we
+can repair any inconsistencies that arise in an informed way,
+and that we can qualify inference results that rely on auto-
+matically learned pieces of knowledge. Second, the number
+of training pairs n is typically quite small, which means that
+common approaches, such as training a support vector ma-
+chine (SVM) on the set of vector differences ti ? si (Vylo-
+mova et al. 2016), may not be an ideal solution.
+In this paper, we propose a probabilistic model that relies
+on two main ideas. First, it assumes that the sets of valid
+source and target words can be modeled as Gaussians. This
+prevents the model from identifying pairs (s, t) in which s
+or t are not of the correct type (e.g. identifying the capital of
+something that is not a country), which addresses an impor-
+tant limitation of pure translation based models. Second, it
+assumes that the set of translations t?swhich correspond to
+valid word pairs can also be modelled as a Gaussian. By con-
+sidering a probability distribution over possible translations,
+rather than a single translation, the model is intuitively able
+to ignore features of word meaning that are irrelevant for the
+considered relation and to appropriately weight the remain-
+ing features. We also consider a variant of our model that is
+not based on translations, and merely assumes that there is a
+linear mapping between source and target words, which we
+formalize using Bayesian linear regression.
+Related Work
+Predicting Relations
+At least three different types of approaches have been stud-
+ied for predicting relations that are missing from a given
+knowledge base. First, there is a large body of work on re-
+lation extraction from text. Among others, in recent years a
+number of approaches have been developed that are specif-
+ically targeted at completing knowledge bases. These meth-
+ods essentially learn how to extract the considered relations
+by using their known instances as a form of distant supervi-
+sion (Mintz et al. 2009; Riedel, Yao, and McCallum 2010;
+Surdeanu et al. 2012).
+ar
+X
+iv
+:1
+70
+8.
+06
+26
+6v
+1 
+ [
+cs
+.A
+I]
+  2
+1 
+A
+ug
+ 2
+01
+7
+The second type of approaches rely on modeling statisti-
+cal dependencies among the known instances of the consid-
+ered relations, e.g. if we already know that “person A works
+for company B” and that “company B is based in country
+C”, we can plausibly derive that “A lives in C”. To exploit
+such dependencies, some approaches rely on learning latent
+representations (Kok and Domingos 2007; Speer, Havasi,
+and Lieberman 2008; Nickel, Tresp, and Kriegel 2012;
+Riedel et al. 2013; Bordes et al. 2013; Wang et al. 2014;
+Yang et al. 2015), while others learn probabilistic rules
+(Schoenmackers et al. 2010; Lao, Mitchell, and Cohen 2011;
+Wang et al. 2015).
+The third type of approaches, which are the focus of this
+paper and are reviewed in more detail below, rely on vector
+space representations of words or entities to induce plausible
+relation instances. These vector space representations sum-
+marize the linguistic contexts in which the words/entities oc-
+cur, and relations are thus essentially induced by comparing
+linguistic contexts. A standard approach is to model rela-
+tions as translations in the vector space (Mikolov, Yih, and
+Zweig 2013), although various other approaches have also
+been investigated (Weeds et al. 2014).
+These three types of methods are highly complementary.
+While relation extraction methods can predict very fine-
+grained relations, they require that at least one sentence in
+the corpus states the relation explicitly. Statistical methods
+can predict relations even without access to a text corpus,
+but they are limited to predicting what can plausibly derived
+from what is already known. From a knowledge base com-
+pletion point of view, the main appeal of word embeddings
+is that they may be able to reveal commonsense relationships
+which are rarely stated explicitly in text.
+Modeling Relations in a Vector Space
+As already mentioned in the introduction, various syntac-
+tic and semantic relations can be modeled as vector transla-
+tions in a word embedding (Mikolov, Yih, and Zweig 2013).
+Among others, it has been shown that word embeddings can
+be used to complete analogy questions of the form a:b::c:?,
+asking for a word that relates to c in the same way that b
+relates to a (e.g. france:wine::germany:?), by predicting the
+word w that maximizes cos(pb ? pa + pc, pw).
+Several types of interpretable features can be modeled as
+directions in word embeddings. For example, in (Rothe and
+Schu?tze 2016), it was shown that word embeddings can be
+decomposed in orthogonal subspaces that capture particular
+semantic properties, including a one-dimensional subspace
+(i.e. a direction) that encodes polarity. Along similar lines, in
+(Kim and de Marneffe 2013) it was found that the direction
+defined by a word and its antonym (e.g. “good” and “bad”)
+can be used to derive adjectival scales (e.g. bad < okay <
+good < excellent). In (Gupta et al. 2015), it was shown that
+many types of numerical attributes can be predicted from
+word embeddings (e.g. GDP, fertility rate and CO2 emis-
+sions of a country) using linear regression, again support-
+ing the view that directions can model meaningful relations.
+Finally, in (Derrac and Schockaert 2015) an unsupervised
+method was proposed to decompose domain-specific vector
+spaces into interpretable directions. For instance, in a space
+of movies, directions modeling terms such as “scary”, “ro-
+mantic” or “hilarious” were found.
+Several authors have focused on extracting hyperpnym re-
+lations from word embeddings. In (Baroni et al. 2012), To
+decide whether a word h is a hypernym of w, in (Baroni et
+al. 2012) it is proposed to use an SVM with a polynomial
+kernel, using the concatenation of h and w as feature vector.
+In (Roller, Erk, and Boleda 2014) it was shown that vector
+differences can lead to good results with a linear SVM, pro-
+vided that the vectors are normalized, and that the squared
+differences of each coordinate are added as additional fea-
+tures. Intuitively, this allows the SVM classifier to express
+that h and w need to be different in particular aspects (us-
+ing the vector differences) but similar in other aspects (us-
+ing the squared differences). Some authors have also pro-
+posed to identify hypernyms by using word embedding mod-
+els that represent words as regions or densities (Erk 2009;
+Vilnis and McCallum 2015; Jameel and Schockaert 2017).
+Beyond hypernyms, most work has focused on complet-
+ing analogies. The problem of relation induction, where we
+are given a set of correct instances instead of just one in the
+analogy task, was studied in (Vylomova et al. 2016), where
+a linear SVM trained on vector differences was used. While
+strong results were obtained for several relations in a con-
+trolled setting (e.g. predicting which among a given set of
+relations a word pair belongs to), many false positives were
+obtained when random word pairs were added as negative
+examples. To alleviate this issue, a number of heuristics were
+proposed to generate more informative negative examples.
+A variant of the relation induction problem was also studied
+in (Drozd, Gladkova, and Matsuoka 2016), where the focus
+was on predicting the target word t given a valid source word
+s (as in analogy completion), given a set of training instances
+(as in relation induction). Two strong baselines were intro-
+duced in this paper, which will be discussed below as part of
+our experimental methodology.
+Modeling Relations
+In this section, we propose two models for relation in-
+duction. We assume that we are given a set of pairs
+{(s1, t1), ..., (sn, tn)} as training data, and we need to de-
+termine whether a given pair of words (s, t) are related in
+the same way.
+Translation Model
+The first model is based on the common view that relations
+can be modeled as vector translations. The source words
+s1, ..., sn typically belong to some semantic or syntactic cat-
+egory, and as a result their representations typically belong
+to some particular subspace of the word embedding. This is
+illustrated in Figure 1 for the ‘has body covering’ relation,
+where the source words all represent animals and the target
+words represent body covering types.
+If a relation can be modeled as a translation, it means
+that the source subspace and the target subspace have to be
+aligned. However, this is rarely perfectly the case. In fact,
+in most cases the source and target space even have a dif-
+ferent number of dimensions. In the example from Figure 1,
+Figure 1: Modeling relations as translations.
+we can see that there is no vector that perfectly models the
+relation, although all valid word pairs (si, ti) define a trans-
+lation which is more or less horizontal. This can be naturally
+modeled by representing the relation as a probability distri-
+bution over vector translations. In this example, this distri-
+bution would have a large ‘horizontal variance’ but a very
+small ‘vertical variance’. Note that by considering probabil-
+ity distributions over translations, as special cases we can
+represent relations that are modeled as directions or in terms
+of similarity.
+Intuitively, we want to accept (s, t) as a valid relation in-
+stance if (i) the translation t? s has a sufficiently high prob-
+ability and (ii) s and t are of the correct type. Let us write ?s
+and ?t be the event that the source word s and target word t
+are of the correct type, and let ?st be the event that s and t
+are in the considered relation. Note that ?st entails ?s and ?t.
+We evaluate the probability that (s, t) is a valid instance as
+follows:
+P (?st|ps, pt)
+= P (?s|ps) · P (?t|pt) · P (?st|ps, pt, ?s, ?t)
+? f(ps|?s)
+f(ps)
+· f(pt|?t)
+f(pt)
+· f(pt ? ps|?st)
+f(pt ? ps|?s, ?t)
+(1)
+To evaluate the latter expression we have to make a number
+of assumptions. First, we assume that the overall distribution
+of the words in the word embedding follows a multivariate
+Gaussian distribution. Given the typical vocabulary sizes,
+we can use the sample mean and covariance to estimate the
+parameters of this Gaussian, and thus evaluate f(ps) and
+f(pt). We also assume that f(ps|?s) follows a multivariate
+Gaussian distribution. However, as the number of training
+instances n is often small, and in particular smaller than the
+number of dimensions, the sample covariance matrix is not a
+reliable estimator. To alleviate this problem, we will restrict
+ourselves to diagonal covariance matrices. We then have:
+f(ps|?s) =
+m?
+i=1
+f(xsi |?s)
+where m is the number of dimensions in the word embed-
+ding, xsi is the i
+th coordinate of ps, and f(xsi |?s) follows a
+univariate Gaussian distribution with an unknown mean and
+variance. Using a Bayesian approach, we estimate f(xsi |?s)
+Figure 2: Modeling relations as linear mappings.
+as: ?
+G(xsi ;µ, ?
+2)NI?2(µ, ?2|µ0, ?0, ?0, ?20)dµd?
+whereG represents the Gaussian distribution and NI?2 is the
+normal inverse ?2 distribution. This integral has an analyt-
+ical solution, which is given as follows if we use flat priors
+on the parameters:
+tn?1
+(
+xi,
+(n+ 1)
+?n
+j=1(x
+sj
+i ? xi)2
+n(n? 1)
+)
+with xi = 1n
+?n
+j=1 x
+sj
+i and tn?1 the Student t-distribution
+with n? 1 degrees of freedom.
+The density f(pt|?t) is evaluated in the same way. If we
+assume that the translations pt ? ps also follow a Gaussian
+distribution, we can estimate f(pt?ps|?st) in a similar way.
+In particular, we estimate f(pt ? ps|?st) as
+?m
+i=1 f(x
+s
+i ?
+xti|?st), where xsi is again the ith coordinate of ps and sim-
+ilar for xti. Each univariate Gaussian f(x
+s
+i ? xti|?st) is then
+again estimated using the t-distribution, from the set of data
+points {xs1i ? x
+t1
+i , ..., x
+sn
+i ? x
+tn
+i }. We similarly estimate
+f(pt ? ps|?s, ?t) as
+?m
+i=1 f(x
+s
+i ? xti|?s, ?t). The mean of
+f(xsi ? xti|?s, ?t) is the same as the mean of f(xsi ? xti|?st),
+but the variance is estimated from the differences xsli ? x
+tk
+i
+corresponding to n randomly sampled source words sl and
+target words tk.
+Note that if the assumption that the considered relation
+corresponds to a translation is wrong, we can expect the vari-
+ance of f(xsi ?xti|?st) and f(xsi ?xti|?s, ?t) to be similar, in
+which case the last factor in (1) evaluates to approximately 1.
+In other words, the model implicitly takes into account how
+much the translation assumption appears to be satisfied.
+Regression Model
+The translation model relies on the assumption that the
+source and target spaces are aligned. For a relation such as
+‘capital of’, there is a direct connection between each source
+word and its corresponding target word, i.e. the represen-
+tation of a country should be similar to the representation
+of its capital city. In such cases, we can indeed expect this
+alignment assumption to hold. There are many types of re-
+lations, however, for which the connection between source
+and target word is more implicit. Consider, for instance, the
+problem of wine-food pairing. We can expect that in a sub-
+space with wines there are directions that correspond to fea-
+tures such as ‘sweetness’, ‘acidity’ and ‘amount of tannins’.
+Similarly, in a subspace of food types, there may be direc-
+tions corresponding to features such as ‘healthy’ or proto-
+types such as ‘meat’, ‘fish’ and ‘tomato’. The mere fact that
+such features are represented in the word embedding should
+be enough to predict reasonable wine-food pairings, even if
+the wine and food spaces are not aligned. Figure 2 illustrates
+this situation for the earlier example of animal body cover-
+ings. Clearly, the lack of alignment between the animal and
+covering spaces means that translation vectors are no longer
+a reliable indicator of whether the relation holds. Instead we
+have to rely on the weaker assumption that there is a linear
+mapping from the source to the target space.
+Taking this view, in this section we treat relation induction
+as a linear regression problem. However, two issues need
+to be addressed. First, we can only fit a linear regression
+model if the number of training examples is higher than the
+number of dimensions, which will often not be the case. We
+address this issue by using a low-rank approximation of the
+source space. Second, we need to explicitly represent how
+certain we are about the predictions of the linear regression
+model. If the source word s is not a linear combination of the
+source words s1, ..., sn in the training data, then our model
+should capture the fact that the available training data is not
+sufficient to make a reliable prediction. Furthermore, even if
+s is (approximately) a linear combination of s1, ..., sn, we
+may only be able to predict particular features of the target
+space. To capture both sources of uncertainty, we make use
+of a Bayesian linear regression model.
+In particular, we now model the probability that (s, t) is a
+valid instance of the considered relation as follows:
+P (?st|ps, pt)
+= P (?s|ps) · P (?t|pt) · P (?st|ps, pt, ?s, ?t)
+? f(ps|?s)
+f(ps)
+· f(pt|?t)
+f(pt)
+· f(pt|ps, ?st)
+f(pt|ps, ?s, ?t)
+=
+f(ps|?s)
+f(ps)
+· f(pt|?t)
+f(pt)
+· f(pt|ps, ?st)
+f(pt|?t)
+=
+f(ps|?s)
+f(ps)
+· f(pt|ps, ?st)
+f(pt)
+(2)
+The densities f(ps|?s), f(ps) and f(pt) are estimated as be-
+fore. We estimate f(pt|ps, ?st) as
+?m
+i=1 f(x
+t
+i|ps, ?st), where
+xti is again the i
+th coordinate of pt.
+Each univariate density f(xti|ps, ?st) is estimated using a
+Bayesian linear regression model that predicts the possible
+representations of the target word from ps. However, this is
+only feasible if ps has at most n? 2 coordinates. Therefore,
+we use a low-rank approximation of the source word rep-
+resentations, as follows. Let S be a matrix whose rows are
+the vectors ps1 , ..., psn and let A = U?V
+T be the SVD de-
+composition of A. Let v1, ..., vk be the first k row vectors of
+V , for some k < n ? 1. For a given vector p, we can think
+of pS = (p · v1, ..., p · vk) as the representation of p in the
+source subspace. Given that we typically need far fewer di-
+mensions to represent the source space than the total number
+of dimensions in the word embedding, we should be able to
+predict the target word from pSs , even for relatively small val-
+ues of k. In any case, the choice of k represents a trade-off:
+the lower the value of k, the better we can characterize the
+uncertainty underlying our predictions, but the less informa-
+tion we have for making predictions. In the experiments, we
+have used k = n?12 . We estimate f(x
+t
+i|ps, ?st) as follows:?
+G(xti; p
+?
+s?, ?
+2)·
+G(?; (XTX)?1XT bi, (XTX)?1?2)·
+NI?2(?2|?0, ?20)d?d?
+where bi = (xt1i , ..., x
+tn
+i ), X is composed of the first k
+columns of U? (with U and ? the matrices from the SVD
+decomposition of A) with an additional 1 appended at the
+end of each row for the bias term, and p?s is the vector p
+S
+s
+with an additional 1 appended. Assuming a flat prior on the
+residual variance ?2, the parameters ?0 and ?20 can be esti-
+mated from the training data as:
+?0 = n? k ? 1
+?20 =
+1
+n? k ? 1
+(bi ?X??)T (bi ?X??)
+with ?? the least squares solution.
+Evaluation
+In this section, we experimentally compare the two proposed
+models with a number of baseline methods from the litera-
+ture. The relations we consider are taken from three standard
+benchmark datasets, each containing a mixture of syntactic
+and semantic relationships: (i) the Google Analogy Test Set
+(Google), which contains 14 types of relations with a vary-
+ing number of instances per relation (Mikolov et al. 2013),
+(ii) the Bigger Analogy Test Set (BATS), wich contains 40
+relations with 50 instances per relation (Gladkova, Drozd,
+and Matsuoka 2016), and (iii) the DiffVec Test Set (DV),
+which contains 36 relations with a varying number of in-
+stances per relation (Vylomova et al. 2016). We report re-
+sults for two embeddings that have been learned using Skip-
+gram, one from the Wikipedia dump of 2 November 2015
+(SG-Wiki) and one from a 100B words Google News data
+set1 (SG-GN). We also use two embeddings that have been
+learned with GloVe, one from the same Wikipedia dump
+(GloVe-Wiki) and one from the 840B words Common Crawl
+data set2 (GloVe-CC).
+For relations with at least 10 instances, we use 10-fold
+cross validation, whereas for relations with less than 10 in-
+stances, we use a leave-one-out evaluation. Note that the test
+fold only contains positive examples. To generate negative
+examples, we use four strategies. First, for each pair (s, t) in
+the test fold, we add (t, s) as a negative example. Second,
+for each source word s in the test fold, we randomly sample
+two tail words from the test fold (provided that the test fold
+1https://code.google.com/archive/p/
+word2vec/
+2https://nlp.stanford.edu/projects/glove/
+contains enough pairs), which do not occur together with s,
+and for each such tail word t, we add (s, t) as a negative
+example. Third, for each positive example, we randomly se-
+lect a pair from the other relations. Finally, for each positive
+example, we generate a random word pair from the words
+available in the dataset. This ensures that the evaluation in-
+volves negative examples that consist of related words, as
+well as negative examples that consist of unrelated words.
+If we consider the task as a classification task, i.e. decid-
+ing for an unseen pair (s, t) whether it has the considered re-
+lation, we need to select a threshold, as the considered meth-
+ods only produce a confidence score (i.e. (1) for the transla-
+tion model and (2) for the regression model). To choose this
+threshold, we randomly select 10% of the 9 training folds as
+validation data, and select the average score of the pairs just
+above and below the cut-off that optimizes the F1 score3.
+In the results below, we separately report precision, recall
+and F1. We can also evaluate this task as a ranking problem,
+where we merely evaluate to what extent each method as-
+signs the highest score to the correct pairs. In that case, we
+use mean average precision (MAP).
+Baselines
+The first baseline we consider is the 3CosAvg method pro-
+posed in (Drozd, Gladkova, and Matsuoka 2016), which es-
+sentially treats the relation induction problem like an anal-
+ogy completion problem, where we use the average transla-
+tion vector across all pairs (si, ti) from the training data. In
+particular, this method assigns the following score to the test
+pair (s, t):
+score3CA(t, s) = cos
+(
+pt, ps +
+?
+i pti ? psi
+n
+)
+Despite its simplicity, 3CosAvg was found to be a remark-
+ably strong baseline. Another method proposed in (Drozd,
+Gladkova, and Matsuoka 2016), called LRCos, is based on
+the assumption that (s, t) is likely correct if cos(ps, pt) is
+high and t is of the correct type, where a logistic regression
+classifier was trained on the target words {t1, ..., tn} to pre-
+dict the probability that t is a valid ‘target word’. To adapt
+this method to our setting, we also need to consider the prob-
+ability that s is a valid ‘source word’ (which is not needed in
+the analogy completion setting considered in (Drozd, Glad-
+kova, and Matsuoka 2016), since there s is always given as
+a valid source word). To allow for a more direct compari-
+son with our methods, instead of using a logistic regression
+classifier, we will use our Bayesian estimation for the prob-
+ability that s and t are of the correct type. In particular, we
+use the score scoreLRC(t, s) defined as follows:
+P (ps|?s)
+P (ps)
+· P (pt|?t)
+P (pt)
+· cos(ps, pt)
+As our final baseline, we train a linear SVM classifier using
+the training pairs (s1, t1), ..., (sn, tn) as positive examples.
+3Another possibility would be to choose priors that maximize
+the likelihood of the training data (and a random sample of negative
+examples). However, selecting a cut-off based on validation data
+allows for a more direct comparison with the baselines.
+Following (Vylomova et al. 2016), we use negative exam-
+ples of the form (ti, si), obtained by swapping the position
+of source and target word, as well as negative examples of
+the form (si, tj), obtained by swapping ti by the target word
+of another instance (while ensuring that (si, tj) does not ap-
+pear in the training data as well). Finally, we also add n ran-
+dom word pairs as negative examples. The C parameter of
+the SVM is tuned for each relation separately (choosing val-
+ues from {0.01, 0.1, 1, 10, 100}), by using the same valida-
+tion data that is used for selecting the thresholds in the other
+models. To address class imbalance, negative examples were
+weighted by the ratio of positive to negative examples.
+Results
+The results are summarized in Table 1. As can be ob-
+served, our translation model consistently outperforms all
+other methods in both MAP and F1 score. Moreover, the
+regression model consistently outperforms the baselines in
+terms of MAP score, and outperforms the baselines in for
+the Google and DV test sets in terms of F1 score (but not for
+the BATS test set). Among the baselines, 3CosAvg is clearly
+outperformed by LRCos and SVM. On average, LRCos is
+the strongest baseline (except for the GloVe-Wiki embed-
+ding, where it is outperformed by SVM). This highlights the
+importance of explicitly modeling the fact that source and
+target words are expected to belong to a given type. Mod-
+els which are only trained on translation vectors, such as in
+the SVM approach, cannot capture this. On the other hand,
+LRCos relies on cosine similarity to connect source and tar-
+get words, which is far from optimal, as is evidenced by
+the large difference in performance between LRCos and our
+translation model.
+To compare the performance of the methods across dif-
+ferent types of relations, Table 2 contains the MAP scores
+for the relations from the DiffVec and BATS test sets, for the
+SG-GN word embedding. For the BATS dataset, the trans-
+lation model consistently outperforms the baseline across
+all relations (including the relations that are not shown in
+the table). In the case of DiffVec there are a few excep-
+tions, as can be seen in Table 2, but in such cases the dif-
+ferences with the translation model are small. The regres-
+sion model also outperforms the baselines in most cases, but
+there are a few exceptions where it performs much worse
+(e.g. Lvc for DiffVec, and Hypernyms-animals, Meronyms-
+substance, Synonyms-intensity and Antonyms-binary in the
+case of BATS).
+While the regression model is outperformed by the trans-
+lation model on average, there are several cases where it
+performs better. For relations such as Event, Hyper and
+Mero from DiffVec, where the number of examples is rather
+large (resp. 3583, 1173, 2825), we can see that the regres-
+sion model actually substantially outperforms the translation
+model. The main weakness of the regression model is that it
+needs more training data: while a vector translation can be
+estimated from a single training example, learning an arbi-
+trary linear mapping requires the number of training exam-
+ples to be larger than the number of dimensions. While this
+can be addressed by using a low-dimensional approximation
+of the source word, doing so means that information is lost.
+Table 1: Results of the relation induction experiments (macro-averages).
+SG-Wiki GloVe-Wiki SG-GN GloVe-CC
+Google BATS DV Google BATS DV Google BATS DV Google BATS DV
+3CA Pr 0.151 0.143 0.105 0.141 0.150 0.109 0.139 0.147 0.112 0.150 0.147 0.109
+3CA Rec 0.737 0.776 0.585 0.724 0.776 0.547 0.725 0.777 0.600 0.732 0.763 0.582
+3CA F1 0.251 0.242 0.178 0.235 0.251 0.182 0.234 0.247 0.189 0.249 0.246 0.183
+3CA MAP 0.145 0.137 0.125 0.148 0.141 0.127 0.152 0.140 0.125 0.147 0.139 0.126
+LRC Pr 0.516 0.475 0.374 0.366 0.256 0.166 0.488 0.486 0.389 0.427 0.383 0.257
+LRC Rec 0.646 0.672 0.527 0.527 0.577 0.439 0.670 0.646 0.570 0.659 0.596 0.474
+LRC F1 0.573 0.557 0.437 0.432 0.355 0.241 0.565 0.555 0.462 0.518 0.466 0.333
+LRC MAP 0.710 0.580 0.519 0.508 0.322 0.265 0.713 0.614 0.545 0.628 0.481 0.389
+SVM Pr 0.407 0.336 0.198 0.383 0.365 0.215 0.464 0.398 0.276 0.407 0.381 0.225
+SVM Rec 0.680 0.417 0.412 0.628 0.461 0.376 0.646 0.531 0.384 0.671 0.501 0.408
+SVM F1 0.509 0.372 0.267 0.476 0.408 0.274 0.540 0.455 0.321 0.507 0.433 0.290
+SVM MAP 0.494 0.366 0.283 0.502 0.404 0.298 0.611 0.467 0.366 0.502 0.425 0.296
+Trans Pr 0.794 0.627 0.449 0.635 0.445 0.284 0.741 0.660 0.498 0.744 0.571 0.378
+Trans Rec 0.649 0.708 0.563 0.618 0.620 0.446 0.771 0.705 0.604 0.713 0.689 0.552
+Trans F1 0.714 0.665 0.500 0.626 0.518 0.347 0.756 0.682 0.546 0.728 0.624 0.449
+Trans MAP 0.906 0.729 0.596 0.791 0.541 0.387 0.890 0.773 0.635 0.898 0.678 0.520
+Regr Pr 0.668 0.474 0.410 0.536 0.281 0.259 0.627 0.476 0.469 0.613 0.401 0.357
+Regr Rec 0.603 0.470 0.471 0.580 0.403 0.422 0.665 0.449 0.537 0.646 0.439 0.467
+Regr F1 0.634 0.472 0.439 0.557 0.331 0.321 0.646 0.462 0.501 0.629 0.419 0.404
+Regr MAP 0.834 0.618 0.570 0.741 0.434 0.381 0.801 0.639 0.621 0.793 0.549 0.506
+(a) (b)
+Figure 3: Superlative degree relation of BATS for SG-GN.
+On the other hand, the main weakness of the translation
+model is that its underlying assumption is rather strong, and
+there are indeed some relations in the test sets that simply
+cannot be faithfully modeled in terms of translations. To il-
+lustrate this point, in Figure 3 we first show an example of a
+relation for which the translation assumption is clearly sat-
+isfied, the superlative relationship from the BATS test set.
+In particular, Figure 3a shows the first two principal compo-
+nents4 of the representations of some word pairs (si, ti) that
+have this relationship (where related words are connected
+with a line). Clearly, this is the kind of plot that we would
+expect for a relation that satisfies the translation assumption.
+Figure 3b illustrates the same relation in a different way.
+Here a word pair (s, t) is represented as a point (x, y), where
+x corresponds to the first principal component of the source
+4Specifically, we obtained these coordinates based on an SVD
+decomposition of the representations of the relevant source and tar-
+get words {s1, ..., sn, t1, ..., tn}.
+word s, and y corresponds to the first principal component
+of t. If the considered relationship satisfies the translation
+assumption, we would expect these points to lie on a line
+with a slope of 1, which is here (approximately) the case (as
+it is for other principal components).
+Figure 4 shows a similar plot to Figure 3 but for the mero
+relation from the DiffVec test set. As is clearly illustrated by
+this figure, the translation assumption is not valid for this re-
+lation. The fact that the regression model performs quite well
+for this relation means that it can nonetheless be described
+using a linear model.
+Conclusions
+We have proposed two probabilistic models for identifying
+word pairs that are in a given relation. The first model is
+based on the common assumption that lexical relations cor-
+respond to vector translations in a word embedding. The
+other model is based on linear regression, relying on the
+Ta
+bl
+e
+2:
+M
+A
+P
+sc
+or
+es
+fo
+rt
+he
+in
+di
+vi
+du
+al
+re
+la
+tio
+ns
+of
+D
+iff
+V
+ec
+an
+d
+B
+A
+T
+S
+fo
+rS
+G
+-G
+N
+D
+iff
+V
+ec
+3C
+A
+L
+R
+C
+SV
+M
+Tr
+an
+s
+R
+eg
+r
+A
+ct
+io
+n:
+O
+bj
+ec
+tA
+ttr
+ib
+ut
+e
+0.
+10
+7
+0.
+07
+8
+0.
+27
+8
+0.
+13
+0
+0.
+25
+1
+O
+bj
+ec
+t:S
+ta
+te
+0.
+07
+5
+0.
+59
+0
+0.
+27
+0
+0.
+56
+7
+0.
+49
+8
+O
+bj
+ec
+t:T
+yp
+ic
+al
+A
+ct
+io
+n
+0.
+06
+9
+0.
+51
+9
+0.
+36
+2
+0.
+56
+0
+0.
+48
+0
+A
+ct
+io
+n/
+A
+ct
+iv
+ity
+:G
+oa
+l
+0.
+12
+2
+0.
+49
+0
+0.
+29
+0
+0.
+51
+5
+0.
+47
+5
+A
+ge
+nt
+:G
+oa
+l
+0.
+07
+3
+0.
+54
+3
+0.
+43
+9
+0.
+60
+2
+0.
+57
+8
+C
+au
+se
+:C
+om
+pe
+ns
+at
+or
+yA
+ct
+io
+n
+0.
+06
+6
+0.
+58
+8
+0.
+41
+2
+0.
+62
+2
+0.
+66
+4
+C
+au
+se
+:E
+ff
+ec
+t
+0.
+10
+3
+0.
+46
+4
+0.
+24
+1
+0.
+48
+4
+0.
+44
+4
+E
+na
+bl
+in
+gA
+ge
+nt
+:O
+bj
+ec
+t
+0.
+10
+6
+0.
+50
+6
+0.
+33
+8
+0.
+53
+9
+0.
+49
+0
+In
+st
+ru
+m
+en
+t:G
+oa
+l
+0.
+09
+4
+0.
+37
+1
+0.
+23
+2
+0.
+41
+9
+0.
+43
+7
+In
+st
+ru
+m
+en
+t:I
+nt
+en
+de
+dA
+ct
+io
+n
+0.
+07
+2
+0.
+53
+3
+0.
+35
+5
+0.
+62
+9
+0.
+58
+5
+Pr
+ev
+en
+tio
+n
+0.
+09
+2
+0.
+65
+5
+0.
+55
+3
+0.
+70
+9
+0.
+61
+5
+C
+ol
+le
+ct
+iv
+e
+no
+un
+0.
+12
+6
+0.
+57
+5
+0.
+38
+6
+0.
+56
+3
+0.
+68
+5
+E
+ve
+nt
+0.
+20
+2
+0.
+71
+7
+0.
+40
+4
+0.
+73
+7
+0.
+94
+0
+H
+yp
+er
+0.
+25
+9
+0.
+55
+0
+0.
+38
+5
+0.
+74
+6
+0.
+91
+1
+L
+vc
+0.
+07
+2
+0.
+70
+9
+0.
+77
+2
+0.
+73
+5
+0.
+22
+0
+M
+er
+o
+0.
+29
+0
+0.
+54
+8
+0.
+39
+5
+0.
+66
+9
+0.
+82
+5
+N
+ou
+n
+Si
+ng
+pl
+ur
+0.
+25
+3
+0.
+58
+5
+0.
+32
+6
+0.
+95
+8
+0.
+85
+2
+Pr
+efi
+x
+re
+0.
+20
+4
+0.
+49
+7
+0.
+30
+7
+0.
+72
+1
+0.
+68
+9
+C
+on
+ce
+al
+m
+en
+t
+0.
+08
+2
+0.
+55
+2
+0.
+27
+4
+0.
+55
+1
+0.
+49
+6
+E
+xp
+re
+ss
+io
+n
+0.
+05
+5
+0.
+81
+8
+0.
+50
+8
+0.
+81
+0
+0.
+82
+2
+K
+no
+w
+le
+dg
+e
+0.
+06
+9
+0.
+69
+0
+0.
+50
+7
+0.
+71
+7
+0.
+69
+8
+Pl
+an
+0.
+08
+3
+0.
+54
+8
+0.
+28
+5
+0.
+56
+6
+0.
+62
+2
+R
+ep
+re
+se
+nt
+at
+io
+n
+0.
+10
+0
+0.
+50
+0
+0.
+39
+8
+0.
+48
+5
+0.
+38
+8
+Si
+gn
+:S
+ig
+ni
+fic
+an
+t
+0.
+09
+3
+0.
+38
+4
+0.
+30
+1
+0.
+39
+3
+0.
+38
+0
+A
+tta
+ch
+m
+en
+t
+0.
+09
+1
+0.
+54
+2
+0.
+23
+4
+0.
+65
+4
+0.
+52
+6
+C
+on
+tig
+ui
+ty
+0.
+10
+5
+0.
+53
+3
+0.
+29
+5
+0.
+62
+6
+0.
+61
+3
+It
+em
+:L
+oc
+at
+io
+n
+0.
+10
+1
+0.
+61
+8
+0.
+31
+2
+0.
+71
+6
+0.
+69
+4
+L
+oc
+:A
+ct
+io
+n/
+A
+ct
+iv
+ity
+0.
+07
+6
+0.
+73
+6
+0.
+51
+1
+0.
+75
+7
+0.
+72
+7
+L
+oc
+:I
+ns
+tr
+um
+en
+t/A
+ss
+oc
+ia
+te
+dI
+te
+m
+0.
+07
+5
+0.
+47
+6
+0.
+33
+4
+0.
+48
+7
+0.
+50
+0
+L
+oc
+:P
+ro
+ce
+ss
+/P
+ro
+du
+ct
+0.
+10
+7
+0.
+40
+7
+0.
+56
+9
+0.
+47
+8
+0.
+65
+6
+Se
+qu
+en
+ce
+0.
+11
+1
+0.
+40
+5
+0.
+27
+1
+0.
+42
+4
+0.
+40
+9
+Ti
+m
+e:
+A
+ct
+io
+n/
+A
+ct
+iv
+ity
+0.
+10
+1
+0.
+55
+9
+0.
+34
+7
+0.
+55
+4
+0.
+60
+6
+V
+er
+b
+3r
+d
+0.
+16
+8
+0.
+60
+9
+0.
+39
+7
+0.
+97
+8
+0.
+95
+8
+V
+er
+b
+3r
+d
+Pa
+st
+0.
+17
+7
+0.
+62
+5
+0.
+30
+2
+0.
+95
+0
+0.
+92
+6
+V
+er
+b
+Pa
+st
+0.
+18
+5
+0.
+63
+8
+0.
+31
+6
+0.
+98
+5
+0.
+90
+1
+V
+n-
+D
+er
+iv
+0.
+34
+9
+0.
+44
+5
+0.
+25
+9
+0.
+82
+8
+0.
+79
+2
+B
+A
+T
+S
+3C
+A
+L
+R
+C
+SV
+M
+Tr
+an
+s
+R
+eg
+r
+R
+eg
+ul
+ar
+pl
+ur
+al
+s
+0.
+18
+6
+0.
+58
+6
+0.
+40
+2
+0.
+87
+6
+0.
+79
+1
+pl
+ur
+al
+s
+-o
+rt
+ho
+gr
+ap
+hi
+c
+ch
+an
+ge
+s
+0.
+19
+5
+0.
+60
+1
+0.
+35
+5
+0.
+77
+2
+0.
+65
+2
+C
+om
+pa
+ra
+tiv
+e
+de
+gr
+ee
+0.
+10
+6
+0.
+65
+4
+0.
+47
+3
+0.
+96
+1
+0.
+88
+3
+Su
+pe
+rl
+at
+iv
+e
+de
+gr
+ee
+0.
+09
+3
+0.
+70
+5
+0.
+60
+5
+0.
+93
+2
+0.
+86
+8
+In
+fin
+iti
+ve
+:3
+Ps
+.S
+g
+0.
+11
+6
+0.
+63
+8
+0.
+53
+6
+1.
+00
+0
+0.
+96
+8
+In
+fin
+iti
+ve
+:p
+ar
+tic
+ip
+le
+0.
+16
+1
+0.
+60
+3
+0.
+49
+5
+0.
+91
+6
+0.
+79
+3
+In
+fin
+iti
+ve
+:p
+as
+t
+0.
+14
+6
+0.
+58
+2
+0.
+45
+5
+0.
+95
+7
+0.
+72
+2
+Pa
+rt
+ic
+ip
+le
+:3
+Ps
+.S
+g
+0.
+09
+9
+0.
+59
+6
+0.
+57
+7
+0.
+87
+4
+0.
+76
+0
+Pa
+rt
+ic
+ip
+le
+:p
+as
+t
+0.
+16
+1
+0.
+59
+8
+0.
+45
+0
+0.
+87
+2
+0.
+73
+1
+3P
+s.
+Sg
+:p
+as
+t
+0.
+13
+1
+0.
+69
+6
+0.
+55
+6
+0.
+98
+4
+0.
+94
+9
+N
+ou
+n+
+le
+ss
+0.
+07
+9
+0.
+58
+2
+0.
+43
+3
+0.
+62
+0
+0.
+63
+4
+U
+n+
+ad
+j
+0.
+11
+0
+0.
+55
+6
+0.
+35
+4
+0.
+77
+4
+0.
+69
+2
+A
+dj
++l
+y
+0.
+09
+6
+0.
+62
+5
+0.
+49
+5
+0.
+89
+5
+0.
+82
+4
+O
+ve
+r+
+ad
+h.
+/V
+ed
+0.
+09
+2
+0.
+62
+7
+0.
+37
+5
+0.
+74
+4
+0.
+76
+5
+A
+dj
++n
+es
+s
+0.
+07
+7
+0.
+71
+7
+0.
+56
+8
+0.
+83
+8
+0.
+83
+2
+R
+e+
+ve
+rb
+0.
+13
+8
+0.
+66
+2
+0.
+37
+6
+0.
+82
+8
+0.
+74
+6
+V
+er
+b+
+ab
+le
+0.
+08
+5
+0.
+62
+8
+0.
+56
+9
+0.
+75
+8
+0.
+76
+2
+V
+er
+b+
+er
+0.
+07
+5
+0.
+64
+6
+0.
+61
+3
+0.
+79
+3
+0.
+70
+0
+V
+er
+b+
+at
+io
+n
+0.
+11
+5
+0.
+58
+0
+0.
+44
+1
+0.
+78
+4
+0.
+76
+2
+V
+er
+b+
+m
+en
+t
+0.
+09
+9
+0.
+54
+3
+0.
+47
+4
+0.
+78
+2
+0.
+69
+4
+H
+yp
+er
+ny
+m
+s
+an
+im
+al
+s
+0.
+22
+3
+0.
+70
+5
+0.
+64
+4
+0.
+85
+2
+0.
+28
+4
+H
+yp
+er
+ny
+m
+s
+m
+is
+c
+0.
+20
+2
+0.
+64
+9
+0.
+54
+5
+0.
+77
+8
+0.
+23
+9
+H
+yp
+on
+ym
+s
+m
+is
+c
+0.
+31
+3
+0.
+44
+9
+0.
+30
+4
+0.
+68
+6
+0.
+28
+1
+M
+er
+on
+ym
+s
+su
+bs
+ta
+nc
+e
+0.
+17
+0
+0.
+51
+3
+0.
+36
+3
+0.
+61
+2
+0.
+26
+7
+M
+er
+on
+ym
+s
+m
+em
+be
+r
+0.
+13
+4
+0.
+55
+8
+0.
+32
+5
+0.
+68
+2
+0.
+66
+0
+M
+er
+on
+ym
+s
+pa
+rt
+-w
+ho
+le
+0.
+25
+5
+0.
+52
+5
+0.
+39
+1
+0.
+65
+0
+0.
+25
+9
+Sy
+no
+ny
+m
+s
+in
+te
+ns
+ity
+0.
+25
+8
+0.
+50
+1
+0.
+29
+1
+0.
+66
+8
+0.
+22
+8
+Sy
+no
+ny
+m
+s
+ex
+ac
+t
+0.
+27
+0
+0.
+45
+5
+0.
+26
+0
+0.
+51
+8
+0.
+19
+1
+A
+nt
+on
+ym
+s
+gr
+ad
+ab
+le
+0.
+25
+1
+0.
+48
+7
+0.
+31
+6
+0.
+56
+7
+0.
+27
+6
+A
+nt
+on
+ym
+s
+bi
+na
+ry
+0.
+21
+9
+0.
+44
+0
+0.
+30
+6
+0.
+49
+7
+0.
+23
+9
+C
+ap
+ita
+ls
+0.
+10
+6
+0.
+68
+2
+0.
+46
+5
+0.
+75
+2
+0.
+73
+5
+C
+ou
+nt
+ry
+:la
+ng
+ua
+ge
+0.
+08
+8
+0.
+64
+3
+0.
+52
+4
+0.
+66
+8
+0.
+71
+7
+U
+K
+ci
+ty
+:c
+ou
+nt
+y
+0.
+05
+3
+0.
+78
+5
+0.
+58
+7
+0.
+87
+7
+0.
+71
+9
+N
+at
+io
+na
+lit
+ie
+s
+0.
+05
+9
+0.
+77
+4
+0.
+60
+3
+0.
+85
+2
+0.
+62
+6
+O
+cc
+up
+at
+io
+n
+0.
+07
+3
+0.
+66
+0
+0.
+53
+3
+0.
+68
+1
+0.
+78
+0
+A
+ni
+m
+al
+s
+yo
+un
+g
+0.
+11
+5
+0.
+60
+1
+0.
+45
+8
+0.
+68
+7
+0.
+75
+4
+A
+ni
+m
+al
+s
+so
+un
+ds
+0.
+08
+7
+0.
+65
+0
+0.
+45
+4
+0.
+66
+1
+0.
+76
+8
+A
+ni
+m
+al
+s
+sh
+el
+te
+r
+0.
+11
+6
+0.
+66
+5
+0.
+55
+8
+0.
+67
+9
+0.
+50
+1
+th
+in
+g:
+co
+lo
+r
+0.
+09
+8
+0.
+77
+2
+0.
+66
+3
+0.
+76
+1
+0.
+79
+9
+m
+al
+e:
+fe
+m
+al
+e
+0.
+14
+7
+0.
+61
+1
+0.
+47
+1
+0.
+84
+0
+0.
+72
+0
+(a) (b)
+Figure 4: Mero relation of DiffVec for SG-GN.
+weaker assumption that there is a linear relationship between
+the source and target words of the considered relation. Both
+models implicitly factor in whether their underlying assump-
+tion is satisfied, and could thus easily be used in combination
+with each other, or with additional models. In our experi-
+mental evaluation, we have found both models to outperform
+existing approaches, with the translation model outperform-
+ing the regression model on average.
+There are several interesting avenues for future work.
+First, a number of variants of the proposed models can be
+developed. For example, a model based on vector concate-
+nations could intuitively model similar kinds of relation-
+ships as the regression model. However, in the case of vec-
+tor concatenations, we can no longer use a diagonal covari-
+ance matrix, as that would mean that no interactions be-
+tween source and target words are being captured. One so-
+lution could be to use a low-rank approximation of the vec-
+tor concatenations and estimate full covariance matrices in a
+lower-dimensional space. Another interesting option to ex-
+plore would be to estimate prior probabilities from coarser
+grained relations for which more training data is available.
+For example, we could learn a generic model for causal rela-
+tions, and use that as a prior for the specific types of causal
+relationships that are considered in the DiffVec test set. It
+may even be useful to learn priors capturing e.g. syntactic
+relations, which would intuitively amount to finding a sub-
+space of the embedding that relates to syntactic features.
+References
+[Baroni et al. 2012] Baroni, M.; Bernardi, R.; Do, N.-Q.; and
+Shan, C.-c. 2012. Entailment above the word level in distri-
+butional semantics. In Proceedings of the 13th Conference of
+the European Chapter of the Association for Computational
+Linguistics, 23–32.
+[Bordes et al. 2013] Bordes, A.; Usunier, N.; Garcia-Duran,
+A.; Weston, J.; and Yakhnenko, O. 2013. Translating em-
+beddings for modeling multi-relational data. In Proceedings
+of the Annual Conference on Neural Information Processing
+Systems. 2787–2795.
+[Deerwester et al. 1990] Deerwester, S.; Dumais, S. T.; Fur-
+nas, G. W.; Landauer, T. K.; and Harshman, R. 1990. In-
+dexing by latent semantic analysis. Journal of the American
+Society for Information Science 41(6):391–407.
+[Derrac and Schockaert 2015] Derrac, J., and Schockaert, S.
+2015. Inducing semantic relations from conceptual spaces:
+a data-driven approach to plausible reasoning. Artificial In-
+telligence 74–105.
+[Drozd, Gladkova, and Matsuoka 2016] Drozd, A.; Glad-
+kova, A.; and Matsuoka, S. 2016. Word embeddings, analo-
+gies, and machine learning: Beyond king - man + woman =
+queen. In Proceedings of the 26th International Conference
+on Computational Linguistics, 3519–3530.
+[Erk 2009] Erk, K. 2009. Representing words as regions in
+vector space. In Proceedings of the Thirteenth Conference
+on Computational Natural Language Learning, 57–65.
+[Gladkova, Drozd, and Matsuoka 2016] Gladkova, A.;
+Drozd, A.; and Matsuoka, S. 2016. Analogy-based detec-
+tion of morphological and semantic relations with word
+embeddings: what works and what doesn’t. In Proceedings
+of the Student Research Workshop at NAACL 2016, 8–15.
+[Gupta et al. 2015] Gupta, A.; Boleda, G.; Baroni, M.; and
+Pado?, S. 2015. Distributional vectors encode referential at-
+tributes. In Proc. EMNLP, 12–21.
+[Jameel and Schockaert 2017] Jameel, S., and Schockaert, S.
+2017. Modeling context words as regions: An ordinal re-
+gression approach to word embedding. In Proceedings of
+the 21st Conference on Computational Natural Language
+Learning, 123–133.
+[Kim and de Marneffe 2013] Kim, J.-K., and de Marneffe,
+M.-C. 2013. Deriving adjectival scales from continuous
+space word representations. In Proc. EMNLP, 1625–1630.
+[Kok and Domingos 2007] Kok, S., and Domingos, P. 2007.
+Statistical predicate invention. In Proc. ICML, 433–440.
+[Lao, Mitchell, and Cohen 2011] Lao, N.; Mitchell, T.; and
+Cohen, W. W. 2011. Random walk inference and learning
+in a large scale knowledge base. In Proc. EMNLP, 529–539.
+[Mikolov et al. 2013] Mikolov, T.; Chen, K.; Corrado, G.;
+and Dean, J. 2013. Efficient estimation of word representa-
+tions in vector space. In International Conference on Learn-
+ing Representations.
+[Mikolov, Yih, and Zweig 2013] Mikolov, T.; Yih, W.-t.; and
+Zweig, G. 2013. Linguistic regularities in continuous space
+word representations. In Proc. NAACL-HLT, 746–751.
+[Mintz et al. 2009] Mintz, M.; Bills, S.; Snow, R.; and Juraf-
+sky, D. 2009. Distant supervision for relation extraction
+without labeled data. In Proceedings of the 47th Annual
+Meeting of the ACL, 1003–1011.
+[Nickel, Tresp, and Kriegel 2012] Nickel, M.; Tresp, V.; and
+Kriegel, H.-P. 2012. Factorizing YAGO: Scalable machine
+learning for linked data. In Proceedings of the 21st Interna-
+tional Conference on World Wide Web, 271–280.
+[Pennington, Socher, and Manning 2014] Pennington, J.;
+Socher, R.; and Manning, C. D. 2014. Glove: Global
+vectors for word representation. In EMNLP, 1532–1543.
+[Riedel et al. 2013] Riedel, S.; Yao, L.; McCallum, A.; and
+Marlin, B. M. 2013. Relation extraction with matrix factor-
+ization and universal schemas. In Proc. HLT-NAACL, 74–84.
+[Riedel, Yao, and McCallum 2010] Riedel, S.; Yao, L.; and
+McCallum, A. 2010. Modeling relations and their mentions
+without labeled text. In Proc. ECML/PKDD, 148–163.
+[Roller, Erk, and Boleda 2014] Roller, S.; Erk, K.; and
+Boleda, G. 2014. Inclusive yet selective: Supervised dis-
+tributional hypernymy detection. In Proc. COLING, 1025–
+1036.
+[Rothe and Schu?tze 2016] Rothe, S., and Schu?tze, H. 2016.
+Word embedding calculus in meaningful ultradense sub-
+spaces. In Proceedings of the 54th Annual Meeting of the
+Association for Computational Linguistics, 512–517.
+[Schoenmackers et al. 2010] Schoenmackers, S.; Davis, J.;
+Etzioni, O.; and Weld, D. S. 2010. Learning first-order horn
+clauses from web text. In Proceedings of the 2010 Confer-
+ence on Empirical Methods in Natural Language Process-
+ing, 1088–1098.
+[Speer, Havasi, and Lieberman 2008] Speer, R.; Havasi, C.;
+and Lieberman, H. 2008. Analogyspace: reducing the di-
+mensionality of common sense knowledge. In Proceedings
+of the 23rd AAAI Conference on Artificial intelligence, 548–
+553.
+[Surdeanu et al. 2012] Surdeanu, M.; Tibshirani, J.; Nallap-
+ati, R.; and Manning, C. D. 2012. Multi-instance multi-
+label learning for relation extraction. In Proceedings of the
+2012 Joint Conference on Empirical Methods in Natural
+Language Processing and Computational Natural Language
+Learning, 455–465.
+[Turney and Pantel 2010] Turney, P. D., and Pantel, P. 2010.
+From frequency to meaning: Vector space models of seman-
+tics. Journal of Artificial Intelligence Research 37:141–188.
+[Vilnis and McCallum 2015] Vilnis, L., and McCallum, A.
+2015. Word representations via gaussian embedding. In Pro-
+ceedings of the International Conference on Learning Rep-
+resentations.
+[Vylomova et al. 2016] Vylomova, E.; Rimell, L.; Cohn, T.;
+and Baldwin, T. 2016. Take and took, gaggle and goose,
+book and read: Evaluating the utility of vector differences
+for lexical relation learning. In Proceedings of the 54th An-
+nual Meeting of the Association for Computational Linguis-
+tics.
+[Wang et al. 2014] Wang, Z.; Zhang, J.; Feng, J.; and Chen,
+Z. 2014. Knowledge graph embedding by translating on
+hyperplanes. In AAAI, 1112–1119.
+[Wang et al. 2015] Wang, W. Y.; Mazaitis, K.; Lao, N.; and
+Cohen, W. W. 2015. Efficient inference and learning in
+a large knowledge base - reasoning with extracted infor-
+mation using a locally groundable first-order probabilistic
+logic. Machine Learning 100(1):101–126.
+[Weeds et al. 2014] Weeds, J.; Clarke, D.; Reffin, J.; Weir,
+D.; and Keller, B. 2014. Learning to distinguish hypernyms
+and co-hyponyms. In Proceedings of the 25th International
+Conference on Computational Linguistics, 2249–2259.
+[West et al. 2014] West, R.; Gabrilovich, E.; Murphy, K.;
+Sun, S.; Gupta, R.; and Lin, D. 2014. Knowledge base com-
+pletion via search-based question answering. In Proceedings
+of the 23rd International Conference on World Wide Web,
+515–526.
+[Yang et al. 2015] Yang, B.; Yih, W.; He, X.; Gao, J.; and
+Deng, L. 2015. Embedding entities and relations for learn-
+ing and inference in knowledge bases. In Proceedings of the
+International Conference on Learning Representations.

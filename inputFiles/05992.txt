@@ -1,0 +1,482 @@
+LSTM Network for Inflected Abbreviation Expansion
+Piotr Z?elasko
+AGH University of Science and Technology,
+www.dsp.agh.edu.pl
+Techmo, http://techmo.pl
+pzelasko@agh.edu.pl
+Abstract
+In this paper, the problem of recovery of
+morphological information lost in abbre-
+viated forms is addressed with a focus on
+highly inflected languages. Evidence is
+presented that the correct inflected form
+of an expanded abbreviation can in many
+cases be deduced solely from morphosyn-
+tactic tags of the context. The prediction
+model is a deep bidirectional LSTM net-
+work with tag embedding. The network is
+trained on over 10 million words from the
+Polish Sejm Corpus and achieves 74.2%
+prediction accuracy on a smaller, but more
+general National Corpus of Polish. Anal-
+ysis of errors suggests that performance in
+this task may improve if some prior knowl-
+edge about the abbreviated word is incor-
+porated into the model.
+1 Introduction
+In this paper, we address the problem of recov-
+ery of morphological information lost in abbre-
+viated forms, focusing on highly inflected lan-
+guages. Significance of the problem can be shown
+in the domain of text normalization, especially in
+cases of expanding numerals and abbreviations to
+their full forms. Although in English the trans-
+lation of token ”14” to ”fourteen”, or token ”yr.”
+to ”year” appears trivial, it is not so in a highly
+inflected language. For example in Polish, the ab-
+breviation ”r.” could be expanded into one of {rok,
+roku, rokowi, rokiem}, all of which mean ”year”
+in English, but are inflected differently, based on
+the context in which they are used. Correct choice
+of the grammatical number and case is essential
+towards successful text normalization, which is
+an indispensable part of any text-to-speech (TTS)
+system (Sproat and Jaitly, 2016), and can also be
+useful in text preprocessing for language model
+(LM) training (Pakhomov, 2002).
+Under the assumption that an abbreviation is not
+ambiguous, the conversion of a token into its ab-
+breviated form can be seen as a removal of mor-
+phological information from the token. Nonethe-
+less, a person (e.g. a native speaker) reading the
+text is able to deduce the information missing from
+the abbrevation by using the context. Furthermore,
+we suspect that it is possible to abstract away from
+concrete words and infer the missing morphologi-
+cal information based only on morphological and
+syntactic properties of the context. Consequently,
+we formulate a hypothesis, that based purely on
+the morphosyntactic information present in other
+words in the sentence (i.e. the context), the cor-
+rect morphosyntactic tag can be inferred for the
+abbreviated word in a highly inflected language.
+Given recent major achievements of deep neu-
+ral networks (DNN) in Natural Language Pro-
+cessing (NLP) tasks (Sundermeyer et al., 2012;
+Huang et al., 2015), we apply a bidirectional recur-
+rent neural network (RNN) (Graves and Schmid-
+huber, 2005) based on Long Short-Term Mem-
+ory (LSTM) cells (Hochreiter and Schmidhuber,
+1997) to the task of missing morphosyntactic tag
+prediction. The network is trained on a large col-
+lection of Polish texts analysed with a morphosyn-
+tactic tagger and evaluated on a manually anno-
+tated corpus in order to verify the hypothesis. To
+the best of our knowledge, no previous attempt has
+been made in order to infer the correct form of an
+abbreviated word with an RNN, while using solely
+morphosyntactic information of its context within
+the sentence.
+In section 2 we present previous relevant work
+in the area of text normalization. Section 3 de-
+scribes the problem of inflected expansion of ab-
+breviations and the DNN architecture used to solve
+it. The data sets, experimental setting and results
+ar
+X
+iv
+:1
+70
+8.
+05
+99
+2v
+1 
+ [
+cs
+.C
+L
+] 
+ 2
+0 
+A
+ug
+ 2
+01
+7
+are shown in section 4. Finally, we conclude our
+work in section 5.
+2 Related work
+Although there have been several studies regard-
+ing text normalization, it can be safely stated that
+it did not receive as much attention as some other
+areas of NLP. In (Pakhomov, 2002), the author
+employed a Maximum Entropy (ME) model in or-
+der to disambiguate and expand the abbreviations
+present in medical documents. In order to provide
+the labels for supervised training of the model,
+sentences containing non-abbreviated forms were
+identified and treated as if the term had been ab-
+breviated. The model was then trained to rec-
+ognize correct expansion based on a context of
+7 words on each side of the abbreviation. Even
+though in our work we adopted similar approach
+to training data collection, we use the morphosyn-
+tactic tags instead of words and utilize the full sen-
+tence instead of a fixed context window. Further-
+more, our goal is to infer morphological informa-
+tion and not to disambiguate the abbreviation.
+Similar efforts have been undertaken in the task
+of numerals normalization in the Russian lan-
+guage, which is also highly inflected. In (Sproat,
+2010), the author had investigated the viability of
+n-gram, perceptron and decision list models and
+found that a trigram model slightly outperforms
+the others. He also suggested further investigation
+into application of more complex discriminative
+models.
+Recently, there has been growing interest in text
+normalization seen as a machine translation task
+- in order to foster more research in this direc-
+tion, a challenge with an open data set has been
+published (Sproat and Jaitly, 2016). Regardless
+of promising results, the authors observed that the
+RNN tend to fail in some cases in quite a weird
+manner - such as translating abbreviated hours as
+gigabytes. Our approach differs from the one pre-
+sented in (Sproat and Jaitly, 2016) in the way the
+RNN is used - instead of constructing a sequence
+to sequence (seq2seq) model, we use a many-to-
+one mapping in our network in order to identify
+only one missing piece of information at a time.
+3 Methods
+Let us consider a sentence W = {wi}, where wi is
+the i-th word of the sentence. Each word (lemma)
+wi can be described as a combination of a basic
+form (lexeme) li and morphosyntactic information
+mi, expressed as a set of particular morphosyntac-
+tic tags. These tags inform about both morpholog-
+ical and syntactical properties of the word, such as
+grammatical class, number, case, gender, etc.
+numeru
+numer
+sg:gen:m3
+Nie
+nie
+qub
+mam
+mie?
+sg:pri:imperf
+twojego
+twój
+sg:gen:m3:pos
+nr
+numer
+brev:pun
+Figure 1: A comparison of abbreviated and full
+form of the lemma numeru in Polish equivalent
+of English sentence ”I don’t have your number”.
+The upper block contains lemmas and the lower
+block their corresponding lexemes and morpho-
+logical tags.
+In a sentence without any abbreviations, each
+lemma explicitly presents its morphosyntactic in-
+formation through inflectional morphemes, which
+are composed together with the lexeme (e.g. lex-
+eme pasture composed with morpheme s results
+in lemma pastures, which informs that the gram-
+matical number is plural). However, this is not the
+case in abbreviated words, which are not subject
+to inflection, regardless of their context. Nonethe-
+less, the obfuscated morphosyntactic properties of
+an abbreviation can usually be deduced by a na-
+tive speaker of an inflectional language through
+analysis of the context. Consequently, it can be
+said that abbreviations, presented within a con-
+text, contain implicit morphosyntactic informa-
+tion. This phenomenon is illustrated in a sentence1
+in figure 1, where the abbreviated form is shown
+to have unknown morphological properties (i.e. a
+tag brev:pun, which indicates an abbreviation fol-
+lowed by punctuation), in contrast to the full form.
+In order to predict this implicit morphosyntac-
+tic information, we propose the application of an
+RNN - in particular, a bidirectional LSTM net-
+work - which analyses the whole sentence.
+The input of the network is a sequence of mor-
+phosyntactic tags mi, each one corresponding to
+the word wi from the original sentence W . The
+unknown tag of the abbreviation is substituted by
+a special token, which indicates that this tag is to
+1 The usage of this abbreviated form in this context is not
+typical in Polish writing, but may be representative of an ab-
+breviation used in a short message sent to a peer.
+be inferred. The input layer is then connected to
+an embedding layer, which casts the tags into a
+low-dimensional real-valued vector, similarly as it
+is done in case of regular words in modern neural
+language models (Mikolov et al., 2013).
+The embeddings are then fed into several re-
+current layers. After the final recurrent layer,
+the last output of the forward net and the back-
+ward net are concatenated and serve as input to
+a fully-connected layer, followed by a softmax
+layer, which infers the missing tag in the sentence.
+The architecture is shown in figure 2.
+Input
+(tag sequence)
+Embedding
+LSTM (forward) LSTM (backward)
+LSTM (forward) LSTM (backward)
+LSTM (backward)LSTM (forward)
+Fully Connected
+Softmax
+Figure 2: Tag prediction neural network architec-
+ture.
+4 Experiment
+In this section we describe the data sets, the spe-
+cific model architecture settings used in the exper-
+iment and the results.
+4.1 Data
+In order to evaluate the effectiveness of the pro-
+posed method, we used two publicly available Pol-
+ish text corpora - the Polish Sejm Corpus (PSC)
+(Ogrodniczuk, 2012) and a subset of the National
+Corpus of Polish (NCP) (Przepio?rkowski et al.,
+2008, 2010). The PSC is a large collection of
+speeches and interpellations of parliamentary ses-
+sions of the Polish government. Although PSC is
+provided along with automatically extracted mor-
+phosyntactic tags, we used the WCRFT tagger
+(Radziszewski, 2013) to extract them from plain
+PSC text, because of its ability to predict the tags
+of numerals written as digits. This corpus served
+as training (99%) and validation (1%) data sets.
+As the evaluation data set, we used the publicly
+available 1-million word subset of the NCP. The
+main feature of this subset is its manual annota-
+tion. Due to the fact that NCP was designed to
+be representative of the Polish language in gen-
+eral, the corpus consists partly of the PSC, as well
+as books, newspapers and transcripts of informal
+speech. Due to its richness, we encountered some
+tags not found in our annotation of the PSC, which
+resulted in a total of 321 (8%) of sentences being
+removed from the evaluation set.
+Data set Corpus Sentences Words
+Train PSC 521251 10684799
+Validation PSC 5265 107511
+Evaluation NCP 3491 71895
+Table 1: Data sets used in the experiment.
+The morphosyntactic information is typically
+described by a particular tagset. In this work, we
+adopted the NKJP tagset (Przepio?rkowski, 2009),
+which is being used in the NCP. A major difficulty
+is the lack of availability of the true morphosyn-
+tactic tags for the abbreviations - one of the NKJP
+tagset assumptions was to manually annotate ab-
+breviations with tags brev:pun and brev:npun,
+which indicate an abbreviation followed/not fol-
+lowed by punctuation, respectively. Since the true
+tags are available neither in automatic nor manual
+annotation, we select 32 Polish words which are
+often abbreviated, look up their inflected forms in
+the Polimorf morphological dictionary (Wolinski
+et al., 2012), and gather sentences which contain
+at least one of these words. As a result, we obtain
+sentences where an abbreviation might have been
+possible, and consequently acquire labels (the true
+morphosyntactic tags) for a supervised machine
+learning algorithm. We did not consider abbrevia-
+tions of multiple words in this work.
+The size of each data set is presented in table
+4.1. Sentences containing more than one abbre-
+viation are used repeatedly with different word
+abbreviated each time in order not to introduce
+additional complexity into the experiment (which
+would involve handling more than one unknown
+tag by the network). Also, in order to reduce train-
+ing time, we used only sentences of length up to
+30 words.
+4.2 Experimental setup
+We have tested several configurations of the neu-
+ral network architecture and present the one which
+achieved the best results. In the training data, we
+found 950 different morphosyntactic tags (includ-
+ing the special unknown tag) and feed them in one-
+hot-encoded form to the embedding layer, obtain-
+ing 32-dimensional real-valued vectors. The bidi-
+rectional LSTM layers have 64 hidden units for
+each direction. After each recurrent layer, we ap-
+ply dropout (Srivastava et al., 2014) with a fac-
+tor of 0.2. After the last recurrent layer, the fully
+connected layer has 128 hidden units followed by
+dropout with a factor of 0.5 and ReLU activa-
+tion (Nair and Hinton, 2010). Finally, the soft-
+max layer has 257 output units - this is different
+from the input layer due to the fact that the abbre-
+viations in our experiment are mostly nouns and
+are described using only a subset of the original
+tagset. The last two layers are additionally regu-
+larized with weight decay of 0.0005.
+The training was performed using the er-
+ror backpropagation algorithm (Rumelhart et al.,
+1988) with cross-entropy criterion and Adam op-
+timizer (Kingma and Ba, 2014) with the same set-
+tings of learning rate and momentum parameters
+as suggested in the paper. Final parameters of the
+model were selected from the epoch with minimal
+validation loss. We used the TensorFlow (Abadi
+et al., 2015) and Keras (Chollet, 2015) frameworks
+for the experiment.
+4.3 Results
+After 29 epochs of training, the DNN achieved
+84.5% accuracy on the training set, 85.7% accu-
+racy on the validation set and 74.2% accuracy on
+the evaluation set. By contrast, if the classifier al-
+ways predicted the most frequent tag in NCP (i.e.
+subst:sg:gen:m3, which means a singular mas-
+culine genitive noun), the accuracy would have
+amounted to 26% on the evaluation set. Therefore,
+result achieved by the neural net constitutes signif-
+icant evidence that morphosyntactic information is
+sufficient in many cases.
+We would like to showcase and discuss some of
+the problematic cases in which the DNN failed to
+predict properly in the evaluation set. First of all,
+we noticed that about 10% of all errors concern
+confusing singular and plural grammatical num-
+ber. While most of these are unacceptable, there
+are a few mistakes which are less severe - e.g.
+”2.7 l” should have been translated as ”2.7 litra”
+(2.7 liter), but the output was ”2.7 litro?w” (2.7
+liters). Also, 49 mistakes (about 5% of all errors)
+concerned the inflection of the procent word, ex-
+panded from the % symbol. It appears that the
+network learned the rule that in Polish, a noun
+which has its quantity specified (e.g. 5 centime-
+ters), is generally inflected with case and number,
+even though procent is exception to this rule. It
+follows reason, since the network had no way of
+knowing which word was used and the exceptional
+case is less frequent than the general one.
+Another category of errors is related to gram-
+matical gender. The Polish words ulica (street)
+and godzina (hour) are feminine, but in 40 cases
+their abbrevations (ul. and godz.) were classified
+as masculine. We suspect that the nature of this
+error is similar to the previous ones - the network
+had no way of acquiring prior knowledge about the
+correct gender of these words.
+5 Conclusions
+We discussed the problem of inflected abbrevia-
+tion expansion and investigated the viability of ex-
+pansion based on morphological tags of the ab-
+breviation context combined with lookup in a pre-
+defined abbreviation dictionary. We successfully
+applied a bidirectional LSTM in this task and
+achieved a reasonable accuracy in an experiment
+conducted on two Polish corpora. Given the error
+analysis of our model, we conclude that the mor-
+phosyntactic information of the context is not suf-
+ficient to deduce the morphosyntactic tags for the
+expanded abbreviation - although it works in a sig-
+nificant number of cases, prior knowledge about
+factors such as base form or grammatical gender
+of the expanded abbreviation is required for cor-
+rect prediction. We expect that incorporation of
+this prior knowledge in the model will yield sig-
+nificantly better expansion accuracy.
+References
+Mart??n Abadi, Ashish Agarwal, Paul Barham, Eugene
+Brevdo, Zhifeng Chen, Craig Citro, Greg S. Cor-
+rado, Andy Davis, Jeffrey Dean, Matthieu Devin,
+Sanjay Ghemawat, Ian Goodfellow, Andrew Harp,
+Geoffrey Irving, Michael Isard, Yangqing Jia, Rafal
+Jozefowicz, Lukasz Kaiser, Manjunath Kudlur, Josh
+Levenberg, Dan Mane?, Rajat Monga, Sherry Moore,
+Derek Murray, Chris Olah, Mike Schuster, Jonathon
+Shlens, Benoit Steiner, Ilya Sutskever, Kunal Tal-
+war, Paul Tucker, Vincent Vanhoucke, Vijay Va-
+sudevan, Fernanda Vie?gas, Oriol Vinyals, Pete
+Warden, Martin Wattenberg, Martin Wicke, Yuan
+Yu, and Xiaoqiang Zheng. 2015. TensorFlow:
+Large-scale machine learning on heterogeneous sys-
+tems. Software available from tensorflow.org.
+http://tensorflow.org/.
+Franc?ois Chollet. 2015. Keras. https://github.
+com/fchollet/keras.
+Alex Graves and Ju?rgen Schmidhuber. 2005. Frame-
+wise phoneme classification with bidirectional
+LSTM and other neural network architectures. Neu-
+ral Networks 18(5):602–610.
+Sepp Hochreiter and Ju?rgen Schmidhuber. 1997.
+Long short-term memory. Neural computation
+9(8):1735–1780.
+Zhiheng Huang, Wei Xu, and Kai Yu. 2015. Bidi-
+rectional LSTM-CRF models for sequence tagging.
+arXiv preprint arXiv:1508.01991 .
+Diederik Kingma and Jimmy Ba. 2014. Adam: A
+method for stochastic optimization. arXiv preprint
+arXiv:1412.6980 .
+Tomas Mikolov, Ilya Sutskever, Kai Chen, Greg S Cor-
+rado, and Jeff Dean. 2013. Distributed representa-
+tions of words and phrases and their compositional-
+ity. In Advances in neural information processing
+systems. pages 3111–3119.
+Vinod Nair and Geoffrey E Hinton. 2010. Rectified
+linear units improve restricted Boltzmann machines.
+In Proceedings of the 27th international conference
+on machine learning (ICML-10). pages 807–814.
+Maciej Ogrodniczuk. 2012. The Polish Sejm Cor-
+pus. In Proceedings of the Eighth International
+Conference on Language Resources and Evaluation
+(LREC-2012). pages 2219–2223.
+Serguei Pakhomov. 2002. Semi-supervised maximum
+entropy based approach to acronym and abbreviation
+normalization in medical texts. In Proceedings of
+the 40th annual meeting on association for compu-
+tational linguistics. Association for Computational
+Linguistics, pages 160–167.
+Adam Przepio?rkowski. 2009. A comparison of two
+morphosyntactic tagsets of Polish. Citeseer, pages
+138–144.
+Adam Przepio?rkowski, Rafal L Go?rski, Marek Lazin-
+ski, and Piotr Pezik. 2010. Recent developments in
+the National Corpus of Polish. In Proceedings of
+the Seventh International Conference on Language
+Resources and Evaluation (LREC-2010).
+Adam Przepio?rkowski, Rafal L Go?rski, Barbara
+Lewandowska-Tomaszyk, and Marek Lazinski.
+2008. Towards the National Corpus of Polish. In
+Proceedings of the Sixth International Conference
+on Language Resources and Evaluation (LREC-
+2008).
+Adam Radziszewski. 2013. A tiered CRF tagger for
+Polish. In Intelligent tools for building a scientific
+information platform, Springer, pages 215–230.
+David E Rumelhart, Geoffrey E Hinton, and Ronald J
+Williams. 1988. Learning representations by back-
+propagating errors. Cognitive modeling 5(3):213–
+220.
+Richard Sproat. 2010. Lightly supervised learning of
+text normalization: Russian number names. In Spo-
+ken Language Technology Workshop (SLT), 2010
+IEEE. IEEE, pages 436–441.
+Richard Sproat and Navdeep Jaitly. 2016. RNN ap-
+proaches to text normalization: A challenge. arXiv
+preprint arXiv:1611.00068 .
+Nitish Srivastava, Geoffrey E Hinton, Alex Krizhevsky,
+Ilya Sutskever, and Ruslan Salakhutdinov. 2014.
+Dropout: a simple way to prevent neural networks
+from overfitting. Journal of Machine Learning Re-
+search 15(1):1929–1958.
+Martin Sundermeyer, Ralf Schlu?ter, and Hermann Ney.
+2012. LSTM neural networks for language model-
+ing. In Interspeech. pages 194–197.
+Marcin Wolinski, Marcin Milkowski, Maciej Ogrod-
+niczuk, and Adam Przepio?rkowski. 2012. Polimorf:
+a (not so) new open morphological dictionary for
+Polish. In Proceedings of the Eighth International
+Conference on Language Resources and Evaluation
+(LREC-2012). pages 860–864.

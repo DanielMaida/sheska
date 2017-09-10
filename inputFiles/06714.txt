@@ -1,0 +1,1796 @@
+A Deterministic Nonsmooth Frank Wolfe Algorithm with Coreset
+Guarantees
+Sathya N. Ravi RAVI5@WISC.EDU
+Department of Computer Sciences
+University of Wisconsin Madison
+Maxwell D. Collins MCOLLINS@CS.WISC.EDU
+Department of Computer Sciences
+University of Wisconsin Madison
+Vikas Singh VSINGH@BIOSTAT.WISC.EDU
+Department of Biostatistics and Department of Computer Sciences
+University of Wisconsin Madison
+Summary as a blog post: https://sravi-uwmadison.github.io
+Editor:
+Abstract
+We present a new Frank-Wolfe (FW) type algorithm that is applicable to minimization problems
+with a nonsmooth convex objective. We provide convergence bounds and show that the scheme
+yields so-called coreset results for various Machine Learning problems including 1-median, Bal-
+anced Development, Sparse PCA, Graph Cuts, and the `1-norm-regularized Support Vector Ma-
+chine (SVM) among others. This means that the algorithm provides approximate solutions to these
+problems in time complexity bounds that are not dependent on the size of the input problem. Our
+framework, motivated by a growing body of work on sublinear algorithms for various data analysis
+problems, is entirely deterministic and makes no use of smoothing or proximal operators. Apart
+from these theoretical results, we show experimentally that the algorithm is very practical and in
+some cases also offers significant computational advantages on large problem instances. We pro-
+vide an open source implementation that can be adapted for other problems that fit the overall
+structure.
+1. Introduction
+The impact of numerical optimization on modern data analysis has been quite significant – today,
+these methods lie at the heart of most statistical machine learning applications in domains spanning
+genomics Banerjee et al. (2006), finance Pennanen (2012) and medicine Liu et al. (2009). The ex-
+panding scope of these applications (and the complexity of the associated data) has continued to
+raise the expectations of the efficiency profile of the underlying algorithms which drive the analyses
+modules. For instance, the development of “low-order” polynomial time algorithms has long been a
+central focus of algorithmic research; the availability of a (near) linear time algorithm for a problem
+was considered a gold standard since any algorithm’s runtime should, at a minimum, include the
+time it takes to evaluate the input data in its entirety. But as applications that generate extremely
+large data sets become more prevalent, we encounter many practical scenarios where even a pro-
+1
+ar
+X
+iv
+:1
+70
+8.
+06
+71
+4v
+1 
+ [
+m
+at
+h.
+O
+C
+] 
+ 2
+2 
+A
+ug
+ 2
+01
+7
+cedure that takes only linear time to process the data may be considered impractical Sarlos (2006);
+Clarkson and Woodruff (2015). Within the last decade or so, efforts to understand whether the stan-
+dard notions of an efficient algorithm are sufficient and/or whether linear time algorithms are good
+enough for various turnkey applications has led to the study of so-called “sublinear” algorithms
+and a number of interesting results have emerged Clarkson et al. (2012); Rudelson and Vershynin
+(2007).
+Sublinear computation is based upon the premise that a fast (albeit approximate) solution may,
+in some cases, be preferrable to the optimal solution obtained at a higher computational or financial
+cost. The strategy is a good fit in at least two different regimes: (a) operations on streaming data
+where an algorithm must run in real time (an inexact but prompt answer may suffice) Braverman
+and Chestnut (2014) or (b) where the appropriate type of data (for the task) is scarce or unavailable
+at sample sizes necessary to utilize standard statistical tests (e.g., ?2)Acharya et al. (2015). In either
+case, an important feature of most sublinear algorithms is the use of an approximated version of the
+decision version of the original problem. Many of the technical results, for specific problems/tasks
+have focused on deriving so-called “property testing” schemes as a means to establish what an
+algorithm can be expected to accomplish without reading through all of the data. This line of work
+has led to many fast sublinear algorithms for numerical linear algebra problems including matrix
+multiplication Drineas et al. (2006), computing spectral norms and leading singular vectors of the
+data matrix Drineas et al. (2006) among others, and has been deployed in settings where the full data
+may have a large memory footprint. More recently, several authors have even shown how to extend
+this idea for solving convex optimization problems. In particular, the work by Clarkson Clarkson
+(2008) which motivates our paper obtains sublinear algorithms for a variety of problems where the
+feasible set is the unit simplex. Next, we briefly describe this framework and its relationship to
+Coresets, an idea often used in the design and analysis of algorithms in computational geometry.
+In an important result a few years ago Clarkson (2008), the authors showed that sublinear al-
+gorithms can be designed for a variety of problems using the framework of the well known Frank-
+Wolfe (FW) algorithm Frank and Wolfe (1956). Recall that FW algorithms can be used to solve
+smooth convex optimization problems when the feasible set is compact. Using this framework,
+Clarkson unified the analysis of various problems in machine learning and statistics including re-
+gression, boosting, and density mixture estimation via reformulations as optimization problems
+with a smooth convex objective function and where the unit simplex was the feasible set. This setup
+was then shown to provide immediate results to important theoretical and practical issues including
+sample complexity bounds and faster algorithms for Support Vector Machines and approximation
+bounds for boosting procedures. This result raises an interesting question: what properties of FW
+algorithms enable one to design fast algorithms with provable guarantees? Clarkson addressed this
+question by drawing a contrast between FW algorithms and a (widely used) alternative strategy, i.e.,
+projected gradient type algorithms. Specifically, instead of a quadratic function, in FW algorithms,
+we optimize a linear function over the feasible set which often yields a better per iteration complex-
+ity for many problems (further, the iterates always remain feasible). It turns out that these properties
+are particularly useful from a theoretical computer science/optimization point of view since one can
+frequently obtain pipelines with significantly better memory complexity Garber and Meshi (2016);
+Gidel et al. (2017), as we discuss next.
+An interesting consequence of the above work was a result showing an nice relationship of FW-
+type schemes to a concept predominantly used within computational geometry known as coresets
+Agarwal et al. (2005). Intuitively, a coreset (typically defined in the context of a problem statement)
+2
+is a subset of the input data on which an algorithm with provable approximation guarantees for the
+problem at hand can be obtained which has a runtime/memory complexity that is, in some sense,
+independent of (or only loosely dependent on) the size of the dataset. A key practical consequence
+of the analysis in Clarkson et al. (2012) was that coresets for SVMs derived using the proposed
+procedure were tighter than all earlier results Tsang et al. (2005). For other machine learning prob-
+lems which can be solved using convex optimization included in Clarkson et al. (2012), the analysis
+typically allows bounding the number of nonzero elements in the decision variables (independent of
+the total number of such variables). Clearly these are very useful properties — but we see that the
+setup in Clarkson et al. (2012) requires that the objective function of the optimization problem be
+differentiable; this is somewhat restrictive for machine learning and computer vision applications,
+where various nonsmooth regularizers are ubiquitous and serve to impose structural or statistical
+requirements on the optimal solution Bach et al. (2012). The overarching goal of our paper is to
+obtain an algorithm (very similar to the standard FW procedure) which makes no such assumption.
+Incidentally, we are also able to obtain coreset-type results for a much broader class of problems
+(that involve nonsmooth objective functions) — providing sublinear algorithms for several of these
+applications and sensible heuristics for others.
+1.1 Overview of this work and related results
+We first define the problem considered here and give an overview of some of the related works. Let
+f be a convex and continuous real-valued function (but not necessarily continuously differentiable)
+over a compact convex domain D. We study a specific class of finite dimensional optimization
+problems expressed as,
+min
+x?D
+f(x) (1)
+Our central result gives a new convergence bound for an algorithm loosely derived from a scheme
+first outlined in White (1993) in the early 1990s but which seems to have been utilized only sparingly
+in the literature since. At a high level, our deterministic method generates a sequence of iterates xk
+for k = {0, 1, 2, ...} that provably converge in the primal–dual gap. Specifically, if x? is a solution
+to (1) we show that f(xk) ? f(x?) + O(1/
+?
+k), thereby providing an a priori bound on the
+suboptimality of each iterate. We can restate this bound, for any choice of  > 0 and
+f(xk) ? f(x?) +  for any k ? K (2)
+for some K ? O(1/2).
+Relevance. A wide range of problems can be expressed in the form shown in (1), and for some
+of these problems, bounds as in (2) will also yield a coreset result. As briefly described in the pre-
+vious section, within a coreset-based algorithm, we can perform training on a very large numbers
+of examples while requiring computational resources that depend on the intrinsic hardness of the
+problem regardless of the amount of data collected. We note that while a subsampling heuristic
+may show this behavior for some datasets (and for some objective functions), in general, a coreset
+(if it exists) will typically yield a stronger approximation than ordinary subsampling. For example,
+coreset results have been used for k-means and k-median clustering Har-Peled and Kushal (2005),
+subspace approximation Feldman et al. (2010), support vector machines and its variants Tsang et al.
+(2005); Nathan and Raghvendra (2014); Har-Peled et al. (2007), and robotics Feldman et al. (2012);
+Balcan et al. (2013). For several problems we discuss here, convergence bounds on the optimiza-
+tion model show that a solution xK can be found with no more than K nonzero entries, and these
+3
+nonzeros correspond to the choice of a coreset as mentioned above. Another consequence of such
+a result is that the coreset bound will be deterministic, giving a tight bound on the actual approxi-
+mation error, as opposed to a bound on the expected approximation error. For some problems, our
+results also translate well to practice, yielding fast implementations discussed in the experimental
+section. Relation to existing work. A small set of results pertaining to nonsmooth Frank Wolfe
+algorithms (and our proposed ideas) have been reported in the literature in the last few years. At the
+high level, these approaches correspond to three different flavors: (1) noisy gradients: Jaggi (2013)
+considers the case where the FW method uses an inexact gradient such that the linear subprob-
+lems provide a solution to the exact problem within a bounded error but assume that the objective
+function is smooth; (2) dualizing: Jaggi (2011) presented a FW dual for nonsmooth functions em-
+ploying the subgradients of the objective. This can be used to generate a “certificate” of optimality
+of an approximate solution via the primal-dual gap but the algorithms do not deal with the nons-
+moothness directly. In particular, for the applications studied in Jaggi (2011), the nonsmooth parts
+in the objective function are dualized instead and treated as constraints. This approach becomes
+inefficient since the subproblems are complicated for many other important applications that are
+considered here; (3) smoothing: Hazan and Kale (2012a) presents an algorithm for minimization of
+nonsmooth functions with bounded regret that applies the FW algorithm to a randomly smoothed
+objective, instead providing probabilistic bounds. This approach closely addresses the setting that
+we consider, however, it has a practical bottleneck. Observe that (at each iteration) one has to make
+many queries to the zeroth order oracle of the objective function in order to compute the gradient
+of the smoothed (approximate) function which is often expensive when the function depends on the
+number of data points (may be quite large in many problems). We do observe this behavior in our
+experimental evaluations in section 5. We will point out other related works in the relevant sections
+below. Overall, we see that much of the existing literature has approached this problem either via an
+implicit randomized smoothing Hazan and Kale (2012a) or by using proximal functions Argyriou
+et al. (2014); Pierucci et al. (2014) to yield suitable gradients and provide convergence results for
+the smoothed objective.
+Summary of our contributions. In section 2, we discuss why simply using a subgradient is insuf-
+ficient to prove convergence. Then, we introduce the basic concepts that are used in our algorithm
+and analysis. The starting point of our development is a specific algorithm mentioned in White
+(1993), which is of the same general form as Algorithm 1 of our paper in Section 3; White (1993)
+includes a result equivalent to the “Approximate Weak Duality” that we describe later. In section 3,
+we derive an a priori convergence result for a nonsmooth generalization of the FW method, which
+also yields a deterministic bound on the approximation error and the size of the constructed coreset.
+We use a much more general construction for the approximate subdifferential T (x, ) and show how
+this can yield novel coreset results analogous to those shown for the FW method in the smooth case
+in Clarkson (2008). Using these results, we analyze many important problems in statistics and ma-
+chine learning in section 4. While the algorithm we present may not be a silver bullet for arbitrary
+nonsmooth problems (which may have specialized algorithms), in several settings, the results do
+have practical import, these are discussed in section 5. For instance, we show an example where
+our algorithm enables solving very large problem instances on a single desktop where fairly recent
+papers have deployed distributed optimization schemes on a cluster. On the theoretical side, a useful
+result is that our scheme can produce coresets with hard approximation bounds.
+4
+2. Preliminary Concepts
+To introduce our algorithm and the corresponding convergence analysis, we start with some basic
+definitions first. Recall that a fundamental tool for optimization of nonsmooth functions is the sub-
+differential. Unfortunately, utilizing just the subdifferential, turns out to be insufficient to produce
+the necessary convergence bounds for our analysis. For instance, in a very recent paper Nesterov
+(2015), the authors constructively showed that simply replacing the gradient by a subgradient is
+incapable of ensuring convergence — a simple two dimensional example demonstrated that the FW
+algorithm does not converge to the optimal solution for any number of iterations. To our knowl-
+edge, there are no clear strategies to fix this limitation at this time. As mentioned above, one often
+uses smoothing techniques as a workaround, where an auxiliary function is constructed which is
+optimized instead Nesterov (2005); Pierucci et al. (2014). While this approach has had significant
+practical impact, it involves the selection of a proximal function. But there are no general recipes to
+choose the proximal function for a given model and is often designed based on the specific problem
+at hand.
+We observe that the convergence analysis of FW type methods rely on the boundedness of an
+important quantity called the “Curvature” Constant,
+Cexactf := sup
+x, s ? D
+? ? [0, 1]
+(
+min
+d??f(x)
+1
+?2
+(f(y)? f(x)? ?y ? x, d?)
+)
+(3)
+where y = x + ?(s ? x). It relates how well the first-order information from the approximate
+subdifferential globally describes the function (when f is smooth, d is simply the gradient of f ). It is
+this quantity that becomes unbounded even for simple nonsmooth functions making the subsequent
+analysis difficult. To make this point clear, we now show a simple example of a nonsmooth function
+for which this quantity is not bounded, though in this ‘easy’ case we can prove convergence with
+more direct means.
+Example 0.1. Let f(x) = |x| over D = [?1, 1]. For any x ? (0, 12), let s = ?1 + x and ? = 2x.
+Accordingly,
+y = x+ ?(s? x) = x+ 2x(?1 + x? x) = ?x (4)
+By definition,
+Cexactf ? min
+d??f(x)
+1
+?2
+(f(y)? f(x)? ?y ? x, d?) (5)
+= min
+d??f(x)
+1
+4x2
+(f(?x)? f(x) + ?2x, d?) (6)
+Because f is differentiable at x, ?f(x) = {1},
+=
+1
+4x2
+(| ? x| ? |x|+ 2x) = 1
+2x
+(7)
+Hence we have that,
+lim
+x?0+
+1
+2x
+= +?. (8)
+We cannot obtain a Cexactf that can upper bound this quantity for all x ? (0,
+1
+2). This example shows
+that linear approximations based on ordinary subgradients can be arbitrarily poor in the neighbor-
+hood of nondifferentiable points.
+5
+Basic idea. Intuitively, the subdifferential is a discontinuous multifunction Robinson (2012)
+and provides an incomplete description of the curvature Cf of the function in the neighborhood
+of the nonsmooth points. After making a few technical adjustments, it turns out that we can work
+around this issue by making use of approximate subdifferentials. We deal with two constructions
+that yield approximate subdifferentials. Using these definitions, we will give the formal statement
+of our convergence theorem in the next section. The first is the -subdifferential Hiriart-Urruty and
+Lemare?chal (1993), which is defined at each point x in the domain of a function f as
+?f(x) := {d | f(y) ? f(x) + ?s, y ? x? ?  for all y}. (9)
+Notice that the exact subdifferential is recovered when  is zero, ?0f(x) = ?f(x).
+While the -subdifferential indeed provides the theoretical properties for our convergence bounds,
+in practical cases, it requires us to work with carefully chosen problem-specific subsets of ?f(x).
+A successive construction which we present later produces approximate subdifferentials that have
+nicer computational properties while preserving the convergence bounds. In this approximation, we
+must take the subdifferentials over a neighborhood; this idea is summarized next.
+Let N be an arbitrary mapping from x to neighborhoods around x such that N(x, ) ? {x}
+as  ? 0. Formally, we assume that x ? N(x, ) and there exists some constant R such that
+N(x, ) ? B(x,R) for all  > 0. The notation B(x, r) is the open ball around x of radius r.
+Assume w.l.o.g. that R = 1. Let T be
+T (x, ) :=
+???{?f(x)} if f is differentiable on N(x, )?
+u?N(x,)
+?f(u) otherwise (10)
+Here T provides a set of approximate subgradients of x. Indeed, if f is L-Lipschitz, we have
+T
+(
+x, 2L
+)
+?
+?
+u?B(x, 2L)
+?f(u) ? ?f(x) by Theorem 8.4.4 of Robinson (2012). It turns out
+that with these constructions, we will shortly obtain a deterministic non-smooth FW algorithm with
+accompanying convergence results.
+3. Convergence Results
+Using the foregoing concepts, we can adapt the procedure in White (1993) with a few technical
+modifications as shown in Algorithm 1.
+Algorithm 1 Conditional Subgradient (based on ideas introduced in White (1993))
+Pick an arbitrary starting point x0 ? D, where D is the compact convex feasible set.
+for k = 0, 1, 2, ... do
+Let ?k := 2k+2 and k :=
+?
+?k
+Compute s ? D such that
+max
+d?T (x,k)
+?s? x, d? ? min
+z?D
+max
+d?T (x,k)
+?z ? x, d? (11)
+Update xk+1 := xk + ?(s? xk)
+end for
+To simplify the presentation, we will assume that the subproblems (11) are efficiently solvable
+both in theory and in practice. In general, this is true when T (x, ) is a polyhedron since any point
+6
+d ? T (x, ) can be written as a convex combination of extreme points and extreme rays. We also
+show shortly that for various statistical machine learning problems, we can solve (11) far more
+efficiently even though T (x, ) is not a polyhedron making the overall algorithm attractive in any
+case. With this assumption, we may generalize the curvature constant which plays a key role in our
+convergence analysis,
+Cf () := sup
+x,s?D
+??[0,1]
+y=x+?(s?x)
+min
+d?T (x,)
+1
+?2
+(f(y)? f(x)? ?y ? x, d?) (12)
+Importantly, we use approximate subgradients instead of a gradient as in Clarkson (2008), where the
+value of Cf depends on . We can choose an  varying with iterations in such a way as to guarantee
+convergence although in practical problems, we see that Cf ? O(1/). In any case, note that the
+complexity of the algorithm does not depend on the input data, that is, we can choose  to be very
+small such that T (x, ) is tractable in practice. In particular, when the decision variables are defined
+over examples, and the subdifferential can be computed with only the nonzero coordinates of the
+decision variables, our algorithm ends up being sublinear. We will see this in detail in the later
+sections for specific problems that are also empirically verified. Our central convergence theorem,
+stated in terms of this constant, appears next.
+Theorem 1. Suppose f is L-Lipschitz and Cf () ?
+Df
+ for some constant Df for any  ? 1. Then
+Alg. 1 generates a sequence of iterates xk, such that for the kth iteration:
+f(xk)? f(x?) ?
+25/2L+ 23/2Df?
+k + 2
+(13)
+where x? is the optimal solution to the problem in (1).
+Remarks. As the iteration count k increases, the denominator in this upper bound increases.
+Since the numerator consists of constants depending only on the definition of f and D, this will
+approach 0 as k ? ?. It is important to notice that while this theorem provides a general con-
+vergence bound (which is useful), it does not alone prove that Algorithm 1 will produce a coreset
+and consequently, will be sublinear. Indeed, it is a known result for smooth functions; shortly, in
+example cases covered in Section 4, we show the other key component of the proposed algorithm:
+a bound on the number of nonzeros for any solution s of the subproblems (11). The key results
+here will depend on D and f , and we will seek to show that the number of nonzero entries in s will
+be O(1) w.r.t. the overall size of the problem. This in turn guarantees that xk will have no more
+than O(k) nonzeros. Combined with the convergence bound above, this in turn will demonstrate
+that a sparse -approximate solution can be found with O(1/2) nonzeros which does not depend
+on the problem size (e.g., number of samples/examples or dimensions). When x is a vector of the
+examples in a machine learning problem, the union of nonzeros for each s found by Algorithm 1
+will constitute a coreset. Theorem (1) can be used as a general framework that can be extended to
+show a coreset result for any nonsmooth problem for which a sparsity bound on s can in turn be
+shown, yielding a valuable tool for sublinear algorithm design.
+Ingredients: The proof of Theorem 1 relies on a bound in the improvement in the objective at
+each iteration in terms of Cf and the duality gap between the primal objective at x and a nonsmooth
+modification of the Wolfe dual. We define this dual ? of f as:
+?(x, ) := min
+z?D
+max
+d??f(x)
+f(x) + ?z ? x, d?. (14)
+7
+This dual gives us a property we call approximate weak duality. Up to , this dual is at all points
+less than the minimum value of the primal objective at all points.
+Lemma 1 (Approx. Weak Duality). ?(x, ) ? f(y) +  for all x, y ? D,
+Proof. Take any x, y ? D. Due to the minimization in (14),
+?(x, ) ? max
+d??f(x)
+f(x) + ?y ? x, d? (15)
+By the definition of the -subdifferential, for any d ? ?f(x), including the one chosen by the
+maximization,
+f(x) + ?y ? x, d? ? f(y) +  (16)
+Yielding the lemma statement.
+Denote the primal-dual gap at x by
+g(x, ) := f(x)? ?(x, ) = max
+y?D
+min
+d??f(x)
+?x? y, d? (17)
+By Lemma 1,
+g(x, ) ? f(x)? f(x?)?  ? ? (18)
+The combination of the primal-dual gap and the curvature constant Cf produces a stepwise bound
+on the objective. This is then used to show the a priori convergence result in Theorem 1. We see
+that at each step of Algorithm 1, the objective at xk+1 improves upon the objective at the previous
+iterate xk by a term proportional to the primal-dual gap, up to a “curvature error” term with Cf .
+This is stated in the following result:
+Theorem 2. For any step xk+1 := xk + ?(s ? xk), with arbitrary step size ? ? [0, 1] and s ? D
+chosen as in (11), it holds that:
+f(xk+1) ? f(xk)? ?g(xk, ?) + ?2Cf (k), (19)
+where ? = 2Lk when f is L-Lipschitz.
+Proof. Write x := xk, y := xk+1 = x+ ?(s? x), and  := k. From the definition of Cf ,
+f(y) ? f(x) +
+(
+max
+d?T (x,)
+?y ? x, d?
+)
++ ?2Cf ()
+= f(x) + ?
+(
+max
+d?T (x,)
+?s? x, d?
+)
++ ?2Cf ()
+By choice of s, using (11),
+? f(x) + ?
+(
+min
+y?D
+max
+d?T (x,)
+?y ? x, d?
+)
++ ?2Cf ()
+8
+now using the fact that T
+(
+x, 2L
+)
+? ?f(x),
+? f(x) + ?
+(
+min
+y?D
+max
+d???f(x)
+?y ? x, d?
+)
++ ?2Cf ()
+= f(x)? ?
+(
+max
+y?D
+min
+d???f(x)
+?x? y, d?
+)
++ ?2Cf ()
+Substituting (17),
+= f(x)? ?g(x, ?) + ?2Cf ()
+Proof of Theorem 1. Finally, we prove the main theorem by inductively applying this stepwise
+bound to find the a priori bound in terms of k.
+Let h(x) = f(x)? f(x?). Using Theorem 2, we first restate the stepwise bound as follows:
+h(xk+1) ? h(xk)? ?kg(xk, 2Lk) + ?2kCf (k)
+By Lemma 1,
+? h(xk)? ?k(h(xk)? 2Lk) + ?2kCf (k)
+? (1? ?k)h(xk) + 2L?kk +
+?2k
+k
+Df (?)
+Now, if we substitute the constant E := 2L+Df , and the choice k =
+?
+?k as in the algorithm,
+= (1? ?k)h(xk) + ?
+3/2
+k E
+We will see in the experiments how this choice of k makes the algorithm practically useful. Using
+this notation to rewrite the theorem, we seek to show h(xk) ? 2
+3/2E?
+k+2
+= 2E
+?
+?k.
+We prove this by induction. The base case comes from applying the stepwise bound with k = 0
+and ?k = 1 to get h(x1) ? E ? 2
+3/2E?
+3
+. For k ? 1, making the induction step,
+h(xk+1) ? (1? ?k) (2E
+?
+?k) + ?
+3/2
+k E
+=
+(
+1? 2
+k + 2
+)
+23/2E?
+k + 2
++
+23/2
+(k + 2)3/2
+E
+= 23/2E
+?
+k + 2
+(
+1
+k + 2
+? 1
+(k + 2)2
+)
+Now note that (
+1
+k + 2
+? 1
+(k + 2)2
+)
+=
+1
+k + 2
+k + 2? 1
+k + 2
+? 1
+k + 2
+k + 2
+k + 3
+=
+1
+k + 3
+So
+h(xk+1) ? 23/2E
+?
+k + 2
+k + 3
+? 23/2E
+?
+k + 3
+k + 3
+=
+23/2E?
+k + 3
+9
+Comments: A key intuition about the algorithm can be gained from the proof step in (?). This
+inequality implies that the improvement in the objective for each step has a bounded “error” with
+two parts. First is an error linear in ?k that comes from our use of an approximate subgradient rather
+than an exact subgradient. This error is proportional to k. Second, we have a “curvature” error that
+arises from the nonlinearity of our objective function and is instead inversely proportional to k. By
+choosing a decaying k such that 1k ? ?
+(
+1?
+?k
+)
+we send both error terms to 0 as k ??.
+4. Approximable Nonsmooth Problems
+In this section, we demonstrate how the foregoing ideas can be applied and made more specific, on
+a case by case basis, for various problems arising in statistical machine learning. Since many of
+the steps and quantities in the algorithm and theorems described in the previous section depend on
+details of the individual problem, we use these examples to show the potential value of our results. In
+this section, each problem we present yields a choice of objective function f and feasible region D.
+For these choices, we then describe the approximate subdifferentials and the resulting subproblems
+to determine the step direction. We show that the antecedents of Theorem 1 are satisfied for a
+number of machine learning problems and provide O(1/) bounds for Cf (). A problem-specific
+bound onCf is the final component of establishing an iteration bound for that problem. It guarantees
+that our scheme for selecting k will provide convergence, and that we have finite values for the
+numerator in (13). Therefore, the quotient will approach 0 in the limit.
+Overview of problems. We first analyze the supremum of linear functions and compute the Cf .
+With this in hand, we will present a formulation of `1 SVM that is suitable for our analysis. In
+particular, we show Cf bounds using the result from piecewise linear functions and then proceed to
+discuss how the subproblems (11) can be efficiently solved. We discuss the tractability and provide
+tight coreset bounds for this problem. Later, we analyze the multiway graph cuts model by adapting
+the techniques used in the `1 SVM problem and finally, we also describe how the analysis extends
+to the 1-median problem, Sparse PCA and Balanced development.
+4.1 Supremum of Linear Functions
+We can define a piecewise linear convex function on Rn by
+f(x) := max
+i=1,...,p
+aTi x+ bi. (20)
+If we let A ? Rp×n be the matrix such that row i is equal to ai, and b ? Rp be the vector that has
+elements bi. We know that f is Lipschitz-smooth with constant equal to the operator norm ?A? and
+f(x) ? f?(Ax+ b) for
+f?(x?) = max
+i=1,...p
+x?i (21)
+so that
+f(x) := f?(Ax+ b) (22)
+The subdifferentials of f? are given by
+?f?(x?) =
+{
+ei
+???? ( maxj=1,...,p x?j
+)
+= x?i
+}
+(23)
+10
+For the purposes of calculating approximate subdifferentials T? and T of f? and f respectively (de-
+fined in section 2), we use the neighborhoods:
+N?(x?, ) = {u? | ?u?? x??? ? }, (24)
+N(x, ) = {u | ?Au?Ax?? ?  and u? x ? im
+(
+AT
+)
+}, (25)
+where AT is the transpose of A and im
+(
+AT
+)
+is the row space of A.
+Theorem 3. Define
+V (x?, ) =
+{
+ei
+???? x?i ? (maxj x?j
+)
+? 2
+}
+(26)
+and let CoS denote the convex hull of the set S. Then, the approximate subdifferential is given by
+T? (x?, ) = CoV (x?, )
+Proof. Note that both sides will be a singleton set equal to {?f?(x?)} iff f? is differentiable on
+N?(x?, ). We therefore prove only the case that f? is nondifferentiable somewhere in the neigh-
+borhood.
+Forward Direction: T? (x?, ) ? CoV (x?, )
+Take any u? ? N?(x?, ). We have,
+?f?(u?) = Co
+{
+ei
+???? u?i = (maxj u?j
+)}
+(27)
+Now take any i such that ei ? vert(?f?(u?)) where vert(S) denotes the vertices of a polyhedral set
+S. If S is a finite set of linearly independent points, then vert(CoS) = S (which in this case is the
+set of basis vectors in (27)). Because ?u?? x??? ? ,
+x?i ? u?i ?  =
+(
+max
+j
+u?j
+)
+?  ?
+(
+max
+j
+x?j
+)
+? 2 (28)
+Therefore
+vert(?f?(u?)) ? V (x?, ) (29)
+=? ?f?(u?) ? CoV (x?, ) (30)
+Since this is true for all u ? N?(x?, ), we see that T? (x?, ) ? CoV (x?, ).
+Reverse Direction: T? (x?, ) ? CoV (x?, )
+Let u? be the vector defined elementwise by
+u?i =
+{
+(maxj x?j)?  if x?i ? (maxj x?j)? 2
+x?i otherwise
+(31)
+11
+If we take some i such that x?i ? (maxj x?j)? 2, then
+u?i ? x?i =
+(
+max
+j
+x?j
+)
+? ? x?i (32)
+?
+(
+max
+j
+x?j
+)
+? ?
+((
+max
+j
+x?j
+)
+? 2
+)
+=  (33)
+Similarly, it also holds that,
+x?i ? u?i ?
+(
+max
+j
+x?j
+)
+? u?i =
+(
+max
+j
+x?j
+)
+?
+((
+max
+j
+x?j
+)
+? 
+)
+=  (34)
+And u?i = x?i for the “otherwise” case. Therefore ?u?i ? x?i?? ?  and u?i ? N?(x?, ).
+Furthermore, note that clearly f?(u?) = maxj x?j ? , and for any i such that
+x?i <
+(
+max
+j
+x?j
+)
+? 2 (35)
+we have that, for all  > 0,
+x?i <
+(
+max
+j
+x?j
+)
+?  = f?(u?) (36)
+Accordingly,
+vert(?f?(u?)) = V? (x?, ) (37)
+=? T? (x?, ) ? ?f?(u?) = CoV? (x?, ). (38)
+Lemma 2. T (x, ) = AT T? (Ax+ b, )
+Proof. This follows from the fact that ?f(u) = AT?f?(Au + b), and A N(x, ) + b = N?(Ax +
+b, ).
+Corollary 3. T (x, ) = ATCoV (Ax+ b, ) = CoATV (Ax+ b, )
+Proof. The first equality is simply the combination of Lemma 2 and Theorem 3. The second is clear
+from the definition of convex hull.
+So the approximate subdifferentials T? and T , of the functions f? and f respectively are related
+by
+T? (x?, ) = CoV (x?, ) (39)
+and T (x, ) = ATCoV (Ax+ b, ) (40)
+for an appropriate choice of neighborhoods.
+Lemma 4. If y? ? N?(x?, ) then ?f?(y?) ? T? (x?, ).
+12
+Proof. If f? is nondifferentiable anywhere on N?(x?, ), the inclusion follows from the definition of
+T? . So we will consider the case when the neighborhood contains no nondifferentiable points.
+Let i? := arg maxi x?i. If f? is instead differentiable everywhere on the neighborhood around x?,
+this means u?i < u?i? for all u ? N?(x?, ) for any i 6= i?. Therefore ?f?(x?) = ?f?(y?) = {ei?} and the
+lemma is true as an equality.
+Theorem 4. Consider any x?, s? ? Rp and ? ? [0, 1]. Let y? := x?+ ?(s?? x?). Then
+min
+d??T? (x,)
+1
+?2
+(
+f?(y?)? f?(x?)? ?y? ? x?, d??
+)
+? 2
+
+?s?? x??2?. (41)
+Proof. It is sufficient to look at the following two cases,
+Case 1: y? ? N?(x?, )
+Let i? = arg maxi y?i. Then ei? ? ?f?(y?) ? T? (x, ) from (23) and Lemma 4. Then the left hand
+side of (41) is bounded above by
+f?(y?)? f?(x?)? ?y? ? x?, ei?? = y?i? ?
+(
+max
+i
+x?i
+)
+? (y?i? ? x?i?) (42)
+= x?i? ?
+(
+max
+i
+x?i
+)
+? 0 (43)
+Case 2: y? /? N?(x?, )
+First note that in this case we have a lower bound on ?:
+? ? 
+?s?? x???
+(44)
+Then we use the fact that ?d??1 ? 1 for any d? ? ?f?(u?) for any u? ? Rp to bound the left hand side
+of (41) by
+f?(y?)? f?(x?) + ?y? ? x??? (45)
+=
+(
+max
+i
+x?i + ?(s?i ? x?i)
+)
+?
+(
+max
+i
+x?i
+)
++ ??s?? x??? (46)
+?
+(
+max
+i
+x?i
+)
++ ?
+(
+max
+i
+s?i ? x?i
+)
+?
+(
+max
+i
+x?i
+)
++ ??s?? x??? (47)
+? 2??s?? x??? (48)
+The bound in the lemma then follows from (44) and (48).
+Denote the diameter of a set S with respect to the q-norm by diamq(S) = maxx,y?S ?x? y?q.
+Then, we can further bound (41) by the diameter of the bounded feasible set.
+Corollary 5. Given the problem of minimizing a piecewise linear function f(x) = maxi(Ax+ b)i
+over a bounded set D, the corresponding Cf is bounded above by Cf () ? 2 (diam?(A D))
+2.
+Proof. This comes from the definition
+diamp(S) = max
+x,y?S
+?x? y?p (49)
+so that ?s?? x??? ? diam?(A D), for all s? = As+ b, x? = Ax+ b with x, s ? D.
+13
+4.1.1 `1-NORM-REGULARIZED SVM
+The first Machine Learning problem we analyze is the `1-norm-regularized SVM. Since the `1 norm
+is sparsity-inducing, the regularization ?w?1 gives an optimization problem that finds a separating
+hyperplane in only a small subset of the features. This is expected to perform well in problems where
+there is a large number of redundant or noisy features included with a few informative features.
+Suppose we are given training examples (xi, yi) ? Rd × {?1, 1}. To train a classifier on this
+input we start with a hard-margin variant of the `1-norm-regularized SVM Mangasarian (1999):
+min
+w?Rd,??R
+?w?1 s.t. yi(wTxi ? ?) ? 1 ? i (50)
+Define matrix A+ ? Rd×m that has the positive examples in the columns, and A? ? Rd×n has
+the negative examples in the columns. Bennet & Bredensteiner Bennett and Bredensteiner (2000)
+provide a dual to the soft-margin `1-norm-regularized SVM with hinge loss, related to polytope
+distance formulations of the `2-norm-regularized SVM Ga?rtner and Jaggi (2009):
+min
+u??m,v??n
+?A+u?A?v?? s.t. 0 ? u, v ?
+1
+R
+. (51)
+The elementwise upper bounds on u and v and the parameter R come from the reduced con-
+vex hull construction in that paper, to which we refer the interested reader. When R = 1, this
+yields a dual to the hard-margin problem. In the hard-margin case, the feasible set is D :=
+?m × ?n, where ?m and ?n denotes the unit simplices in Rm and Rn respectively, and the
+feasible set is a subset of D in the soft-margin case. Therefore, using Corollary 5, we get Cf () ?
+2
+ (diam?(A
++?m) + diam?(A
+??n)).
+Frank Wolfe Subproblems. For the dual problem in (51), express our objective as f(x) :=
+?Ax??, for A and x such that Ax = A+u ? A?v. We can then write f as in (20), where the
+linear functions are given by the rows of A and the rows of ?A. Define the approximate subdiffer-
+ential as in (40), and in this case
+V (x?, ) = {ei | x?i ? ?x??? ? 2} ? {?ei | x?i ? ??x??? + 2}. (52)
+We now turn to the subproblems in (11) for this T (x, ) and feasible region D. Observe that the
+maximum over d will have a solution equal to a vertex of T (x, ). An optimal z can then be found
+by:
+min
+z?Rm+n, µ?R
+µ (53)
+s.t. ?Az ?Ax, dv? ? µ for dv ? V (Ax, ) (54)
+1T z+ = 1,1
+T z? = 1, 0 ? z ?
+1
+R
+, (55)
+where z+ and z? are the indices of the positive and negative examples respectively. There will
+be an optimal (z, µ) such that n + m + 1 linearly independent constraints are active, and zi ? 1R
+will be active for no more than 2dRe indices i. This means that there is a solution z with no more
+than 2dRe + |V (Ax, )| ? 1 nonzeros. Clearly, since the number of nonzero entries is strictly less
+than the total number of dimensions, the algorithm is sublinear.
+14
+Remarks. Here we note that the construction of coreset depends on the assumption that each
+iteration involves only O(1) examples. This is true under the conditions which we describe now.
+Typically, R will be small for well-separated classes. Due to complementary slackness, for small
+ we expect that V (Ax, ) at the optimum will correspond to the nonzero features in the sparse
+separating hyperplane. This provides a central intuition behind the use of coresets. When a problem
+is “easy” in a geometric or AI sense, having well-separated classes with few relevant features, the
+resulting coreset is small. Conversely, in problems that are “hard” the coreset size may approach
+the size of the original dataset. We also note that the steps, sk may not be at a vertex of D, slightly
+complicating the coreset construction shown empirically in the later section. However, we still see
+useful results for nonsmooth f and polyhedral D if s is on a low-dimensional face of D, then s is
+a convex combination of a small number of vertices of D. Then the step will introduce more than
+one atom, indeed all of the vertices of the lowest-dimensional face on which s lies, but still a small
+number.
+Tractability of subproblems If we look at the subproblems from a Computational Geometry
+perspective, our algorithm will look roughly like Gilbert’s algorithm Gilbert (19660). This is similar
+to what is described in Bennett and Bredensteiner (2000), though the `1-SVM case is not developed
+fully in that paper and the T (x, e) construction introduces many additional issues. We see that
+`1-SVM subproblems i.e., (55) is solved in O(R|V (Ax, e)|) time, given which example points
+determine the axis-aligned bounding box of the R-reduced convex hull of each class. The bounding
+box can be computed in time O(Rnd) and O(Rd) space: a cheap one-time cost performed before
+the optimization. One can also construct the bounding box lazily in O(Rnd?) time for d? the
+cardinality of the union of all V (Ax, e) across all iterations, and for problems that are easy in a
+geometric sense, we will have d?  d making the procedure sublinear. Hence it is important to see
+that one would not necessarily directly perform the optimization in (11) using a generic solver.
+Coreset Bound The above results for `1-norm SVM provide the necessary lemmas to show a
+coreset bound for this problem. The construction of the coreset in this work follows the same
+intuition as when using the ordinary Frank Wolfe method Clarkson (2008). For each iterate xk ?
+Rn, and the corresponding subproblem solutions sk, each index into the vector represents an input
+example. We may take those examples for which the index in sk is nonzero, and call this set Sk.
+Using Algorithm 1 to build a coreset, we take the coreset at iteration K to be S?K =
+?K
+k=1 Sk.
+Suppose we seek a coreset that will provide a ? approximation solution. By Theorem 1, if we
+choose K to ensure that both sides of (13) are (multiplicatively) bounded above by (1 + ), then the
+union S?K will provide this coreset. This approximation bound will be satisfied for
+K ?
+(25/2L+ 23/2Df )
+2
+(1 + )2
+? 2. (56)
+The set of examples S?K will then be a (1 + ) coreset for any K satisfying this bound. We know
+from the above that the `1-SVM dual objective will be ?A??Lipschitz, and that Cf () ?
+Df
+ for
+Df = 2 (diam?(A
++?m) + diam?(A
+??n)).
+For a coreset to be empirically useful, we also want it to be of small cardinality. The next step
+is therefore to bound |S?K |. We earlier showed that |Sk| ? 2dRe + d? ? 1 for all k. Using a union
+bound,
+|S?K | ? K (2dRe+ d? ? 1) .
+Combining these, we can use Algorithm 1 to construct a  coreset of size O
+(
+1
+2
+)
+.
+15
+4.1.2 BALANCED DEVELOPMENT
+A direct application of the piecewise linear discussion in Section 4.1 is the problem of balanced
+development, see Nesterov (2009). Let A = (a1, ..., aN ) ? Rm×n where m is the number of
+attributes and n is the number of products. Hence, the entry Aij is the concentration of attribute
+i in product j. Let bi be the minimum concentration of attribute i that we require in our solution.
+Also, pj ? 0 is the unitary price of product j. The problem is then to make an investment decision
+between the products to maximize the minimum amount of each attribute. In Nesterov (2009), the
+author provides a dual problem:
+?? = min
+y
+{?(y) : y ? ?m} where ?(y) = max
+1?j?n
+1
+pj
+?aj , Ey?. (57)
+E ? Rm×m is diagonal with Eii = 1bi . Corollary 5 implies Cf () ?
+2
+ (diam?(A?m))
+2, and
+combined with the simplicial feasible region this provides a coreset over the attributes.
+4.2 Multiway Graph Cuts
+We consider the model for multi-label graph cuts in Ca?linescu et al. (1998); Niu et al. (2011). This
+problem seeks to assign one of d labels to each of n nodes. The graph structure is determined by
+similarity matrixW , with weightwuv between vertices u and v. A convex relaxation of this problem
+is given by:
+min
+x
+?
+u?v
+wuv?xu ? xv?1 s.t. xv ? ?d for v = 1, ..., n. (58)
+We further constrain a set of “seed” nodes to have xv = ei if the label of seed v is i ? {1, ..., d}.
+Let X ? Rd×n be the decision variable, a matrix such that each column is the soft labeling for a
+node. If we let B be the incidence matrix for an orientation of the graph, and I the d × d identity
+matrix, then we can rewrite the objective as:
+f(vec(X)) = ?(B ? I)vec(X)?1 = ?vec(XBT )?1, (59)
+where ? is the matrix Kronecker product.
+Now define f?(x?) := ?x??1 so that f(vec(X)) = f?((B ? I)vec(X)). We start by deriving
+the subdifferentials for f? . For the approximate subdifferentials of f? we choose the neighborhoods
+N?(x?, ) to be the `1- ball of radius  at x.
+Lemma 6. Similar to lemma 4, the subdifferential of the neighborhood is a subset of the approximate
+differential, that is, if y? ? N?(x?, ), then ?f?(y?) ? T? (x?, ).
+Proof. If f? is nondifferentiable on N?(x?, ), it follows from the definition.
+Otherwise, if f? is differentiable at all points on N?(x?, ), then |x?i| >  for all i. Then because
+?y??x??1 ? , sign(y?i) = sign(x?i) for all i, and?f?(y?) = ?f?(x?) and we have the Lemma statement
+with equality.
+Theorem 5. Consider any x?, s? and ? ? [0, 1]. Let y? := x?+ ?(s?? x?). Then
+min
+d??T? (x?,)
+1
+?2
+(
+f?(y?)? f?(x?)? ?y? ? x?, d??
+)
+? 2
+
+?s?? x??1 (60)
+16
+Proof. We verify two cases,
+Case 1: y? ? N?(x?, )
+If we define the subgradient d? elementwise by d?i = sign(y?i), then d? ? ?f?(y?). Observe that
+?y?, d?? = ?y?1. Then the left hand side of (41) is bounded above by
+f?(y?)? f?(x?)? ?y? ? x?, d?? = ?y??1 ? ?x??1 ? ?y??1 + ?x?, d?? (61)
+= ?x?, d?? ? ?x??1 (62)
+And because ?d??? ? 1, this quantity is nonpositive. We therefore only need to bound the second
+case, next.
+Case 2: y? /? N?(x?, ) Here we have the lower bound on ? that
+? ? 
+?s?? x??1
+(63)
+and because ?d??? ? 1,
+f?(y?)? f?(x?)? ?y? ? x?, d?? ? ?y??1 ? ?x??1 + ?y? ? x??1 (64)
+= ?x?+ ?(s?? x?)?1 ? ?x??1 + ??s?? x??1 (65)
+Using the triangle inequality on the first term,
+? 2??s?? x??1 (66)
+The theorem statement then follows from this inequality and the bound on ?.
+So, much like in the piecewise linear case, we have:
+Corollary 7. Given the problem of minimizing a piecewise linear function f(x) = ?Ax+ b?1 over
+a bounded set D, the corresponding Cf is bounded above by Cf () ? 2 (diam1(AD))
+2.
+Note that in the case of multiway graph cuts, D consists of the Cartesian product of n simplices
+of dimension d. We therefore expect the bound from Corollary 7 will be ?(n). The tractability,
+coreset (and hence the sublinearity) discussion in this case follows directly from the `1-regularized
+SVM case.
+4.3 1-median
+We can express the 1-median problem as an optimization over the simplex of convex combinations
+of the input points. Suppose we are given a (multi-)set of points P = {p1, ..., pn} ? Rd. Let
+A ? Rd×n be a matrix with pi in column i. We can then write the 1-median problem as:
+min
+x??n
+f(x) := f?(Ax) :=
+1
+n
+n?
+i=1
+f?i(Ax) :=
+1
+n
+n?
+i=1
+?Ax? pi?2. (67)
+The notation ? · ? denotes the `2 norm. Here, f is nondifferentiable for any x such that Ax ? P ,
+and differentiable elsewhere. We show that Cf () ? 2diam2(A?n)
+2, and extend this to a coreset
+result.
+17
+The subdifferentials are given by:
+?f(x) = AT?f?(Ax) =
+1
+n
+AT
+n?
+i=1
+?f?i(Ax) (68)
+?f?i(Ax) =
+{
+{ Ax?pi?Ax?pi?} if Ax 6= pi
+B?(0, 1) if Ax = pi
+(69)
+Note that the 1n factor in (67) is necessary to produce sensible approximation bounds. If we duplicate
+each point in our input set, this will double the value of the sum in the objective for any choice of
+median. Without the 1n factor, any approximation bound expressed in terms of the objective would
+necessarily be ?(n).
+The k-median problem has been considered previously in the coreset setting, Har-Peled and
+Kushal Har-Peled and Kushal (2005) give a coreset construction by binning the points to derive a
+coreset of size O(k?d log n). For k > 1, the k-median problem is known to be nonconvex, so we
+here consider the problem of calculating a single median.
+For this problem, we choose neighborhoods as
+N(x, ) = {u | ?Au?Ax? <  and u? x ? im(AT )} (70)
+This meets the assumptions in the convergence bounds above, as x ? N(x, ), and N(x, ) ?
+B(x, ?A†?). ?A†? is the operator norm of the pseudoinverse. The subdifferentials are described
+by:
+?f(x) =
+1
+n
+AT
+n?
+i=1
+?f?i(Ax), ?f?i(Ax) =
+{
+{ Ax?pi?Ax?pi?} if Ax 6= pi
+B?(0, 1) if Ax = pi
+(71)
+4.4 Iteration bounds
+In order to bound Cf (), we bound the quantity:
+1
+n?2
+min
+u?N(x,)
+?? ?
+Au 6=pi
+(?Ay ? pi? ? ?Ax? pi? (72)
+?
+?
+Ay ?Ax, Au? pi
+?Au? pi?
+?)
+(73)
++E(u)(?Ay ?Au? ? ?Ax?Au? ? ?Ay ?Ax?)) (74)
+for any x, s in the simplex and y = x + ?(s ? x) for ? ? [0, 1]. E(u) is the number of points
+such that Au = pi. This is equivalent to the contents of the supremum in Cf (), where we have
+substituted the analytic solution for the minimum element of ?f(u). By the triangle inequality, for
+any choice of u,
+?Ax?Au?+ ?Ay ?Ax? ? ?(Ax?Au) + (Ay ?Ax)? (75)
+= ?Ay ?Au? (76)
+Since the nondifferentiable terms are nonpositive, we only need to bound the differentiable terms.
+First, assume that y ? x ? im(AT ). This is without loss of generality, as we can replace s with its
+18
+projection s? ? x + im(AT ) and y with y? = x + ?(s? ? x). Because s? ? s ? ker(A), this yields
+Ay? = Ay, and the quantity we seek to bound will be identical.
+Case 1: y ? N(x, ). If Au = Ay, the ith differentiable term is
+?Ay ? pi? ? ?Ax? pi? ?
+?
+Ay ?Ax, Ay ? pi
+?Ay ? pi?
+?
+(77)
+=
+1
+?Ay ? pi?
+(?Ay ? pi, Ay ? pi? ? ?Ax? pi??Ay ? pi? (78)
+??Ay ?Ax,Ay ? pi?) (79)
+=
+1
+?Ay ? pi?
+(?Ax? pi, Ay ? pi? ? ?Ax? pi??Ay ? pi?) , (80)
+which by the Cauchy-Schwartz inequality is nonpositive. Therefore, in order to provide an upper
+bound on Cf () we need only consider the second case below.
+Case 2: y /? N(x, ). First observe that in this case we have a lower bound on ?. Specifically,
+because y lies outside the neighborhood around x defined by (70) (and in the set x + im(AT ) by
+assumption), ?Ay ?Ax? = ??As?Ax? ? ,
+? ? 
+?As?Ax?
+? 
+diam(A?n)
+(81)
+Consider in the following any choice of u from the neighborhood around x. Plugging in y =
+x+ ?(s? x) to the differentiable terms:?
+Au 6=pi ?Ay ? pi? ? ?Ax? pi? ?
+?
+Ay ?Ax, Ax?pi?Ax?pi?
+?
+n?2
+(82)
+=
+?
+Au 6=pi ?Ax? pi + ?(As?Ax)?
+? ?Ax? pi? ? ?
+?
+As?Ax, Au?pi?Au?pi?
+?
+n?2
+(83)
+Using the triangle and Cauchy-Schwartz inequalities,
+? 1
+n?2
+?
+Au6=pi
+2??As?Ax? ? 2?As?Ax?
+?
+? 2diam(A?n)
+?
+. (84)
+The combination of (81) and (84), taken over all x, s and all ? that fall in this case, gives:
+Cf () ?
+2
+
+diam(A?n)
+2 (85)
+Next, observe that if  is small, as will be the case throughout the optimization if we choose k ?
+?(
+?
+?k) with a small constant term, then with high probability the neighborhood around the iterates
+for any k that are not near the solution will be differentiable. This will yield T (x, ) = {?f(x)}
+and the subproblems will be a linear program over the simplex, which will only introduce no more
+than one nonzero as in Clarkson (2008) which indeed means that the procedure is sublinear.
+19
+4.5 Sparse PCA with constraints
+Sparse PCA is an important problem that is widely used for feature extraction and learning. In this
+problem we consider the formulation given in Grbovic et al. (2012). The objective of sparse PCA is
+to decompose a covariance matrix S into near orthogonal principal components [u1, ..., uk], while
+constraining the number of nonzero components of each uk to a required constant r ? N. Hence the
+problem of maximizing the variance of component uk with the cardinality constraint can be written
+as,
+max
+u
+uTSu s.t. ||u||2 = 1, card(u) ? r (86)
+Writing down the convex relaxation of the problem after setting U = uuT , we get the following
+optimization problem,
+max
+U
+Tr(SU) s.t. Tr(U) = 1, 1T |U |1 ? r, U = UT , U  0, U ? Rn×n (87)
+The last inequality is the standard Linear Matrix Inequality that requires U to be positive semidef-
+inite. But note that we have exponential number of linear constraints in the form of 1T |U |1 ? r
+constraint. Hence in general this problem might practically take very long to solve unless one uses
+a specialized interior point method that exploits the structure of the constraints. Hence these con-
+straints are taken to the objective with a penalty ? associated with it as,
+max
+U
+Tr(SU)? ||?vec(U)||1 s.t. Tr(U) = 1, U = UT , U  0, U ? Rn×n (88)
+where vec(U) denotes vectorized form of U . To this formulation, Grbovic et al. (2012) suggests
+adding a class of feature grouping constraints that is motivated by the maintenance scheduling prob-
+lem Cui (2008). Let us denote by 1, a reliability vector such that 1i ? [0, 1) is a probability that
+sensor i will need maintenance during a certain time period. Then the reliability matrix L is con-
+structed by setting each column to 1 and then setting Lii = 0 ? 1 ? i ? n. Using similar techniques
+we end up with the following formulation,
+max
+U
+Tr(SU)? ||?vec(U)||1 ? ||vec(?U ? log(1? L))||1 (89)
+s.t. Tr(U) = 1, U = UT , U  0, U ? Rn×n (90)
+where ? is the penalty that controls the reliability of the component and ? is the standard Hadamard
+product or elementwise product. Let ~U denote the vectorized form of U for simplicity in notation
+and similarly vec(log(1? L)) = ~l. Note that ~l, ~U ? Rn2×1. Then the problem can be written as,
+max
+U
+Tr(SU)?
+n2?
+i=1
+(
+?+ ?~li
+)
+|~Ui| (91)
+s.t. Tr(U) = 1, U = UT , U  0, U ? Rn×n (92)
+Noting that Tr(SU) =
+?n
+i=1
+?n
+j=1 SijUij =
+~ST ~U =
+?n2
+i=1
+~Si~Ui, we can write the objective
+function as a supremum of 2n
+2
+affine functions. Also using the min-max theorem we convert this to
+a minimization problem. Hence the problem becomes,
+min
+U
+max
+i
+(
+aTi
+~U
+)
+(93)
+s.t. Tr(U) = 1, U = UT , U  0, U ? Rn×n (94)
+20
+Let S := {U : Tr(U) = 1, U = UT , U  0, U ? Rn×n}.
+Lemma 8. The feasible set of sparse PCA with constraints problem, S is bounded.
+Proof. We know that U  0, U = UT ?? ?i ? 0 where ?is are the eigenvalues of U and
+Tr(U) = 1 ??
+?
+i ?i = 1. Let S? := {? :
+?
+i ?i = 1, ? ? 0, ? ? Rn}. Hence S is bounded
+if and only if S? is bounded. But S? is trivially bounded since it is the simplex.
+Let A ? R2n
+2×n2 be the matrix containing all the ais stacked on top of each other. Hence our
+optimization problem can be written as,
+min
+U
+max
+i
+(
+A~U
+)
+i
+s.t. U ? S (95)
+Now we define the neighborhoods in a similar way as Section 4.1,
+N?
+(
+~?U, 
+)
+= { ~?X | ? ~?U ? ~?X?? ? }; (96)
+N
+(
+~U, 
+)
+= { ~X | ?A ~X ?A~U?? ?  and ~X ? ~U ? im
+(
+AT
+)
+}. (97)
+Now define
+V
+(
+~?U, 
+)
+=
+{
+ei | ~?Ui ?
+(
+max
+j
+~?Uj
+)
+? 2
+}
+(98)
+With these constructions, similar results as in Section 4.1 are obtained. Note that unlike the other
+cases, the subproblems here are not as easy to solve and we might require advanced numerical
+optimization solvers to solve the subproblems efficiently in practice.
+4.6 Generic Subproblems
+As we saw in the above sections, specialized algorithms can be used to solve the subproblems that
+are induced by (11) for many important applications. But occasionally, we might encounter prob-
+lems that do not possess an inherent structure that can be easily exploited; for these cases, we now
+provide a generic method (or algorithm) for solving the subproblems. Specifically, when the opti-
+mization in (11) is over a union of convex sets C = ?ni=1Ci where Ci is a convex set ? i = 1, ..., n,
+commonly encountered in practice. Recall that the subdifferential of a proper convex function is
+a compact set for all the points in the interior of the domain Robinson (2012). Assuming that we
+have access to the zeroth and first order oracles, C can be explicitly described by the inequalities
+gij(x) ? 0 where gij are convex functions ? i, j and the total set of constraints has finite cardinality.
+It is easy to show that the problem of optimizing a convex function g over C can be formulated as
+the following convex optimization problem,
+min
+x
+g(x) (99)
+s.t. sigij (zi/si) ? 0, ? i, j (100)
+1T s = 1, s ? 0, x =
+n?
+i=1
+zi (101)
+21
+There are two advantages of using this reformulation instead of solving n different convex problems:
+(1) in certain cases, it might be easy to design algorithms to get approximate solutions much more
+efficiently Garber and Hazan (2011) and (2) standard solvers are actively being developed to handle
+perspective reformulations as described in Gu?nlu?k and Linderoth (2012). From this discussion, we
+can conclude that the subproblems can be solved in polynomial time.
+5. Experiments
+In this section, we present experiments to assess our convergence rate numerically and provide
+some practical intuition for the bounds obtained in the sections above. We provide the running time
+whenever it is significant (more than a few seconds). To keep the extraneous effects of specialized
+libraries and the number of processors negligible, all our subproblems were solved using a generic
+Linear Programming solver on a single core. The results show that the algorithm presented here is
+not only practical but can also be made competitive using simple alternative standard techniques to
+solve the subproblems.
+5.1 Support Vector Machines with `1 regularization
+We first demonstrate results of our algorithm for `1-regularized SVM on a collection of four test
+datasets provided by the authors of Yuan et al. (2010) (see Figure 1).
+For this evaluation, we also compared our method with the randomized smoothing method of
+Lan (2013) shown in blue in Fig. 1. The top row of plots in Figure 1 (y?axis showing the duality
+gap) suggest that on all four datasets (leukemia, colon-cancer, ionosphere, w8a), the convergence
+of the baseline is slower as a function of the number of iterations. The second and the third row
+show that the coreset size and the vertices in |V (Ax, )| increase at most linearly with the number of
+iterations as predicted in Section (4.1.1). We see that the number of vertices in |V (Ax, )| remains
+very small throughout our experiments. While the convergence results shown for Lan (2013) are,
+in expectation, of the same order as the ones we show here, the bound is quite loose for these
+problems and we find that the practical convergence rate can be slow. This is especially important
+as the computation time of each iteration of that method increases with the iteration count, as more
+samples of the gradient are drawn in later iterations (unlike our algorithm). Moreover, Figure 2
+shows that if we use a bisection line search instead of the step size policy suggested in the proof
+of Theorem 1, our algorithm actually converges (measured using the duality gap) in fewer than 40
+iterations making it practically fast while also keeping our theoretical results intact.
+5.2 The 1-median problem
+We tested a simple Frank Wolfe based solver for the 1-median problem on synthetic data (similar
+to existing works for this problem). A set of points of size n is sampled from a multivariate random
+Normal distribution. To keep the presentation succinct, we discuss those parts of this experiment
+that demonstrate additional useful properties of the algorithm beyond those described for `1-SVM.
+The left plot in the top row of Figure 3 shows how the size of the coreset varies as we increase n
+whereas the right plot shows the number of iterations required for convergence. Importantly, the
+size of the coreset is independent of n, as the problem we are solving is fundamentally no harder.
+The second row shows the computational time taken: left plot shows the total time taken whereas
+the right plot shows the time taken per iteration. We see that both of these scale sublinearly with the
+22
+0
+2
+4
+6
+0 250 500 750 1000
+D
+u
+al
+it
+y 
+G
+ap
+leukemia
+0
+2
+4
+6
+8
+0 250 500 750 1000
+colon?cancer
+0.0
+0.3
+0.6
+0.9
+1.2
+0 250 500 750 1000
+ionosphere
+0.00
+0.25
+0.50
+0.75
+1.00
+0 250 500 750 1000
+w8a
+10
+20
+30
+0 250 500 750 1000
+n
+n
+zs
+20
+40
+60
+0 250 500 750 1000
+280
+300
+320
+340
+0 250 500 750 1000
+10000
+20000
+30000
+40000
+0 250 500 750 1000
+0
+5
+10
+15
+20
+25
+0 250 500 750 1000
+V
+er
+ti
+ce
+s
+0
+10
+20
+30
+0 250 500 750 1000
+2
+4
+6
+0 250 500 750 1000
+0
+100
+200
+300
+0 250 500 750 1000
+Figure 1: Convergence results for Alg. 1 (red) and randomized smoothing of Lan (2013) (blue) on
+the SVM datasets(51).
+0
+2
+4
+0 10 20 30 40
+D
+u
+al
+it
+y 
+G
+ap
+leukemia
+0
+2
+4
+6
+0 10 20 30 40
+colon?cancer
+0.0
+0.1
+0.2
+0.3
+1 2 3 4 5
+ionosphere
+0.1
+0.2
+0.3
+0.4
+1 2 3 4 5
+w8a
+Figure 2: Convergence results for Alg. 1 using bisection line search.
+number of points. The plots agree with the theoretical results from earlier sections concerning the
+size of coreset and number of iterations required to obtain a solution.
+23
+5.3 Multiway Graph Cuts
+In order to demonstrate that our algorithm is scalable to large datasets and hence it is practically
+applicable, we tested our algorithm on the dblife dataset Niu et al. (2011) which consists of 9168
+labels. Therefore, D is the product of n 9168-dimensional simplices. Note that this problem consist
+of approximately 20 million decision variables and has been recently tackled via distributed schemes
+implemented on a cluster Niu et al. (2011). Due to the large of number of labels, this dataset is
+ideal for evaluating our algorithm as the analysis implies that the number of labels chosen must
+increase linearly with the number of iterations. This means that we get a sparse labeling scheme,
+i.e., the coreset here is the subset of the total number of labels. We evaluated this behavior by using
+increasing subsets of the total number of labels. We find that even when the total number of labels
+is small; this trend becomes more prominent as progressively larger sets of labels are used, shown
+in Figure 3 (row 3).
+4
+5
+6
+7
+8
+4 6 8
+log n
+co
+re
+se
+t 
+si
+ze
+1?median
+0
+50
+100
+4 6 8
+log n
+#i
+te
+ra
+ti
+o
+n
+s
+1?median
+0
+25
+50
+75
+100
+125
+4 6 8
+log n
+to
+ta
+l t
+im
+e 
+ta
+ke
+n
+ in
+ s
+ec
+s
+1?median
+0.0
+2.5
+5.0
+7.5
+10.0
+12.5
+4 6 8
+log n
+ti
+m
+e 
+ta
+ke
+n
+ p
+er
+ it
+er
+at
+io
+n
+ in
+ s
+ec
+s
+1?median
+100
+110
+120
+130
+1 2 3 4 5 6 7 8 9
+#iterations
+#l
+ab
+el
+s 
+ch
+o
+se
+n
+554 labels
+669 labels
+732 labels
+Multiway Graph Cuts
+Figure 3: (Top row) Plotting the size of the coreset (left) and number of iterations (right) for 1-
+median as we vary the size n of a randomly sampled set of points. We iterate until
+achieving a primal-dual gap of 10?6; 2nd row shows the total time taken (left) and time
+taken per iteration (right); 3rd row shows results for Graph cuts problem on dblife. Each
+LP subproblem took approximately 60 seconds using CPLEX solver.
+24
+Problem Cf Coreset
+`1-SVM 2 (diam?(A
++?m) +
+diam?(A??m))
+Support vectors
+1-median 2diam2(A?n)
+2 Points
+Graph cuts 2 (diam1(AD))
+2 Labels
+Balanced Development 2 (diam1(A?m))
+2 Attributes
+Sparse PCA with constraints 2 (diam?(AS))
+2 Features
+Table 1: A summary of the relevant quantities derived for each problem described in the previous
+sections.
+5.4 Interesting empirical behavior and its potential relation to existing work
+The experiments highlight two important practical aspects of the proposed algorithm.
+A) How often do we encounter poor subproblems? The number of vertices in |V (Ax, )| given by
+our analysis seems to be an overestimate than what is practically observed. Assuming that we ini-
+tialize at a point whose neighborhood does not contain any nonsmooth points, using the fact that
+the set of nondifferentiable points of a convex function on a compact set is of measure zero, we
+can show that the next iterate of the algorithm also does not contain any nonsmooth points in its
+neighborhood with high probability. But extending this argument to the next iterate becomes prob-
+lematic. It seems like a Lovasz Local Lemma type result Kolmogorov (2015) will be able to shed
+some light on this behavior but the independence assumption is inapplicable, so one has to intro-
+duce randomness in the algorithm. But a separate sparsity analysis might have to be done to obtain
+coreset results.
+B) Why does our algorithm converge so fast? The empirical behavior of certain algorithms have
+been strongly associated with the manifold identification property in recent works, see Lee and
+Wright (2012). Our algorithm when using a bisection line search strategy as shown in fig 3, con-
+verges within a few iterations and is faster than the state of the art solvers for that problem. It will
+be interesting to see if our algorithm satisfies some variation or extension of the properties that are
+described in Lee and Wright (2012), but one issue is that the algorithm presented in Lee and Wright
+(2012) has randomization incorporated at each iteration making it hard to adapt that analysis for our
+algorithm.
+C) Tightness of convergence: Let us consider the case of `1-SVM. Assume that the positive and
+negative labeled instances be generated by a Gaussian distribution with mean 0 and µ respectively
+and variance ?I . Then we have that,
+E
+(
+diam?(A+?m) + diam?(A??m)
+)
+? ? logm+ µ+ ? logm = 2? logm+ µ (102)
+using the properties of maximum of sub-gaussians. Here the expectation is taken over the random-
+ness in the data: A+, A?. This shows that the dependence of Cf is logarithmic in the dimensions.
+Similarly we will get
+?
+n, n log n for `2, `1 norm diameters respectively showing that the ECf is
+near linear in the dimensions. Now we plug this estimate in the convergence result in theorem (1),
+E (f(xk)? f(x?)) ? E
+(
+25/2L+ 23/2Df?
+k + 2
+)
+= 25/2
+(
+L+ EDf?
+k + 2
+)
+= O
+(
+L+ logm?
+k
+)
+(103)
+25
+Hence we can see that by choosing an appropriate neighborhood depending on the application, we
+can get faster convergence. This aspect is either not present in other Frank Wolfe algorithms that
+solve nonsmooth problems or involve a looser dependence on the constants involved for example,
+Hazan and Kale (2012b) achieve a O
+(
+Lm?
+k
+)
+convergence compared to our O
+(
+L+log2m?
+k
+)
+here.
+6. Discussion
+We have presented novel coreset bounds and optimization schemes for nondifferentiable problems
+encountered in statistical machine learning and computer vision. The algorithm calculates sparse
+approximate solutions to the corresponding optimization problems deterministically in a number of
+iterations independent of the size of the input problem, depending only on the approximation factor
+and the sum of the Lipschitz constant and a nonlinearity term. The central result in Theorem 1
+applies to any problem of the very general form in (1) with mild conditions, potentially suggesting a
+number of other applications beyond those considered here. Though a general condition to charac-
+terize all cases where the internal subproblem is efficiently solvable may not be available, we show
+a broad/useful class that is efficiently solvable.
+Finally, we point out a few technical properties that differentiate our method from existing FW
+type methods for nonsmooth problems Argyriou et al. (2014); Pierucci et al. (2014).
+First, many methods rely on smoothing the objective function by a prox function that needs
+to be designed piecemeal for specific problems. While examples exist where these functions can
+be readily derived, to our knowledge there are no standard recipes for deriving proximal functions
+in general. Second, several existing methods assume that the proximal iteration can be solved ef-
+ficiently. However, it is known that in general, the worst case complexity of a single proximal
+iteration is the same as solving the original optimization problem Parikh and Boyd (2014). Third,
+it is not yet clear how coreset results can be derived for many existing methods, or if it is even
+possible. For example, (especially) in the very large scale setting, coreset results enable practical
+applications where one can store a subset of the (training) dataset and still be able to perform nearly
+as well (on the test data). The basic expectation is that more data should not always make a problem
+computationally harder. An exciting implication behind coreset results in (Clarkson, 2008) is that
+this can be avoided in certain cases. But (Clarkson, 2008) assumes that f is smooth: an artifact
+of the optimization rather than a requirement of coresets per se — we showed that this assumption
+is not necessary at all. In closing, while the algorithm may not be the defacto off-the-shelf option
+for all nonsmooth problems, for many problems it offers a very competitive (generally applicable)
+alternative, and in certain cases, the theory nicely translates into significant practical benefits as
+well.
+7. Acknowledgments
+The authors are supported by NSF CAREER RI #1252725, NSF CCF #1320755, and UW CPCP
+(U54 AI117924). We thank Stephen J. Wright, Shuchi Chawla, Satyen Kale and Kenneth L. Clark-
+son for comments and suggestions.
+26
+References
+J. Acharya, C. Daskalakis, and G. C. Kamath. Optimal testing for properties of distributions. In
+Advances in Neural Information Processing Systems, 2015.
+P. K. Agarwal, S. Har-Peled, and K. R. Varadarajan. Geometric approximation via coresets. Com-
+binatorial and computational geometry, 2005.
+A. Argyriou, M. Signoretto, and J Suykens. Hybrid conditional gradient-smoothing algorithms with
+applications to sparse and low rank regularization. Regularization, Optimization, Kernels, and
+Support Vector Machines, 2014.
+F. Bach, R. Jenatton, J. Mairal, and G. Obozinski. Optimization with sparsity-inducing penalties.
+Foundations & Trends in Machine Learning, 2012.
+M-F. Balcan, S. Ehrlich, and Y. Liang. Distributed k-means and k-median clustering on general
+topologies. In Advances in Neural Information Processing Systems, 2013.
+O. Banerjee, L.E. Ghaoui, A. d’Aspremont, and G. Natsoulis. Convex optimization techniques
+for fitting sparse gaussian graphical models. In Proceedings of the International Conference on
+Machine Learning (ICML), 2006.
+K. P. Bennett and E. J. Bredensteiner. Duality and geometry in SVM classifiers. In Proceedings of
+the International Conference on Machine Learning (ICML), 2000.
+V. Braverman and S. R. Chestnut. Streaming sums in sublinear space. CoRR, 2014.
+K. L. Clarkson. Coresets, sparse greedy approximation, and the Frank-Wolfe algorithm. In Pro-
+ceedings of the Symposium on Discrete Algorithms (SODA), 2008.
+K. L. Clarkson and D. P. Woodruff. Input sparsity and hardness for robust subspace approximation.
+In Foundations of Computer Science, FOCS, 2015.
+K. L. Clarkson, E. Hazan, and D. P Woodruff. Sublinear optimization for machine learning. Journal
+of the ACM (JACM), 2012.
+G. Ca?linescu, H. Karloff, and Y. Rabani. An improved approximation algorithm for multiway cut.
+In Proceedings of the Symposium on Theory of Computing (STOC), 1998.
+L. Cui. Maintenance models and optimization. In Handbook of performability engineering. 2008.
+P. Drineas, R. Kannan, and M. W. Mahoney. Fast monte carlo algorithms for matrices i: Approxi-
+mating matrix multiplication. SIAM Journal on Computing, 2006.
+D. Feldman, M. Monemizadeh, C. Sohler, and D. P. Woodruff. Coresets and sketches for high
+dimensional subspace approximation problems. In Proceedings of the Symposium on Discrete
+Algorithms (SODA), 2010.
+D. Feldman, A. Sugaya, and D. Rus. An effective coreset compression algorithm for large scale
+sensor networks. In Proceedings of the International Conference on Information Processing in
+Sensor Networks (IPSN), 2012.
+27
+M. Frank and P. Wolfe. An algorithm for quadratic programming. Naval Research Logistics Quar-
+terly, 1956.
+D. Garber and E. Hazan. Approximating semidefinite programs in sublinear time. In Advances in
+Neural Information Processing Systems, 2011.
+D. Garber and O. Meshi. Linear-memory and Decomposition-invariant Linearly Convergent Con-
+ditional Gradient Algorithm for Structured Polytopes. ArXiv e-prints, 2016.
+B. Ga?rtner and M. Jaggi. Coresets for polytope distance. In Proceedings of the ACM Symposium
+on Computation Geometry (SoCG), 2009.
+G. Gidel, T. Jebara, and S. Lacoste-Julien. Frank-wolfe algorithms for saddle point problems. In
+Proceedings of the Artificial Intelligence and Statistics (AISTATS), 2017.
+E. G. Gilbert. An iterative procedure for computing the minimum of a quadratic form on a convex
+set. SIAM Journal on Control, 19660.
+M. Grbovic, C. R. Dance, and S. Vucetic. Sparse principal component analysis with constraints. In
+Proceedings of the AAAI Conference on Artificial Intelligence, 2012.
+O. Gu?nlu?k and J. Linderoth. Perspective reformulation and applications. In Mixed Integer Nonlinear
+Programming. 2012.
+S. Har-Peled and A. Kushal. Smaller coresets for k-median and k-means clustering. In Proceedings
+of the ACM Symposium on Computation Geometry (SoCG), 2005.
+S. Har-Peled, D. Roth, and D. Zimak. Maximum margin coresets for active and noise tolerant
+learning. In International joint conference on Artifical intelligence, 2007.
+E. Hazan and S. Kale. Projection-free online learning. In Proceedings of the International Confer-
+ence on Machine Learning (ICML), 2012a.
+E. Hazan and S. Kale. Projection-free online learning. arXiv preprint arXiv:1206.4657, 2012b.
+J.-P. Hiriart-Urruty and C. Lemare?chal. Convex Analysis and Minimization Algorithms. Springer,
+1993.
+M. Jaggi. Sparse convex optimization methods for machine learning. PhD thesis, Eidgeno?ssische
+Technische Hochschule ETH Zu?rich, Nr. 20013, 2011.
+M. Jaggi. Revisiting Frank-Wolfe: Projection-free sparse convex optimization. In Proceedings of
+the International Conference on Machine Learning (ICML), 2013.
+V. Kolmogorov. Commutativity in the random walk formulation of the lovasz local lemma. arXiv
+preprint arXiv:1506.08547, 2015.
+G. Lan. The complexity of large-scale convex programming under a linear optimization oracle.
+arXiv preprint arXiv:1309.5550, 2013.
+S. Lee and S. J. Wright. Manifold identification in dual averaging for regularized stochastic online
+learning. Journal of Machine Learning Research, 2012.
+28
+H. Liu, M. Palatucci, and J. Zhang. Blockwise coordinate descent procedures for the multi-task
+lasso, with applications to neural semantic basis discovery. 2009.
+O. L. Mangasarian. Generalized support vector machines. Advances in Neural Information Pro-
+cessing Systems (NIPS), 1999.
+V. Nathan and S. Raghvendra. Accurate Streaming Support Vector Machines. ArXiv e-prints, 2014.
+Y. Nesterov. Smooth minimization of non-smooth functions. Mathematical programming, 2005.
+Y. Nesterov. Primal-dual subgradient methods for convex problems. Technical report, 2009.
+Y. Nesterov. Complexity bounds for primal-dual methods minimizing the model of objective func-
+tion. Technical report, 2015.
+F. Niu, B. Recht, C. Re?, and S. J. Wright. Hogwild!: A lock-free approach to parallelizing stochastic
+gradient descent. In Neural Information Processing Systems, 2011.
+N. Parikh and S. P. Boyd. Proximal algorithms. Foundations and Trends in Optimization, 2014.
+T. Pennanen. Introduction to convex optimization in financial markets. Mathematical Programming,
+2012.
+F. Pierucci, Z. Harchaoui, and J. Malick. A smoothing approach for composite conditional gradient
+with nonsmooth loss. PhD thesis, INRIA Grenoble, 2014.
+S. M. Robinson. Convexity in finite-dimensional spaces. Preprint, 2012.
+M. Rudelson and R. Vershynin. Sampling from large matrices: An approach through geometric
+functional analysis. Journal of the ACM (JACM), 2007.
+T. Sarlos. Improved approximation algorithms for large matrices via random projections. In Foun-
+dations of Computer Science (FOCS), 2006.
+I. W. Tsang, J. T. Kwok, and P-M. Cheung. Core vector machines: Fast svm training on very large
+data sets. Journal of Machine Learning Research, 2005.
+D. J. White. Extension of the Frank-Wolfe algorithm to concave nondifferentiable objective func-
+tions. Journal of Optimization Theory and Applications, 1993.
+G.-X. Yuan, K.-W. Chang, C.-J. Hsieh, and C.-J. Lin. A comparison of optimization methods
+and software for large-scale L1-regularized linear classification. Journal of Machine Learning
+Research (JMLR), 2010.
+29

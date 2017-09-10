@@ -1,0 +1,613 @@
+ar
+X
+iv
+:1
+70
+8.
+06
+02
+0v
+1 
+ [
+cs
+.L
+G
+] 
+ 2
+0 
+A
+ug
+ 2
+01
+7
+Improving Deep Learning using Generic Data Augmentation
+Luke Taylor
+University of Cape Town
+Department of Computer Science
+Cape Town, South Africa
+tylchr011@uct.ac.za
+Geoff Nitschke
+University of Cape Town
+Department of Computer Science
+Cape Town, South Africa
+gnitschke@cs.uct.ac.za
+Abstract
+Deep artificial neural networks require a large cor-
+pus of training data in order to effectively learn,
+where collection of such training data is often ex-
+pensive and laborious. Data augmentation over-
+comes this issue by artificially inflating the training
+set with label preserving transformations. Recently
+there has been extensive use of generic data aug-
+mentation to improve Convolutional Neural Net-
+work (CNN) task performance. This study bench-
+marks various popular data augmentation schemes
+to allow researchers to make informed decisions as
+to which training methods are most appropriate for
+their data sets. Various geometric and photomet-
+ric schemes are evaluated on a coarse-grained data
+set using a relatively simple CNN. Experimental re-
+sults, run using 4-fold cross-validation and reported
+in terms of Top-1 and Top-5 accuracy, indicate that
+cropping in geometric augmentation significantly
+increases CNN task performance.
+1 Introduction
+Convolutional Neural Networks (CNNs) are
+[LeCun et al., 1996] synonymous with deep learning, a
+hierarchical model of learning with multiple levels of
+representations, where higher levels capture more abstract
+concepts. A CNNs connectivity pattern, inspired by the
+animal visual cortex, enables the recognition and learning
+of spatial data such as images [LeCun et al., 1996], audio
+[Abdel-Hamid et al., 2014] and text [Hu et al., 2014]. With
+recent developments of large data sets and increased comput-
+ing power, CNNs have managed to achieve state-of-the-art
+results in various computer vision tasks including large
+scale image and video classification [Parkhi et al., 2015].
+However, an issue is that most large data sets are not publicly
+available and training a CNN on small data-sets makes
+it prone to over-fitting, inhibiting the CNNs capability to
+generalize to unseen invariant data.
+A potential solution is to make use of Data Augmen-
+tation (DA) [Yaeger et al., 1996], which is a regularization
+scheme that artificially inflates the data-set by using la-
+bel preserving transformations to add more invariant ex-
+amples. Generic DA is a set of computationally inex-
+pensive methods [Krizhevsky et al., 2012], previously used
+to reduce over-fitting in training a CNN for the Ima-
+geNet Large-Scale Visual Recognition Challenge (ILSVRC)
+[Russakovsky et al., 2016], and achieved state-of the-art re-
+sults at the time. This augmentation scheme consists of Ge-
+ometric and Photometric transformations [He et al., 2014],
+[Simonyan and Zisserman, 2014].
+Geometric transformations alter the geometry of the image
+with the aim of making the CNN invariant to change in po-
+sition and orientation. Example transformations include flip-
+ping, cropping, scaling and rotating. Photometric transforma-
+tions amend the color channels with the objective of making
+the CNN invariant to change in lighting and color. For exam-
+ple, color jittering and Fancy Principle Component Analysis
+(PCA) [Krizhevsky et al., 2012], [Howard, 2013].
+Complex DA is a scheme that artificially inflate the data
+set by using domain specific synthesization to produce more
+training data. This scheme has become increasingly pop-
+ular [Rogez and Schmid, 2015; Peng et al., 2015] as it has
+the ability to generate richer training data compared to the
+generic augmentation methods. For example, Masi et al.
+[Masi et al., 2016] developed a facial recognition system us-
+ing synthesized faces with different poses and facial ex-
+pressions to increase appearance variability enabling com-
+parable task performance to state of the art facial recog-
+nition systems using less training data. At the frontier of
+data synthesis are Generative Adversarial Networks (GANs)
+[Goodfellow et al., 2014] that have the ability to generate
+new samples after being trained on samples drawn from some
+distribution. For example, Zhang et al. [Zhang et al., 2016]
+used a stack construction of GANs to generate realistic im-
+ages of birds and flowers from text descriptions.
+Thus, DA is a scheme to further boost CNN performance
+and prevent over-fitting. The use of DA is especially well-
+suited when the training data is limited or laborious to collect.
+Complex DA, albeit being a powerful augmentation scheme,
+is computationally expensive and time-consuming to imple-
+ment. A viable option is to apply generic DA as it is compu-
+tationally inexpensive and easy to implement.
+Prevalent studies that comparatively evaluate various
+popular DA methods include those outlined in table
+1 and described in the following. Chatfield et al.
+[Chatfield et al., 2014] addressed how different CNN archi-
+tectures compared to each other by evaluating them on a com-
+Figure 1: Data Augmentation (DA) artificially inflates data-
+sets using label preserving transformations.
+mon data-set. This study was mainly focused on rigorous
+evaluation of deep architectures and shallow encoding meth-
+ods, though an evaluation of three augmentation methods was
+included. These consisted of flipping and combining flipping
+and cropping on training images in the coarse grained Cal-
+tech 1011 and Pascal VOC2 data-sets. In additional exper-
+iments the authors trained a CNN using gray-scale images,
+though lower task performance was observed. Overall results
+indicated that combining flipping and cropping yielded an in-
+creased task performance of 2 ? 3%. A shortcoming of this
+study was the few DA methods evaluated.
+Mash et al. [Mash et al., 2016] bench-marked a variety of
+geometric augmentation methods for the task of aircraft clas-
+sification, using a fine-grained data-set of 10 classes. Aug-
+mentation methods tested included cropping, rotating, re-
+scaling, polygon occlusion and combinations of these meth-
+ods. The cropping scheme combined with occlusion yielded
+the most benefits, achieving a 9% improvement over a bench-
+mark task performance. Although this study evaluated vari-
+ous DA methods, photometric methods were not investigated
+and none were bench-marked on a coarse-grained data-set.
+In line with this work, further research
+[Dieleman et al., 2015] noted that certain augmentation
+methods benefit from fine-grained data-sets. For example,
+extensive use of rotating training images to increase CNN
+task performance for galaxy morphology classification using
+a fine-grained data-set [Dieleman et al., 2015].
+However, to date, there has been no comprehensive studies
+that comparatively evaluate various popular DA methods on
+large coarse-grained data-sets in order to ascertain the most
+appropriate DA method for any given data-set. Hence, this
+study’s objective is to evaluate a variety of popular geometric
+and photometric augmentation schemes on the coarse grained
+Caltech101 data-set. Using a relatively simple CNN based on
+that used by Zeiler and Fergus [Zeiler and Fergus, 2014], the
+goal is to contribute to empirical data in the field of deep-
+learning to enable researchers to select the most appropriate
+generic augmentation scheme for a given data-set.
+1www.vision.caltech.edu/ImageDatasets/Caltech101/
+2host.robots.ox.ac.uk/pascal/V OC/
+Coarse- Geometric Photometric
+Grained DA DA
+Chatfield et al. X X
+Mash et al. X
+Our benchmark X X X
+Table 1: Properties of studies that investigate DA.
+2 Data Augmentation (DA) Methods
+DA refers to any method that artificially inflates the original
+training set with label preserving transformations and can be
+represented as the mapping:
+? : S 7? T
+Where, S is the original training set and T is the augmented
+set of S. The artificially inflated training set is thus repre-
+sented as:
+S
+? = S ? T
+Where, S ? contains the original training set and the respective
+transformations defined by ?. Note the term label preserving
+transformations refers to the fact that if image x is an element
+of class y then ?(x) is also an element of class y.
+As there is an endless array of mappings ?(x) that sat-
+isfy the constraint of being label preserving, this paper eval-
+uates popular augmentation methods used in recent literature
+[Chatfield et al., 2014], [Mash et al., 2016] as well as a new
+augmentation method (section 2.2). Specifically, seven aug-
+mentation methods were evaluated (figure 2), where one was
+defined as being No-Augmentation which acted as the task
+performance benchmark for all the experiments given three
+geometric and three photometric methods.
+2.1 Geometric Methods
+These are transformations that alter the geometry of the
+image by mapping the individual pixel values to new
+destinations. The underlying shape of the class repre-
+sented within the image is preserved but altered to some
+new position and orientation. Given their success in re-
+lated work [Krizhevsky et al., 2012; Dieleman et al., 2015;
+Razavian et al., 2014] we investigated the flipping, rotation
+and cropping schemes.
+Flipping mirrors the image across its vertical axis. It is
+one of the most used augmentation schemes after being pop-
+ularized by Krizhevsky et al. [Krizhevsky et al., 2012]. It is
+computationally efficient and easy to implement due to only
+requiring rows of image matrices to be reversed.
+The rotation scheme rotates the image around its cen-
+ter via mapping each pixel (x, y) of an image to (x?, y?)
+with the following transformation [Dieleman et al., 2015;
+Razavian et al., 2014]:
+(
+x?
+y?
+)
+=
+(
+cos? ?sin?
+sin? cos?
+)(
+x
+y
+)
+Where, exploratory experiments indicated that setting ? as
+?30? and +30? establishes rotations that are large enough to
+generate new invariant samples.
+Cropping is another augmentation scheme popularized by
+Figure 2: Overview of the Data Augmentation (DA) methods evaluated.
+Krizhevsky et al. [Krizhevsky et al., 2012]. We used the
+same procedure as in related work [Chatfield et al., 2014],
+which consisted of extracting 224 × 224 crops from the four
+corners and the center of the 256× 256 image.
+2.2 Photometric Methods
+These are transformations that alter the RGB channels
+by shifting each pixel value (r, g, b) to new pixel values
+(r?, g?, b?) according to pre-defined heuristics. This adjusts
+image lighting and color and leaves the geometry unchanged.
+We investigated the color jittering, edge enhancement and
+fancy PCA photometric methods.
+Color jittering is a method that either uses random color
+manipulation [Wu et al., 2015] or set color adjustment
+[Razavian et al., 2014]. We selected the latter due to its
+accessible implementation using a HSB filter3.
+Edge enhancement is a new augmentation scheme that
+enhances the contours of the class represented within the
+image. As the learned kernels in the CNN identify shapes it
+was hypothesized that CNN performance could be boosted
+by providing training images with intensified contours. This
+augmentation scheme was implemented as presented in Al-
+gorithm 1. Edge filtering was accomplished using the Sobel
+edge detector [Gonzalez and Woods, 1992] where edges
+were identified by computing the local gradient ?S(i, j) at
+each pixel in the image S.
+Require: Source image: I
+T ? edge filter I
+T ? grayscale T
+T ? inverse T
+I
+?
+? composite T over I
+return I?
+ALGORITHM 1
+Require: Source image: I
+M? Create a 2552 × 3 matrix where the columns represent the
+RGB channels and all entries are the RGB values of I.
+PCA is performed onM using Singular Value Decomposition.
+for all Pixels I(x, y) in I do
+[IRxy , I
+G
+xy, I
+B
+xy]
+T
+? Add
+1
+sp
+P [?1?1, ?2?2, ?3?3]
+T
+3www.jhlabs.com/ip/filters/HSBAdjustFilter.html
+• P is a 3× 3 matrix where the columns are the eigenvectors
+• ?i is the i
+th eigenvalue corresponding to the eigenvector
+[pi,1, pi,1, pi,1]
+T
+• ?i is a random variable which is drawn from a Gaussian with
+0 mean and standard deviation 0.1
+• sp is the scaling parameter which was initialised to 5 · 10
+6
+by trial and error.
+end for
+return I
+ALGORITHM 2
+Fancy PCA is a scheme that performs PCA on sets of
+RGB pixels throughout the training set by adding multiples
+of principles components to the training images (Algorithm
+2). In related work [Krizhevsky et al., 2012] it is unclear as
+to whether the authors performed PCA on individual images
+or on the entire training set. However, due to computation
+and memory constraints we adopted the former approach.
+3 CNN Architecture
+A CNN architecture was developed with the objective of
+obtaining a favorable tradeoff between task performance and
+training speed. Training speed was crucial as the CNN had
+to be trained seven times on data-sets ranging from ? 8.5
+to ? 42.5 thousand images using 4?fold cross validation.
+Also, the CNN had to be deep enough (containing enough
+parameters) so as the network would fit the training data.
+We used an architecture (figure 3) similar to that described
+by [Zeiler and Fergus, 2014], where exploratory experiments
+indicated a reasonable tradeoff between topology size and
+training speed. The architecture consisted of 5 trainable
+layers: 3 convolutional layers, 1 fully connected layer and
+1 softmax layer. The CNN took a 3 channel (representing
+the RGB channels) 255 × 225 image as input, 30 filters
+of size 6 × 6 with a stride of 2 and a padding of 1 were
+convolved over the image producing a feature map of size
+30×110×110. This layer was compressed by a max-pooling
+filter of size 3 × 3 with stride of 2 which reduced it to a new
+feature map of dimensions 30 × 55 × 55. A set of 40 filters
+followed with the same size and stride as before which were
+convolved over the layer producing a new feature map of size
+40× 27× 27. Again a max pooling function of the same size
+and stride was applied which further reduced the feature map
+Figure 3: The Convolutional Neural Network (CNN) architecture.
+to 40 × 13 × 13. This was fed into a last CNN layer using
+a set of 60 filters of size 3 × 3 of stride 1 producing a layer
+of 60× 11× 11 parameters. Finally this was fed into a fully
+connected layer of size 140 which connected to a soft-max
+layer of size 101.
+Overlapping pooling was deployed which in-
+creased CNN performance by reducing over-fitting
+[Krizhevsky et al., 2012]. This yielded sums of overlapping
+neighboring groups of neurons in the same feature map. A
+fully connected layer of 140 neurons was chosen as increased
+sizes did not generate greater improvements in performance
+[Chatfield et al., 2014]. Exploratory experiments indicated
+that smaller layer sizes resulted in richer encodings of the
+distinct classes yielding better generalization. The depth
+sizes of individual convolutional layers were determined by
+trial and error. Further convolutional layers did not increase
+performance considerably and were thus omitted to reduce
+computational time. It was also found that a second fully
+connected layer did not improve task performance.
+All neurons used a Rectified Linear Unit
+[Hahnloser et al., 2000] with the weights initially being
+initialised from a Gaussian distribution with a 0 mean and a
+standard deviation of 0.01. An initialisation scheme known
+as Xavier [Glorot and Bengio, 2010] was deployed which
+mitigated slow convergence to local minima. All weights
+were updated using back-propagation and stochastic gradient
+descent with a learning rate of 0.01. A variety of update func-
+tions were tested including Adam [Kingma and Ba, 2014]
+and Adagard [Duchi et al., 2011], however we selected
+Nesterov [Nesterov, 1983] with a momentum of 0.90 which
+we found to converge relatively fast and not suffer from
+from numerical instability and stagnating convergence.
+Additionally regularization was deployed in the form of
+gradient normalization with a L2 of 5 · 10?4 to reduce over-
+fitting. Hyper-parameters for activation function, learning
+rate, optimisation algorithm and updater were based on
+those used in related work [Krizhevsky et al., 2012] and
+all other parameter values were determined by exploratory
+experiments. All CNN parameters used in this study are
+presented in table 2.
+Hyper-parameter Type
+Activation Function ReLu
+Weight Initialisation Xavier
+Learning Rate 0.01
+Optimisation Algorithm SGD
+Updater Nesterov
+Regularization L2 Gradient Normalization
+Minibatch 16
+Epochs 30
+Table 2: Hyper-parameters used by the CNN in this study.
+4 Experiments
+This study evaluated various DA methods on the Caltech101
+data-set, which is a coarse-grained data-set consisting of 102
+categories containing a total of 9144 images. The Caltech101
+data-set was chosen as it is a well established data-set for
+training CNNs containing a large amount of varying classes
+[Chatfield et al., 2014; Zeiler and Fergus, 2014]. For CNN
+training most images in the Caltech101 data-set were used.
+That is, 725 images, including the background category in
+the Caltech101 data-set as it contained many uncorrelated
+images, were omitted. Also, further trimming was applied
+such that the cardinality of every class was divisible by 4 for
+cross-validation, which further increased the number images
+excluded, meaning that 8421 images in total were evaluated.
+We elected to use cross-validation which maximized the use
+of selected images and better estimated how the CNNs perfor-
+mance would scale to other unknown data-sets. Specifically
+4-fold4 cross-validation was used which partitioned the data-
+set into 4 equal sized subsets, where 3 subsets were used for
+training and the other for validation purposes.
+All images within the data-set were transformed to a size of
+256 × 256, where every image was downsized such that the
+largest dimension was equal to 256. This downsized image
+was then centrally drawn on top of a 256 × 256 black im-
+age5. This enabled all augmentation schemes to have access
+to the full image in a fixed resolution of 256 × 256. Finally
+the transformed images underwent normalization by scaling
+4Higher fold cross validation would have taken too long to train.
+5Numeric value of 0 for all channels thus acting as zero padding.
+Top-1 Accuracy Top-5 Accuracy
+Baseline 48.13 ± 0.42% 64.50 ± 0.65%
+Flipping 49.73 ± 1.13% 67.36 ± 1.38%
+Rotating 50.80 ± 0.63% 69.41 ± 0.48%
+Cropping 61.95 ± 1.01% 79.10 ± 0.80%
+Color Jittering 49.57 ± 0.53% 67.18 ± 0.42%
+Edge Enhancement 49.29 ± 1.16% 66.49 ± 0.84%
+Fancy PCA 49.41 ± 0.84% 67.54 ± 1.01%
+Table 3: CNN training results for each DA method.
+all pixel values from [0, 255] ? [0, 1].
+Every CNN was trained using 30 epochs. This value was
+determined by exploratory experiments that evaluated vali-
+dation and test scores every epoch. All implementation was
+completed in Java 8 using DL4j6 with the experiments being
+conducted on a NVIDIA Tesla K80 GPU using CUDA. All
+source code and experiment details can be found online7.
+5 Results and Discussion
+Table 3 presents experimental results, where Top-1 and Top-5
+scores were evaluated as percentages as done in the Imagenet
+competition [Russakovsky et al., 2016], though we report ac-
+curacies rather than error rates. The CNN’s output is a multi-
+nomial distribution over all classes:
+?
+pclass = 1
+The Top-1 score is the number of times the highest proba-
+bility is associated with the correct target over all testing im-
+ages. The Top-5 score is the number of times the correct label
+is contained within the 5 highest probabilities. As the CNN’s
+accuracy was evaluated using cross-validation a standard de-
+viation was associated with every result, thus indicating how
+variable the result is over different testing folds. In table 3,
+Top-1 and Top-5 scores in the geometric and photometric DA
+category are represented in bold.
+Results indicate that in all cases of applying DA, CNN
+classification task performance increased. Notably, the ge-
+ometric augmentation schemes outperformed the photomet-
+ric schemes in terms of Top-1 and Top-5 scores. The excep-
+tion was the flipping scheme Top-5 score being inferior to the
+fancy PCA Top-5 score. For all schemes, a standard deviation
+of 0.5% ? 1% indicated similar results over all folds with the
+cross-validation.
+The cropping scheme yielded the greatest improvement
+in Top-1 score with an improvement of 13.82% in classi-
+fication accuracy. Results also indicated that Top-5 classi-
+fication yielded a similar task improvement which corrobo-
+rated related work [Chatfield et al., 2014; Mash et al., 2016].
+We theorize that the cropping scheme outperforms the other
+methods as it generates more sample images than the other
+augmentation schemes. This increase in training data reduces
+the likelihood of over-fitting, improving generalization and
+thus increasing overall classification task performance. Also,
+6deeplearning4j.org
+7github.com/webstorms/AugmentedDatasets
+cropping represents specific translations allowing the CNN
+exposure to a greater receptive view of training images which
+the other augmentation schemes do not take advantage of
+[Chatfield et al., 2014].
+However, the photometric augmentation methods yielded
+modest improvements in performance compared to the ge-
+ometric schemes, indicating the CNN yields increased task
+performance when trained on images containing invariance
+in geometry rather than lighting and color. The most appro-
+priate photometric schemes were found to be color jittering
+with a top-1 classification improvement of 1.44% and fancy
+PCA which improved top-5 classification by 3.04%. Fancy
+PCA increased top-1 performance by 1.28% which supported
+the findings of previous work [Krizhevsky et al., 2012].
+We also hypothesize that color jittering outperformed the
+other photometric schemes in top-1 classification as this
+scheme generated augmented images containing more varia-
+tion compared to the other methods (figure 2). Also, edge en-
+hancement augmentation did not yield comparable task per-
+formance, likely due to the overlay of the transformed image
+onto the source image (as described in section 2.2) did not
+enhance the contours enough but rather lightened the entire
+image. However, the exact mechanisms responsible for the
+variability of CNN classification task performance given geo-
+metric versus photometric augmentation methods for coarse-
+grained data-sets remains the topic of ongoing research.
+6 Conclusion
+This study’s results demonstrate that an effective method of
+increasing CNN classification task performance is to make
+use of Data Augmentation (DA). Specifically, having evalu-
+ated a range of DA schemes using a relatively simple CNN
+architecture we were able to demonstrate that geometric aug-
+mentation methods outperform photometric methods when
+training on a coarse-grained data-set (that is, the Caltech101
+data-set). The greatest task performance improvement was
+yielded by specific translations generated by the cropping
+method with a Top-1 score increase of 13.82%. These results
+indicate the importance of augmenting coarse-grained train-
+ing data-sets using transformations that alter the geometry of
+the images rather than just lighting and color.
+Future work will experiment with different coarse-grained
+data-sets to establish whether results obtained using the Cal-
+tech101 are transferable to other data-sets. Additionally dif-
+ferent CNN architectures as well as other DA methods and
+combinations of DA methods will be investigated in compre-
+hensive studies to ascertain the impact of applying a broad
+range of generic DA methods on coarse-grained data-sets.
+References
+[Abdel-Hamid et al., 2014] O. Abdel-Hamid, A. Mohamed,
+H. Jiang, L. Deng, G. Penn, and D. Yu. Convolutional
+neural networks for speech recognition. In IEEE/ACM
+Transactions on Audio, Speech, and Language Processing,
+pages 1533–1545, 2014.
+[Chatfield et al., 2014] K. Chatfield, K. Simonyan,
+A. Vedaldi, and A. Zisserman. Return of the devil
+in the details: Delving deep into convolutional nets. In
+British Machine Vision Conference, 2014.
+[Dieleman et al., 2015] S. Dieleman, K. Willett, and
+J. Dambre. Rotation-invariant convolutional neural
+networks for galaxy morphology prediction. In Monthly
+Notices of the Royal Astronomical Society, pages 1441–
+1459, 2015.
+[Duchi et al., 2011] J. Duchi, E. Hazan, and Y. Singer. Adap-
+tive subgradient methods for online learning and stochas-
+tic optimization. Journal of Machine Learning Research,
+12(1):2121–2159, 2011.
+[Glorot and Bengio, 2010] X. Glorot and Y. Bengio. Under-
+standing the difficulty of training deep feedforward neural
+networks. In Aistats, volume 9, pages 249–256, 2010.
+[Gonzalez and Woods, 1992] R. Gonzalez and R. Woods.
+Digital image processing. In Addison Wesley, pages 414–
+428, 1992.
+[Goodfellow et al., 2014] I. Goodfellow, J. Pouget-Abadie,
+M. Mirza, B. Xu, D. Warde-Farley, S. Ozair, A. Courville,
+and Y. Bengio. Generative adversarial nets. In Advances
+in Neural Information Processing Systems, pages 2672–
+2680, 2014.
+[Hahnloser et al., 2000] R. Hahnloser, R. Sarpeshkar,
+M. Mahowald, R. Douglas, and H. Seung. Digital
+selection and analogue amplification coesist in a cortex-
+inspired silicon circuit. Nature, 405:947–951, 2000.
+[He et al., 2014] K. He, X. Zhang, S. Ren, and J. Sun. Spa-
+tial pyramid pooling in deep convolutional networks for
+visual recognition. In D. Fleet, T. Pajdla, B. Schiele,
+and T. Tuytelaars, editors, Computer Vision ECCV 2014,
+pages 346–361. Springer, Berlin, Germany, 2014.
+[Howard, 2013] A. Howard. Some improvements on deep
+convolutional neural network based image classification.
+In arXiv preprint arXiv:1312.5402, 2013.
+[Hu et al., 2014] B. Hu, Z. Lu, H. Li, and Q. Chen. Convo-
+lutional neural network architectures for matching natural
+language sentences. In Advances in Neural Information
+Processing Systems, pages 2042–2050, 2014.
+[Kingma and Ba, 2014] D. Kingma and J. Ba. Adam: A
+method for stochastic optimization. In arXiv preprint
+arXiv:1412.6980, 2014.
+[Krizhevsky et al., 2012] A. Krizhevsky, I. Sutskever, and
+G. Hinton. Imagenet classification with deep convolu-
+tional neural networks. In Advances in Neural Information
+Processing Systems, pages 1097–1105, 2012.
+[LeCun et al., 1996] Y. LeCun, B. Boser, J. Denker, D. Hen-
+derson, R. Howard, W. Hubbard, and L. Jackel. Hand-
+written digit recognition with a back-propagation network.
+In Advances in Neural Information Processing Systems,
+pages 396–404, 1996.
+[Mash et al., 2016] R. Mash, B. Borghetti, and J. Pecarina.
+Improved aircraft recognition for aerial refueling through
+data augmentation in convolutional neural networks. In In-
+ternational Symposium on Visual Computing, pages 113–
+122. Springer, 2016.
+[Masi et al., 2016] I. Masi, A. Tran, T. Hassner, J. Leksut,
+and G. Medioni. Do we really need to collect millions of
+faces for effective face recognition. In European Confer-
+ence on Computer Vision, pages 579–596. Springer Inter-
+national Publishing, 2016.
+[Nesterov, 1983] Y. Nesterov. A method of solving a con-
+vex programming problem with convergence rate O(1/k2).
+Soviet Mathematics Doklady, 27(2):372–376, 1983.
+[Parkhi et al., 2015] O. Parkhi, A. Vedaldi, and A. Zisser-
+man. Deep face recognition. In British Machine Vision
+Conference, page 6, 2015.
+[Peng et al., 2015] X. Peng, B. Sun, K. Ali, and K. Saenko.
+Learning deep object detectors from 3d models. In Pro-
+ceedings of the IEEE International Conference on Com-
+puter Vision, pages 1278–1286, 2015.
+[Razavian et al., 2014] A. Razavian, H. Azizpour, J. Sulli-
+van, and S. Carlsson. Cnn features off-the-shelf: an as-
+tounding baseline for recognition. In Proceedings of the
+IEEE Conference on Computer Vision and Pattern Recog-
+nition Workshops, pages 806–813, 2014.
+[Rogez and Schmid, 2015] G. Rogez and C. Schmid.
+MoCap-guided data augmentation for 3D pose estimation
+in the wild. In International Journal of Computer Vision,
+pages 211–252, 2015.
+[Russakovsky et al., 2016] O. Russakovsky, J. Deng, H. Su,
+J. Krause, S. Satheesh, S. Ma, Z. Huang, A. Karpathy,
+A. Khosla, and M. Bernstein. Imagenet large scale visual
+recognition challenge. In Advances in Neural Information
+Processing Systems, pages 3108–3116, 2016.
+[Simonyan and Zisserman, 2014] K. Simonyan and A. Zis-
+serman. Two-stream convolutional networks for action
+recognition in videos. In Advances in Neural Information
+Processing Systems, pages 568–576, Montreal, Canada,
+2014. NIPS Foundation, Inc.
+[Wu et al., 2015] R. Wu, S. Yan, Y. Shan, Q. Dang, and
+G. Sun. Deep image: Scaling up image recognition. In
+arXiv preprint arXiv:1501.02876, 2015.
+[Yaeger et al., 1996] L. Yaeger, R. Lyon, and B. Webb. Ef-
+fective training of a neural network character classifier for
+word recognition. In Advances in Neural Information Pro-
+cessing Systems, pages 807–813, 1996.
+[Zeiler and Fergus, 2014] M. Zeiler and R. Fergus. Visual-
+izing and understanding convolutional networks. In Eu-
+ropean Conference on Computer Vision, pages 818–833.
+Springer International Publishing, 2014.
+[Zhang et al., 2016] H. Zhang, T. Xu, H. Li, S. Zhang,
+X. Huang, X. Wang, and D. Metaxas. Stackgan: Text
+to photo-realistic image synthesis with stacked generative
+adversarial networks. In arXiv preprint arXiv:1612.03242,
+2016.

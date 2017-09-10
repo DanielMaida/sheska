@@ -1,0 +1,858 @@
+ 
+ 
+ 
+Abstract 
+ 
+1Context plays an important role in many computer 
+vision tasks. Previous models usually construct contextual 
+information from the whole context region. However, not 
+all context locations are helpful and some of them may be 
+detrimental to the final task. To solve this problem, we 
+propose a novel pixel-wise contextual attention network, 
+i.e., the PiCANet, to learn to selectively attend to 
+informative context locations for each pixel. Specifically, it 
+can generate an attention map over the context region for 
+each pixel, where each attention weight corresponds to the 
+contextual relevance of each context location w.r.t. the 
+specified pixel location. Thus, an attended contextual 
+feature can be constructed by using the attention map to 
+aggregate the contextual features. We formulate PiCANet 
+in a global form and a local form to attend to global 
+contexts and local contexts, respectively. Our designs for 
+the two forms are both fully differentiable. Thus they can be 
+embedded into any CNN architectures for various computer 
+vision tasks in an end-to-end manner. 
+We take saliency detection as an example application to 
+demonstrate the effectiveness of the proposed PiCANets. 
+Specifically, we embed global and local PiCANets into an 
+encoder-decoder Convnet hierarchically. Thorough 
+* This paper was previously submitted to CVPR 2017 and ICCV 2017. 
+This is a slightly revised version based on our previous submission. 
+analyses indicate that the global PiCANet helps to 
+construct global contrast while the local PiCANets help to 
+enhance the feature maps to be more homogenous, thus 
+making saliency detection results more accurate and 
+uniform. As a result, our proposed saliency model achieves 
+state-of-the-art results on 4 benchmark datasets. 
+1. Introduction 
+Contextual information plays an important role in 
+various image understanding tasks. Here we take the 
+saliency detection task as an example, which aims at 
+identifying the most salient objects in visual scenes. In 
+saliency detection, the importance of contextual 
+information is usually embodied in the contrast mechanism. 
+As one of the earliest pioneering work, Itti et al. [1] 
+calculated the difference between each pixel and its 
+surrounding regions in the feature space as the so-called 
+contrast to infer saliency. Following this work, many 
+subsequent models [2-6] employed the contrast mechanism 
+to handle the saliency detection task. In these models, local 
+context or global context need to be utilized as the reference 
+to evaluate the contrast of each image location, which is 
+referred as the local contrast or global contrast. Basically, a 
+feature representation is first extracted for each image 
+location. Then the features over all the locations of the 
+referred context region are aggregated into an overall 
+representation as the contextual feature to infer contrast by 
+using various aggregation strategies, such as feature 
+ 
+PiCANet: Learning Pixel-wise Contextual Attention in ConvNets and Its 
+Application in Saliency Detection* 
+ 
+                                     Nian Liu Junwei Han 
+School of Automation, Northwestern Polytechnical University 
+Xi’an, 710072, P. R. China 
+{liunian228, junweihan2010}@gmail.com 
+ 
+ 
+(a)                                                                           (b)                                                                  (c) 
+Figure 1: Comparison of the context incorporation strategies between previous models and our model. (a) and (b): Previous traditional 
+saliency models (we take [6] as an example here) and CNN based models (we take [17] as an example) simply utilize the whole context 
+regions to construct the contextual features. (c): We generate soft attention over the context regions for each pixel to selectively integrate 
+informative contextual information. In the left image, we show three pixels (the colored dots) and their contexts (rectangles with 
+corresponding colors). The right three image patches show the generated attention maps. Locations highlighted by white color indicate the 
+attended context regions. 
+1 
+                                                          
+ 
+ 
+histogram [5, 6], sparse coding [7], and average pooling [8, 
+9]. An example of using histograms is shown in Figure 1 (a). 
+Recently, convolutional neural networks (CNNs) have 
+demonstrated excellent capability to learn discriminative 
+feature representations in large contexts within their deep 
+architectures for various computer vision tasks, e.g., image 
+classification [10, 11], object detection [12, 13], and 
+semantic segmentation [14-16]. To this end, CNNs have 
+also been used for saliency detection to learn powerful 
+contextual representation in several existing works [9, 
+17-25]. Specifically, some works [9, 17-20] directly used 
+CNNs to first extract features from multiple image regions 
+with varying contexts, and subsequently combined the 
+extracted contextual features to infer saliency. Other models 
+[21, 23-25] adopted fully convolutional networks (FCNs) 
+[14] to extract the feature representation at each image 
+location and infer the saliency map in a convolutional way. 
+In these models, CNNs extract the features from the overall 
+input image region, while FCNs extract the features at each 
+image location from its corresponding receptive field. An 
+example is shown in Figure 1 (b). 
+However, based on the above discussion, we can see 
+that both traditional models and CNN based models utilize 
+the context regions holistically to construct the contextual 
+features, in which every contextual location is involved (see 
+Figure 1 (a) and (b)). Intuitively, for a specific image 
+location, not all its contextual regions are useful for its final 
+decision. Some correlated regions are usually more 
+important, while others may serve as noises and thus 
+degrade the model performance. For example, as shown in 
+Figure 1 (c), when we need to discriminate whether a pixel 
+(e.g., the red dot or the green dot) belongs to the horse, we 
+need to refer to the other part of the horse, while the 
+neighbouring background regions will serve as noises. Thus, 
+if we can identify useful context regions for each pixel and 
+construct the informative contextual feature, it will benefit 
+the final decision. Nevertheless, there are still lack of 
+existing effective methods to evaluate the contextual 
+relevance between each pixel and their context locations. 
+To solve this problem, in this paper we propose a novel 
+Pixel-wise Contextual Attention network, which is referred 
+as PiCANet, to automatically learn to select these 
+informative contextual regions for each image pixel. It 
+significantly improves the soft attention model [26] by 
+working on the pixel level in a convolution-like way. 
+Specifically, as shown is Figure 1 (c), the proposed 
+PiCANet can learn to generate soft attention over the 
+context regions for each pixel, where the attention weights 
+indicate how important each context location is with respect 
+to the referred pixel. Then, the features from the context 
+regions are weighted and aggregated to obtain an attended 
+contextual feature, which only incorporates informative 
+context locations while ignores detrimental ones for each 
+pixel. As a result, the proposed PiCANets will benefit the 
+final decision. 
+To incorporate contexts with different scales, we 
+formulate the PiCANet in two forms: global PiCANet and 
+local PiCANet, to selectively integrate global context and 
+local context, respectively. They can be flexibly embedded 
+into any ConvNet architectures for various tasks, e.g., 
+saliency detection, semantic segmentation [14], and object 
+detection [27]. Furthermore, our implementations of the 
+PiCANets are fully differentiable, thus they enables joint 
+training in deep neural networks. 
+To demonstrate the effectiveness of the proposed model, 
+we hierarchically embed global and local PiCANets into an 
+encoder-decoder convolutional network with skip 
+connections (i.e., the U-Net architecture [28]) to detect 
+salient objects. Specifically, in the decoder part, we 
+progressively employ a global PiCANet and several local 
+PiCANets on multiscale feature maps. Thus, we construct 
+the attended contextual features from the global view to 
+local contexts, from coarse scale to fine scales, and use them 
+to enhance the convolutional features to facilitate saliency 
+inference at each pixel. An example of the generated local 
+attention is shown in Figure 1 (c). As can be seen, for each 
+pixel (the three colored dots), the shown local attention (the 
+white regions in the three image patches) have learned to 
+attend to regions that have similar appearance with that 
+pixel (e.g., the horse’s head and neck for the red pixel on the 
+horse’s face) in its local context (the corresponding colored 
+rectangles) to help infer the saliency. 
+Our contributions can be summarized as follows: 
+(1) We propose a novel pixel-wise contextual attention 
+network, i.e., the PiCANet, to generate attention over the 
+context regions for each pixel. Consequently, informative 
+contextual features can be obtained to facilitate the final 
+decision. We formulate the basic idea in a global and a local 
+form to attend to global and local contexts, respectively. 
+Furthermore, the proposed PiCANets are with full 
+differentiability, thus can be embedded into any ConvNet 
+architecture to benefit various tasks. 
+(2) We propose a novel saliency detection model by 
+embedding PiCANets into a U-Net architecture. PiCANets 
+are used to hierarchically incorporate the attended global 
+context and multiscale local contexts, which can effectively 
+help to improve saliency detection performance. 
+(3) Extensive experiments on four benchmark datasets 
+are conducted and the results demonstrate the effectiveness 
+of the proposed PiCANets and our proposed saliency model 
+when compared with other state-of-the-art models. We also 
+present substantial analyses to better understand why the 
+proposed PiCANets work. 
+2 
+ 
+ 
+2. Related Work  
+2.1. Attention Models 
+Attention models are novel neural network based models 
+to mimic the attention mechanism of human beings to focus 
+on informative regions in visual scenes. Mnih et al. [29] 
+proposed a recurrent attention model with hard-alignment. 
+However, this hard attention model is difficult to train. To 
+overcome this defect, Bahdanau et al. [26] proposed a novel 
+attention model with differentiable soft alignments for 
+machine translation. Following these works, some authors 
+also applied attention models on computer vision tasks. Xu 
+et al. [30] recurrently used attention for image caption to 
+align words with image regions. Authors in [31, 32] 
+recurrently used attention for fine-grained classification via 
+attending to discriminative regions. In [33, 34], authors 
+adopted attention for visual question answering to attend to 
+question-related image regions. Li et al. [35] utilized 
+attention to attend to the global context to guide object 
+detection. These works demonstrate that attention models 
+can be very helpful for computer vision tasks via attending 
+to informative contexts. However, they can only generate 
+one attention map for the whole image on the global context 
+for one time, which we refer as image-wise contextual 
+attention. These models limit the application of attention 
+models in convolutional nets, especially for pixel-wise tasks, 
+since different pixels have different informative context 
+regions. Chen et al. [36] generated attentions for each pixel 
+for semantic segmentation. Nevertheless, this work used 
+attention to select adaptive scales on multiscale features for 
+each pixel, which we refer as pixel-wise scale attention. In 
+contrast, our proposed PiCANet can generate pixel-wise 
+attention to select informative global or local contexts in a 
+convolution-like way, which efficiently constructs attended 
+contextual features for each pixel simultaneously. 
+2.2. Saliency Detection Models 
+Traditional models mainly rely on various saliency cues 
+to detect salient objects, including local contrast [6], global 
+contrast [5, 37], background prior [38, 39], objectness prior 
+[40, 41], and so on. Lately, with the utilization of CNNs, 
+authors of [9, 17-25] have achieved promising results on 
+saliency detection. Next, we briefly review these models. 
+Authors of [18] and [17] adopted CNNs to extract 
+multiscale contextual features on multiscale image regions 
+to infer saliency for each pixel and each superpixel, 
+respectively. Similarly, Zhao et al. [19] used CNNs on both 
+global context and local context, while Huang et al. [25] 
+used multiscale FCNs to incorporate multiscale contexts for 
+each image location. Wang et al. [9] first used CNNs to 
+estimate the saliency value for each pixel from a local image 
+patch, then incorporated the global features to adjust the 
+saliency map. In [20], authors combined pair-wise low-level 
+feature distances between each superpixel and other ones 
+and the global CNN feature of the whole image. In [22], a 
+FCN based saliency model and a multiscale image region 
+based saliency model were combined. Liu and Han [23] 
+used a U-Net based network to hierarchically predict the 
+saliency maps from the global view and finer local views. 
+Although all the previous DNN based models tried to 
+incorporate various contexts for saliency detection, they 
+used all the context regions holistically. Typically, the work 
+in [23], which has similar U-Net architecture with the one 
+we used in this paper, incorporated multiscale contexts via 
+recurrent convolutional layers [42]. However, we only 
+attend to informative context locations by using our 
+proposed PiCANet. In [21], authors first predicted the 
+saliency map using a deconvolutional network [16], then 
+they refined local image regions which were selected via a 
+recurrent attention model. However, they generated the 
+attention to select one refining region at each time step, 
+where the attention model still falls into the image-wise 
+attention category. In contrast, we adopted the novel 
+PiCANets to softly attend to context regions for informative 
+contextual feature construction for each pixel. 
+3. Pixel-wise Contextual Attention Network 
+The proposed PiCANet aims at generating the attention 
+map over the context region and constructing the attended 
+contextual feature for each pixel in a convolutional network. 
+Given a convolutional (Conv) feature map W H C× ×?X ? , 
+where W, H, C denote its width, height and number of 
+channels, respectively, we propose two pixel-wise attention 
+modes: global attention and local attention. For each 
+location (w, h) in X , the former generates attention over the 
+whole feature map X , while the latter generates attention 
+over a local region centered at (w, h). Next, we describe 
+these two attention networks in details. 
+3.1. Global PiCANet 
+For global attention, we show the network architecture in 
+Figure 2 (a). Since we tend to generate an attention map 
+over the global context for each pixel, we need to make each 
+pixel be able to “see” the overall feature map X  first. To 
+this end, one can use various network architectures whose 
+receptive field is the whole image, e.g., a fully connected 
+layer. Here we employ the more effective and efficient 
+ReNet model [43], which uses four recurrent neural 
+networks to sweep an image both horizontally and vertically 
+in both directions, to incorporate the global context. 
+Specifically, as shown in the orange dashed box in Figure 2 
+(a), a bidirectional LSTM (biLSTM) [44] is first deployed 
+on each row of X , then the two hidden states of each pixel 
+are concatenated, making each pixel memorize both its left 
+and right contexts. Next, another biLSTM is deployed on 
+3 
+ 
+ 
+each column of the obtained feature map, so that each pixel 
+can memorize both its top and bottom contexts. By 
+alternately scanning X  horizontally and vertically in both 
+directions, the contexts from four directions can be blent up, 
+which can propagate the information of each pixel to all 
+other pixels. Thus, the resultant feature map efficiently 
+incorporates the global context at each pixel. 
+Next, we use a simple Conv layer to transform the ReNet 
+feature map to D channels, where D W H= × . Then, at 
+each pixel (w, h), the obtained feature vector, which is 
+denoted as ,w hf , is normalized via a softmax function to 
+generate the attention weights ,w h? : 
+ 
+,
+,
+,
+1
+exp( )
+,
+exp( )
+w h
+w h i
+i D w h
+jj
+f
+f
+?
+=
+=
+?
+  (1) 
+where {1, , }i D? ? , , ,,w h w h D?? f ? . ,w hi?  corresponds to 
+the contextual relevance of the i-th context location (Wi, Hi) 
+w.r.t. the pixel (w, h). 
+Finally, as shown in Figure 2 (b), for each pixel (w, h), 
+the features at all locations in X  are weighted summed by 
+using the attention weights ,w h?  to construct the attended 
+contextual feature attX : 
+ ,,
+1
+,
+D
+att w h
+w h i i
+i
+?
+=
+= ?X X   (2) 
+where Ci ?X ?  is the Conv feature at (Wi, Hi). Thus we 
+obtain the attended contextual feature map att W H C× ×?X ? . 
+The attending operation for all pixels can be implemented 
+simultaneously, in an efficient convolution-like way. The 
+gradients can also be easily calculated, making end-to-end 
+training feasible via the back-propagation algorithm [45]. 
+3.2. Local PiCANet 
+For local attention, for each pixel (w, h), we only perform 
+the attending operation on a local neighbouring context 
+region centered at (w, h), which forms a local feature cube 
+,w h W H C× ×?X ? , with the width W  and the height H . The 
+network architecture is shown in Figure 2 (c). Now we first 
+need each pixel to “see” the W H×  context region to 
+generate the attention map over it. We choose Conv layers 
+to achieve this purpose. Specifically, we deploy several 
+Conv layers on X  to make their receptive field achieve the 
+size of W H× . Then, as the same as global PiCANet, a 
+Conv layer is used to transform the feature map to 
+D W H= ×  channels. Next, the attention weights ,w h?  are 
+generated by normalization via Equation (1). Finally, as 
+shown in Figure 2 (d), for pixel (w, h), the features in ,w hX  
+are weighted summed based on ,w h?  to obtain attX : 
+ , ,,
+1
+.
+D
+att w h w h
+w h i i
+i
+?
+=
+= ?X X   (3) 
+For computational efficiency, we can also adopt the hole 
+algorithm [15] in the attending operation, which supports 
+sparsely sampling the feature maps by using input strides. 
+Thus, we can use small D with input strides to attend to large 
+context regions to make PiCANets more efficient. 
+4. Using PiCANets for Saliency Detection 
+To evaluate the effectiveness of the proposed PiCANets, 
+we hierarchically embed them in a U-Net [28] architecture 
+for salient object detection. Note that our PiCANets can be 
+readily adopted into any convnet architectures for various 
+ 
+Figure 2: (a) Architecture of our global PiCANet. (b) Illustration of the detailed global attending operation. (c) Architecture of our local 
+PiCANet. (b) Illustration of the detailed local attending operation. 
+4 
+ 
+ 
+tasks, e.g., FCNs [14] for semantic segmentation, Mr-CNN 
+[18] for saliency detection, and the SSD network [27] for 
+object detection. We leave them for our future work. 
+Different from [28], the encoder of our U-Net is a FCN 
+with hole algorithm [15] to keep the resolutions of feature 
+maps, and the decoder follows the idea of U-Net to use skip 
+connections, as shown in Figure 3 (a). 
+Considering the global PiCANet requires feature maps 
+with fixed size, we fix the input images to the size of 
+224 224× . The encoder part is a FCN based on VGG [11] 
+16-layer network, which contains 13 Conv layers, 5 
+max-pooling layers, and 2 fully connected layers. As shown 
+in Figure 3 (a), in order to preserve relative large feature 
+maps in higher layers, we discard pool4 and pool5 layers, 
+and adopt the hole algorithm [15] to introduce an input 
+stride of 2 for the convolutional kernels of conv5 layers. We 
+also follow [15] to transform the last 2 fully connected 
+layers to Conv layers. Specifically, we use 1024 
+3 3× kernels with the input stride = 12 for the fc6 layer and 
+1024 1 1× kernels for the fc7 layer. Thus, the stride of the 
+whole encoder network is reduced to 8, and the spatial size 
+of the final feature maps is 28 28× . 
+Next, we elaborate our decoder part. As shown in Figure 
+3 (a), the decoder network has 5 refinement modules, named 
+from R5 to R1. As shown in Figure 3 (b), in Ri, we usually 
+generate a decoder feature map Deci  by fusing an 
+intermediate encoder feature map En i  with the size of 
+W H C× ×  and the former decoder feature map 1Deci?  
+with the size of 2 2 2W H C× × . En i  is usually a Conv 
+feature map from the encoder part before ReLU activation, 
+and they are marked in Figure 3 (a). We first use a batch 
+normalization (BN) [46] layer and the ReLU activation on 
+En i . Similarly, a Conv layer with ReLU is adopted on 
+1Deci?  to transform its feature maps to C channels. Then it 
+is upsampled by a deconvolutional layer with bilinear 
+interpolation to the size of W H C× × . Next, we 
+concatenate these two feature maps and fuse them into a 
+feature map Fi  with C channels by using a Conv and a 
+ReLU layer. Then we utilize a global or a local PiCANet on 
+Fi  to obtain its attended contextual feature map F
+att
+i , which 
+is subsequently fused with Fi  into Deci  with the size 
+W H C× ×  via three layers, including a Conv layer, a BN 
+ 
+(a) 
+ 
+(b) 
+Figure 3: (a) Architecture of our whole network. We only show the skip-connected encoder layers En i  of the VGG 16-layer network. “C” 
+means “convolution” while R* indicates a refinement module. The spatial sizes and the channel numbers are marked on and over the 
+cuboids which represent the feature maps, respectively. (b) Illustration of an attended refinement module. En i   denotes a convolutional 
+layer from the encoder network, Deci  denotes a decoder feature map, Fi  denotes a fusion feature map, F
+att
+i  denotes its attended contextual 
+feature map, and “Up” denotes upsampling. Some important spatial sizes and channel numbers are also marked. 
+5 
+ 
+ 
+layer, and a ReLU layer. We also adopt deep supervision to 
+facilitate the network training. Specifically, in each 
+refinement module, we use a Conv layer with sigmoid 
+activation on Deci  to generate a saliency map with the size 
+W H× , then the resized ground truth saliency map is used 
+to supervise the network training based on the average 
+cross-entropy loss. 
+In R5, we fuse fc7, fc6 and conv5_3 layers by using a 
+Conv layer with 1024 channels, then we adopt the global 
+PiCANet. In the next 3 refinement modules, we use local 
+PiCANets. We simply fuse 1En  and 2Dec  to 1Dec  in R1 
+with simple Conv layers for computational efficiency. 
+5. Experiments 
+5.1. Datasets 
+We used four widely used saliency benchmark datasets 
+to evaluate our method. The first one is the SOD [47] 
+dataset with 300 images containing complex backgrounds 
+and multiple foreground objects. The second one is the 
+MSRA10K [5] dataset. This dataset has 10,000 relatively 
+simple images with clean backgrounds and only one 
+foreground object in each image. The third one is the 
+DUT-OMRON [38] dataset with 5,168 images, each of 
+which usually has complicated background and one or two 
+foreground objects. The last dataset is SED [48] with 200 
+images. Half the images have only one foreground object, 
+while other images have two foreground objects. 
+5.2. Evaluation Metrics 
+We adopted three evaluation metrics. The first one is the 
+precision-recall (PR) curve. Specifically, the binarized 
+saliency maps are compared with the ground truth under 
+varying thresholds, thus obtaining a series of 
+precision-recall value pairs to draw the PR curve. The 
+second metric is the weighted F-measure [49], which can 
+relieve the interpolation flaw, dependency flaw, and 
+equal-importance flaw suffered in traditional metrics. By 
+computing the weighted precision Precisionw  and the 
+weighted recall Recallw , the weighted F-measure wF?  is 
+given by: 
+ 
+2
+2
+(1 ) Precision Recall ,
+Precision Recall
+w w
+w
+w wF?
+?
+?
++ ? +
+=
+? +
+  (4) 
+where 2?  is set to 1 as the same as in [49]. 
+Settings 
+SOD DUT-OMRON 
+wF?  MAE wF?  MAE      
+U-Net 0.6792 0.1132 0.6758 0.0598 
++MP 0.7008 0.1081 0.7163 0.0545 
++AP 0.7012 0.1087 0.7061 0.0543 
++LC 0.7080 0.1063 0.7214 0.0528 
++GP 0.7134 0.1039 0.7325 0.0496 
++LP 0.7120 0.1027 0.7191 0.0526 
++GLP 0.7210 0.1008 0.7452 0.0465 
+ 
+Table 1: Quantitative comparison of our model and baseline 
+models. MP and AP mean max-pooling and average pooling, 
+respectively. LC means large contexts. GP, LP, and GLP mean 
+the global PiCANet, local PiCANets, and both of them. 
+ 
+ 
+             Image              GT            U-Net+LC    +PiCANets 
+Figure 4: Comparison of saliency maps of the U-Net with large 
+contexts model and our saliency model with PiCANets. 
+ 
+ 
+        R5                       R4                        R3                 R2 
+Figure 5: The visualization of comparison between Conv feature 
+maps and attended contextual feature maps in different 
+refinement modules. The input image is the top image in Fig. 4. 
+ 
+             att(R5)              att(R4)              att(R3)             att(R2) 
+Figure 6: Illustration of where the PiCANets attend in various 
+attending scales on different locations. We show the attention 
+maps of four pixels (denoted as red dots) in two different images. 
+For each pixel, we show its attention maps in different refinement 
+modules with varying attending scales. The regions of the 
+attended contexts are marked as red rectangles. The two original 
+images are the first two images in Figure 8. 
+6 
+ 
+ 
+The third metric we used is the Mean Absolute Error 
+(MAE) which computes the average absolute per-pixel 
+difference between predicted saliency maps and 
+corresponding ground truth saliency maps. 
+5.3. Implementation Details 
+We used the same training images with [23]. In details, 
+6,000 images from the MSRA10K dataset and 3,500 images 
+from the DUT-OMRON dataset were randomly chosen as 
+the training set, while another 800 and 468 images from the 
+two datasets were picked up as the validation set, 
+respectively. The rest images and the other two datasets 
+were used for testing. The same data augmentation scheme 
+with [23] were also adopted, in which cropping and 
+mirroring were used to increase the training samples by 12 
+times. 
+As for the refinement network architecture, all of the 
+convolutional kernels in Figure 3 (b) were set to 1 1× . In the 
+global PiCANet in R5, we used 128 hidden neurons in the 
+ReNet, and then we used a 1 1×  Conv layer to generate 
+D=100 dimension attention weights, which can be reshaped 
+to 10 10×  attention maps. In the attending operation, we 
+adopted the hole algorithm to introduce the input stride = 3 
+to attend to the 28 28×  global context. In the local 
+PiCANets in R4 to R2, we used two Conv layers with 7 7×  
+kernels and zero padding to generate the attention. The first 
+Conv layer has 128 channels with ReLU activation, while 
+the second one uses softmax activation and D=49 channels, 
+from which we can obtain 7 7×  attention maps. We 
+introduced the input stride = 2 and zero padding in the 
+attending operations to attend to 13 13×  local context 
+regions. 
+Before being fed into the network, each image was 
+resized to 224 224×  and subtracted the mean RGB values 
+of the VGG net. The whole network can be trained 
+end-to-end using stochastic gradient descent (SGD) with 
+momentum. Since we used deep supervision in each 
+refinement module, the losses in R5 to R1 were empirically 
+weighted by 0.1, 0.3, 0.5, 0.8, and 1, respectively. We used 
+8 images in a minibatch to train the whole network for 
+20,000 iteration steps. The encoder was initialized from the 
+VGG network and its learning rate was set to 0.001, while 
+the decoder part was trained from the scratch with the 
+learning rate of 0.01. The learning rates were decreased by a 
+factor of 2.5 every 2,000 iteration steps. We also used 
+momentum of 0.9 and a weight decay of 0.0005. Validation 
+was performed every 2,000 steps to select the best-trained 
+model with the minimum loss. 
+We implemented our model based on the Caffe [50] 
+library. A GTX titan X GPU was used for acceleration. 
+When testing, each testing image was first preprocessed by 
+resizing and subtracting the mean RGB values and then fed 
+into the network to obtain its saliency map directly, without 
+ 
+Figure 7: Comparison of our model and 11 state-of-the-art models on four datasets in terms of the PR curves. 
+Dataset Metric Ours DHSNet ELD DCL MCDL MDF LEGS CPMC- GBVS DRFI GBMR HDCT HS               
+SOD 
+wF?   .7210 .7093 .6444 .6457 .5737 .5148 .5558 .4540 .4496 .3924 .3731 .3845 
+MAE .1008 .1041 .1337 .1253 .1544 .1628 .1786 .2487 .1955 .2441 .2222 .2743 
+MSRA 
+10K 
+wF?   .8887 .8872 - .8178 - - - .6240 .6667 .6407 .5834 .6041 
+MAE .0387 .0392 - .0657 - - - .1439 .1144 .1272 .1438 .1487 
+DUT- 
+OMRON 
+wF?   .7452 .7333 .5974 .6314 .5976 .5695 .5260 .3707 .4271 .3838 .3564 .3522 
+MAE .0465 .0488 .0881 .0786 .0851 .0899 .1305 .2345 .1357 .1851 .1629 .2252 
+SED 
+wF?   .8331 .8174 .7792 .7189 .7615 .6897 .7013 .5527 .6470 .6119 .5402 .6162 
+MAE .0654 .0657 .0858 .0946 .0955 .1181 .1144 .1898 .1381 .1620 .1649 .1690 
+ 
+Table 2: The comparison of different methods in terms of the weighted F-measure and MAE scores. Best scores are shown in bold face. 
+7 
+ 
+ 
+any post-processing. The whole testing process only costs 
+0.226s for each image in Matlab. Our code will be released.  
+5.4. Effectiveness of The Proposed PiCANets 
+ In this section we demonstrate the effectiveness of the 
+proposed PiCANets. We first show quantitative comparison 
+results of our model and baseline models on two 
+challenging datasets in Table 1. U-Net is the baseline 
+network we used without the PiCANets branches. For fair 
+comparison, we also adopted large contexts (LC) to the base 
+line U-Net by adding ReNet and multiple Conv layers in the 
+refinement modules to make them have as large contexts as 
+our model with PiCANets. Comparing “U-Net” and “+LC”, 
+we can see that large contexts benefit U-Net model a lot, 
+leading to large performance gains. We also tried to use 
+max-pooling (MP) and average-pooling (AP) to incorporate 
+these contexts. But we can see that using naïve pooling 
+schemes is inferior to learning the context modeling via 
+learnable layers as the “+LC” scheme. We then gradually 
+incorporated the global PiCANet (GP), local PiCANets 
+(LP), and both of them (GLP). Comparing with the “+LC” 
+scheme, we can see that, when using PiCANets to 
+selectively incorporate these contexts, the model 
+performance can be further boosted. Moreover, when both 
+attending to global and local contexts, the model 
+performance is the best. 
+We also show some qualitative results to indicate the 
+effectiveness of the proposed PiCANets. In Figure 4, we 
+show saliency maps of the U-Net with large contexts model 
+and our saliency model. We can see that our saliency model 
+can obtain more uniformly highlighted saliency maps with 
+the help of PiCANets. In Figure 5, we show comparison 
+between Conv features Fi  and attended contextual features 
+Fatti  in different refinement modules. We can see that, the 
+global PiCANet in R5 helps to better discriminate the 
+foreground objects from backgrounds, while local 
+PiCANets in R5 to R2 enhance the convolutional features to 
+be more homogenous, where the activation on the different 
+parts of the foreground objects are more similar. 
+To further understand why PiCANets can achieve such 
+improvement, in Figure 6, we visualize the attention maps 
+of four pixels in two different images in R5 to R2. We can 
+see that, in R5, the global attention of background pixels 
+mainly attends to foreground objects (see the first column in 
+(a) and (c)). While for foreground pixels, it mainly attends 
+to the background regions (see the first column in (b) and 
+(d)). This observation greatly matches the global contrast 
+mechanism, thus our global PiCANet can help our model to 
+effectively recognize the salient objects from the 
+backgrounds, just as shown in Fig. 5. As for the local 
+attention, since we used fixed attention size (13 13× ) for R4 
+to R2, we can incorporate multiscale attention from coarse 
+to fine, with large contexts to small ones, as shown with red 
+rectangles in Figure 6. From the last 3 columns, we can see 
+that local attention mainly attends to homogenous regions 
+with the referred pixel, thus enhancing the feature maps and 
+saliency maps to be more uniform, just as shown in Fig. 5 
+and Fig. 4. 
+5.5. Comparison with State-of-the-arts 
+We compared our saliency model with other 11 
+state-of-the-art models, namely, CPMC-GBVS [41], DRFI 
+[8], GBMR [38], HDCT [51], HS [52], MCDL [19], MDF 
+ 
+Figure 8: Qualitative comparison of our model and other 10 state-of-the-art models. (GT: ground truth) 
+8 
+ 
+ 
+[17], LEGS [9], ELD [20], DCL [22], and DHSNet [23]1. 
+Note that the latter 6 models are recently published CNN 
+based models. 
+In Fig. 7 and Table 2, we show quantitative comparison 
+of our model and other state-of-the-art models. We observe 
+that our model outperforms all other models on all the four 
+datasets, especially on the complex SOD and 
+DUT-OMRON datasets. Specifically, the PR curves of our 
+model are usually above all other curves, indicating that our 
+model achieves the best precision and recall. In terms of the 
+weighted F-measure and MAE, our model outperforms 
+other models by a large margin. 
+In Figure 5, we show qualitative comparison. We 
+observe that our model can handle various challenging 
+scenes, including images with complex backgrounds and 
+foregrounds (rows 1, 2, 3, 4), varying object scales, objects 
+touching image boundaries (rows 3, 5), and similar 
+appearance between salient objects and the backgrounds 
+(row 6). Most importantly, without using any post 
+processing, our model highlights the salient objects more 
+uniformly than other models with the help of PiCANets. 
+6. Conclusion 
+In this paper, we have proposed novel PiCANets to 
+selectively attend to global or local contexts for each pixel. 
+With the generated attention, only informative contextual 
+information is utilized. We also apply PiCANets to detect 
+salient objects in a hierarchical fashion. With the help of 
+attended context, our model achieves the best performance 
+on four benchmark datasets. We also provide in-depth 
+analyses on the effectiveness of the PiCANets. In future 
+work, we will explore their application for other tasks. 
+References 
+[1] L. Itti, C. Koch, and E. Niebur. A model of saliency-based 
+visual attention for rapid scene analysis. TPAMI, 
+20(11):1254-1259, 1998. 
+[2] D. Gao, V. Mahadevan, and N. Vasconcelos. On the 
+plausibility of the discriminant center-surround hypothesis 
+for visual saliency. J. Vision, 8(7):13-13, 2008. 
+[3] H. J. Seo and P. Milanfar. Static and space-time visual 
+saliency detection by self-resemblance. J. Vision, 
+9(12):15-15, 2009. 
+[4] B. Han, H. Zhu, and Y. Ding. Bottom-up saliency based on 
+weighted sparse coding residual. in ACM Multimedia, 2011. 
+[5] M.-M. Cheng, G.-X. Zhang, N. J. Mitra, X. Huang, and 
+S.-M. Hu. Global contrast based salient region detection. in 
+CVPR, 2011. 
+[6] D. A. Klein and S. Frintrop. Center-surround divergence of 
+feature statistics for salient object detection. in ICCV, 2011. 
+1 MCDL and ELD are trained on MSRA10K, while MDF and LEGS 
+are trained on the MSRA-B dataset, which is partially overlapped by 
+MSRA10K. Thus we didn’t compare our model with them on MSRA10K. 
+[7] J. Han, S. He, X. Qian, D. Wang, L. Guo, and T. Liu. An 
+object-oriented visual saliency detection framework based 
+on sparse coding representations. TCSVT, 
+23(12):2009-2021, 2013. 
+[8] H. Jiang, J. Wang, Z. Yuan, Y. Wu, N. Zheng, and S. Li. 
+Salient object detection: A discriminative regional feature 
+integration approach. in CVPR, 2013. 
+[9] L. Wang, H. Lu, X. Ruan, and M.-H. Yang. Deep Networks 
+for Saliency Detection via Local Estimation and Global 
+Search. in CVPR, 2015. 
+[10] A. Krizhevsky, I. Sutskever, and G. E. Hinton. Imagenet 
+classification with deep convolutional neural networks. in 
+NIPS, 2012. 
+[11] K. Simonyan and A. Zisserman. Very deep convolutional 
+networks for large-scale image recognition. in ICLR, 2015. 
+[12] R. Girshick, J. Donahue, T. Darrell, and J. Malik. Rich 
+feature hierarchies for accurate object detection and 
+semantic segmentation. in CVPR, 2014. 
+[13] W. Liu, D. Anguelov, D. Erhan, C. Szegedy, and S. Reed. 
+SSD: Single Shot MultiBox Detector. in ECCV, 2016. 
+[14] J. Long, E. Shelhamer, and T. Darrell. Fully Convolutional 
+Networks for Semantic Segmentation. in CVPR, 2015. 
+[15] L.-C. Chen, G. Papandreou, I. Kokkinos, K. Murphy, and A. 
+L. Yuille. Semantic image segmentation with deep 
+convolutional nets and fully connected CRFs. in ICLR, 
+2015. 
+[16] H. Noh, S. Hong, and B. Han. Learning deconvolution 
+network for semantic segmentation. in ICCV, 2015. 
+[17] G. Li and Y. Yu. Visual Saliency Based on Multiscale Deep 
+Features. in CVPR, 2015. 
+[18] N. Liu, J. Han, D. Zhang, S. Wen, and T. Liu. Predicting eye 
+fixations using convolutional neural networks. in CVPR, 
+2015. 
+[19] R. Zhao, W. Ouyang, H. Li, and X. Wang. Saliency 
+detection by multi-context deep learning. in CVPR, 2015. 
+[20] G. Lee, Y.-W. Tai, and J. Kim. Deep Saliency with Encoded 
+Low level Distance Map and High Level Features. in CVPR, 
+2016. 
+[21] J. Kuen, Z. Wang, and G. Wang. Recurrent Attentional 
+Networks for Saliency Detection. in CVPR, 2016. 
+[22] G. Li and Y. Yu. Deep Contrast Learning for Salient Object 
+Detection. in CVPR, 2016. 
+[23] N. Liu and J. Han. DHSNet: Deep Hierarchical Saliency 
+Network for Salient Object Detection. in CVPR, 2016. 
+[24] N. Liu and J. Han. A Deep Spatial Contextual Long-term 
+Recurrent Convolutional Network for Saliency Detection. 
+arXiv preprint arXiv:1610.01708, 2016. 
+[25] X. Huang, C. Shen, X. Boix, and Q. Zhao. Salicon: 
+Reducing the semantic gap in saliency prediction by 
+adapting deep neural networks. in ICCV, 2015. 
+[26] D. Bahdanau, K. Cho, and Y. Bengio. Neural machine 
+translation by jointly learning to align and translate. arXiv 
+preprint arXiv:1409.0473, 2014. 
+[27] W. Liu, D. Anguelov, D. Erhan, C. Szegedy, and S. Reed. 
+SSD: Single Shot MultiBox Detector. arXiv preprint 
+arXiv:1512.02325, 2015. 
+[28] O. Ronneberger, P. Fischer, and T. Brox. U-net: 
+Convolutional networks for biomedical image segmentation. 
+in MICCAI, 2015. 
+9 
+                                                          
+ 
+ 
+[29] V. Mnih, N. Heess, and A. Graves. Recurrent models of 
+visual attention. in NIPS, 2014. 
+[30] K. Xu, J. Ba, R. Kiros, K. Cho, A. Courville, R. 
+Salakhutdinov, R. S. Zemel, and Y. Bengio. Show, attend 
+and tell: Neural image caption generation with visual 
+attention. in ICML, 2015. 
+[31] P. Sermanet, A. Frome, and E. Real. Attention for 
+fine-grained categorization. arXiv preprint 
+arXiv:1412.7054, 2014. 
+[32] X. Liu, T. Xia, J. Wang, and Y. Lin. Fully Convolutional 
+Attention Localization Networks: Efficient Attention 
+Localization for Fine-Grained Recognition. arXiv preprint 
+arXiv:1603.06765, 2016. 
+[33] H. Xu and K. Saenko. Ask, Attend and Answer: Exploring 
+Question-Guided Spatial Attention for Visual Question 
+Answering. arXiv preprint arXiv:1511.05234, 2015. 
+[34] Z. Yang, X. He, J. Gao, L. Deng, and A. Smola. Stacked 
+attention networks for image question answering. arXiv 
+preprint arXiv:1511.02274, 2015. 
+[35] J. Li, Y. Wei, X. Liang, J. Dong, T. Xu, J. Feng, and S. Yan. 
+Attentive Contexts for Object Detection. arXiv preprint 
+arXiv:1603.07415, 2016. 
+[36] L.-C. Chen, Y. Yang, J. Wang, W. Xu, and A. L. Yuille. 
+Attention to scale: Scale-aware semantic image 
+segmentation. in CVPR, 2016. 
+[37] R. Achanta, S. Hemami, F. Estrada, and S. Susstrunk. 
+Frequency-tuned salient region detection. in CVPR, 2009. 
+[38] C. Yang, L. Zhang, H. Lu, X. Ruan, and M.-H. Yang. 
+Saliency detection via graph-based manifold ranking. in 
+CVPR, 2013. 
+[39] Y. Wei, F. Wen, W. Zhu, and J. Sun. Geodesic saliency 
+using background priors. in ECCV, 2012. 
+[40] K.-Y. Chang, T.-L. Liu, H.-T. Chen, and S.-H. Lai. Fusing 
+generic objectness and visual saliency for salient object 
+detection. in ICCV, 2011. 
+[41] Y. Li, X. Hou, C. Koch, J. M. Rehg, and A. L. Yuille. The 
+secrets of salient object segmentation. in CVPR, 2014. 
+[42] M. Liang and X. Hu. Recurrent Convolutional Neural 
+Network for Object Recognition. in CVPR, 2015. 
+[43] F. Visin, K. Kastner, K. Cho, M. Matteucci, A. Courville, 
+and Y. Bengio. Renet: A recurrent neural network based 
+alternative to convolutional networks. arXiv preprint 
+arXiv:1505.00393, 2015. 
+[44] A. Graves, N. Jaitly, and A.-r. Mohamed. Hybrid speech 
+recognition with deep bidirectional LSTM. in Automatic 
+Speech Recognition and Understanding Workshop, 2013. 
+[45] D. E. Rumelhart, G. E. Hinton, and R. J. Williams. Learning 
+representations by back-propagating errors. Nature, 
+323(6088):533-538, 1986. 
+[46] S. Ioffe and C. Szegedy. Batch normalization: Accelerating 
+deep network training by reducing internal covariate shift. 
+arXiv preprint arXiv:1502.03167, 2015. 
+[47] V. Movahedi and J. H. Elder. Design and perceptual 
+validation of performance measures for salient object 
+segmentation. in CVPR Workshops, 2010. 
+[48] S. Alpert, M. Galun, A. Brandt, and R. Basri. Image 
+segmentation by probabilistic bottom-up aggregation and 
+cue integration. TPAMI, 34(2):315-327, 2012. 
+[49] R. Margolin, L. Zelnik-Manor, and A. Tal. How to evaluate 
+foreground maps. in CVPR, 2014. 
+[50] Y. Jia, E. Shelhamer, J. Donahue, S. Karayev, J. Long, R. 
+Girshick, S. Guadarrama, and T. Darrell. Caffe: 
+Convolutional architecture for fast feature embedding. in 
+ACM Multimedia, 2014. 
+[51] J. Kim, D. Han, Y.-W. Tai, and J. Kim. Salient region 
+detection via high-dimensional color transform. in CVPR, 
+2014. 
+[52] Q. Yan, L. Xu, J. Shi, and J. Jia. Hierarchical saliency 
+detection. in CVPR, 2013. 
+ 
+10 

@@ -1,0 +1,3399 @@
+ar
+X
+iv
+:1
+70
+8.
+07
+16
+4v
+2 
+ [
+m
+at
+h.
+O
+C
+] 
+ 2
+9 
+A
+ug
+ 2
+01
+7
+Newton-Type Methods for Non-Convex Optimization Under
+Inexact Hessian Information
+Peng Xu ? Farbod Roosta-Khorasani † Michael W. Mahoney ‡
+August 30, 2017
+Abstract
+We consider variants of trust-region and cubic regularization methods for non-
+convex optimization, in which the Hessian matrix is approximated. Under mild
+conditions on the inexact Hessian, and using approximate solution of the corre-
+sponding sub-problems, we provide iteration complexity to achieve ?-approximate
+second-order optimality which have shown to be tight. Our Hessian approximation
+conditions constitute a major relaxation over the existing ones in the literature.
+Consequently, we are able to show that such mild conditions allow for the construc-
+tion of the approximate Hessian through various random sampling methods. In this
+light, we consider the canonical problem of finite-sum minimization, provide appro-
+priate uniform and non-uniform sub-sampling strategies to construct such Hessian
+approximations, and obtain optimal iteration complexity for the corresponding sub-
+sampled trust-region and cubic regularization methods.
+1 Introduction
+Consider the generic unconstrained optimization problem
+min
+x?Rd
+F (x), (P0)
+where F : Rd ? R is smooth and non-convex. Over the last few decades, many op-
+timization algorithms have been developed to solve (P0), e.g., [11, 22, 109, 116, 146].
+However, the large-scale nature of modern “big-data” problems has made the mere eval-
+uation of the gradient or the Hessian of F computationally prohibitive. As a result, faced
+with such computational challenges, many of the classical optimization algorithms might
+prove to be inefficient, if applicable at all. In this light, many of the recent research
+efforts have been centered around designing variants of classical algorithms which, by
+employing suitable approximations of the gradient and/or Hessian, improve upon the
+cost-per-iteration of their classical counterparts, while maintaining the original iteration
+?Institute for Computational and Mathematical Engineering, Stanford University, Email:
+pengxu@stanford.edu
+†School of Mathematics and Physics, University of Queensland, Brisbane, Australia, and International
+Computer Science Institute, Berkeley, USA, Email: fred.roosta@uq.edu.au
+‡International Computer Science Institute and Department of Statistics, University of California at
+Berkeley, Email: mmahoney@stat.berkeley.edu
+1
+complexity. Indeed, designing variants of classical methods which can strike a balance
+between per-iteration costs and iteration complexity has been at center-stage in fueling
+the research in optimization for machine learning and data analysis applications.
+However, these efforts have mainly been, rather unequally, divided between first-
+order methods1 and their second-order counterparts2, with the balance tipping towards
+the former class of algorithms. In this paper (and the companion [161]), by considering
+variants of Newton-type methods which are suitable for large-scale non-convex problems,
+we aim at contributing to the equalization of such, rather unfortunate, imbalance. In the
+process, we develop theoretically and evaluate empirically highly efficient second-order
+optimization algorithms which by way of incorporating inexact Hessian information are
+effective in solving a wide variety of large-scale non-convex machine learning problems.
+The rest of this paper is organized as follows. In order to set the scene, in Section 1.1,
+we start off by describing the motivations behind our work. A very high-level bird’s-eye
+view of our approach in this paper is then given in Section 1.2. In Section 1.3, we briefly
+mention the works closely related to the present paper and in its light, outline, in de-
+tails, our main contributions in Section 1.4. Notation and assumptions used throughout
+this paper are introduced in Section 2.1. In Section 2.2, we specify and briefly review
+the classical Newton-type methods considered in this paper, namely trust region and
+cubic regularization algorithms. Theoretical results regarding the convergence properties
+of the proposed variants of these classical methods for solving generic non-convex prob-
+lem (P0) are presented in Section 3. In Section 4, we consider finite-sum minimization
+problem, which is a special formulation of problem (P0), introduce various randomized
+sub-sampling strategies as a way to construct inexact Hessian information, and give the
+corresponding algorithmic convergence guarantees. Conclusions and further thoughts are
+gathered in Section 5. The details of all the proofs are deferred to Appendix A.
+1.1 Motivations
+The main focus of these efforts in the optimization community in general, and within
+the machine learning community in particular, has been on developing efficient first-
+order methods in which the gradient of F is approximated. This is despite the fact
+that most first-order methods suffer from two main draw-backs. The most established
+disadvantage of such methods is that their performance can be seriously hindered by
+ill-conditioning [127, 128, 162]. A more subtle, yet potentially more sever draw-back,
+is that the success of most first-order methods is tightly intertwined with fine-tunning
+(often many) hyper-parameters, most importantly, the step-size [10]. In fact, it is highly
+unlikely that many of these methods exhibit acceptable performance on first try, and it
+often takes many trials and errors before one can see reasonable results. Despite these
+shortcomings, it is arguably the simplicity and the ease-of-implementation that contribute
+greatly in the widespread usage of these methods, specially within the machine learning
+community.
+Contrary to first-order methods, second-order optimization algorithms have been
+shown to be highly resilient to problem ill-conditioning [127, 128, 162], involve much
+less parameter tuning and are less sensitive to the choice of hyper-parameters [10]. The
+added advantage of using the curvature information has classically allowed the second or-
+der methods to be optimization powerhouse for solving very non-linear and ill-conditioned
+1Those methods that only use gradient information.
+2Those methods that, in addition to the gradient, incorporate Hessian information.
+2
+problems, in particular within the scientific computing community. However, the hidden
+blessings offered by second-order methods come with an obvious curse: the computational
+costs involved in working with matrices arising in such methods, e.g., Hessians or Jaco-
+bians, make the application of many classical second-order algorithms rather prohibitive
+for modern large-scale problems. Arguably, this is a major contributing factor for why the
+machine learning community has, overwhelmingly, nurtured a distaste for such methods.
+In this light, there has recently been a surge of interest in designing efficient (stochastic)
+second-order variants, which are better suited for the large-scale nature of the modern
+problems, e.g., [17, 25, 26, 103, 127, 128, 162] (see Section 1.3 for further references).
+However, within the context of, both, first and second-order methods, the bulk of the
+developed theory has been mostly limited to convex settings. Indeed, the status of corre-
+sponding research for non-convex problems lags significantly behind. In addition, com-
+pared to first-order algorithms, this discrepancy is ever more so pronounced for the class
+of second-order methods. For example, for a variety of non-convex applications, many
+authors have recently considered studying non-trivial theoretical guarantees of various
+first-order methods, that are mostly ad-hoc and inspired by their convex counterparts,
+e.g., [7, 13, 21, 27, 111, 153, 165]. In comparison, the body of similar literature for second-
+order methods is completely undersized. This is rather understandable: in presence of
+non-convexity, the large-scale computational challenges are exacerbated, multiple folds
+over, by the difficulty of avoiding (possibly degenerate) saddle-points as well as finding
+(at least) a local minimum.
+In spite of these challenges, the need for effective and efficient non-convex optimization
+methods has now been growing increasingly as a result of the emergence in popularity
+of neural networks [63, 90]. Indeed, the recent success of deep neural nets in training
+various machine learning applications [8, 39, 86, 147, 156] has given rise to an incredible
+explosion of research outputs in various aspects of deep learning from their theoretical
+understanding [40, 41, 75] to their wide-range of applications [48, 63, 133]. The tremors
+of this explosion have recently reached the optimization community as well. As a result,
+there has been numerous recent results in understanding, design and extension of various
+general purpose first-order optimization algorithms which are suitable for non-convex
+problems such as neural networks. [3, 4, 37, 60, 61, 77, 82, 96, 119, 120].
+Although some of the above cited work can guarantee convergence to a second-order
+criticality, e.g., [60, 82, 96], the majority of first-order methods lack such performance
+guarantees. Indeed, their convergence can be, at best, ensured to first-order critical
+points, which include saddle-points. However, it has been argued that converging to
+saddle points can be undesirable for obtaining good generalization errors with many non-
+convex machine learning models, such as deep neural networks [40, 46, 91, 132]. In fact,
+it has also been shown that in certain settings, existence of “bad” local minima, i.e., sub-
+optimal local minima with high training error, can significantly hurt the performance
+of the trained model at test time [58, 148]. In addition, important cases have been
+demonstrated where, stochastic gradient descent (SGD), which is, nowadays, arguably
+the optimization method of choice in machine learning, indeed stagnates at high training
+error [78]. Such high levels of training error can, in turn, appear as bottlenecks in further
+improving predictive performance in many machine learning applications. As a result,
+scalable algorithms which avoid saddle points and guarantee convergence to a (good)
+local minimum are highly desired.
+It is well-known that employing the curvature information in the form of Hessian,
+in addition to the advantages mentioned above, can help with obtaining a method with
+3
+desirable convergence to second-order criticality. However, the main apparent obstacle
+in doing so is, again, the serious computational challenges involved in working with
+the resulting large-scale Hessian matrices. Indeed, in most applications, the cost of
+evaluating the exact gradient is usually amortized by that of operations with the Hessian,
+e.g., matrix-vector products. Here is where appropriate Hessian approximations can
+prove crucial in obtaining scalable algorithms, which maintain the effectiveness offered
+by incorporating the exact curvature information, and yet exhibit a great deal of efficiency.
+1.2 Bird’s-eye View of Our Approach
+To accomplish this, here, we focus on trust-region (TR) [42] and cubic regularization
+(CR) [70], two algorithms which are widely considered as among the most elegant and the-
+oretically sound general-purpose Newton-type methods designed for non-convex problems
+(See Section 2.2 for a brief description of these methods). In particular, for solving (P0),
+we study the theoretical convergence properties of variants of these two algorithms in
+which the Hessian is suitably approximated3. In the process, we show that such Hes-
+sian approximations can be made under less strict condition than the ones found in the
+existing literature.
+Such relaxed conditions are much weaker than the existing ones in the literature. Far
+from being of only technical interest, this relaxation allows for efficient constructions of
+the inexact Hessian via various simple approximation methods, of which techniques from
+Randomized Linear Algebra (RLA) are shown to be particularly effective. In doing so,
+we consider a very important class of optimization problems, i.e., large-scale finite-sum
+minimization, of the form
+min
+x?Rd
+F (x) ,
+1
+n
+n?
+i=1
+fi(x), (P1)
+and its special case
+min
+x?Rd
+F (x) ,
+1
+n
+n?
+i=1
+fi(a
+T
+i x), (P2)
+where n ? 1, each fi is a smooth but possibly non-convex function, and ai ? Rd, i =
+1, . . . , n, are given. Problems of the form (P1) and (P2) arise very often in machine
+learning, e.g., [135] as well as scientific computing, e.g., [125, 126]. In big-data regime
+where n ? 1, the mere operations with the Hessian of F , e.g., matrix-vector products,
+typically constitute the main bottleneck of computations. Here, we show that our relaxed
+Hessian approximation condition allows one to draw upon the sub-sampling ideas of [17,
+127, 128, 162], to design variants of TR and CR in which the Hessian is (non-)uniformly
+sub-sampled. We then study the theoretical convergence properties of our proposed
+algorithms for general non-convex problems of the form (P1) and (P2).
+This paper is mainly motivated by developing novel theory which supports simple
+constructions of approximate Hessian in practice. Extensive numerical examples demon-
+strating various practical aspects of our proposed algorithms for solving (P1) and (P2)
+3Here, we only consider ways to approximate the Hessian under exact gradient information. Convex
+Newton-type methods which employ both gradient and Hessian approximations have been treated in [17,
+85, 127]
+4
+are, instead, given in [161]. Specifically, in [161], we consider two classes of non-convex
+optimization problems that arise often in practice, i.e. non-linear least squares as well as
+deep learning and present extensive numerical experiments illustrating the empirical per-
+formance of the sub-sampled methods considered in this paper on both, real and synthetic
+data.
+1.3 Related Work
+Optimization methods that, as a way to increase efficiency, employ inexact gradient
+and/or Hessian information have long been an important subject of research. However, as
+alluded to in Section 1.1, in large-scale settings, the bulk of the research efforts have been
+centered around the design of (stochastic) first-order methods which, by approximating
+the gradient, achieve higher efficiency than their classical counterparts. Among many
+others, such methods range from a simple SGD [12, 18, 20, 44, 97, 122], to the most
+recent improvements such as those which incorporate the previous gradient directions in
+the current update, e.g., [47, 131, 134], variance reduction techniques, e.g., [15, 83, 114,
+160], decomposition methods, which directly optimize the dual problem, e.g., [137, 138],
+as well as their accelerations [44, 99, 113, 136].
+The body of literature corresponding to efficient and large-scale second-order algo-
+rithms designed to solve modern big-data problems is not as dense. Since, in such
+methods, the operations with the Hessian constitute major computational bottlenecks,
+a classical line of research has been to try to deterministically construct an approxi-
+mation of the Hessian in a way that the update is computationally feasible, and yet,
+still provides sufficient second order information. One such class of methods are quasi-
+Newton algorithms, which are a generalization of the secant method to find the root of
+the first derivative for multidimensional problems. In such methods, the approximation
+to the Hessian is updated iteratively using only first order information from the gradi-
+ents and the iterates through low-rank updates. Among these methods, the celebrated
+Broyden-Fletcher-Goldfarb-Shanno (BFGS) algorithm [116] and its limited memory ver-
+sion (L-BFGS) [100, 115], are the most popular and widely used members of this class.
+Another, rather more recent, line of research in this direction, is to construct the
+inexact Hessian information using the application of randomized methods. In large-scale
+scientific computing applications, stochastic variants of second-order algorithms using
+sub-sampling/sketching have long been successfully applied, e.g., see [5, 23, 24, 50, 72,
+73, 93, 117, 125, 126, 129, 154] and the references therein. This is specially so since many
+scientific computing problems exhibit high degree of ill-conditioning. In such situations,
+the mere gradient information is not sufficient for effectively solving the underlying opti-
+mization problem, and incorporating (approximate) Hessian can drastically help improve
+the performance.
+For machine learning, however, the application of curvature information is much less
+mature and a few recent studies include [25, 26, 56, 62, 98, 103, 130, 164]. However, there
+has lately been a great surge of interest in the design and application of second-order
+methods, most of which are motivated by machine learning applications. Specifically, for
+convex optimization, the stochastic approximation of the full Hessian matrix has been
+recently considered in [1, 10, 17, 25, 26, 52, 53, 106, 107, 118, 127, 128, 157, 162, 163].
+In addition to inexact Hessian, a few of these methods study the fully stochastic case in
+which the gradient is also approximated, e.g., [17, 127, 128]. Many of these works have
+considered a very important class of optimization problems, widely known as finite-sum
+5
+minimization problem, which is typically represented in the form of (P1). Lower bounds
+on the oracle complexity, i.e., the minimum calls to second-order oracle to achieve a sub-
+optimal solution, for second-order methods for generic convex problems of the form (P0)
+as well as finite-sum problems (P1) was recently obtained in [139] and [6], respectively.
+For non-convex machine learning problems, the literature on methods that employ
+Hessian approximation is significantly less developed than that of convex problems. This
+is despite the fact that the study of the application of Newton-type methods for gen-
+eral non-convex problems dates decades back, e.g., [95, 102]. Although, there are many
+heuristic and empirical studies of the application of curvature information for, mostly,
+deep-learning applications, e.g., see the pioneering work of [103] along with the several
+follow-ups [36, 79, 84, 112, 155, 158], the theoretical understanding of these stochastic
+methods remains largely under-studied.
+Within the context of trust-region methods, there have been several results which
+study the role of derivative-free and probabilistic models in general, and Hessian approxi-
+mation in particular, e.g., see [9, 16, 38, 43, 67, 89, 140] and references therein. Compared
+to trust-region methods, however, cubic regularization with Hessian approximation is sig-
+nificantly less studied. The pioneering and seminal works of [30, 31] are the first to allow
+for an approximation in place of the exact Hessian. There, an adaptive variant of cubic
+regularization, called ARC, is presented, and under deterministic Hessian approximation
+conditions, global convergence as well as iteration complexity results to obtain approxi-
+mate second order critical point is provided. In [32], this analysis is then extended to trust
+region methods and under the same deterministic Hessian approximation conditions, the
+corresponding iteration complexity results are given.
+More recently, [85] considers the finite-sum problem (P1) and by a direct application
+of the theoretical results of [30, 31], presents a sub-sampled variant of ARC, in which
+the exact Hessian and the gradient are replaced by approximations using corresponding
+sub-samples. However, unfortunately, their analysis suffers from a rather vicious circle:
+the sample sizes used for approximating the Hessian and the gradient at each iteration are
+computed using these very same sub-sampled approximations; see [85, Theorems 7 and 9]
+and, in particular, note the circular relationship between Steps 3 and 4 of [85, Algorithm
+1]. In other words, the approximate Hessian and gradient are formed based on an a priori
+unknown step which can only be determined after such approximations are formed. In
+addition, the sample sizes obtained in [85] depend on the inverse of the step length at
+every iteration. Since the step-length eventually becomes increasingly small (see [30,
+Lemma 4.2, Lemma 5.1]), this rather unfortunate dependence, in turn, might cause the
+sample sizes to grow unboundedly large. Here, in addition to other contributions, we
+remedy these issues through a finer-grained analysis and give sub-sampling complexities,
+which do not depend on the step-size, can be set a priori and, in turn, be used throughout
+all iterations (see Section 1.4 for a summary of our main contributions).
+1.4 Contributions
+Our contributions can be summarized as follows. We consider the generic non-convex
+optimization problem (P0) and establish worst-case optimal iteration complexities for
+variants of trust-region and adaptive cubic regularization methods in which the Hessian
+is only mildly approximated (Theorems 1, 2, and 3). Specifically, we show that under the
+6
+following weak condition on the inexact Hessian, H(xt), at iteration t
+??(H(xt)??2F (xt)
+)
+st
+?? ? ??st?, (5a)
+for some ? ? (0, 1), Algorithms 1 and 2 can achieve the same worst-case iteration com-
+plexity (up to some constant) as that of the exact variants to obtain approximate second
+order critical solution (cf. Definition 1).
+To the best of our knowledge, to establish optimal iteration complexity for obtaining
+approximate second order critical solution, all previous work that considered inexact
+Hessian information made use of stronger conditions than (6a). More specifically, for
+trust-region, many authors have considered the following condition
+??H(xt)??2F (xt + s)
+?? ? C1?t, ?s ? {s; ?s? ? ?t}, (1a)
+for some C1 > 0, where ?t is the current trust-region radius, e.g., [9, 67] (although
+both [9, 67] study a more general framework under which the entire sub-problem model
+is probabilistically constructed and approximation extends beyond just the Hessian). For
+cubic regularization, the condition imposed on the inexact Hessian is often considered as
+??(H(xt)??2F (xt)
+)
+st
+?? ? C2?st?2, (1b)
+for some C2 > 0, e.g., [30, 31, 32] and other follow-up works. In fact, [32] has also
+established optimal iteration complexity for trust-region algorithm under (1b). Both
+of (1a) and (1b), are stronger than the celebrated Dennis-More? [49] condition, i.e.,
+lim
+t??
+?(H(xt)??2F (xt)) st?
+?st?
+= 0.
+Indeed, under certain assumptions, Dennis-More? condition is satisfied by a number of
+quasi-Newton methods, although the same cannot be said about (1a) and (1b) [30].
+In this paper, we relax Conditions (1a) and (1b) used in previous works and replace
+them with (6a). Under the more relaxed requirement (6a), not only the use of quasi-
+Newton methods to approximate the Hessian is theoretically justified, but also (and more
+relevant to our paper) many randomized matrix approximation techniques can be readily
+applied, e.g., [101, 151, 152, 159]. In contrast to the stronger requirements implied by (1a)
+or (1b), the less strict condition (6a) has the added advantage that the approximate
+Hessian matrix, H(x), can be easily constructed in practice (Section 4).
+In this light, for the finite-sum optimization framework, i.e., problems (P1) and (P2),
+we present sub-sampling schemes to probabilistically ensure (6a). To accomplish this, we
+draw upon approximate matrix multiplication results from RLA (Lemma 4 and Lemma 5).
+More specifically, we first consider the most general case of (P1) and give conditions un-
+der which uniform sampling (with or without replacement) guarantees (6a) (Lemma 4).
+We then consider (P2), a more specific, yet prevalent case in machine learning, propose
+non-uniform sampling strategy and show that it can indeed lead to a smaller sample-size
+as compared to the uniform sampling (Lemma 5). These sub-sampling complexities do
+not depend on the step-size, can be set a priori and, in turn, be used throughout all
+iterations. As a result, our sub-sampling strategies imply straightforward ways to proba-
+bilistically construct the approximate Hessian, H(x), which can, in turn, be used in our
+proposed sub-sampled variants of trust-region and adaptive cubic regularization. Using
+the proposed sub-sampling schemes, we then give optimal iteration complexities for Al-
+gorithms 1 and 2 for optimization of non-convex finite-sum problems where the Hessian
+is approximated by means of sub-sampling (Theorems 6, 7 and 8).
+7
+2 Preliminaries
+We now present preliminaries which help with the clarity of the exposition as well as
+self-containment of the paper. More specifically, in Section 2.1, we first introduce the
+notation, definitions and main assumptions used throughout the paper. In Section 2.2,
+we then give a brief review of the classical trust region and cubic regularization algorithms
+and include several relevant references for the interested reader.
+2.1 Notation and Assumptions
+Throughout the paper, vectors are denoted by bold lowercase letters, e.g., v, and matrices
+or random variables are denoted by regular upper case letters, e.g., V . vT denotes the
+transpose of a real vector v. For two vectors, v,w, their inner-product is denoted as
+?v,w? = vTw. For a vector v, and a matrix V , ?v? and ?V ? denote the vector ?2
+norm and the matrix spectral norm, respectively, while ?V ?F is the matrix Frobenius
+norm. ?F (x) and ?2F (x) are the gradient and the Hessian of F at x, respectively, and
+I denotes the identity matrix. For two symmetric matrices A and B, A  B indicates
+that A?B is symmetric positive semi-definite. The subscript, e.g., xt, denotes iteration
+counter and log(x) is the natural logarithm of x. The inexact Hessian is denoted by H(x),
+but for notational simplicity, we may use Ht to, instead, denote the approximate Hessian
+evaluated at the iterate xt in iteration t, i.e., Ht , H(xt). Throughout the paper, S
+denotes a collection of indices from {1, 2, · · · , n}, with potentially repeated items and its
+cardinality is denoted by |S|.
+A very useful property of convex functions is that “local optimality” and “global
+optimality” are in fact, the same. Unfortunately, in non-convex settings, this is no longer
+the case. For example, even optimization of a degree four polynomial can be NP-hard [80].
+In fact, just checking whether a point is not a local minimum is NP-complete [105]. Thus,
+in non-convex settings, we are often left with designing algorithms that can guarantee
+convergence to approximate local optimality. In this light, thoughout this paper, we make
+constant use of the following definition of (?g, ?H)-Optimality:
+Definition 1 ((?g, ?H)-Optimality). Given ?g, ?H ? (0, 1), x ? Rd is an (?g, ?H)-optimal
+solution to the problem (P0), if
+??F (x)? ? ?g, ?min(?2F (x)) ? ??H (2)
+We note that (?g, ?H)-Optimality (even with ?g = ?H = 0) does not necessarily imply
+closeness to any local minimum, neither in iterate nor in the objective value. However,
+if the saddle points of the function satisfy the strict-saddle property [60, 92], then an
+(?g, ?H)-optimality guarantees vicinity to a local minimum for sufficiently small ?g and
+?H).
+For our analysis throughout the paper, we make the following standard assumption
+regarding the regularity of the exact Hessian of the objective function F .
+Assumption 1 (Hessian Regularity). F (x) is twice differentiable and has bounded and
+Lipschitz continuous Hessian on the piece-wise linear path generated by the iterates, i.e.
+for some 0 < K,L < ? and all iterations
+???2F (x)??2F (xt)
+?? ? L?x? xt?, ?x ? [xt,xt + st], (3a)???2F (xt)
+?? ? K, (3b)
+where xt and st are, respectively, the iterate and the update step at iteration t.
+8
+Remark Although, we do not know of a particular way to, a priori, verify (3a), it is clear
+that Assumption (3a) is weaker than Lipschitz continuity of the Hessian for all x, i.e.,
+???2F (x)??2F (y)
+?? ? L?x? y?, ?x,y ? Rd. (4)
+Consequently, despite the fact that theoretically (3a) is weaker restriction on F than (4),
+to the best of our knowledge as of yet, (4) is the only practical sufficient condition for
+verifying (3a).
+2.2 Background
+Arguably, the most straightforward approach for globalization of many Newton-type al-
+gorithms is the application of line-search. However, it is known that near saddle points
+where the gradient magnitude can be small, traditional line search methods can be very
+ineffective and in fact produce iterates that can get stuck at a saddle point [116]. Trust
+region and cubic regularization methods are two elegant globalization alternatives that,
+specially recently, have attracted much attention. In this section, we give a brief review
+the classical TR and CR algorithms for solving (P0).
+There are many similarities between TR and CR algorithms in terms of their the-
+oretical and algorithmic properties as well as methods for solving their respective sub-
+problems. The main advantage of these methods is that they are reliably able to take
+advantage of the direction of negative curvature and escape saddle points. More specif-
+ically, if the Hessian at a saddle point contains a negative eigenvalue, these methods
+can leverage the corresponding direction of negative curvature to obtain decrease in the
+objective function values. Many problems of interest exhibit saddle points which include
+negative curvature direction [60, 145]. As a result, TR and CR methods, if made scal-
+able, can be very effective for solving many large-scale non-convex problems of interest
+for machine learning and scientific computing. In order to set the scene, in this section
+we briefly review these algorithms as as they pertain to the present paper.
+2.2.1 Trust Region
+TR methods [42, 141] encompass a general class of iterative methods which specifically
+define a region around the current iterate within which they trust the model to be a
+reasonable approximation of the true objective function. They then find the step as a
+(approximate) minimizer of the model in this region. In effect, they choose the direction
+and length of the step simultaneously. If a step is not acceptable, they reduce the size of
+the region and find a new minimizer. The most widely used approximating model, which
+we consider here, is done via a quadratic function obtained from the second-order Taylor
+expansion of the true objective at the current iterate. More specifically, using the current
+iterate xt, the quadratic variant of TR algorithm finds the next iterate as xt+1 = xt + st
+where st is a solution of the constrained sub-problem
+min mt(s) , ?s,?F (xt)?+
+1
+2
+?s,?2F (xt)s? (5a)
+s.t. ?s?2 ? ?t.
+Here, ?t is the region in which we “trust” our quadratic model to be an acceptable
+approximation of the true objective for the current iteration.
+9
+The major bottleneck of computations in TR algorithm is the minimization of the
+constrained quadratic sub-problem (5a). The close connections between the trust region
+sub-problem (5a) and eigenvalue problems has prompted many authors to design effective
+methods for solving (5a), e.g., truncated conjugate-gradient methods [144, 150], the dual-
+based algorithms [104, 121, 142], the generalized Lanczos trust-region based methods [65,
+94], and more modern advancements [54, 55, 64, 76, 81].
+In terms of iteration complexity, there is also a vast body of results. For example, for
+a smooth non-convex objective and in order to obtain approximate first-order criticality,
+i.e., ??F (xt)? ? ?g for some ?g ? (0, 1), the complexity of an (inexact) trust-region
+method, which ensures at least a Cauchy (steepest-descent-like) decrease at each iteration,
+is shown to be of the same order as that of steepest descent, i.e., O(??2g ); e.g., [16, 32,
+67, 68, 69]. Recent non-trivial modifications of the classical TR methods have also been
+proposed which improve upon the complexity to O(??3/2g ) [45]. These bounds can be
+shown to be tight [34] in the worst case. Under a more general algorithmic framework
+and in terms of objective function sub-optimality, i.e., F (x)? F ? ? ?, better complexity
+bounds, in the convex and strongly-convex settings, have been obtained which are of the
+orders of O(??1) and O(log 1
+?
+), respectively [66].
+For non-convex problems, however, it is more desired to obtain complexity bounds
+for achieving approximate second-order criticality, i.e., Definition 1. For this, bounds
+in the orders of O(max{??1H ??2g , ??3H }) and O(max{??3g , ??3H }) have been obtained in [32]
+and [66], respectively. Similar bounds were also given in [67] under probabilistic model.
+Most these complexities are obtained for trust region-type methods which, in addition to
+Cauchy decrease, guarantee a descent, at least, as good as that obtained from following
+the negative curvature direction (if present). Bounds of this order have shown to be
+optimal in certain cases [32].
+2.2.2 Cubic Regularization
+An alternative to the traditional line-search and TR for globalization of Newton-type
+methods is the application of cubic regularization, which has recently attracted much
+attention. Such class of methods is characterized by generating iterates as xt+1 = xt + st
+where st is a solution of the following unconstrained sub-problem
+min
+s?Rd
+mt(s) , ?s,?F (xt)?+
+1
+2
+?s,?2F (xt)s?+
+?t
+3
+?s?3, (5b)
+where ?t is the cubic regularization parameter chosen for the current iteration. Naively
+speaking, the role of the parameter ?t in the course of the algorithm is very similar to the
+trust-region radius, ?t. In fact, one can view ?t as the reciprocal of ?t; see the comments
+following the proof of [30, Theorem 3.1] as well as the updating rules for the trust-region
+radius in [42]. A direct comparison of [31, Lemmas 3.2 and 3.3] with [42, Theorems 6.4.2,
+6.4.3] also reveals the striking resemblance of the role of the trust region radius, ?t, with
+cubic regularization parameter, ?t.
+To the best of our knowledge, the use of such regularization, was first introduced in
+the pioneering work of [70] as a means for introducing affine-invariance to Newton-type
+methods which are globally convergent. However, such regularization was subsequently
+further studied in the seminal works of [30, 31, 110], which provide an in-depth analysis
+of such regularization methods in a variety of setting.
+As in the case of TR, the major bottleneck of CR involved solving the sub-problem (5b).
+Many authors have proposed various techniques for efficiently solving (5b). These meth-
+10
+ods range from employing generalized Lanczos-type iterations [30] in which (5b) is solved
+in successively embedded, but lower dimensional, Krylov subspaces, to some more recent
+alternative techniques, e.g., gradient based methods [14, 28] and a method based on fast
+approximate matrix inversion [2].
+From the worst-case complexity point of view, CR has a better dependence on ?g
+compared to TR. More specifically, [110] showed that, under global Lipschitz continuity
+assumption on the Hessian, if the sub-problem (5b) is solved exactly, then the resulting
+CR algorithm achieves the approximate first-order criticality with complexity of O(??3/2)
+which is better than that of the TR (cf. Section 2.2.1). These results were extended by [30,
+31], to an algorithm, dubbed Adaptive Regularization with Cubics (ARC). In particular,
+the authors showed that the worst case complexity of O(??3/2g ) can be achieved without
+requiring the knowledge of the Hessian’s Lipschitz constant, access to the exact Hessian, or
+multi-dimensional global optimization of the sub-problem (5b). These results were further
+refined in [32] where it was shown that, not only, multi-dimensional global minimization
+of (5b) is unnecessary, but also the same complexity can be achieved with mere one or
+two dimensional search. This O(??3/2) bound has been shown to be tight [35]. As for
+the approximate second-order criticality, [32] showed that at least O(max{??2g , ??3H }) is
+required. With further assumptions on the inexactness of sub-problem solution, they also
+show that one can achieve O(max{??3/2g , ??3H }), which is shown to be tight [34]. Better
+dependence on ?g can be obtained if one assumes additional structure, such as convexity,
+e.g., see [33, 110] as well as the acceleration scheme of [108].
+3 Algorithms and Convergence Analysis
+We are now ready to present our main algorithms for solving the generic non-convex
+optimization (P0) along with their corresponding iteration complexity results to obtain
+a (?g, ?H)-optimal solution as in (2). More precisely, in Section 3.1 and 3.2, respectively,
+we present modifications of the TR and ARC methods which incorporate inexact Hessian
+information, according to mild Hessian approximation requirement (6a). As it can be
+seen, the bulk of the algorithms are almost identical to the case where the exact Hessian
+is used and the difference merely boils down to the use of H(xt) as opposed to ?2F (xt).
+As indicated in Section 2.1, for notational simplicity, in what follows, we use Ht to denote
+H(xt).
+Before we dive into details of the algorithms and analysis, we present the key condition
+we require on the approximated Hessian H(x), which is stated as follows:
+Condition 1 (Inexact Hessian Regularity). For some 0 < KH < ?, ? ? (0, 1), the
+approximating Hessian, H(x), satisfies
+??(H(xt)??2F (xt)
+)
+st
+?? ? ? · ?st?, (6a)
+?H(xt)? ? KH , (6b)
+where xt and st are, respectively, the iterate and the update step at iteration t.
+Remark: We emphasize that (6a) constitutes a significant relaxation over Conditions (1a)
+and (1b) which are typically assumed in many previous works for analyzing similar al-
+gorithms. For example, for an approximate Hessian, H(xt), there is no straightforward
+way to verify (1b) since the search direction st depends on the approximate Hessian
+H(xt) itself. In contrast, Condition (6a) can be easily controlled by the spectral error
+11
+between the approximate and exact Hessians, i.e., ?H(xt) ? ?2F (xt)?, (as an upper
+bound for ?). Consequently, the inexact Hessian, H(x), can be easily constructed using
+several quasi-Newton methods and, more relevant to our paper, many randomized matrix
+approximation techniques; see Section 4 for specific practical examples.
+3.1 Trust Region with Inexact Hessian
+Algorithm 1 depicts a trust-region algorithm where at each iteration t, instead of the true
+Hessian ?2F (xt), only an inexact approximation, Ht, is used.
+Algorithm 1 Trust Region with Inexact Hessian
+1: Input: A starting point x0, an initial radius 0 < ?0 < ?, hyper-parameters
+?g, ?H , ? ? (0, 1), ? > 1
+2: for t = 0, 1, . . . do
+3: Set the approximate Hessian, Ht, as in (6)
+4: if ??F (xt)? ? ?g, ?min(Ht) ? ??H then
+5: Return xt.
+6: end if
+7: Solve the sub-problem approximately
+st ? arg min
+?s???t
+mt(s) , ??F (xt), s?+
+1
+2
+?s, Hts? (7)
+8: Set ?t ,
+F (xt)? F (xt + st)
+?mt(st)
+9: if ?t ? ? then
+10: xt+1 = xt + st
+11: ?t+1 = ??t
+12: else
+13: xt+1 = xt
+14: ?t+1 = ?t/?
+15: end if
+16: end for
+17: Output: xt
+In Algorithm 1, we require that the sub-problem (7) is solved only approximately.
+Indeed, in large-scale problems, where the exact solution of the sub-problem is the main
+bottleneck of the computations, this is a very crucial relaxation. Such approximate
+solution of the sub-problem (7) has been adopted in many previous work. Here, we
+follow the inexactness conditions discussed in [42], which are widely known as Cauchy
+and Eigenpoint conditions. Recall that the Cauchy and Eigen directions correspond,
+respectively, to one dimensional minimization of the sub-problem (7) along the directions
+given by the gradient and negative curvature.
+Condition 2 (Sufficient Descent Relative to Cauchy and Eigen Directions [42]). Assume
+12
+that we solve the sub-problem (7) approximately to find st such that
+?mt(st) ? ?mt(sCt ) ?
+1
+2
+??F (xt)?min
+{??F (xt)?
+1 + ?Ht?
+,?t
+}
+, (8a)
+?mt(st) ? ?mt(sEt ) ?
+1
+2
+?|?min(Ht)|?2t , if ?min(Ht) < 0. (8b)
+Here, mt(·) is defined in (7), sCt (Cauchy point) is along negative gradient direction and sEt
+is along approximate negative curvature direction such that ?sEt , HtsEt ? ? ??min(Ht)?sEt ?2 <
+0, for some ? ? (0, 1] (see Appendix B for a way to efficiently compute sEt ).
+One way to ensure that an approximate solution to the sub-problem (7) satisfies (8),
+is by replacing (7) with the following reduced-dimension problem, in which the search
+space is a two-dimensional sub-space containing vectors sCt , and s
+E
+t , i.e.,
+st = arg min
+?s???t
+s?Span{sCt ,sEt }
+??F (xt), s?+
+1
+2
+?s, Hts?.
+Of course, any larger dimensional sub-space S for which we have Span{sCt , sEt } ? S
+would also guarantee (8). In fact, a larger dimensional sub-space implies a more accurate
+solution to our original sub-problem (7).
+Using the inexactness Condition 2, Theorem 1 gives the iteration complexity of Al-
+gorithm 1, which as discussed in Section 2.2.1, has been shown to be optimal. The proof
+of Theorem 1 can be found in Appendix A.2.
+Theorem 1 (Optimal Complexity of Algorithm 1). Consider any 0 < ?g, ?H < 1. Suppose
+the inexact Hessian, H(x), satisfies Conditions (6) with the approximation tolerance, ?,
+in (6a) as
+? < (1? ?)??H , (9)
+where ? is a hyper-parameter of Algorithm 1, ? is defined as in (8b). For Problem (P0)
+and under Assumption 1, if the approximate solution to the sub-problem (7) satisfies
+Condition 2, then Algorithm 1 terminates after at most
+T ? O
+(
+max{??2g ??1H , ??3H }
+)
+,
+iterations.
+As it can be seem, the worst-case total number of iterations required by Algorithm 1
+before termination, matches the optimal iteration complexity obtained in [32]. Fur-
+thermore, from (6a), it follows that upon termination of Algorithm 1, in addition to
+??F (xT )? ? ?g, we have ?min (?2F (xT )) ? ?(?H + ?), i.e., the obtained solution satisfies
+(?g, ?+ ?H)-Optimality as in (2).
+3.2 Adaptive Cubic Regularization with Inexact Hessian
+Similar to Section 3.1, in this section, we present the algorithm and its corresponding
+convergence results for the case of adaptive cubic regularization with inexact Hessian. In
+particular, Algorithm 2 depicts a variant of ARC algorithm where at each iteration t, the
+inexact approximation, Ht, is constructed according to (6).
+13
+Algorithm 2 Adaptive Cubic Regularization with Inexact Hessian
+1: Input: A starting point x0, an regularization parameter 0 < ?0 < ?, hyper-
+parameters ?g, ?H , ? ? (0, 1), ? > 1
+2: for t = 0, 1, . . . do
+3: Set the approximating Hessian, Ht, as in (6)
+4: if ??F (xt)? ? ?g, ?min(Ht) ? ??H then
+5: Return xt.
+6: end if
+7: Solve the sub-problem approximately
+st ? argmin
+s?Rd
+mt(s) := ??F (xt), s?+
+1
+2
+?s, Hts?+
+?t
+3
+?s?3 (10)
+8: Set ?t :=
+F (xt)? F (xt + st)
+?mt(st)
+9: if ?t ? ? then
+10: xt+1 = xt + st
+11: ?t+1 = ?t/?
+12: else
+13: xt+1 = xt
+14: ?t+1 = ??t
+15: end if
+16: end for
+17: Output: xt
+Similar to Algorithm 1, here we also require that the sub-problem (10) in Algorithm 2
+is solved only approximately. Although similar inexact solutions to the sub-problem (10)
+by using Cauchy and Eigenpoint has been considered in several previous work, e.g., [32],
+here we provide refined conditions which prove to be instrumental in obtaining iteration
+complexities with the relaxed Hessian approximation (6a), as opposed to the stronger
+condition (1b). For the proof that the Cauchy and Eigenpoint, indeed satisfy the in-
+equalities (11), see Appendix A.3. In particular, Lemmas 14 and 15 in Appendix A.3,
+describe the model reduction obtained by Cauchy and eigen points more accurately than
+is usually found in similar literature.
+Condition 3 (Sufficient Descent Relative to Cauchy and Eigen Directions). Assume that
+we solve the sub-problem (10) approximately to find st such that
+?mt(st) ? ?mt(sCt ) ? max
+{
+?t
+6
+?sCt ?2
+(?
+K2H + 4?t??F (xt)? ?KH
+)
+,
+4??F (xt)?
+6
+?
+3
+min
+{
+??F (xt)?
+KH
+,
+?
+??F (xt)?
+?t
+}}
+, (11a)
+?mt(st) ? ?mt(sEt ) ?
+?|?min(Ht)|
+6
+max
+{
+?sEt ?2,
+?2|?min(Ht)|2
+?2t
+}
+, if ?min(Ht) < 0.
+(11b)
+Here mt(·) is defined in (10), sCt (Cauchy point) is along negative gradient direction and
+14
+sEt is along approximate negative curvature direction such that ?sEt , HtsEt ? ? ??min(Ht)?sEt ?2 <
+0 for some ? ? (0, 1] (see Appendix B for a way to efficiently compute sEt ).
+Similar to Section 3.1, a natural way to ensure that the approximate solution to the
+sub-problem (10) satisfies (11), is by replacing the unconstrained high-dimensional sub-
+problem (10) with the following constrained but lower-dimensional problem, in which the
+search space is reduced to a two-dimensional sub-space containing vectors sCt , and s
+E
+t ,
+i.e.,
+st = arg min
+s?Span{sCt ,sEt }
+??F (xt), s?+
+1
+2
+?s, Hts?+
+?t
+3
+?s?3.
+Note that, if U ? Rd×p is an orthogonal basis for the sub-space “Span{sCt , sEt }”, by a
+linear transformation, we can turn the above sub-problem into an unconstrained problem
+as
+vt = arg min
+v?Rp
+?UT?F (xt),v?+
+1
+2
+?v, UTHtUv?+
+?t
+3
+?v?3,
+and set st = Uvt. As before, any larger dimensional sub-space S for which we have
+Span{sCt , sEt } ? S would also ensure (11), and, indeed, implies a more accurate solution
+to our original sub-problem (10).
+Theorem 2 gives the iteration complexity of Algorithm 2 for the case where the ap-
+proximate solution to the sub-problem (10) is only required to satisfy the inexactness
+Condition 3. The proof of Theorem 2 can be found in Appendix A.3.
+Theorem 2 (Complexity of Algorithm 2). Consider any 0 < ?g, ?H < 1. Suppose the in-
+exact Hessian, H(x), satisfies Conditions (6) with the approximation tolerance, ?, in (6a)
+as
+? ? min
+{
+L
+3
+(?
+K2H + 4L?g ?KH
+)
+,
+(1? ?)??H
+6?
+,
+4(1? ?)KH
+27
+?
+3
+}
+, (12)
+where ?, L,KH are, respectively, defined as in (11b), (3a), (6b), and ?, ? are the hyper-
+parameters of Algorithm 2. For Problem (P0) and under Assumption 1, if the approxi-
+mate solution to the sub-problem (10) satisfies Condition 3, then Algorithm 2 terminates
+after at most
+T ? O
+(
+max{??2g , ??3H }
+)
+,
+iterations.
+Condition 3 seems to be the bare minimum required to guarantee convergence to an
+approximate second-order criticality. Intuitively, however, if an approximate solution to
+the sub-problem (10) satisfies more than (11), i.e., if we solve (10) more exactly than just
+requiring (11), one could expect to be able to improve upon the iteration complexity of
+Theorem 2. Indeed, suppose we solve the reduced sub-problem on progressively embedded
+sub-spaces with increasingly higher dimensions, all of which including “Span{sCt , sEt }”,
+and stop when the corresponding solution st satisfies the following conditions.
+Condition 4 (Sufficient Descent for Optimal Complexity). Assume that we solve the
+sub-problem (10) approximately to find st such that, in addition to (11), we have
+??mt(st)? ? ?t??F (xt)?, ?t , ? min {1, ?st?} , (13)
+for some prescribed ? ? (0, 1). Here, mt(·) is defined in (10).
+15
+If Condition 4 holds, then as initially pioneered in [30, 31, 32], we can obtain the
+optimal iteration complexity for Algorithm 2, as shown in Theorem 3. The proof of
+Theorem 3 is given in Appendix A.3.2.
+Theorem 3 (Optimal Complexity of Algorithm 2). Consider any 0 < ?g, ?H < 1. Suppose
+the inexact Hessian, H(x), satisfies Conditions (6) with the approximation tolerance, ?,
+in (6a) as ? = min{?0, ??g} where ?0 is as in (12), and ? ? (0, 1/2). For Problem (P0)
+and under Assumption 1, if the approximate solution to the sub-problem (10) satisfies
+Conditions 3 and 4, then Algorithm 2 terminates after at most
+T ? O
+(
+max{??3/2g , ??3H }
+)
+,
+iterations.
+Similar to Algorithm 1, from (6a), it follows that upon termination of Algorithm 2,
+the obtained solution satisfies (?g, ?+ ?H)-Optimality as in (2), i.e., ??F (xT )? ? ?g and
+?min (?2F (xT )) ? ?(?H + ?).
+4 Finite-Sum Minimization
+In this section, we give concrete and highly practical examples to demonstrate ways to
+construct the approximate Hessian, which satisfies (6). By considering finite-sum mini-
+mization, a ubiquitous problem arising frequently in machine learning, we showcase the
+practical benefits of the proposed relaxed requirement (6a) for approximating Hessian,
+compared to the stronger alternatives (1a) and (1b). Specifically, in Section 4.1, we de-
+scribe randomized techniques to appropriately construct the approximate Hessian, which
+is probabilistically guaranteed to satisfy (6). Convergence analysis of variants of Algo-
+rithms 1 and 2 which incorporate such particular randomized Hessian approximations are
+then given in Section 4.2.
+4.1 Randomized Sub-Sampling
+Indeed, a major advantage of (6a) over (1a) and (1b) is that there are many approximation
+techniques that can produce an inexact Hessian satisfying (6a). Of particular interest in
+our present paper is the application of randomized matrix approximation techniques,
+which have recently shown great success in the area of Randomized Linear Algebra at
+solving various numerical linear algebra tasks [51, 101, 159]. For this, we consider the
+highly prevalent finite-sum minimization problem and employ random sampling as a way
+to construct approximations to the exact Hessian, which are, probabilistically, ensured
+to satisfy (6a). More specifically, in this section, we consider the optimization problem
+min
+x?Rd
+F (x) ,
+1
+n
+n?
+i=1
+fi(x), (P1)
+where each fi(x) is a smooth but possibly non-convex function. Many machine learning
+and scientific computing applications involve finite-sum optimization problems of the
+form (P1) where each fi is a loss (or misfit) function corresponding to i
+th observation (or
+measurement), e.g., [19, 50, 57, 74, 88, 123, 124, 125, 126, 129, 143, 149]. In particular,
+in machine learning applications, F in (P1) corresponds to the empirical risk [135] and
+16
+the goal of solving (P0) is to obtain a solution with small generalization error, i.e., high
+predictive accuracy on “unseen” data.
+Here, we consider (P1) in large-scale regime where n, d ? 1. In such settings, the
+mere evaluations of the Hessian and the gradient increase linearly in n. Indeed, for big-
+data problems, the operations with the Hessian, e.g., matrix-vector products involved
+in the (approximate) solution of the sub-problems (7) and (10), typically constitute the
+main bottleneck of computations, and in particular when n ? 1, are computationally
+prohibitive. For the special case of problems of the form (P1) in which each fi is convex,
+randomized sub-sampling has shown to be very effective in reducing such costs, e.g., [17,
+127, 128, 162]. In this section, we show that such randomized approximation techniques
+can indeed be effectively employed for the non-convex settings considered in this paper.
+In this light, suppose we have a probability distribution, p = {pi}ni=1, over the indices
+of the set {1, 2, . . . , n}, such that for each index i = 1, 2 . . . , n, we have Pr(i) = pi > 0 and?n
+i=1 pi = 1. Consider picking a sample of indices from {1, 2, . . . , n}, at each iteration,
+randomly according to the distribution p. Let S and |S| denote the sample collection
+and its cardinality, respectively and define
+H(x) ,
+1
+n|S|
+?
+j?S
+1
+pj
+?2fj(x), (14)
+to be the sub-sampled Hessian. In big-data regime when n ? 1, if |S| ? n, such
+sub-sampling can offer significant computational savings.
+Now, suppose
+sup
+x?Rd
+??2fi(x)? ? Ki, i = 1, 2, . . . , n, (15a)
+and define
+Kmax , max
+i=1,...,n
+Ki. (15b)
+K? ,
+1
+n
+n?
+i=1
+Ki. (15c)
+In this case, we can naturally consider uniform distribution over {1, 2, . . . , n}, i.e., pi =
+1/n, ; ?i. Lemma 4 gives the sample size required for the inexact Hessian, H(x), to
+probabilistically satisfy (6), for when the indices are picked uniformly at random with or
+without replacement. The proof of Lemma 4 is in Appendix A.4.
+Lemma 4 (Complexity of Uniform Sampling). Given (15a), (15b) , and 0 < ?, ? < 1, let
+|S| ? 16K
+2
+max
+?2
+log
+2d
+?
+, (16)
+where Kmax is defined as in (15b). At any x ? Rd, suppose picking the elements of S
+uniformly at random with or without replacement, and forming H(x) as in (14) with
+pi = 1/n, ; ?i. We have
+Pr
+(
+?H(x)??2F (x)? ? ?
+)
+? 1? ?. (17)
+Indeed, if (17) holds, then (6a) follows with the same probability. In addition, if H is
+constructed according to Lemma 4, it is easy to see that (6b) is satisfied with KH = Kmax
+(in fact this is a deterministic statement). These two, together, imply that H satisfies (6),
+with probability 1? ?.
+17
+A Special Case: In certain settings, one might be able to construct a more “infor-
+mative” distribution, p, over the indices in the set {1, 2, . . . , n}, as opposed to oblivious
+uniform sampling. In particular, it might be advantageous to bias the probability dis-
+tribution towards picking indices corresponding to those fi’s which are more relevant,
+in certain sense, in forming the Hessian. If this is possible, then we can only expect
+to require smaller sample size as compared with oblivious uniform sampling. One such
+setting where this is possible is the finite-sum optimization of the form,
+min
+x?Rd
+F (x) ,
+1
+n
+n?
+i=1
+fi(a
+T
+i x), (P2)
+for some given data vectors {ai}ni=1 ? Rd. Finite-sum problems of the form (P2), which
+is indeed a special case of (P1), arise often in many machine learning problems [135],
+e.g., logistic regression with least squares loss as in [161, Example 4.2].
+It is easy to see that, the Hessian of F in this case can be written as
+?2F (x) = ATBA =
+n?
+i=1
+f ??i (a
+T
+i x)aia
+T
+i ,
+where
+AT =
+?
+?
+| | . . . |
+a1 a2 . . . an
+| | . . . |
+?
+?
+d×n
+and B =
+?
+????
+f ??1 (a
+T
+1 x) 0 . . . 0
+0 f ??2 (a
+T
+2 x) . . . 0
+...
+...
+. . .
+...
+0 0 . . . f ??n(a
+T
+nx)
+?
+????
+n×n
+.
+Now, consider the sampling distribution p as
+pi =
+|f ??i (aTi x)|?ai?22?n
+j=1 |f ??j (aTj x)|?aj?22
+. (18)
+Note that the absolute values are needed since for non-convex fi, we might have f
+??
+j (a
+T
+j x) <
+0 (for the convex case where all f ??j (a
+T
+j x) ? 0, one can obtain stronger guarantees than
+Lemmas 4 and 5; see [162]). Using non-uniform sampling distribution (18), Lemma 5 gives
+sampling complexity for the approximate Hessian of (P2) to, probabilistically, satisfy (6).
+The proof of Lemma 5 is in Appendix A.4.
+Lemma 5 (Complexity of Non-Uniform Sampling). Given (15a), (15c) and 0 < ?, ? < 1,
+let
+|S| ? 4K?
+2
+?2
+log
+2d
+?
+, (19)
+where K? is defined as in (15c). At any x ? Rd, suppose picking the elements of S
+randomly according to the probability distribution (18), and forming H(x) as in (14).
+We have
+Pr
+(
+?H ??2F (x)? ? ?
+)
+? 1? ?. (20)
+18
+From (20), it follows that the approximate matrixH , constructed according to Lemma 5,
+satisfies (6b) with KH = K? + ?, with probability 1? ?, which in turn, implies that (6) is
+ensured, with probability 1? ?.
+As it can be seen from (15b) and (15c), since K? ? Kmax, the sampling complexity
+given by Lemma 5 always provides a smaller sample-size compared with that prescribed
+by Lemma 4. Indeed, the advantage of non-uniform sampling is more pronounced in cases
+where the distribution of Ki’s are highly skewed, i.e., a few large ones and many small
+ones, in which case we can have K? ? Kmax; see numerical experiments in [161].
+4.2 Probabilistic Convergence Analysis
+Now, we are in the position to give iteration complexity for Algorithms 1 and 2 where
+the inexact Hessian matrix Ht is constructed according to Lemmas 4 or 5. Since the
+approximation is a probabilistic construction, in order to guarantee success, we need to
+ensure that we require a small failure probability across all iterations. In particular,
+in order to get an overall and accumulative success probability of 1 ? ? for the entire
+T iterations, the per-iteration failure probability is set as
+(
+1? T
+?
+(1? ?)
+)
+? O(?/T ).
+This failure probability appears only in the “log factor” for sample size in all of our
+results, and so it is not the dominating cost. Hence, requiring that all T iterations are
+successful for a large T , only necessitates a small (logarithmic) increase in the sample size.
+For example, for T ? O
+(
+max{??2g , ??3H }
+)
+, as in Theorem 2, we can set the per-iteration
+failure probability to
+(
+?min{?2g, ?3H}
+)
+, and ensure that when Algorithm 2 terminates, all
+Hessian approximations have been, accumulatively, successful with probability of 1 ? ?.
+As a result, we can use the sub-sampling Lemmas 4 and 5 and obtain an approximating
+matrix which, with high probability, guarantees (6).
+Using these results, we can have the following probabilistic, but optimal, guarantee on
+the worst-case iteration complexity of Algorithm 1 for solving finite-sum problem (P1)
+(or (P2)) and in the case where the inexact Hessian is formed by sub-sampling. Their
+proofs follow very similar line of reasoning as that used for obtaining the results of Sec-
+tion 3, and hence are omitted.
+Theorem 6 (Optimal Complexity of Algorithm 1 For Finite-Sum Problem). Consider
+any 0 < ?g, ?H < 1. Let ? be as in (9), and set ?0 = ?min{?2g?H , ?3H} for some 0 < ? <
+1. Furthermore, for such (?, ?0), let the sample-size |S| be as in (16) (or (19)). For
+Problem (P1) (or (P2)) and under Assumption 1, if the approximate solution to the
+sub-problem (7) satisfies Condition 2, then Algorithm 1 using the sub-sampled matrix H
+as in (14) terminates in at most
+T ? O
+(
+max{??2g ??1H , ??3H }
+)
+,
+iterations, upon which, with probability 1? ?, we have that
+??F (x)? ? ?g, and ?min(?2F (x)) ? ? (?+ ?H) .
+Similarly, in the setting of optimization problems (P1) and (P2), with appropriate
+sub-sampling of the Hessian as in Lemmas 4 and 5, we can also obtain probabilistic
+worst-case iteration complexities for Algorithm 2 as in the deterministic case.
+19
+Theorem 7 (Complexity of Algorithm 2 For Finite-Sum Problem). Consider any 0 <
+?g, ?H < 1. Let ? be as in (12), and set ?0 = ?min{?2g, ?3H} for some 0 < ? < 1. Further-
+more, for such (?, ?0), let the sample-size |S| be as in (16) (or (19)). For Problem (P1)
+(or (P2)) and under Assumption 1, if the approximate solution to the sub-problem (10)
+satisfies Condition 3, then Algorithm 2 using the sub-sampled matrix H as in (14) ter-
+minates in at most
+T ? O
+(
+max{??2g , ??3H }
+)
+,
+iterations, upon which, with probability 1? ?, we have that
+??F (x)? ? ?g, and ?min(?2F (x)) ? ? (?+ ?H) .
+Theorem 8 (Optimal Complexity of Algorithm 2 For Finite-Sum Problem). Consider
+any 0 < ?g, ?H < 1. Let ? be as in Theorem 3, and set ?0 = ?min{?3/2g , ?3H} for some
+0 < ? < 1. Furthermore, for such (?, ?0), let the sample-size |S| be as in (16) (or (19)).
+For Problem (P1) (or (P2)) and under Assumption 1, if the approximate solution to the
+sub-problem (10) satisfies Conditions 3 and 4, then Algorithm 2 using the sub-sampled
+matrix H as in (14) terminates in at most
+T ? O
+(
+max{??3/2g , ??3H }
+)
+,
+iterations, upon which, with probability 1? ?, we have that
+??F (x)? ? ?g, and ?min(?2F (x)) ? ? (?+ ?H) .
+As it can be seen, the main difference between Theorems 7 and 8 is in the solution to
+the sub-problem (10). More specifically, if in addition to (11), the approximate solution
+to the sub-problem (10), at each iteration, satisfies (13), then Theorem 8 gives optimal
+worst-case iteration complexity.
+5 Conclusion
+In this paper, we considered non-convex optimization settings and developed efficient
+variants of the trust region and adaptive cubic regularization methods in which the cur-
+vature information is approximated. For all of our proposed variants, under Hessian
+approximation requirements which are more relaxed than the existing ones in the liter-
+ature and using only inexact solutions of the corresponding sub-problems, we obtained
+optimal iteration complexity to achieve approximate second order criticality.
+The proposed relaxed requirement in approximating the curvature allows for straight-
+forward construction of the inexact Hessian using various techniques such as quasi–
+Newton as well as many randomized matrix approximation methods. As a concrete
+and highly practical example, we considered the large-scale finite-sum optimization prob-
+lem and proposed uniform and non-uniform sub-sampling strategies as ways to efficiently
+construct the desired approximate Hessian. Using such sampling schemes, we then, prob-
+abilistically, established optimal iteration complexity for randomized variants of trust
+region and adaptive cubic regularization methods in which the Hessian is sub-sampled.
+In this paper, we focused on approximating the Hessian under the exact gradient in-
+formation. Arguably, the bottleneck of the computations in such second-order methods
+20
+involves the computations with the Hessian, e.g., matrix-vector products in the (approx-
+imate) solution of the sub-problem. In fact, the cost of the exact gradient computation is
+typically amortized by that of the operations with the Hessian. In spite of this, approxi-
+mating the gradient can indeed improve upon the efficiency of the methods proposed in
+this paper. However, approximating the gradient introduces a new level of difficulties as
+well as research opportunities, which we intend to pursue in the future.
+Finally, we mention that our focus here has been solely on developing the theoretical
+foundations of such randomized algorithms. Extensive empirical evaluations of the algo-
+rithms analyzed in this paper on various machine learning applications are given in the
+companion paper [161].
+Acknowledgment
+We would like to acknowledge ARO, DARPA, and NSF for providing partial support of
+this work.
+References
+[1] Naman Agarwal, Brian Bullins, and Elad Hazan. “Second Order Stochastic Opti-
+mization in Linear Time”. In: arXiv preprint arXiv:1602.03943 (2016).
+[2] Naman Agarwal et al. “Finding Approximate Local Minima Faster than Gradient
+Descent”. In: arXiv preprint arXiv:1611.01146 (2016).
+[3] Zeyuan Allen-Zhu. “Natasha: Faster stochastic non-convex optimization via strongly
+non-convex parameter”. In: arXiv preprint arXiv:1702.00763 (2017).
+[4] Zeyuan Allen-Zhu and Elad Hazan. “Variance reduction for faster non-convex
+optimization”. In: arXiv preprint arXiv:1603.05643 (2016).
+[5] Aleksandr Aravkin et al. “Robust inversion, dimensionality reduction, and ran-
+domized sampling”. In: Mathematical Programming 134.1 (2012), pp. 101–125.
+[6] Yossi Arjevani and Ohad Shamir. “Oracle Complexity of Second-Order Methods
+for Finite-Sum Problems”. In: arXiv preprint arXiv:1611.04982 (2016).
+[7] Sanjeev Arora et al. “Simple, efficient, and neural algorithms for sparse coding.”
+In: COLT. 2015, pp. 113–149.
+[8] Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio. “Neural machine trans-
+lation by jointly learning to align and translate”. In: arXiv preprint arXiv:1409.0473
+(2014).
+[9] Afonso S Bandeira, Katya Scheinberg, and Lu??s N Vicente. “Convergence of trust-
+region methods based on probabilistic models”. In: SIAM Journal on Optimization
+24.3 (2014), pp. 1238–1264.
+[10] Albert S Berahas, Raghu Bollapragada, and Jorge Nocedal. “An Investigation of
+Newton-Sketch and Subsampled Newton Methods”. In: arXiv preprint arXiv:1705.06211
+(2017).
+[11] Dimitri P. Bertsekas. Nonlinear programming. Athena scientific, 1999.
+[12] Dimitri P. Bertsekas and John N. Tsitsiklis. Neuro-dynamic Programming. Athena
+Scientific, 1996.
+21
+[13] Srinadh Bhojanapalli, Anastasios Kyrillidis, and Sujay Sanghavi. “Dropping con-
+vexity for faster semi-definite optimization”. In: Conference on Learning Theory.
+2016, pp. 530–582.
+[14] Tommaso Bianconcini et al. “On the use of iterative methods in cubic regulariza-
+tion for unconstrained optimization”. In: Computational Optimization and Appli-
+cations 60.1 (2015), pp. 35–57.
+[15] Alberto Bietti and Julien Mairal. “Stochastic Optimization with Variance Reduc-
+tion for Infinite Datasets with Finite-Sum Structure”. In: arXiv preprint arXiv:1610.00970
+(2016).
+[16] Jose Blanchet et al. “Convergence rate analysis of a stochastic trust region method
+for nonconvex optimization”. In: arXiv preprint arXiv:1609.07428 (2016).
+[17] Raghu Bollapragada, Richard Byrd, and Jorge Nocedal. “Exact and Inexact Sub-
+sampled Newton Methods for Optimization”. In: arXiv preprint arXiv:1609.08502
+(2016).
+[18] Le?on Bottou. “Large-scale machine learning with stochastic gradient descent”. In:
+Proceedings of COMPSTAT’2010. Springer, 2010, pp. 177–186.
+[19] Le?on Bottou, Frank E Curtis, and Jorge Nocedal. “Optimization methods for
+large-scale machine learning”. In: arXiv preprint arXiv:1606.04838 (2016).
+[20] Le?on Bottou and Yann LeCun. “Large scale online learning”. In: Advances in
+neural information processing systems 16 (2004), p. 217.
+[21] Nicolas Boumal. “Nonconvex phase synchronization”. In: SIAM Journal on Opti-
+mization 26.4 (2016), pp. 2355–2377.
+[22] Stephen Boyd and Lieven Vandenberghe. Convex optimization. Cambridge univer-
+sity press, 2004.
+[23] Tan Bui-Thanh and Mark Girolami. “Solving large-scale PDE-constrained Bayesian
+inverse problems with Riemann manifold Hamiltonian Monte Carlo”. In: Inverse
+Problems 30.11 (2014), p. 114014.
+[24] Martin Burger and Stanley J Osher. “A survey on level set methods for inverse
+problems and optimal design”. In: European Journal of Applied Mathematics 16.02
+(2005), pp. 263–301.
+[25] Richard H. Byrd et al. “On the use of stochastic Hessian information in opti-
+mization methods for machine learning”. In: SIAM Journal on Optimization 21.3
+(2011), pp. 977–995.
+[26] Richard H. Byrd et al. “Sample size selection in optimization methods for machine
+learning”. In: Mathematical programming 134.1 (2012), pp. 127–155.
+[27] Emmanuel J Candes, Xiaodong Li, and Mahdi Soltanolkotabi. “Phase retrieval via
+Wirtinger flow: Theory and algorithms”. In: IEEE Transactions on Information
+Theory 61.4 (2015), pp. 1985–2007.
+[28] Yair Carmon and John C Duchi. “Gradient Descent Efficiently Finds the Cubic-
+Regularized Non-Convex Newton Step”. In: arXiv preprint arXiv:1612.00547 (2016).
+[29] Yair Carmon et al. “Accelerated methods for non-convex optimization”. In: arXiv
+preprint arXiv:1611.00756 (2016).
+22
+[30] Coralia Cartis, Nicholas IM Gould, and Philippe L Toint. “Adaptive cubic regular-
+isation methods for unconstrained optimization. Part I: motivation, convergence
+and numerical results”. In: Mathematical Programming 127.2 (2011), pp. 245–295.
+[31] Coralia Cartis, Nicholas IM Gould, and Philippe L Toint. “Adaptive cubic regular-
+isation methods for unconstrained optimization. Part II: worst-case function-and
+derivative-evaluation complexity”. In: Mathematical programming 130.2 (2011),
+pp. 295–319.
+[32] Coralia Cartis, Nicholas IM Gould, and Philippe L Toint. “Complexity bounds for
+second-order optimality in unconstrained optimization”. In: Journal of Complexity
+28.1 (2012), pp. 93–108.
+[33] Coralia Cartis, Nicholas IM Gould, and Philippe L Toint. “Evaluation complexity
+of adaptive cubic regularization methods for convex unconstrained optimization”.
+In: Optimization Methods and Software 27.2 (2012), pp. 197–219.
+[34] Coralia Cartis, Nicholas IM Gould, and Philippe L Toint. “On the complexity of
+steepest descent, Newton’s and regularized Newton’s methods for nonconvex un-
+constrained optimization problems”. In: Siam journal on optimization 20.6 (2010),
+pp. 2833–2852.
+[35] Coralia Cartis, Nicholas IM Gould, and Philippe L Toint. Optimal Newton-type
+methods for nonconvex smooth optimization problems. Tech. rep. ERGO technical
+report 11-009, School of Mathematics, University of Edinburgh, 2011.
+[36] Olivier Chapelle and Dumitru Erhan. “Improved preconditioner for Hessian free
+optimization”. In: NIPS Workshop on Deep Learning and Unsupervised Feature
+Learning. Vol. 201. 1. 2011.
+[37] Pratik Chaudhari et al. “Entropy-SGD: Biasing Gradient Descent Into Wide Val-
+leys”. In: arXiv preprint arXiv:1611.01838 (2016).
+[38] Ruobing Chen, Matt Menickelly, and Katya Scheinberg. “Stochastic optimization
+using a trust-region method and randommodels”. In: arXiv preprint arXiv:1504.04231
+(2015).
+[39] Kyunghyun Cho et al. “Learning phrase representations using RNN encoder-
+decoder for statistical machine translation”. In: arXiv preprint arXiv:1406.1078
+(2014).
+[40] Anna Choromanska et al. “The loss surfaces of multilayer networks”. In: Artificial
+Intelligence and Statistics. 2015, pp. 192–204.
+[41] Nadav Cohen, Or Sharir, and Amnon Shashua. “On the expressive power of deep
+learning: A tensor analysis”. In: Conference on Learning Theory. 2016, pp. 698–
+728.
+[42] Andrew R Conn, Nicholas IM Gould, and Philippe L Toint. Trust region methods.
+SIAM, 2000.
+[43] Andrew R Conn, Katya Scheinberg, and Lu??s N Vicente. “Global convergence
+of general derivative-free trust-region algorithms to first-and second-order critical
+points”. In: SIAM Journal on Optimization 20.1 (2009), pp. 387–415.
+[44] Andrew Cotter et al. “Better mini-batch algorithms via accelerated gradient meth-
+ods”. In: Advances in neural information processing systems. 2011, pp. 1647–1655.
+23
+[45] Frank E Curtis, Daniel P Robinson, and Mohammadreza Samadi. “A Trust Re-
+gion Algorithm with a Worst-Case Iteration Complexity of O(??3/2)for Nonconvex
+Optimization”. In: COR@ L Technical Report 14T-009, Lehigh University,, Beth-
+lehem, PA, USA (2014).
+[46] Yann N Dauphin et al. “Identifying and attacking the saddle point problem in
+high-dimensional non-convex optimization”. In: Advances in neural information
+processing systems. 2014, pp. 2933–2941.
+[47] Aaron Defazio, Francis Bach, and Simon Lacoste-Julien. “SAGA: A fast incre-
+mental gradient method with support for non-strongly convex composite objec-
+tives”. In: Proceedings of Advances in Neural Information Processing Systems.
+2014, pp. 1646–1654.
+[48] Li Deng and Dong Yu. “Deep learning: methods and applications”. In: Foundations
+and Trends R© in Signal Processing 7.3–4 (2014), pp. 197–387.
+[49] John E Dennis and Jorge J More?. “A characterization of superlinear convergence
+and its application to quasi-Newton methods”. In: Mathematics of computation
+28.126 (1974), pp. 549–560.
+[50] Kees van den Doel and Uri Ascher. “Adaptive and stochastic algorithms for EIT
+and DC resistivity problems with piecewise constant solutions and many measure-
+ments”. In: SIAM J. Scient. Comput. 34 (2012), DOI: 10.1137/110826692.
+[51] Petros Drineas and Michael W Mahoney. “RandNLA: Randomized Numerical
+Linear Algebra”. In: Communications of the ACM 59.6 (2016), pp. 80–90.
+[52] Mark Eisen, Aryan Mokhtari, and Alejandro Ribeiro. “Large Scale Empirical
+Risk Minimization via Truncated Adaptive Newton Method”. In: arXiv preprint
+arXiv:1705.07957 (2017).
+[53] Murat A. Erdogdu and Andrea Montanari. “Convergence rates of sub-sampled
+Newton methods”. In: Advances in Neural Information Processing Systems (NIPS).
+2015.
+[54] Jennifer B Erway and Philip E Gill. “A subspace minimization method for the
+trust-region step”. In: SIAM Journal on Optimization 20.3 (2009), pp. 1439–1461.
+[55] Jennifer B Erway, Philip E Gill, and Joshua D Griffin. “Iterative methods for find-
+ing a trust-region step”. In: SIAM Journal on Optimization 20.2 (2009), pp. 1110–
+1131.
+[56] Michael P. Friedlander and Mark Schmidt. “Hybrid deterministic-stochastic meth-
+ods for data fitting”. In: SIAM Journal on Scientific Computing 34.3 (2012),
+A1380–A1405.
+[57] Jerome Friedman, Trevor Hastie, and Robert Tibshirani. The Elements of Statis-
+tical Learning. Vol. 1. Springer series in statistics Springer, Berlin, 2001.
+[58] Kenji Fukumizu and Shun-ichi Amari. “Local minima and plateaus in hierarchical
+structures of multilayer perceptrons”. In: Neural Networks 13.3 (2000), pp. 317–
+327.
+[59] Dan Garber et al. “Faster eigenvector computation via shift-and-invert precon-
+ditioning”. In: International Conference on Machine Learning. 2016, pp. 2626–
+2634.
+24
+[60] Rong Ge et al. “Escaping From Saddle Points-Online Stochastic Gradient for Ten-
+sor Decomposition.” In: COLT. 2015, pp. 797–842.
+[61] Saeed Ghadimi and Guanghui Lan. “Stochastic first-and zeroth-order methods
+for nonconvex stochastic programming”. In: SIAM Journal on Optimization 23.4
+(2013), pp. 2341–2368.
+[62] Hiva Ghanbari and Katya Scheinberg. “Black-Box Optimization in Machine Learn-
+ing with Trust Region Based Derivative Free Algorithm”. In: arXiv preprint arXiv:1703.06925
+(2017).
+[63] Ian Goodfellow, Yoshua Bengio, and Aaron Courville. Deep learning. MIT press,
+2016.
+[64] Nicholas IM Gould, Daniel P Robinson, and H Sue Thorne. “On solving trust-
+region and other regularised subproblems in optimization”. In: Mathematical Pro-
+gramming Computation 2.1 (2010), pp. 21–57.
+[65] Nicholas IM Gould et al. “Solving the trust-region subproblem using the Lanczos
+method”. In: SIAM Journal on Optimization 9.2 (1999), pp. 504–525.
+[66] Geovani N Grapiglia, J Yuan, and Y Yuan. “On the worst-case complexity of
+nonlinear stepsize control algorithms for convex unconstrained optimization”. In:
+Optimization Methods and Software 31.3 (2016), pp. 591–604.
+[67] S Gratton et al. Complexity and global rates of trust-region methods based on
+probabilistic models. Tech. rep. Technical report 17-09, Dept. Mathematics, Univ.
+Coimbra, 2017.
+[68] Serge Gratton, Annick Sartenaer, and Philippe L Toint. “Recursive trust-region
+methods for multiscale nonlinear optimization”. In: SIAM Journal on Optimiza-
+tion 19.1 (2008), pp. 414–444.
+[69] Serge Gratton et al. “A recursive-trust-region method for bound-constrained non-
+linear optimization”. In: IMA Journal of Numerical Analysis 28.4 (2008), pp. 827–
+861.
+[70] Andreas Griewank. “The modification of Newton’s method for unconstrained op-
+timization by bounding cubic terms”. In: Technical Report NA/12. Department of
+Applied Mathematics and Theoretical Physics, University of Cambridge. (1981).
+[71] David Gross and Vincent Nesme. “Note on sampling without replacing from a
+finite collection of matrices”. In: arXiv preprint arXiv:1001.2738 (2010).
+[72] Eldad Haber, Uri M. Ascher, and Doug Oldenburg. “On optimization techniques
+for solving nonlinear inverse problems”. In: Inverse problems 16.5 (2000), p. 1263.
+[73] Eldad Haber and Mathias Chung. “Simultaneous source for non-uniform data
+variance and missing data”. In: arXiv preprint arXiv:1404.5254 (2014).
+[74] Eldad Haber, Matthias Chung, and Felix Herrmann. “An effective method for
+parameter estimation with PDE constraints with multiple right-hand sides”. In:
+SIAM Journal on Optimization 22.3 (2012), pp. 739–757.
+[75] Benjamin D Haeffele and Rene? Vidal. “Global optimality in tensor factorization,
+deep learning, and beyond”. In: arXiv preprint arXiv:1506.07540 (2015).
+[76] Elad Hazan and Tomer Koren. “A linear-time algorithm for trust region problems”.
+In: Mathematical Programming (2015), pp. 1–19.
+25
+[77] Elad Hazan, Kfir Levy, and Shai Shalev-Shwartz. “Beyond convexity: Stochastic
+quasi-convex optimization”. In: Advances in Neural Information Processing Sys-
+tems. 2015, pp. 1594–1602.
+[78] Kaiming He et al. “Deep residual learning for image recognition”. In: Proceedings of
+the IEEE Conference on Computer Vision and Pattern Recognition. 2016, pp. 770–
+778.
+[79] Xi He et al. “Large Scale Distributed Hessian-Free Optimization for Deep Neural
+Network”. In: arXiv preprint arXiv:1606.00511 (2016).
+[80] Christopher J Hillar and Lek-Heng Lim. “Most tensor problems are NP-hard”. In:
+Journal of the ACM (JACM) 60.6 (2013), p. 45.
+[81] Nam Ho-Nguyen and Fatma Kilinc-Karzan. “A second-order cone based approach
+for solving the trust region subproblem and its variants”. In: arXiv preprint arXiv:1603.03366
+(2016).
+[82] Chi Jin et al. “How to Escape Saddle Points Efficiently”. In: arXiv preprint
+arXiv:1703.00887 (2017).
+[83] Rie Johnson and Tong Zhang. “Accelerating stochastic gradient descent using
+predictive variance reduction”. In: Proceedings of Advances in Neural Information
+Processing Systems. 2013, pp. 315–323.
+[84] Ryan Kiros. “Training neural networks with stochastic Hessian-free optimization”.
+In: arXiv preprint arXiv:1301.3641 (2013).
+[85] Jonas Moritz Kohler and Aurelien Lucchi. “Sub-sampled Cubic Regularization for
+Non-convex Optimization”. In: arXiv preprint arXiv:1705.05933 (2017).
+[86] Alex Krizhevsky, Ilya Sutskever, and Geoffrey E Hinton. “Imagenet classification
+with deep convolutional neural networks”. In: Advances in neural information
+processing systems. 2012, pp. 1097–1105.
+[87] J Kuczyn?ski and HWoz?niakowski. “Estimating the largest eigenvalue by the power
+and Lanczos algorithms with a random start”. In: SIAM journal on matrix analysis
+and applications 13.4 (1992), pp. 1094–1122.
+[88] Brian Kulis. “Metric learning: a survey”. In: Foundations and Trends in Machine
+Learning 5.4 (2012), pp. 287–364.
+[89] Jeffrey Larson and Stephen C Billups. “Stochastic derivative-free optimization
+using a trust region framework”. In: Computational Optimization and Applications
+64.3 (2016), pp. 619–645.
+[90] Yann LeCun, Yoshua Bengio, and Geoffrey Hinton. “Deep learning”. In: Nature
+521.7553 (2015), pp. 436–444.
+[91] Yann A LeCun et al. “Efficient backprop”. In: Neural networks: Tricks of the trade.
+Springer, 2012, pp. 9–48.
+[92] Jason D Lee et al. “Gradient descent only converges to minimizers”. In: Conference
+on Learning Theory. 2016, pp. 1246–1257.
+[93] Tristan van Leeuwen and Felix J Herrmann. “A penalty method for PDE-constrained
+optimization in inverse problems”. In: Inverse Problems 32.1 (2015), p. 015007.
+26
+[94] Felix Lenders, Christian Kirches, and Andreas Potschka. “trlib: A vector-free im-
+plementation of the GLTR method for iterative solution of the trust region prob-
+lem”. In: arXiv preprint arXiv:1611.04718 (2016).
+[95] Kenneth Levenberg. “A method for the solution of certain non-linear problems in
+least squares”. In: Quarterly of applied mathematics 2.2 (1944), pp. 164–168.
+[96] Kfir Y Levy. “The Power of Normalization: Faster Evasion of Saddle Points”. In:
+arXiv preprint arXiv:1611.04831 (2016).
+[97] Mu Li et al. “Efficient mini-batch training for stochastic optimization”. In: Pro-
+ceedings of the 20th ACM SIGKDD international conference on Knowledge dis-
+covery and data mining. ACM. 2014, pp. 661–670.
+[98] Chih-Jen Lin, Ruby C. Weng, and S. Sathiya Keerthi. “Trust region Newton
+method for logistic regression”. In: The Journal of Machine Learning Research
+9 (2008), pp. 627–650.
+[99] Hongzhou Lin, Julien Mairal, and Zaid Harchaoui. “A universal catalyst for first-
+order optimization”. In: Advances in Neural Information Processing Systems. 2015,
+pp. 3384–3392.
+[100] Dong C Liu and Jorge Nocedal. “On the limited memory BFGS method for large
+scale optimization”. In: Mathematical programming 45.1-3 (1989), pp. 503–528.
+[101] Michael W Mahoney. “Randomized algorithms for matrices and data”. In: Foun-
+dations and Trends R© in Machine Learning 3.2 (2011), pp. 123–224.
+[102] Donald W Marquardt. “An algorithm for least-squares estimation of nonlinear
+parameters”. In: Journal of the society for Industrial and Applied Mathematics
+11.2 (1963), pp. 431–441.
+[103] James Martens. “Deep learning via Hessian-free optimization”. In: International
+Conference on Machine Learning (ICML). 2010.
+[104] Jorge J More? and Danny C Sorensen. “Computing a trust region step”. In: SIAM
+Journal on Scientific and Statistical Computing 4.3 (1983), pp. 553–572.
+[105] Katta G Murty and Santosh N Kabadi. “Some NP-complete problems in quadratic
+and nonlinear programming”. In:Mathematical programming 39.2 (1987), pp. 117–
+129.
+[106] Mojm??r Mutny?. “Stochastic Second-Order Optimization via von Neumann Series”.
+In: arXiv preprint arXiv:1612.04694 (2016).
+[107] Mojm??r Mutny? and Peter Richta?rik. “Parallel Stochastic Newton Method”. In:
+arXiv preprint arXiv:1705.02005 (2017).
+[108] Yu Nesterov. “Accelerating the cubic regularization of Newtons method on convex
+problems”. In: Mathematical Programming 112.1 (2008), pp. 159–181.
+[109] Yurii Nesterov. Introductory lectures on convex optimization. Vol. 87. Springer
+Science & Business Media, 2004.
+[110] Yurii Nesterov and Boris T Polyak. “Cubic regularization of Newton method and
+its global performance”. In: Mathematical Programming 108.1 (2006), pp. 177–
+205.
+27
+[111] Praneeth Netrapalli, Prateek Jain, and Sujay Sanghavi. “Phase retrieval using al-
+ternating minimization”. In: Advances in Neural Information Processing Systems.
+2013, pp. 2796–2804.
+[112] Jiquan Ngiam et al. “On optimization methods for deep learning”. In: Proceed-
+ings of the 28th International Conference on Machine Learning (ICML-11). 2011,
+pp. 265–272.
+[113] Atsushi Nitanda. “Accelerated Stochastic Gradient Descent for Minimizing Finite
+Sums”. In: Proceedings of the 19th International Conference on Artificial Intelli-
+gence and Statistics. 2016, pp. 195–203.
+[114] Atsushi Nitanda. “Stochastic proximal gradient descent with acceleration tech-
+niques”. In: Advances in Neural Information Processing Systems. 2014, pp. 1574–
+1582.
+[115] Jorge Nocedal. “Updating quasi-Newton matrices with limited storage”. In: Math-
+ematics of computation 35.151 (1980), pp. 773–782.
+[116] Jorge Nocedal and Stephen Wright. Numerical optimization. Springer Science &
+Business Media, 2006.
+[117] Noemi Petra et al. “An inexact Gauss–Newton method for inversion of basal sliding
+and rheology parameters in a nonlinear Stokes ice sheet model”. In: Journal of
+Glaciology 58.211 (2012), pp. 889–903.
+[118] Mert Pilanci and Martin J. Wainwright. “Newton Sketch: a linear-time optimiza-
+tion algorithm with linear-quadratic convergence”. In: arXiv preprint arXiv:1505.02250
+(2015).
+[119] Maxim Raginsky, Alexander Rakhlin, and Matus Telgarsky. “Non-convex learning
+via Stochastic Gradient Langevin Dynamics: a nonasymptotic analysis”. In: arXiv
+preprint arXiv:1702.03849 (2017).
+[120] Sashank J Reddi et al. “Stochastic variance reduction for nonconvex optimization”.
+In: arXiv preprint arXiv:1603.06160 (2016).
+[121] Franz Rendl and Henry Wolkowicz. “A semidefinite framework for trust region
+subproblems with applications to large scale minimization”. In: Mathematical Pro-
+gramming 77.1 (1997), pp. 273–299.
+[122] Herbert Robbins and Sutton Monro. “A stochastic approximation method”. In:
+The annals of mathematical statistics (1951), pp. 400–407.
+[123] Farbod Roosta-Khorasani. “Randomized algorithms for solving large scale nonlin-
+ear least squares problems”. PhD thesis. University of British Columbia, 2015.
+[124] Farbod Roosta-Khorasani and Uri Ascher. “Improved Bounds on Sample Size for
+Implicit Matrix Trace Estimators”. In: Foundations of Computational Mathemat-
+ics 15.5 (2015), pp. 1187–1212.
+[125] Farbod Roosta-Khorasani, Kees van den Doel, and Uri Ascher. “Data completion
+and stochastic algorithms for PDE inversion problems with many measurements”.
+In: Electronic Transactions on Numerical Analysis 42 (2014), pp. 177–196.
+[126] Farbod Roosta-Khorasani, Kees van den Doel, and Uri Ascher. “Stochastic algo-
+rithms for inverse problems involving PDEs and many measurements”. In: SIAM
+J. Scientific Computing 36.5 (2014), S3–S22.
+28
+[127] Farbod Roosta-Khorasani and Michael W. Mahoney. “Sub-sampled Newton meth-
+ods I: globally convergent algorithms”. In: arXiv preprint arXiv:1601.04737 (2016).
+[128] Farbod Roosta-Khorasani and Michael W Mahoney. “Sub-sampled Newton meth-
+ods II: local convergence rates”. In: arXiv preprint arXiv:1601.04738 (2016).
+[129] Farbod Roosta-Khorasani, Ga?bor J. Sze?kely, and Uri Ascher. “Assessing stochastic
+algorithms for large scale nonlinear least squares problems using extremal probabil-
+ities of linear combinations of gamma random variables”. In: SIAM/ASA Journal
+on Uncertainty Quantification 3.1 (2015), pp. 61–90.
+[130] Nicolas L Roux and Andrew W Fitzgibbon. “A fast natural Newton method”. In:
+Proceedings of the 27th International Conference on Machine Learning (ICML-
+10). 2010, pp. 623–630.
+[131] Nicolas L Roux, Mark Schmidt, and Francis R Bach. “A Stochastic Gradient
+Method with an Exponential Convergence Rate for Finite Training Sets”. In: Pro-
+ceedings of Advances in Neural Information Processing Systems. 2012, pp. 2663–
+2671.
+[132] Andrew M Saxe, James L McClelland, and Surya Ganguli. “Exact solutions to the
+nonlinear dynamics of learning in deep linear neural networks”. In: arXiv preprint
+arXiv:1312.6120 (2013).
+[133] Ju?rgen Schmidhuber. “Deep learning in neural networks: An overview”. In: Neural
+networks 61 (2015), pp. 85–117.
+[134] Mark Schmidt, Nicolas Le Roux, and Francis Bach. “Minimizing finite sums with
+the stochastic average gradient”. In: Mathematical Programming (2013), pp. 1–30.
+[135] Shai Shalev-Shwartz and Shai Ben-David. Understanding machine learning: From
+theory to algorithms. Cambridge university press, 2014.
+[136] Shai Shalev-Shwartz and Tong Zhang. “Accelerated proximal stochastic dual co-
+ordinate ascent for regularized loss minimization.” In: ICML. 2014, pp. 64–72.
+[137] Shai Shalev-Shwartz and Tong Zhang. “Proximal stochastic dual coordinate as-
+cent”. In: arXiv preprint arXiv:1211.2717 (2012).
+[138] Shai Shalev-Shwartz and Tong Zhang. “Stochastic dual coordinate ascent methods
+for regularized loss”. In: The Journal of Machine Learning Research 14.1 (2013),
+pp. 567–599.
+[139] Ohad Shamir and Ron Shiff. “Oracle Complexity of Second-Order Methods for
+Smooth Convex Optimization”. In: arXiv preprint arXiv:1705.07260 (2017).
+[140] Sara Shashaani, Fatemeh Hashemi, and Raghu Pasupathy. “ASTRO-DF: A Class
+of Adaptive Sampling Trust-Region Algorithms for Derivative-Free Stochastic Op-
+timization”. In: arXiv preprint arXiv:1610.06506 (2016).
+[141] Danny C Sorensen. “Newtons method with a model trust region modification”.
+In: SIAM Journal on Numerical Analysis 19.2 (1982), pp. 409–426.
+[142] DC Sorensen. “Minimization of a large-scale quadratic functionsubject to a spher-
+ical constraint”. In: SIAM Journal on Optimization 7.1 (1997), pp. 141–161.
+[143] Suvrit Sra, Sebastian Nowozin, and Stephen J Wright. Optimization for machine
+learning. Mit Press, 2012.
+29
+[144] Trond Steihaug. “The conjugate gradient method and trust regions in large scale
+optimization”. In: SIAM Journal on Numerical Analysis 20.3 (1983), pp. 626–637.
+[145] Ju Sun, Qing Qu, and John Wright. “When are nonconvex problems not scary?”
+In: arXiv preprint arXiv:1510.06096 (2015).
+[146] Wenyu Sun and Ya-Xiang Yuan. Optimization theory and methods: nonlinear pro-
+gramming. Vol. 1. Springer Science & Business Media, 2006.
+[147] Ilya Sutskever, Oriol Vinyals, and Quoc V Le. “Sequence to sequence learning
+with neural networks”. In: Advances in neural information processing systems.
+2014, pp. 3104–3112.
+[148] Grzegorz Swirszcz, Wojciech Marian Czarnecki, and Razvan Pascanu. “Local min-
+ima in training of deep networks”. In: arXiv preprint arXiv:1611.06310 (2016).
+[149] Robert Tibshirani. “Regression shrinkage and selection via the Lasso”. In: Journal
+of the Royal Statistical Society. Series B (Methodological) (1996), pp. 267–288.
+[150] Philippe L Toint. “Towards an efficient sparsity exploiting Newton method for
+minimization”. In: Sparse matrices and their uses (1981), p. 1981.
+[151] J. A. Tropp. “User-friendly tail bounds for sums of random matrices”. In: Found.
+Comput. Math. 12.4 (2012), pp. 389–434.
+[152] Joel A Tropp. “An introduction to matrix concentration inequalities”. In: arXiv
+preprint arXiv:1501.01571 (2015).
+[153] Stephen Tu et al. “Low-rank solutions of linear matrix equations via procrustes
+flow”. In: arXiv preprint arXiv:1507.03566 (2015).
+[154] Kees Van Den Doel, Uri Ascher, and Eldad Haber. “The lost honour of ?2-based
+regularization”. In: Radon Series in Computational and Applied Math (2013).
+[155] Oriol Vinyals and Daniel Povey. “Krylov Subspace Descent for Deep Learning”.
+In: AISTATS. 2012, pp. 1261–1268.
+[156] Oriol Vinyals et al. “Show and tell: A neural image caption generator”. In: Pro-
+ceedings of the IEEE Conference on Computer Vision and Pattern Recognition.
+2015, pp. 3156–3164.
+[157] Chien-Chih Wang, Chun-Heng Huang, and Chih-Jen Lin. “Subsampled Hessian
+Newton methods for supervised learning”. In: Neural computation (2015).
+[158] Simon Wiesler, Jinyu Li, and Jian Xue. “Investigations on Hessian-free optimiza-
+tion for cross-entropy training of deep neural networks”. In: INTERSPEECH.
+2013, pp. 3317–3321.
+[159] David P. Woodruff. “Sketching as a tool for numerical linear algebra”. In: arXiv
+preprint arXiv:1411.4357 (2014).
+[160] Lin Xiao and Tong Zhang. “A proximal stochastic gradient method with progres-
+sive variance reduction”. In: SIAM Journal on Optimization 24.4 (2014), pp. 2057–
+2075.
+[161] Peng Xu, Farbod Roosta-Khorasani, and Michael W. Mahoney. “Second-Order
+Optimization for Non-Convex Machine Learning: An Empirical Study”. In: arXiv
+preprint arXiv:1708.07827 (2017).
+30
+[162] Peng Xu et al. “Sub-sampled newton methods with non-uniform sampling”. In:
+Advances in Neural Information Processing Systems. 2016, pp. 3000–3008.
+[163] Haishan Ye, Luo Luo, and Zhihua Zhang. “Revisiting Sub-sampled Newton Meth-
+ods”. In: arXiv preprint arXiv:1608.02875 (2016).
+[164] Jin Yu et al. “A quasi-Newton approach to nonsmooth convex optimization prob-
+lems in machine learning”. In: The Journal of Machine Learning Research 11
+(2010), pp. 1145–1200.
+[165] Qinqing Zheng and John Lafferty. “A convergent gradient descent algorithm for
+rank minimization and semidefinite programming from random linear measure-
+ments”. In: Advances in Neural Information Processing Systems. 2015, pp. 109–
+117.
+A Proofs of the Main Theorems
+A.1 Proof Outlines
+Although the relaxed Hessian approximation (6a) introduces many challenges, our proof
+techniques mainly follow similar line of reasoning as that in [30, 31, 32]. Specifically,
+to prove worst-case iteration complexity for each method, we follow the following steps.
+Recall that, as indicated in Section 2.1, for notational simplicity, we use Ht to denote the
+inexact Hessian H(xt).
+i. We first show that if ??F (xt)? ? ?g, then there is a ?0 > 0 (or ?0 < ? ) such that
+for some ?t ? ?0 (or ?t ? ?0), iteration t is successful; see Lemmas 10 and 18.
+ii. We then prove that if ?min(Ht) ? ??H , then there is a ?0 > 0 (or ?0 < ? ) such that
+for some ?t ? ?0 (or ?t ? ?0), iteration t is successful; see Lemmas 11 and 19
+iii. Using the first two items, we show that for all iterations while algorithm has not
+stopped yet, i.e., as long as ??F (xt)? ? ?g or ?min(Ht) ? ??H , then there is a ?1 > 0
+(or ?1 < ? ) such that ?t ? ?1 (or ?t ? ?1), for all iterations; see Lemmas 12 and 20.
+iv. Using the last item, we can bound the number of successful iterations; see Lem-
+mas 13, 21, and 23.
+v. Finally, using this latter bound, we obtain an upper bound on the number of un-
+successful iterations. We then put all the together to get an upper-bound on the total
+number of iterations; see Theorems 1, 2, and 3.
+A.2 Proof of Theorem 1
+Lemma 9. Given Assumption 1 and Condition (6a), we have
+|F (xt + st)? F (xt)?mt(st)| ?
+1
+2
+(L+ ?dH)?
+3
+t +
+1
+2
+??2t . (21)
+Proof. First, apply mean-value theorem on F at xt,
+F (xt + st) = F (xt) +?F (xt)T st +
+1
+2
+sTt ?2F (?t)st
+31
+for some ?t in the segment of [xt,xt + st]. And then
+|F (xt + st)? F (xt)?mt(st)| =
+1
+2
+??sTt (?2F (?t)?Ht)st
+??
+=
+1
+2
+??sTt (?2F (?t)??2F (xt) +?2F (xt)?Ht)st
+??
+? 1
+2
+??sTt (?2F (?t)??2F (xt))st
+??+ 1
+2
+??sTt (?2F (xt)?Ht)st
+??
+? 1
+2
+L?st?3 +
+1
+2
+??st?2
+? 1
+2
+L?3t +
+1
+2
+??2t .
+Lemma 10. Given Assumption 1, Conditions 1 and 2, suppose at iteration t, ?min(Ht) <
+??H and
+?t ?
+(1? ?)(1? ?)??H
+L
+,
+? ? ?(1? ?)? · ?H ,
+for some ? ? (0, 1). Then the iteration t is successful, i.e. ?t+1 = ??t.
+Proof. From (8b) and (21), we have
+1? ?t =
+F (xt + st)? F (xt)?mt(st)
+?mt(st)
+? L?
+3
+t + ??
+2
+t
+? |?min(Ht)|?2t
+? L?
+3
+t + ??
+2
+t
+??2t ?H
+? L?t + ?
+??H
+? L?t + ?(1? ?)? · ?H
+??H
+By the assumption on ?t, we immediately get 1 ? ?t ? 1? ?. Therefore ?t ? ? and the
+iteration is successful.
+Lemma 11. Given Assumption 1, Conditions 1 and 2, suppose at iteration t, ??F (xt)? >
+?g and
+?t ? min
+{
+?g
+1 +KH
+,
+(1? ?)?g
+2
+}
+,
+then the iteration t is successful, i.e. ?t+1 = ??t.
+32
+Proof. By assumption on ?t, (8a), and since ??F (xt)? > ?g, we have
+?mt(st) ?
+1
+2
+??F (xt)?min
+{??F (xt)?
+1 + ?Ht?
+,?t
+}
+? 1
+2
+?g min
+{
+?g
+1 +KH
+,?t
+}
+=
+1
+2
+?g?t.
+Therefore,
+1? ?t =
+F (xt + st)? F (xt)?mt(st)
+?mt(st)
+? L?
+3
+t + ??
+2
+t
+?g?t
+? L?
+2
+t + ??t
+?g
+? 1? ?.
+The last inequality follows from since by assumption on ?t, we have
+?t ?
+(1? ?)?g
+2
+?
+?
+1 + 4L(1? ?)?g ? 1
+2L
+<
+?
+?2 + 4L(1? ?)?g ? ?
+2L
+,
+which leads to L?2t + ??t ? (1 ? ?)?g ? 0. So ?t ? ?, which means the iteration is
+successful.
+Lemma 12. Given Assumption 1, Conditions 1 and 2, for Algorithm 1 we have for all
+t,
+?t ?
+1
+?
+·min
+{
+(1? ?)(1? ?)??H
+L
+,
+?g
+1 +KH
+,
+(1? ?)?g
+2
+}
+= ?? ·min{?g, ?H}, (22)
+where
+?? ,
+1
+?
+·min
+{
+(1? ?)(1? ?)?
+L
+,
+1
+1 +KH
+,
+(1? ?)1
+2
+}
+.
+Proof. We prove by contradiction. Assume the iteration t is the first unsuccessful iteration
+such that
+?t+1 =
+?t
+?
+? ?? ·min{?g, ?H}. (23)
+Hence, we must have have
+?t ? min
+{
+(1? ?)(1? ?)??H
+L
+,
+?g
+1 +KH
+,
+(1? ?)?g
+2
+}
+.
+However, according to Lemmas 10 and 11, respectively, if ?min(Ht) < ??H or ??F (xt)? ?
+?g, then the iteration is successful and hence we must have ?t+1 = ??t > ?t, which is a
+contradictions.
+33
+The following lemma follows closely the line of reasoning in [32, Lemma 4.5].
+Lemma 13 (Successful Iterations). Given Assumption 1, Conditions 1 and 2, let Tsucc
+denote the set of all the successful iterations before Algorithm 1 stops. The the number
+of successful iterations is upper bounded by,
+|Tsucc| ?
+(F (x0)? Fmin)
+?min {???, ???}
+·max{??2g ??1H , ??3H }.
+Proof. Suppose Algorithm 1 doesn’t terminate at iteration t. Then either ??F (xt)? ? ?g
+or ?min(?
+2F (xt)) ? ??. In the first case where ??F (xt)? ? ?g, from (8a), we have
+?mt(st) ?
+1
+2
+?g min
+{
+?g
+1 +KH
+,?t
+}
+? 1
+2
+?g min
+{
+?g
+1 +KH
+, ???g, ???H
+}
+? ????g min{?g, ?H},
+where
+??? ,
+1
+2
+min
+{
+1
+1 +KH
+, ??
+}
+.
+Similarly, in the second case, from (8b), we obtain
+?mt(st) ?
+1
+2
+? |?min(Ht)|?2t ?
+1
+2
+??2??H min{?2g, ?2H} = ????H min{?2g, ?2H},
+where
+??? ,
+1
+2
+??2?.
+Since F (xt) is monotonically decreasing, we have
+F (x0)? Fmin ?
+??
+t=0
+F (xt)? F (xt+1)
+?
+?
+t?Tsucc
+F (xt)? F (xt+1)
+? ?
+?
+t?Tsucc
+min
+{
+????g min{?g, ?H}, ????H min{?2g, ?2H}
+}
+? |Tsucc| ?min {???, ???}min{?2g?H , ?3H}
+Therefore we have
+|Tsucc| ?
+(F (x0)? Fmin)
+?min {???, ???}
+·max{??2g ??1H , ??3H }.
+34
+Theorem 1 (Optimal Complexity of Algorithm 1). Consider any 0 < ?g, ?H < 1. Suppose
+the inexact Hessian, H(x), satisfies Conditions (6) with the approximation tolerance, ?,
+in (6a) as
+? < (1? ?)??H , (9)
+where ? is a hyper-parameter of Algorithm 1, ? is defined as in (8b). For Problem (P0)
+and under Assumption 1, if the approximate solution to the sub-problem (7) satisfies
+Condition 2, then Algorithm 1 terminates after at most
+T ? O
+(
+max{??2g ??1H , ??3H }
+)
+,
+iterations.
+Proof. Suppose Algorithm 1 terminates at iteration T . Let Tsucc and Tfail denote the sets
+of all the successful and unsuccessful iterations, respectively. Then T = |Tsucc| + |Tfail|
+and ?T = ?0?
+|Tsucc|?|Tfail|. From Lemma 12, we have ?T ? ?? min{?g, ?H}. Hence,
+(|Tsucc| ? |Tfail|) log ? ? log
+(
+??
+?0
+·min{?g, ?H}
+)
+,
+which implies that
+|Tfail| ?
+1
+log ?
+log
+(
+?0
+?? ·min{?g, ?H}
+)
++ |Tsucc| .
+Combine the result from Lemma 13, we have the total iteration complexity as
+T ? 1
+log ?
+log
+(
+?0
+?? ·min{?g, ?H}
+)
++
+2(F (x0)? Fmin)
+?min {???, ???}
+·max{??2g ??1H , ??3H } = O
+(
+max{??2g ??1H , ??3H }
+)
+,
+where ?? and (???, ???) are defined in the proofs of Lemmas 12 and 13, respectively
+A.3 Proofs of Theorems 2 and 3
+We first give conditions which an approximate solution of the sub-problem (10) should
+satisfy. Similar to Section A.2, these are satisfied by Cauchy step and, in the presence of
+negative curvature, by the eigenstep. However, we note that, Lemmas 14 and 15 describe
+the model reduction obtained by Cauchy and eigen steps more accurately that is usually
+found in similar literature. These sharper bounds are indeed crucial for the proofs of the
+main results in this section.
+Lemma 14 (Descent with Cauchy Direction). Let
+sCt = argmin
+??0
+mt(???F (xt)).
+Then, we have
+?mt(sCt ) ? max
+{
+?t
+6
+?sCt ?2
+(?
+K2H + 4?t??F (xt)? ?KH
+)
+,
+4??F (xt)?
+6
+?
+3
+min
+{
+??F (xt)?
+KH
+,
+?
+??F (xt)?
+?t
+}}
+.
+35
+Proof. First note that, we have
+??F (xt), sCt ?+ ?sCt , HtsCt ?+ ?t?sCt ?3 = 0.
+Since sCt = ???F (xt) for some ? ? 0, we get
+????F (xt)?2 + ?2??F (xt), Ht?F (xt)?+ ?t?3??F (xt)?3 = 0.
+We can find explicit formula for such ? by finding the roots of the quadratic function
+r(?) = ?t??F (xt)?3?2 + ??F (xt), Ht?F (xt)??? ??F (xt)?2.
+Hence, we must have
+? =
+???F (xt), Ht?F (xt)?+
+?(
+??F (xt), Ht?F (xt)?
+)2
++ 4?t??F (xt)?5
+2?t??F (xt)?3
+? 0.
+We have
+???F (xt)? =
+?(??F (xt), Ht?F (xt)?
+??F (xt)?2
+)2
++ 4?t??F (xt)? ?
+??F (xt), Ht?F (xt)?
+??F (xt)?2
+.
+Consider the function h(x; ?) =
+?
+x2 + ? ? x. It is easy to verify that, for ? ? 0, h(x) is
+decreasing function of x. Now since
+??F (xt), Ht?F (xt)?
+??F (xt)?2
+? KH ,
+it follows that
+?sCt ? = ???F (xt)? ?
+?
+K2H + 4?t??F (xt)? ?KH . (24)
+Now, from [32, Lemma 2.1], we get
+?mt(sCt ) ?
+1
+6
+?t?sCt ?3 =
+1
+6
+?t?sCt ?2???F (xt)? ?
+1
+6
+?t?sCt ?2
+(?
+K2H + 4?t??F (xt)? ?KH
+)
+.
+Alternatively, closely following the proof of [30, Lemma 2.1], for any ? ? 0, we get
+mt(s
+C
+t ) ? mt(???F (xt)) = ????F (xt)?2 +
+1
+2
+?2??F (xt), Ht?F (xt)?+
+?3
+3
+?t??F (xt)?3
+? ???F (xt)?
+2
+6
+(
+?6 + 3?KH + 2?2?t??F (xt)?
+)
+.
+Consider the quadratic polynomial
+r(?) = 2?2?t??F (xt)?+ 3?KH ? 6.
+We have r(?) ? 0 for ? ? [0, ??], where
+?? =
+?3KH +
+?
+9K2H + 48?t??F (xt)?
+4?t??F (xt)?
+.
+36
+We can express ?? as
+?? =
+12(
+3KH +
+?
+9K2H + 48?t??F (xt)?
+) .
+Note that
+?
+9K2H + 48?t??F (xt)? ? 3KH + 4
+?
+3?t??F (xt)?
+? 2max
+{
+3KH , 4
+?
+3?t??F (xt)?
+}
+? 8
+?
+3max
+{
+KH ,
+?
+?t??F (xt)?
+}
+.
+Also, trivially, we have
+3KH ? 4
+?
+3max
+{
+KH ,
+?
+?t??F (xt)?
+}
+.
+Hence, defining
+?0 ,
+1
+?
+3max
+{
+KH ,
+?
+?t??F (xt)?
+} ,
+we have
+3KH +
+?
+9K2H + 48?t??F (xt)?
+12
+?
+?
+3max
+{
+KH ,
+?
+?t??F (xt)?
+}
+,
+which implies 0 < ?0 ? ??. With this ?0, we get r(?0) ? 2/9 + 3/
+?
+3 ? 6 ? ?4. Hence
+we get
+mt(st) ?
+?4??F (xt)?2
+6
+?
+3
+1
+max
+{
+KH ,
+?
+?t??F (xt)?
+}
+=
+?4??F (xt)?2
+6
+?
+3
+min
+{
+1
+KH
+,
+1?
+?t??F (xt)?
+}
+=
+?4??F (xt)?
+6
+?
+3
+min
+?
+?
+?
+??F (xt)?
+KH
+,
+?
+??F (xt)?
+?t
+?
+?
+? .
+Lemma 15 (Descent with Negative Curvature). Suppose ?min(Ht) < 0. For some ? ?
+(0, 1], let
+sEt = argmin
+??R
+mt(?ut),
+where
+?ut, Htut? ? ??min(Ht)?ut?2 < 0.
+We have
+?mt(sEt ) ?
+?|?min(Ht)|
+6
+max
+{
+?sEt ?2,
+?2|?min(Ht)|2
+?2t
+}
+.
+37
+Proof. Again, we note that
+??F (xt), sEt ?+ ?sEt , HtsEt ?+ ?t?sEt ?3 = 0,
+?sEt , HtsEt ?+ ?t?sEt ?3 ? 0.
+Note that, it immediately follows that ??F (xt), sEt ? ? 0. Now, from [32, Lemma 2.1], we
+get
+?mt(st) ?
+1
+6
+?t?st?3 =
+1
+6
+(
+???F (xt), sEt ? ? ?sEt , HtsEt ?
+)
+? 1
+6
+?|?min(Ht)|?sEt ?2.
+Now, we have
+?t?sEt ? ? ?
+?sEt , HtsEt ?
+?sEt ?2
+? ?|?min(Ht)|, (25)
+which gives
+?t?sEt ?3 ? ?|?min(Ht)|?sEt ?2,
+and
+?t?sEt ?3 ?
+?3
+?2t
+|?min(Ht)|3.
+Hence, we have
+?mt(sEt ) ?
+1
+6
+?t?st?3 ?
+1
+6
+?|?min(Ht)|?sEt ?2,
+and
+?mt(sEt ) ?
+1
+6
+?t?st?3 ?
+1
+6
+?3
+?2t
+|?min(Ht)|3.
+A.3.1 Sub-Optimal Complexity
+We first give proof of Theorem 2 in which we only require the approximate solution of the
+sub-problem (10) to satisfy Condition 3. In this case, we can obtain sub-optimal worst-
+case iteration complexity for Algorithm 2. Section A.3.2 gives the optimal complexity,
+described in Theorem 3, under slightly more stringent condition on the approximate
+solution of the sub-problem (10).
+Lemma 16. Given Assumption 1 and Conditions (6a), we have
+F (xt + st)? F (xt)?mt(st) ?
+(
+L
+2
+? ?t
+3
+)
+?st?3 +
+?
+2
+?st?2. (26)
+38
+Proof. First, apply mean-value theorem on F at xt,
+F (xt + st) = F (xt) +?F (xt)T st +
+1
+2
+sTt ?2F (?t)st
+for some ?t in the segment of [xt,xt + st]. And then
+F (xt + st)? F (xt)?mt(st) =
+1
+2
+sTt (?2F (?t)?Ht)st ?
+?t
+3
+?st?3
+=
+1
+2
+sTt (?2F (?t)??2F (xt) +?2F (xt)?Ht)st ?
+?t
+3
+?st?3
+? 1
+2
+sTt (?2F (?t)??2F (xt))st +
+1
+2
+sTt (?2F (xt)?Ht)st ?
+?t
+3
+?st?3
+? 1
+2
+L?st?3 +
+1
+2
+??st?2 ?
+?t
+3
+?st?3
+?
+(
+L
+2
+? ?t
+3
+)
+?st?3 +
+?
+2
+?st?2.
+Lemma 17. Given Assumption 1 and Conditions (6), suppose
+?t ? 2L,
+? ? min
+{
+L
+3
+(?
+K2H + 4L?g ?KH
+)
+,
+??H
+6?
+}
+.
+The, we have
+(
+L
+2
+? ?t
+3
+)
+?st?3 +
+?
+2
+?st?2 ?
+?
+?
+?
+?
+2
+?sCt ?2,
+?
+2
+?sEt ?2, If ?min(Ht) ? ??H
+, (27)
+where sCt and s
+E
+t are defined as in Lemmas 14 and 15, respectively.
+Proof. First consider ?sCt ? for which we have two cases.
+i. If ?st? ? ?sCt ?, then from assumption on ?t, it immediately follows that
+(
+L
+2
+? ?t
+3
+)
+?st?3 +
+?
+2
+?st?2 ?
+?
+2
+?st?2 ?
+?
+2
+?sCt ?2.
+ii. If ?st? ? ?sCt ?, then from assumption on ? and (24), we have
+? ? L
+3
+(?
+K2H + 4L?g ?KH
+)
+?
+(
+2?t
+3
+? L
+)(?
+K2H + 4L?g ?KH
+)
+?
+(
+2?t
+3
+? L
+)
+?sCt ?
+?
+(
+2?t
+3
+? L
+)
+?st?,
+which implies that
+(
+L
+2
+? ?t
+3
+)
+?st?3 +
+?
+2
+?st?2 ? 0 ?
+?
+2
+?sCt ?2.
+39
+Similarly, for ?sEt ?, we have two cases.
+i. If ?st? ? ?sEt ?, then from assumption on ?t, it immediately follows that
+(
+L
+2
+? ?t
+3
+)
+?st?3 +
+?
+2
+?st?2 ?
+?
+2
+?st?2 ?
+?
+2
+?sEt ?2.
+ii. If ?st? ? ?sEt ?, then from assumption on ?, (25), and (28), we have
+? ? ??H
+6?
+=
+L
+3
+??H
+2L?
+?
+(
+2?t
+3
+? L
+)
+??H
+2?L
+?
+(
+2?t
+3
+? L
+)
+??H
+?t
+?
+(
+2?t
+3
+? L
+)
+?|?min(Ht)|
+?t
+?
+(
+2?t
+3
+? L
+)
+?sEt ?
+?
+(
+2?t
+3
+? L
+)
+?st?,
+which implies that
+(
+L
+2
+? ?t
+3
+)
+?st?3 +
+?
+2
+?st?2 ? 0 ?
+?
+2
+?sEt ?2.
+Lemma 18. Given Assumption 1, Conditions 1 and 3, suppose at iteration t, ?min(Ht) <
+??H and
+?t ? 2L
+? ? (1? ?)??H
+3
+.
+Then, the iteration t is successful, i.e. ?t+1 = ?t/?.
+Proof. According to (11b) and (26), Lemma 17, as well as assumptions on ?t and ?, we
+have
+1? ?t =
+F (xt + st)? F (xt)?mt(st)
+?mt(st)
+?
+(
+L
+2
+? ?t
+3
+)
+?st?3 + ?2?st?2
+1
+6
+?|?min(Ht)|?sEt ?2
+?
+?
+2
+?sEt ?2
+1
+6
+?|?min(Ht)|?sEt ?2
+? 3?
+??H
+? 1? ?.
+Hence, ?t ? ?, and the iteration is successful.
+40
+Lemma 19. Given Assumption 1, Conditions 1 and 3, suppose at iteration t, ??F (xt)? ?
+?g and
+?t ? 2L
+? ? min
+{
+L
+3
+(?
+K2H + 4L?g ?KH
+)
+,
+4(1? ?)KH
+27
+?
+3
+}
+.
+Then, the iteration t is successful, i.e. ?t+1 = ?t/?.
+Proof. First note that, from (11a), we have
+?mt(st) ? ?mt(sCt ).
+We have two cases:
+i. If
+?
+?t??F (xt)? ? KH , then from (11a), we get
+?mt(sCt ) ?
+4??F (xt)?
+6
+?
+3
+?
+??F (xt)?
+?t
+,
+and from [31, Lemma 3.1.(ii)], it also follows that
+?sCt ? ? 3
+?
+??F (xt)?
+?t
+.
+According to (11a) and (26), Lemma 17, as well as assumptions on ?t and ?, we have
+1? ?t =
+F (xt + st)? F (xt)?mt(st)
+?mt(st)
+?
+(
+L
+2
+? ?t
+3
+)
+?st?3 + ?2?st?2
+?mt(sCt )
+?
+?
+2
+?sCt ?2
+4??F (xt)?
+6
+?
+3
+?
+??F (xt)?
+?t
+? 3
+?
+3
+?
+?t??sCt ?2
+4??F (xt)?
+?
+??F (xt)?
+? 27
+?
+3?
+4
+?
+??F (xt)?
+?
+?t
+? 27
+?
+3?
+4KH
+? 1? ?.
+Hence, ?t ? ?, and the iteration is successful.
+ii. If
+?
+?t??F (xt)? ? KH , then from (11a), we get
+?mt(sCt ) ?
+1
+6
+?t?sCt ?2
+(?
+K2H + 4?t??F (xt)? ?KH
+)
+,
+and from [31, Lemma 3.1.(ii)], it also follows that
+?sCt ? ?
+3KH
+?t
+.
+41
+Hence, again, by (11a) and (26), Lemma 17, it follows that
+1? ?t =
+F (xt + st)? F (xt)?mt(st)
+?mt(st)
+?
+(
+L
+2
+? ?t
+3
+)
+?st?3 + ?2?st?2
+?mt(sCt )
+?
+?
+2
+?sCt ?2
+1
+6
+?t?sCt ?2
+(?
+K2H + 4?t??F (xt)? ?KH
+)
+? 3?
+?t
+(?
+K2H + 4?t??F (xt)? ?KH
+)
+? 3?
+L
+(?
+K2H + 4L?g ?KH
+)
+? 1? ?.
+Hence, ?t ? ?, and the iteration is successful.
+Lemma 20. For ? as in (12), and Given Assumption 1, Conditions 1 and 3, for Algo-
+rithm 2 we have for all t,
+?t ? 2?L. (28)
+Proof. We prove by contradiction. Assume the iteration t is the first unsuccessful iteration
+such that
+?t+1 = ??t ? 2?L. (29)
+So, we must have
+?t ? 2L. (30)
+However, according to Lemmas 18 and 19, respectively, if ?min(Ht) < ??H or ??F (xt)? ?
+?g, then the iteration is successful and hence we must have ?t+1 = ?t/? ? ?t, which is a
+contradictions.
+Now, similar to [32, Lemma 2.8], we can get the following result about the estimate
+of the total number of successful iterations before algorithm terminates.
+Lemma 21 (Success Iterations). Given Assumption 1, Conditions 1 and 3, let Tsucc
+denote the set of all the successful iterations before Algorithm 2 stops. The number of
+successful iterations is upper bounded by,
+|Tsucc| ?
+(F (x0)? Fmin)
+???
+·max{??2g , ??3H }.
+42
+Proof. Suppose Algorithm 2 doesn’t terminate at iteration t. Then either ??F (xt)? ? ?g
+or ?min(?2Ht) ? ??H . In the first case, from (11a) and (28), we have
+?mt(st) ?
+4??F (xt)?
+6
+?
+3
+min
+?
+?
+?
+??F (xt)?
+KH
+,
+?
+??F (xt)?
+?t
+?
+?
+?
+? 4?g
+6
+?
+3
+min
+{
+?g
+KH
+,
+?
+?g
+2?L
+}
+?
+4?2g
+6
+?
+3
+min
+{
+1
+KH
+,
+?
+1
+2?L
+}
+.
+Similarly, in the case where ?min(?2Ht) ? ??H , from (11b) and (28), we obtain
+?mt(st) ?
+1
+6
+?3
+?2t
+|?min(Ht)|3 ?
+?3?3H
+24?2L2
+.
+Since F (xt) is monotonically decreasing, we have
+F (x0)? Fmin ?
+??
+t=0
+F (xt)? F (xt+1)
+?
+?
+t?Tsucc
+F (xt)? F (xt+1)
+? ??
+?
+t?Tsucc
+mt(st)
+? ?
+?
+t?Tsucc
+min
+{
+?3?3H
+24?2L2
+,
+4?2g
+6
+?
+3
+min
+{
+1
+KH
+,
+?
+1
+2?L
+}}
+= |Tsucc| ??? min{?2g, ?3H},
+where
+?? , min
+{
+?3
+24?2L2
+,
+4
+6
+?
+3
+min
+{
+1
+KH
+,
+?
+1
+2?L
+}}
+.
+Therefore we have
+|Tsucc| ?
+(F (x0)? Fmin)
+???
+·max{??2g , ??3H }.
+Theorem 2 (Complexity of Algorithm 2). Consider any 0 < ?g, ?H < 1. Suppose the in-
+exact Hessian, H(x), satisfies Conditions (6) with the approximation tolerance, ?, in (6a)
+as
+? ? min
+{
+L
+3
+(?
+K2H + 4L?g ?KH
+)
+,
+(1? ?)??H
+6?
+,
+4(1? ?)KH
+27
+?
+3
+}
+, (12)
+where ?, L,KH are, respectively, defined as in (11b), (3a), (6b), and ?, ? are the hyper-
+parameters of Algorithm 2. For Problem (P0) and under Assumption 1, if the approxi-
+mate solution to the sub-problem (10) satisfies Condition 3, then Algorithm 2 terminates
+after at most
+T ? O
+(
+max{??2g , ??3H }
+)
+,
+iterations.
+43
+Proof. Suppose Algorithm 2 terminates at iteration T . Let Tsucc and Tfail denote the sets
+of all the successful and unsuccessful iterations, respectively. Then T = |Tsucc| + |Tfail|
+and ?T = ?0?
+|Tfail|?|Tsucc|. From Lemma 20, we have ?T ? 2?L. Hence,
+|Tfail| ?
+1
+log ?
+log
+(
+2?L
+?0
+)
++ |Tsucc| ,
+which, using Lemma 21 gives the total iteration complexity as
+T ? 1
+log ?
+log
+(
+2?L
+?0
+)
++
+2(F (x0)? Fmin)
+???
+·max{??2g , ??3H },
+where ?? is defined in the proof of Lemma 21.
+A.3.2 Optimal Complexity
+We now give the proof of Theorem 3, which describes the optimal worst-case complexity
+of Algorithm 2 under Condition 4, which is a slightly more stringent condition on the
+approximate solution of the sub-problem (10) than merely requiring Condition 3.
+Lemma 22. Suppose ??F (xt)? ? ?g. Given Assumption 1 and Condition 3, let (6) hold
+with ?t = min{?0, ???F (xt)?} where ?0 is as in (12), ? ? (0, 1/2). Furthermore, sup-
+pose (10) is solved on progressively embedded sub-spaces such that Condition 4 eventually
+holds. Then, we have
+?st? ? ?g
+?
+??F (xt+1)?, (31)
+where
+?g ,
+2(1? 2?)(
+(1 + 4?)L+ 2max {(?0 + ?K), 2?K}
+) .
+Proof. Using (13), we get
+??F (xt+1)? ? ??F (xt+1)??mt(st)?+ ??mt(st)?
+? ??F (xt+1) +?mt(st)? ? ?t??F (xt)?.
+Noting that
+?mt(st) = ?F (xt) +Htst + ?t?st?st,
+and using the mean value theorem for vector-valued functions, (3a) and (6a), we get
+??F (xt+1)??mt(st)? ? ?
+? 1
+0
+?2F (xt + ?st)std? ?Htst?+ ?t?st?2
+? ?
+? 1
+0
+(
+?2F (xt + ?st)??2F (xt)
+)
+std? +
+(
+?2F (xt)?Ht
+)
+st?+ ?t?st?2
+? ?st?
+? 1
+0
+??2F (xt + ?st)??2F (xt)?d? + ?
+(
+?2F (xt)?Ht
+)
+st?+ ?t?st?2
+? L?st?2
+? 1
+0
+?d? + ?t?st?+ ?t?st?2
+=
+(
+L
+2
++ ?t
+)
+?st?+ ?t?st?
+?
+(
+L
+2
++ 2?L
+)
+?st?2 + ?t?st?,
+44
+where the last equality follows from Lemma 20. From (3b), it follows that
+??F (xt)? ? K?st?+ ??F (xt+1)?. (32)
+As such, using ?t ? ? from (13) as well as the assumption on ?t, we get
+??F (xt+1)? ?
+(
+L
+2
++ 2?L
+)
+?st?2 + ?t?st?+ ?tK?st?+ ?t??F (xt+1)?
+?
+(
+L
+2
++ 2?L
+)
+?st?2 + ?t?st?+ ?tK?st?+ ???F (xt+1)?,
+which implies that
+(1? ?)??F (xt+1)? ?
+(
+L
+2
++ 2?L
+)
+?st?2 + (?t + ?tK) ?st?.
+Now using (13), we consider two cases:
+i. If ?st? ? 1, then we get
+(?t + ?tK) ?st? ? (?t + ?tK) ?st?2 ? (?0 + ?K)?st?2.
+Hence, it follows that
+(1? ?)??F (xt+1)? ?
+(
+L
+2
++ 2?L+ (?0 + ?K)
+)
+?st?2.
+ii. If ?st? ? 1, then from assumption on ?t and (32) , we have
+?t?st? ? ???F (xt)??st? ? ?K?st?2 + ???F (xt+1)??st? ? ?K?st?2 + ???F (xt+1)?.
+Now by assumption on ?t, we get
+(?t + ?tK) ?st? = ?t?st?+ ?tK?st?
+? 2?K?st?2 + ???F (xt+1)?,
+which, in turn, implies that
+(1? 2?)??F (xt+1)? ?
+(
+L
+2
++ 2?L+ 2?K
+)
+?st?2.
+Hence, we get the desired result.
+Lemma 23 (Success Iterations: Optimal Case). Let
+T
+succ
+, {t; ??F (xt)? ? ?g or ?min(Ht) ? ??H} ,
+the set of all successful iterations, before Algorithm 2 terminates. Under the conditions
+of Lemma 22, we must have
+|Tg| ?
+6(F (x0)? Fmin)
+??min?3g
+· ??3/2g ,
+where ? is the hyper parameter of Algorithm 2, ?t ? ?min and ?g is defined in Lemma 22.
+45
+Proof. Recall that, in the case where ?min(?2Ht) ? ??H , from (11b) and (28), we obtain
+?mt(st) ?
+1
+6
+?3
+?2t
+|?min(Ht)|3 ?
+?3?3H
+24?2L2
+.
+Further, note that
+Tsucc = T 1succ
+?
+T 2succ
+?
+T 3succ,
+where
+T 1succ , {t ? Tsucc; ??F (xt+1)? ? ?g} ,
+T 2succ , {t ? Tsucc; ??F (xt+1)? ? ?g and ?min(Ht+1) ? ??H}
+T 3succ , {t ? Tsucc; ??F (xt+1)? ? ?g and ?min(Ht+1) ? ??H} .
+We bound each of these sets individually. Since F (xt) is monotonically decreasing,
+from [32, Lemma 2.1], ?t ? ?min, and Lemmas 20 and 22, we have
+F (x0)? Fmin ?
+??
+t=0
+F (xt)? F (xt+1)
+?
+?
+t?T 1succ
+F (xt)? F (xt+1)
+? ??
+?
+t?T 1succ
+mt(st)
+?
+?
+t?T 1succ
+min
+{
+?3?3H
+24?2L2
+,
+??min
+6
+?st?3
+}
+?
+?
+t?T 1succ
+min
+{
+?3?3H
+24?2L2
+,
+??min?
+3
+g
+6
+??F (xt+1)?3/2
+}
+?
+?
+t?T 1succ
+min
+{
+?3?3H
+24?2L2
+,
+??min?
+3
+g
+6
+?3/2g
+}
+?
+?
+t?T 1succ
+min
+{
+?3
+24?2L2
+,
+??min?
+3
+g
+6
+}
+min{?3H , ?3/2g }.
+hence,
+??T 1succ
+?? ? ?1Tsucc max{??3H , ??3/2g },
+where
+?1Tsucc , (F (x0)? Fmin)max
+{
+24?2L2
+?3
+,
+6
+??min?3g
+}
+.
+46
+As for T 2succ, we have
+F (x0)? Fmin ?
+??
+t=0
+F (xt)? F (xt+1)
+=
+??
+t=?1
+F (xt+1)? F (xt+2)
+= F (x0)? F (x1) +
+??
+t=0
+F (xt+1)? F (xt+2)
+? F (x0)? F (x1) +
+?
+t?T 2succ
+F (xt+1)? F (xt+2)
+? F (x0)? F (x1)? ?
+?
+t?T 2succ
+mt+1(st+1)
+? F (x0)? F (x1) +
+?
+t?T 2succ
+?3?3H
+24?2L2
+,
+hence,
+??T 2succ
+?? ? ?2Tsucc??3H ,
+where
+?2Tsucc , (F (x1)? Fmin)
+24?2L2
+?3
+.
+Finally, we have |T 3succ| = 1, because in such a case, the algorithm stops in one iteration.
+Putting these bounds all together, we get
+|Tsucc| ? max{1, ?1Tsucc, ?2Tsucc}max{??3H , ??3/2g }.
+Theorem 3 (Optimal Complexity of Algorithm 2). Consider any 0 < ?g, ?H < 1. Suppose
+the inexact Hessian, H(x), satisfies Conditions (6) with the approximation tolerance, ?,
+in (6a) as ? = min{?0, ??g} where ?0 is as in (12), and ? ? (0, 1/2). For Problem (P0)
+and under Assumption 1, if the approximate solution to the sub-problem (10) satisfies
+Conditions 3 and 4, then Algorithm 2 terminates after at most
+T ? O
+(
+max{??3/2g , ??3H }
+)
+,
+iterations.
+Proof. Using Lemmas 22 and 23, the proof follows similarly as that of Theorem 2, and
+hence is omitted.
+A.4 Proofs of Sampling Complexity Lemmas 4 and 5
+Lemma 4 (Complexity of Uniform Sampling). Given (15a), (15b) , and 0 < ?, ? < 1, let
+|S| ? 16K
+2
+max
+?2
+log
+2d
+?
+, (16)
+47
+where Kmax is defined as in (15b). At any x ? Rd, suppose picking the elements of S
+uniformly at random with or without replacement, and forming H(x) as in (14) with
+pi = 1/n, ; ?i. We have
+Pr
+(
+?H(x)??2F (x)? ? ?
+)
+? 1? ?. (17)
+Proof. Consider |S| random matrices Hj(x), j = 1, 2, . . . , |S| such that
+Pr(Hj(x) = ?2fi(x)) =
+1
+n
+; ?i = 1, 2, . . . , n.
+Define Xj :=
+(
+Hj ??2F (x)
+)
+, H := 1|S|
+?
+j?S Hj , and
+X :=
+?
+j?S
+Xj = |S|
+(
+H ??2F (x)
+)
+.
+Note that E(Xj) = 0 and for Hj = ?2f1(x) we have
+?X2j ? = ?Xj?2 ? ?
+n? 1
+n
+?2f1(x)?
+n?
+i=2
+1
+n
+?2fi(x)?2 ? 4
+(n? 1
+n
+)2
+K2max ? 4K2max.
+Hence, we can apply Operator-Bernstein inequality [71, Theorem 1] to get
+Pr
+(
+?H ??2F (x)? ? ?
+)
+= Pr
+(
+?X? ? ?|S|
+)
+? 2d exp{??2|S|/(16K2max)}.
+Now (16) ensure that 2d exp{??2|S|/(16K2max)} ? ?, which gives (17).
+Lemma 5 (Complexity of Non-Uniform Sampling). Given (15a), (15c) and 0 < ?, ? < 1,
+let
+|S| ? 4K?
+2
+?2
+log
+2d
+?
+, (19)
+where K? is defined as in (15c). At any x ? Rd, suppose picking the elements of S
+randomly according to the probability distribution (18), and forming H(x) as in (14).
+We have
+Pr
+(
+?H ??2F (x)? ? ?
+)
+? 1? ?. (20)
+Proof. Let B = 1
+n
+diag{f ??1 (aT1 x), · · · , f ??n(aTnx)} ? Rn×n. We consider ?ATSSTBA ?
+ATBA? for S ? Rn×s sampling matrix. Let the diagonals of B be denoted by bi. Define
+c =
+n?
+i=1
+|bj |?aj?2.
+Consider s random matrices Hj such that
+Pr
+(
+Hj =
+bi
+pi
+aia
+T
+i
+)
+= pi, ?j = 1, 2, . . . , s,
+48
+where
+pi =
+|bi|?ai?2?n
+i=1 |bj |?aj?2
+.
+Define
+Xj = Hj ? ATBA, H =
+1
+s
+s?
+j=1
+Hj, X =
+s?
+j=1
+Xj = s
+(
+H ? ATBA
+)
+.
+Note that
+E(Xj) =
+n?
+i=1
+pi
+(
+bi
+pi
+aia
+T
+i ? ATBA
+)
+= 0,
+and
+E(X2j ) = E(Hj ? ATBA)
+= E(H2j ) + (A
+TBA)2 ? E(Hj)ATBA? ATBAE(Hj)
+= E(H2j )? (ATBA)2  E(H2j ) =
+n?
+i=1
+pi
+(
+bi
+pi
+aia
+T
+i
+)2
+=
+n?
+i=1
+b2i ?ai?2
+pi
+aia
+T
+i =
+n?
+i=1
+|bj |?aj?2
+n?
+i=1
+|b|iaiaTi
+= c
+n?
+i=1
+|b|iaiaTi = cAT |B|A.
+So we have
+?E(X2j )? ? c?AT |B|A?.
+So we can apply the Operator-Bernstein inequality [71, Theorem 1] to get
+Pr
+(
+?H ? ATBA?2 ? ?
+)
+? Pr (?X?2 ? ?s) ? 2de?
+2s/(4c?AT |B|A?).
+Since
+c =
+n?
+i=1
+|bi| ?ai?2 =
+1
+n
+n?
+i=1
+|f ??i | ?ai?2 ?
+1
+n
+n?
+i=1
+Ki = K?
+and
+??AT |B|A
+?? =
+?????
+1
+n
+n?
+i=1
+|f ??i | aiaTi
+????? ?
+1
+n
+n?
+i=1
+??|f ??i | aiaTi
+?? ? 1
+n
+n?
+i=1
+Ki = K?,
+then we have
+Pr
+(
+?H ?ATBA?2 ? ?
+)
+? 2de?2s/(4K?2).
+We can still improve this bound by considering the intrinsic dimension of the matrix
+AT |B|A. Recall that for a SPSD matrix A ? Rd×d, the intrinsic dimension is defined as
+t(A) = tr(A)/?A?, where tr(A) is the trace of A. The intrinsic dimension can be regarded
+as a measure for the number of dimensions where A has a significant spectrum. It is easy
+to see that 1 ? t(A) ? rank(A) ? d; see [152] for more details. Now let
+t =
+tr(AT |B|A)
+?AT |B|A? ,
+49
+be the intrinsic dimension of the SPSD matrix AT |B|A. We have Var(X) = E(X2) =?s
+j=1E(X
+2
+j )  scAT |B|A. For Hj = bipiaia
+T
+i , we have
+?max(Xj) ? ?Xj? = ?
+bi
+pi
+aia
+T
+i ? ATBA? = ?
+(
+1? pi
+pi
+)
+biaia
+T
+i ?
+?
+j 6=i
+bjaja
+T
+j ?
+?
+(
+1? pi
+pi
+)
+|bi|?ai?2 +
+?
+j 6=i
+|bj|?aj?2
+= (1? pi)
+n?
+i=1
+|bj |?aj?2 +
+?
+j 6=i
+|bj |?aj?2
+= 2
+?
+j 6=i
+|bj|?aj?2 ? 2
+n?
+i=1
+|bj|?aj?2 = 2c.
+Hence, if ?s ?
+?
+sc?AT |B|A?+ 2c/3, we can apply Matrix Bernstein using the intrinsic
+dimension [152, Theorem 7.7.1] to get for ? ? 1/2
+Pr (?max(X) ? ?s) ? 4te
+??2s
+2c?AT |B|A?+4c?/3
+? 4te
+?3?2s
+6c?AT |B|A?+2c .
+Applying the same bound for Yj = ?Xj and Y =
+?s
+j=1 Yj, followed by the union bound,
+we get the desired result.
+B Efficient Computation of Approximate Negative
+Curvature Direction
+Throughout our analysis, we assume that, if a sufficiently negative curvature exists, i.e.,
+?min(H) ? ??H for some ?H ? (0, 1), we can approximately compute the corresponding
+negative curvature direction vector u, i.e.,
+?u, Hu? ? ???H?u?2,
+for some ? ? (0, 1). We note that this can be done efficiently by applying a variety of
+methods such as Lanczos [87] or shift-and-invert [59] on the SPSD matrix H? = KH ?H .
+These methods only employ matrix vector products and, hence, are suitable for large scale
+problems. More specifically, with any ? ? (0, 1), these methods using O(log(d/?)
+?
+KH/?)
+matrix-vector products and with probability 1? ?, yield a vector u satisfying
+KH?u?2 ? ?u, Hu? = ?u, H?u? ? ??min(H?)?u?2 = ? (KH ? ?min(H)) ?u?2.
+Rearranging, we obtain
+?u, Hu? ? (1? ?)KH?u?2 + ??min(H)?u?2.
+Setting
+1 > ? = 2? ? (2KH)/(2KH + ?H),
+gives ?u, Hu? ? ???H?u?2. See [29] for another application of this technique in obtaining
+approximate negative curvature direction for non-convex optimization.
+50

@@ -1,0 +1,606 @@
+Research Article
+Research
+Article for submission to journal
+Subject Areas:
+computer vision, pattern recognition,
+feature descriptor
+Keywords:
+micro-facial expression, expression
+recognition, action unit
+Author for correspondence:
+Moi Hoon Yap
+e-mail: M.Yap@mmu.ac.uk
+Objective Classes for
+Micro-Facial Expression
+Recognition
+Adrian K. Davison1, Walied Merghani2 and
+Moi Hoon Yap3
+1Centre for Imaging Sciences, University of
+Manchester, Manchester, United Kingdom
+2Sudan University of Science and Technology,
+Khartoum, Sudan
+3School of Computing, Mathematics and Digital
+Technology, Manchester Metropolitan University,
+Manchester, United Kingdom
+Micro-expressions are brief spontaneous facial expressions
+that appear on a face when a person conceals an emotion,
+making them different to normal facial expressions in
+subtlety and duration. Currently, emotion classes within
+the CASME II dataset are based on Action Units and
+self-reports, creating conflicts during machine learning
+training. We will show that classifying expressions using
+Action Units, instead of predicted emotion, removes
+the potential bias of human reporting. The proposed
+classes are tested using LBP-TOP, HOOF and HOG 3D
+feature descriptors. The experiments are evaluated on
+two benchmark FACS coded datasets: CASME II and
+SAMM. The best result achieves 86.35% accuracy when
+classifying the proposed 5 classes on CASME II using
+HOG 3D, outperforming the result of the state-of-the-
+art 5-class emotional-based classification in CASME II.
+Results indicate that classification based on Action Units
+provides an objective method to improve micro-expression
+recognition.
+1. Introduction
+A micro-facial expression is revealed when someone attempts
+to conceal their true emotion [1,2]. When they consciously
+realise that a facial expression is occurring, the person may try
+to suppress the facial expression because showing the emotion
+may not be appropriate [3]. Once the suppression has occurred,
+the person may mask over the original facial expression and
+cause a micro-facial expression. In a high-stakes environment,
+these expressions tend to become more likely as there is more
+risk to showing the emotion.
+1
+ar
+X
+iv
+:1
+70
+8.
+07
+54
+9v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+4 
+A
+ug
+ 2
+01
+7
+2
+article
+forsubm
+ission
+to
+R
+.S
+oc.
+open
+sci.
+0000000
+......................................................
+The duration of a micro-expression is very short and is considered the main feature that distinguishes
+them from a facial expression [4], with the general standard being a duration of no more than 500 ms [5].
+Other definitions of speed that have been studied show micro-expressions to last less than 200 ms, this
+defined by Ekman and Friesen [6] as first to describe a micro-expression, 250 ms [7], less than 330 ms [8]
+and less than half a second [9].
+Micro-facial expression analysis is less established and harder to implement due to being less distinct
+than normal facial expressions. Feature representations, such as Local Binary Patterns (LBP) [10–12],
+Histogram of Oriented Gradients (HOG) [13] and Histograms of Oriented Optical Flow (HOOF) [14],
+are commonly used to describe micro-expressions. Although micro-facial expression analysis is very
+difficult, the popularity in recent years has grown due to the potential applications in security and
+interrogations [9,15–17], healthcare [18,19] and automatic detection in real-world applications where the
+detection accuracy of humans peaks around 40% [9].
+Generally, the process of recognising normal facial expressions involves preprocessing, feature
+extraction and classification. Micro-expression recognition is not an exception, but the features extracted
+should be more descriptive due the small movement in micro-expressions compared with normal
+expressions. One of the biggest problems faced by research in this area is the lack of publicly available
+datasets, which the success in facial expression recognition [20] research largely relies on. Gradually,
+datasets of spontaneously induced micro-expression have been developed [21–24], but earlier research was
+centred around posed datasets [25,26].
+Eliciting spontaneous micro-expression is a real challenge because it can be very difficult to induce the
+emotions in participants and also get them to conceal them effectively in a lab-controlled environment.
+Micro-expression datasets need decent ground truth labelling with Action Units (AUs) using the Facial
+Action Coding System (FACS) [27]. FACS objectively assigns AUs to the muscle movements of the face.
+If any classification of movements take place for micro-facial expressions, it should be done with AUs and
+not only emotions. Emotion classification requires the context of the situation for an interpreter to make
+a meaningful interpretation. Most spontaneous micro-expression datasets have FACS ground truth labels
+and estimated or predicted emotion. These have been annotated by an expert and self-reports written by
+participants.
+We contend that using AUs to classify micro-expressions gives more accurate results than using
+predicted emotion categories. By organising the AUs of the two most recent FACS coded state-of-the-art
+datasets, CASME II [23] and SAMM [24], into objective classes, we ensure that the learning methods
+train on specific muscle movement patterns and therefore increase accuracy. To date, experiments on
+micro-expression recognition using categories based purely on AU movements, has not been completed.
+Additionally, the SAMM dataset was designed for micro-movement analysis rather than recognition. We
+contribute by completing recognition experiments on the SAMM dataset for the first time with three features
+previously used for micro-expression analysis: LBP-TOP [12], HOOF [14] and HOG 3D [13,25]. Further,
+the proposed objective classes could inform future research on the importance of objectifying movements
+of the face.
+The remainder of this paper is divided into the following sections; Section 2 discusses the background
+of two of the FACS coded state-of-the-art datasets developed for micro-expression analysis and the related
+work in micro-expression recognition; Section 3 describes the methodology; Section 4 presents the results
+and discusses the effects of applying objective classification to a micro-expression recognition task; Section
+6 concludes this paper and discusses future work.
+2. Background
+This section will describe two datasets which are used in the experiments for this paper. A comparative
+summary of the datasets can be seen in Table 1. Previously developed micro-expression recognition systems
+are also discussed using established features to represent each micro-expression.
+3
+article
+forsubm
+ission
+to
+R
+.S
+oc.
+open
+sci.
+0000000
+......................................................
+Table 1. A summary of the different features of the CASME II and
+SAMM datasets.
+Feature CASME II [23] SAMM [24]
+Micro-Movements 247* 159
+Participants 35 32
+Resolution 640×480 2040×1088
+Facial Resolution 280×340 400×400
+FPS 200 200
+Spontaneous/Posed Spontaneous Spontaneous
+FACS Coded Yes Yes
+No. Coders 2 3
+Emotion Classes 5 7
+Mean Age (SD) 22.03 (SD = 1.60) 33.24 (SD = 11.32)
+Ethnicities 1 13
+* This is the original amount of movements used in [23],
+however we use a larger set of 255 provided by the
+dataset.
+Figure 1. Sample frames showing Subject 11’s micro-expression clip ‘EP19_03f’ that was coded as an AU4 in the ‘others’
+category.
+(a) CASME II
+CASME II was developed by Yan et al. [23] and refers to Chinese Academy of Sciences Micro-expression
+Database II, which was preceded by CASME [22] with major improvements. All samples in CASME II
+are spontaneous and dynamic micro-expressions with a high frame rate (200 fps). There are a few frames
+kept before and after each micro-expression to make it suitable for detection experiments. The resolution
+of samples is 640×480 pixels for recording which saved as MJPEG and resolution about 280×340 pixels
+for cropped facial area. The participants’ facial expressions were elicited in a well-controlled laboratory
+environment. The dataset contains 255 micro-expressions (gathered from 35 participants) and were selected
+from nearly 3000 facial movements and have been labelled with AUs based on FACS. Only 247 movements
+were used in the original experiments on CASME II [23]. The inter-coder reliability of the FACS codes
+within the dataset is 0.846. Flickering light was avoided in the recordings and highlights to regions of the
+face was reduced. However, there were some limitations: firstly, the materials used for eliciting micro-
+expression are video episodes which can have different meanings to different people, for example eating
+worms may not always disgust someone. Secondly, micro-expressions are elicited under one specific lab
+situation. There was some difficulty in eliciting some types of facial expressions in laboratory situations,
+such as sadness.
+4
+article
+forsubm
+ission
+to
+R
+.S
+oc.
+open
+sci.
+0000000
+......................................................
+Figure 2. Sample frames showing Subject 26’s micro-expression clip ‘EP18_50’ that was coded as an AU4 in the ‘disgust’
+category.
+When analysing the FACS codes of the CASME II dataset, it was found that there are many conflicts
+to the coded AUs and the estimated emotions. These inconsistencies do not help when attempting to train
+distinct machine learning classes, and adds further justification for the proposed introduction of new classes
+based on AUs only.
+For example, Subject 11 with the micro-expression clip filename of ‘EP19_03f’, was coded as an AU4 in
+the ‘others’ estimated emotion category (shown in Fig. 1). However, Subject 26 with the micro-expression
+clip filename of ‘EP18_50’, was also coded with AU4 but in the ‘disgust’ estimated emotion category
+(shown in Fig. 2). As can be seen in the apex frame (centre image) of both Fig. 1 and 2, AU4, the lowering
+of the brow, is present. Having the same movement in different categories is likely to have an effect on any
+training stage of machine learning.
+(b) SAMM
+The Spontaneous Actions and Micro-Movements (SAMM) [24] dataset is the first high-resolution dataset of
+159 micro-movements induced spontaneously with the largest variability in demographics. To obtain a wide
+variety of emotional responses, the dataset was created to be as diverse as possible. A total of 32 participants
+were recruited for the experiment with a mean age of 33.24 years (SD: 11.32, ages between 19 and 57),
+and an even gender split of 16 male and female participants. The inter-coder reliability of the FACS codes
+within the dataset is 0.82, and was calculated by using a slightly modified version of the inter-reliability
+formula, found in the FACS Investigator’s Guide [28], to account for three coders rather than two.
+The inducement procedure was based on the 7 basic emotions [1] and recorded at 200 fps. As part
+of the experimental design, each video stimuli was tailored to each participant, rather than obtaining
+self reports during or after the experiment. This allowed for particular videos to be chosen and shown
+to participants for optimal inducement potential. The experiment comprised of 7 stimuli used to induce
+emotion in the participants who were told to suppress their emotions so that micro-facial movements might
+occur. To increase the chance of this happening, a prize of £50 was offered to the participant that could
+hide their emotion the best, therefore introducing a high-stakes situation [1,2]. Each participant completed
+a questionnaire prior to the experiment so that the stimuli could be tailored to each individual to increase
+the chances of emotional arousal.
+The SAMM dataset was originally designed to investigate micro-facial movements by analysing muscle
+movements of the face rather than recognising distinct classes [29]. We are the first to categorise SAMM
+based on the FACS AUs and then use these categories for micro-facial expression recognition.
+(c) Related Work
+Currently, there are three features which many micro-expression recognition approaches rely on: Local
+Binary Patterns (LBP), Histogram of Oriented Gradients (HOG) and Histogram of Oriented Optical Flow
+(HOOF) based. We will discuss different methods that use these features in recent work on micro-expression
+recognition.
+As an extension to the original Local Binary Pattern (LBP) [11] operator, Local Binary Patterns on Three
+Orthogonal Planes (LBP-TOP) was proposed by Zhao et al. [12] demonstrated to be effective for dynamic
+5
+article
+forsubm
+ission
+to
+R
+.S
+oc.
+open
+sci.
+0000000
+......................................................
+texture and facial expression analysis in the spatial-temporal domain. Since video sequence of time length
+T, usually it can be thought as a stack of XY planes along the time axis T, but also it can be thought as
+three planes XY, XT and YT. These provide information about space and time transition. The basic idea
+of LBP-TOP is similar to LBP, the difference being that LBP-TOP extracts features from all three planes
+which will be combined in into a single feature vector.
+Yan et al. [23] carried out the first micro-expression recognition experiment on the CASME II dataset.
+LBP-TOP [12] was used to extract the features and Support Vector Machine (SVM) [30] was employed as
+the classifier. The radii varied from 1 to 4 for X and Y, and from 2 to 4 for T (T=1 was not considered due to
+little change between two neighbouring frames at 200 fps), with classification occurring between five main
+categories of emotions provided in this experiment (happiness, disgust, surprise, repression and others).
+Davison et al. [31] used the LBP-TOP feature to differentiate between movements and neutral sequences,
+attempting to avoid bias when classifying with an SVM.
+The performance of [23] on recognising micro-expressions in 5-classes with LBP-TOP features
+extraction, achieved a best result of 63.41% accuracy, using leave-one-out cross-validation. This result is
+an average for recent micro-expression recognition research, and is likely due to the way micro-expressions
+are categorised. Of the 5-class in the CASME II dataset, 102 were classed as ‘others’, which denoted
+movements not suited for the other categories but related to emotion. The next highest category was
+‘disgust’ with 60 movements, showing that the ‘others’ class made the categorisation imbalanced. Further,
+the categorisation was not based solely on AUs due to micro-expressions being short in duration and low
+in intensity, but also based on the participant’s self-reporting. By classifying micro-expressions in this way,
+features are unlikely to exhibit a pattern, and therefore perform poorly during the recognition stage as can
+be seen in the other performance results of around 50% - 60% in [23].
+More recently, LBP-TOP was used as a base feature for micro-expression recognition with integral
+projection [32,33]. These representations attempt to improve discrimination between micro-expression
+classes and therefore improve recognition rates. Polikovsky et al. [25] used a 3D gradient histogram
+descriptor (HOG 3D) to recognise posed micro-facial expressions from high-speed videos. The paper used
+manually marked up areas that are relevant to FACS-based movement so that unnecessary parts of the face
+are left out. This does means that the method of classifying movement in these subjectively selected areas is
+time-consuming and would not suit a real-time application like interrogation. The spatio-temporal domain is
+explored highlighting the importance of the temporal plane in micro-expressions, however the bin selection
+for the XY plane is 8 and the XT, YT planes have been set to 12. The number of bins selected represents
+the different directions of movement in each plane.
+For HOOF-based methods, a Main Direction Mean Optical Flow (MDMO) feature was proposed by Liu
+et al. [34] for micro-facial expression recognition using SVM as a classifier. The method of detection also
+uses 36 regions, partitioned using 66 facial points on the face, to isolate local areas for analysis, but keeping
+the feature vector small for computational efficiency. The best result on the CASME II dataset was 67.37%
+using leave-one-subject-out cross validation.
+The basic HOOF descriptor was also used by Li et al. [35] as a comparative feature when spotting
+micro-expressions and then performing recognition. This is the first automatic micro-expression system
+which can spot and recognise micro-expressions from spontaneous video data, and be comparable to human
+performance.
+3. Methodology
+To overcome the conflicting classes in CASME II, we restructure the classes around the AUs that have been
+FACS coded. Using EMFACS [28], a list of AUs and combinations are proposed for a fair categorisation
+of the SAMM [24] and CASME II [23] datasets. Categorising in this way removes the bias of human
+reporting and relies on the ground truth movement data, feature representation and recognition technique
+for each micro-expression clip. Table 2 shows 7 classes and the corresponding AUs that have been assigned
+to that class. Classes I-VI are linked with happiness, surprise, anger, disgust, sadness and fear. Class VII
+relates to contempt and other AUs that have no emotional link in EMFACS [28]. It should be noted that the
+classes do not directly correlate to being these emotions, however the links used are informed from previous
+research [27,28,36]. Each movement in both datasets were classified based on the AU categories of Table 2,
+6
+article
+forsubm
+ission
+to
+R
+.S
+oc.
+open
+sci.
+0000000
+......................................................
+Table 2. Each class represents AUs that can be linked to emotion.
+Class Action Units
+I AU6, AU12, AU6+AU12, AU6+AU7+AU12, AU7+AU12
+II
+AU1+AU2, AU5, AU25, AU1+AU2+AU25, AU25+AU26,
+AU5+AU24
+III
+A23, AU4, AU4+AU7, AU4+AU5, AU4+AU5+AU7,
+AU17+AU24, AU4+AU6+AU7, AU4+AU38
+IV
+AU10, AU9, AU4+AU9, AU4+AU40, AU4+AU5+AU40,
+AU4+AU7+AU9, AU4 +AU9+AU17, AU4+AU7+AU10,
+AU4+AU5+AU7+AU9, AU7+AU10
+V AU1, AU15, AU1+AU4, AU6+AU15, AU15+AU17
+VI AU1+AU2+AU4, AU20
+VII Others
+with the resulting frequency of movements being shown in Table 3.
+Table 3. The total number of movements assigned to the new classes for both SAMM and CASME II.
+Class CASME II SAMM Total
+I 25 24 49
+II 15 13 28
+III 99 20 119
+IV 26 8 34
+V 20 3 23
+VI 1 7 8
+VII 69 84 154
+Total 255 159 415
+Micro-expression recognition experiments are run on two datasets: CASME II and SAMM. For this
+experiment, three types of feature representations are extracted from a sequence of grey images which
+represent the micro-expressions. These image sequences are divided into 5×5 blocks that are non-
+overlapping. The LBP-TOP features [12] radii parameters for X, Y and T are set to 1, 1 and 4 respectively
+and all neighbours in three planes set to 4. The HOG 3D [25] and HOOF [14] features are set to the
+parameters described in the original implementations.
+Sequential Minimal Optimization (SMO) [37] is used in the classification phase with 10-fold cross
+validation and leave-one-subject-out (LOSO) to classify between I-V, I-VI and I-VII classes. SMO is a fast
+algorithm for training SVMs, and provide a solution to solving very large quadratic programming (QP)
+problems, which are required to train SVMs. SMO avoid time-consuming QP calculations by breaking
+them down into smaller pieces. Doing this allows for the classification task to be completed much faster
+than using traditional SVMs [37].
+4. Results
+Evidence to support the proposed AU-based categories can be seen in the confusion matrix in Fig. 3.
+A high proportion of micro-expressions have been misclassified as ‘others’, for example 28.95% of the
+7
+article
+forsubm
+ission
+to
+R
+.S
+oc.
+open
+sci.
+0000000
+......................................................Figure 3. Confusion matrix of the original CASME II classes using the LBP-TOP feature.
+Figure 4. Confusion matrix of the proposed classes I-V on the CASME II dataset using the LBP-TOP feature.
+‘happiness’ and 28.57% of the ‘disgust’ categories are misclassified as ‘others’ respectively. The original
+chosen emotions, including many placed in the ‘others’ category, leads to a lot of conflict at the recognition
+stage.
+The proposed classes I-V classification results using LBP-TOP can be seen in the confusion matrix in
+Fig. 4. In contrast, the classification rates are more stable and outperforming the original classes overall.
+The results are by no means perfect, however it shows that the most logical direction is to use objective
+classes based on AUs rather than estimated emotion categories. Further investigation using an objective
+8
+article
+forsubm
+ission
+to
+R
+.S
+oc.
+open
+sci.
+0000000
+......................................................
+Table 4. Results on the CASME II dataset showing each feature, proposed classes, and the original classes defined
+in [23] for comparison.
+10-Fold Cross-Validation Leave-One-Subject-Out (LOSO)
+Feature Class Accuracy (%) TPR FPR F-Measure AUC Accuracy (%) TPR FPR F-Measure AUC
+LBP-TOP
+Original 77.17 0.56 0.22 0.53 0.74 68.24 0.49 0.17 0.48 0.63
+I-V 77.94 0.63 0.33 0.58 0.70 67.80 0.54 0.14 0.51 0.44
+I-VI 76.84 0.59 0.32 0.55 0.69 67.94 0.53 0.14 0.51 0.44
+I-VII 76.13 0.50 0.23 0.45 0.70 61.92 0.39 0.17 0.35 0.63
+HOOF
+Original 78.83 0.61 0.19 0.60 0.78 68.36 0.51 0.24 0.49 0.61
+I-V 82.70 0.69 0.22 0.67 0.80 69.64 0.59 0.18 0.56 0.47
+I-VI 82.41 0.68 0.23 0.66 0.79 73.52 0.62 0.18 0.60 0.47
+I-VII 83.94 0.64 0.14 0.63 0.79 76.60 0.57 0.14 0.55 0.72
+HOG3D
+Original 80.93 0.62 0.14 0.62 0.79 59.59 0.38 0.24 0.35 0.50
+I-V 86.35 0.72 0.13 0.72 0.84 69.53 0.56 0.18 0.51 0.40
+I-VI 83.49 0.68 0.16 0.67 0.80 69.87 0.56 0.18 0.51 0.40
+I-VII 82.59 0.58 0.12 0.58 0.79 61.33 0.39 0.30 0.31 0.51
+Table 5. Results on the SAMM dataset showing each feature and proposed classes.
+10-Fold Cross-Validation Leave-One-Subject-Out (LOSO)
+Feature Class Accuracy (%) TPR FPR F-Measure AUC Accuracy (%) TPR FPR F-Measure AUC
+LBP-TOP
+I-V 79.21 0.54 0.16 0.51 0.74 44.70 0.38 0.19 0.35 0.31
+I-VI 81.93 0.55 0.13 0.52 0.74 45.89 0.34 0.17 0.31 0.36
+I-VII 79.52 0.57 0.18 0.56 0.74 54.93 0.42 0.22 0.39 0.40
+HOOF
+I-V 78.95 0.56 0.16 0.55 0.74 42.17 0.32 0.06 0.33 0.32
+I-VI 79.53 0.52 0.15 0.51 0.73 40.89 0.28 0.07 0.27 0.35
+I-VII 72.80 0.52 0.32 0.50 0.65 60.06 0.49 0.25 0.48 0.30
+HOG3D
+I-V 77.18 0.51 0.17 0.49 0.74 34.16 0.22 0.15 0.22 0.24
+I-VI 79.41 0.48 0.15 0.45 0.71 36.39 0.19 0.14 0.19 0.26
+I-VII 79.09 0.59 0.25 0.55 0.71 63.93 0.50 0.22 0.44 0.30
+selection of FACS-based regions [38] supports this with AUC results for detecting relevant movements to
+be 0.7512 and 0.7261 on SAMM and CASME II, respectively.
+Table 4 shows the experimental results on CASME II with each result metric being a weighted average
+calculation to account for imbalanced numbers within classes. Each experiment was completed for each
+feature and within the original classes defined in [23] and the proposed classes. Both the 10-fold cross-
+validation results and leave-one-subject-out (LOSO) are shown.
+For the CASME II results we see that the proposed classes outperform the original classes for every
+feature, with the top performing being a weighted accuracy score of 86.35% for the HOG 3D feature in the
+proposed class I-V. This shows a large improvement over the original classes which achieved 80.93% for
+the same feature. Using LOSO, the results were comparable with the original classes. The highest accuracy
+was 76.60% from the HOOF feature, in the proposed I-VII classes.
+The experiment based on the same conditions were then repeated for SAMM and can be seen in Table 5.
+Overall the recognition rates were good for SAMM, with the best result achieving an accuracy of 81.93%
+using LBP-TOP in I-VI classes for 10-fold cross validation. The best result using LOSO was from the
+HOG 3D feature, in the proposed I-VII classes and achieved 63.93%, however due to the lower amount of
+micro-expressions within the SAMM dataset compared with CASME II, the LOSO results were lower.
+The imbalance of data, specifically the low amounts of micro-expression data, can skew LOSO results
+with low amounts of testing and training. This shows how using LOSO for micro-expression recognition
+is difficult to quantify with a fair amount of significance. Further data collection of spontaneous micro-
+expressions is required to rectify this.
+9
+article
+forsubm
+ission
+to
+R
+.S
+oc.
+open
+sci.
+0000000
+......................................................
+5. Conclusion
+We show that restructuring micro-expression classes objectively around the AUs, recognition results
+outperform the state-of-the-art, emotion-based classification approaches. As micro-expressions are so
+subtle, the best way to categorise is objectively as possible, so using AU codes is the most logical.
+Categorising using a combination of AUs and self-reports [23] can cause many conflicts when training
+a machine learning method. Further, dataset imbalances can be very detrimental to machine learning
+algorithms, and this is further emphasised with the relatively low amount of movements in both datasets.
+Future work will look into the effect of using more modern features, with AUs classification to improve
+on the recognition accuracy. This could include the MDMO feature [34], local wrinkle feature [39] and the
+feature extraction methods described by Wang et al. [40].
+Further work can be done to improve micro-facial expression datasets. Firstly, more datasets or
+expanding previous sets would be a simple improvement that can help move the research forward
+faster. Secondly, a standard procedure on how to maximise the amount of micro-movements induced
+spontaneously in laboratory controlled experiments would be beneficial. If collaboration between
+established datasets and researchers from psychology occurred, dataset creation would be more consistent.
+Deep learning has emerged as a new area of machine learning research [41–43], and micro-expression
+analysis has yet to exploit this trend. Unfortunately, the amount of high-quality spontaneous micro-
+expression data is low and deep learning requires a large amount of data to work well [42]. Many
+video-based datasets previously used have over 10,000 video samples [44] and even over 1 million actions
+extracted from YouTube videos [45]. A real effort to gather spontaneous micro-expression data is required
+for deep learning approaches to be effective in the future.
+Data Accessibility. Data available from: http://www2.docm.mmu.ac.uk/STAFF/m.yap/dataset.php
+Authors’ Contributions. A.K. Davison carried out the design of the study, the re-classification of the Action Units
+grouping and drafted the manuscript (The tasks was completed when A.K. Davison was in Manchester Metropolitan
+University). W. Merghani conducted the experiments, analysed the data and drafted the manuscript. M.H.Yap designed
+the study, developed the theory, assisted development and testing and edited the manuscript. All the authors have read
+and approved this version of the manuscript.
+Competing Interests. We declare we have no competing interests.
+Funding. This work was completed in Manchester Metropolitan University on a "Future Research Leaders Programme"
+awarded to M.H. Yap. M.H.Yap is a Royal Society Industry Fellow.
+10
+article
+forsubm
+ission
+to
+R
+.S
+oc.
+open
+sci.
+0000000
+......................................................
++
+References
+1. Paul Ekman. 2004 Emotions Revealed: Understanding Faces and Feelings. Phoenix.
+2. Ekman P. 2009 Lie Catching and Microexpressions. In Martin CW, editor, The Philosophy of Deception
+, pp. 118–133. Oxford University Press.
+3. Matsumoto D, Yoo SH, Nakagawa S. 2008 Culture, emotion regulation, and adjustment.. Journal of
+personality and social psychology 94, 925.
+4. Shen XB, Wu Q, Fu XL. 2012 Effects of the duration of expressions on the recognition of
+microexpressions. Journal of Zhejiang University SCIENCE B 13, 221–230.
+5. Yan WJ, Wu Q, Liang J, Chen YH, Fu X. 2013 How Fast are the Leaked Facial Expressions: The
+Duration of Micro-Expressions. Journal of Nonverbal Behavior 37, 217–230.
+6. Ekman P, Friesen WV. 1969 Nonverbal leakage and clues to deception. Psychiatry 32, 88–106.
+7. Ekman P. 2001 Telling Lies: Clues to Deceit in the Marketplace, Politics, and Marriage. Norton.
+8. Ekman P, Rosenberg EL. 2005 What the Face Reveals: Basic and Applied Studies of Spontaneous
+Expression Using the Facial Action Coding System (FACS). Series in Affective Science. Oxford
+University Press.
+9. Frank MG, Maccario CJ, Govindaraju Vl. 2009 Behavior and Security. In Protecting airline passengers
+in the age of terrorism , . Greenwood Pub. Group.
+10. Ojala T, Pietikainen M, Harwood D. 1996 A comparative study of texture measures with classification
+based on featured distributions. Pattern Recognition 29, 51 – 59.
+11. Ojala T, Pietikäinen M, Mäenpää T. 2002 Multiresolution gray-scale and rotation invariant texture
+classification with local binary patterns. IEEE Transactions on Pattern Analysis and Machine
+Intelligence 24, 971–987.
+12. Zhao G, Pietikainen M. 2007 Dynamic Texture Recognition Using Local Binary Patterns with an
+Application to Facial Expressions. Pattern Analysis and Machine Intelligence, IEEE Transactions on
+29, 915–928.
+13. Dalal N, Triggs B. 2005 Histograms of oriented gradients for human detection. In CVPR vol. 1 pp.
+886–893. IEEE.
+14. Chaudhry R, Ravichandran A, Hager G, Vidal R. 2009 Histograms of oriented optical flow and Binet-
+Cauchy kernels on nonlinear dynamical systems for the recognition of human actions. In Computer
+Vision and Pattern Recognition, 2009. CVPR 2009. IEEE Conference on pp. 1932–1939.
+15. O’Sullivan M, Frank MG, Hurley CM, Tiwana J. 2009 Police lie detection accuracy: The effect of lie
+scenario.. Law and Human Behavior 33, 530.
+16. Frank M, Herbasz M, Sinuk K, Keller AM, Kurylo A, Nolan C. 2009 I see how you feel:
+Training laypeople and professionals to recognize fleeting emotions. In International Communication
+Association.
+17. Yap MH, Ugail H, Zwiggelaar R. 2013 A database for facial behavioural analysis. In Automatic Face
+and Gesture Recognition (FG), 2013 10th IEEE International Conference and Workshops on pp. 1–6.
+IEEE.
+18. Hopf HC, Muller-Forell W, Hopf NJ. 1992 Localization of emotional and volitional facial paresis.
+Neurology 42, 1918–1918.
+19. Cohn JF, Kruez TS, Matthews I, Yang Y, Nguyen MH, Padilla MT, Zhou F, De La Torre F. 2009
+Detecting depression from facial actions and vocal prosody. In Affective Computing and Intelligent
+Interaction and Workshops, 2009. ACII 2009. 3rd International Conference on pp. 1–7.
+20. Yap MH, Ugail H, Zwiggelaar R. 2014 Facial Behavioral Analysis: A Case Study in Deception
+Detection. British Journal of Applied Science & Technology 4, 1485.
+21. Li X, Pfister T, Huang X, Zhao G, Pietikäinen M. 2013 A Spontaneous Micro-expression Database:
+Inducement, Collection and Baseline.. In 10th IEEE International Conference on automatic Face and
+Gesture Recognition.
+22. Yan WJ, Wu Q, Liu YJ, Wang SJ, Fu X. 2013 CASME Database: a dataset of spontaneous micro-
+expressions collected from neutralized faces. In IEEE conference on automatic face and gesture
+recognition.
+11
+article
+forsubm
+ission
+to
+R
+.S
+oc.
+open
+sci.
+0000000
+......................................................
+23. Yan WJ, Li X, Wang SJ, Zhao G, Liu YJ, Chen YH, Fu X. 2014 CASME II: An Improved Spontaneous
+Micro-Expression Database and the Baseline Evaluation. PLoS ONE 9, e86041.
+24. Davison AK, Lansley C, Costen N, Tan K, Yap MH. 2016 SAMM: A Spontaneous Micro-Facial
+Movement Dataset. IEEE Transactions on Affective Computing PP, 1–1.
+25. Polikovsky S, Kameda Y, Ohta Y. 2009 Facial micro-expressions recognition using high speed camera
+and 3D-gradient descriptor. In 3rd International Conference on Imaging for Crime Detection and
+Prevention (ICDP 2009) pp. 16–21.
+26. Shreve M, Godavarthy S, Goldgof D, Sarkar S. 2011 Macro- and micro-expression spotting in long
+videos using spatio-temporal strain. In 2011 IEEE International Conference on Automatic Face Gesture
+Recognition and Workshops (FG 2011) pp. 51–56.
+27. Ekman P, Friesen WV. 1978a Facial Action Coding System: A Technique for the Measurement of Facial
+Movement. Palo Alto: Consulting Psychologists Press.
+28. Ekman P, Friesen WV. 1978b Facial Action Coding System: Investigator’s Guide. Consulting
+Psychologists Press.
+29. Davison AK, Yap MH, Lansley C. 2015 Micro-Facial Movement Detection Using Individualised
+Baselines and Histogram-Based Descriptors. In Systems, Man, and Cybernetics (SMC), 2015 IEEE
+International Conference on pp. 1864–1869.
+30. Cortes C, Vapnik V. 1995 Support-Vector Networks. Machine Learning 20, 273–297.
+31. Davison AK, Yap MH, Costen N, Tan K, Lansley C, Leightley D. 2014 Micro-facial Movements: An
+Investigation on Spatio-Temporal Descriptors. In ECCVW.
+32. Huang X, Wang SJ, Zhao G, Piteikainen M. 2015 Facial Micro-Expression Recognition Using
+Spatiotemporal Local Binary Pattern With Integral Projection. In The IEEE International Conference
+on Computer Vision (ICCV) Workshops.
+33. Huang X, Wang S, Liu X, Zhao G, Feng X, Pietikainen M. 2016 Spontaneous Facial Micro-Expression
+Recognition using Discriminative Spatiotemporal Local Binary Pattern with an Improved Integral
+Projection. ArXiv e-prints.
+34. Liu YJ, Zhang JK, Yan WJ, Wang SJ, Zhao G, Fu X. 2015 A Main Directional Mean Optical Flow
+Feature for Spontaneous Micro-Expression Recognition. Affective Computing, IEEE Transactions on
+PP, 1–1.
+35. Li X, Hong X, Moilanen A, Huang X, Pfister T, Zhao G, Pietikäinen M. 2015 Reading Hidden
+Emotions: Spontaneous Micro-expression Spotting and Recognition. arXiv preprint arXiv:1511.00423.
+36. Ekman P, Friesen WV. 1976 Measuring facial movement. Environmental psychology and nonverbal
+behavior 1, 56–75.
+37. Platt JC. 1999 Fast training of support vector machines using sequential minimal optimization.
+Advances in kernel methods pp. 185–208.
+38. Davison AK, Lansley C, Ng CC, Tan K, Yap MH. 2016 Objective Micro-Facial Movement Detection
+Using FACS-Based Regions and Baseline Evaluation. arXiv preprint arXiv:1612.05038.
+39. Ng CC, Yap MH, Costen N, Li B. 2015 Wrinkle detection using hessian line tracking. IEEE Access 3,
+1079–1088.
+40. Wang Y, See J, Phan RCW, Oh YH. 2015 Efficient Spatio-Temporal Local Binary Patterns for
+Spontaneous Facial Micro-Expression Recognition. PLoS ONE 10, e0124674.
+41. Bengio Y. 2009 Learning Deep Architectures for AI. Found. Trends Mach. Learn. 2, 1–127.
+42. Deng L, Yu D. 2014 Deep Learning: Methods and Applications. Foundations and Trends in Signal
+Processing 7, 197–387.
+43. Alarifi J, Goyal M, Davison A, Dancey D, Khan R, Yap MH. 2017 Facial Skin Classification Using
+Convolutional Neural Networks. In Image Analysis and Recognition: 14th International Conference,
+ICIAR 2017, Montreal, QC, Canada, July 5–7, 2017, Proceedings vol. 10317 p. 479. Springer.
+44. Soomro K, Zamir AR, Shah M. 2012 UCF101: A Dataset of 101 Human Actions Classes From Videos
+in The Wild. CoRR abs/1212.0402.
+45. Karpathy A, Toderici G, Shetty S, Leung T, Sukthankar R, Fei-Fei L. 2014 Large-scale Video
+Classification with Convolutional Neural Networks. In CVPR.
++

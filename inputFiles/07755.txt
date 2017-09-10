@@ -1,0 +1,1683 @@
+ACM Transactions on Multimedia Computing, Communications, and Applications
+special issue on Representation, Analysis and Recognition of 3D Humans, preprint 1:1
+Gait Recognition from Motion Capture Data
+MICHAL BALAZIA and PETR SOJKA, Masaryk University, Czech Republic
+Gait recognition from motion capture data, as a pattern classification discipline, can be improved by the use of
+machine learning. This paper contributes to the state-of-the-art with a statistical approach for extracting robust
+gait features directly from raw data by a modification of Linear Discriminant Analysis with Maximum Margin
+Criterion. Experiments on the CMU MoCap database show that the suggested method outperforms thirteen
+relevant methods based on geometric features and a method to learn the features by a combination of Principal
+Component Analysis and Linear Discriminant Analysis. The methods are evaluated in terms of the distribution
+of biometric templates in respective feature spaces expressed in a number of class separability coefficients
+and classification metrics. Results also indicate a high portability of learned features, that means, we can
+learn what aspects of walk people generally differ in and extract those as general gait features. Recognizing
+people without needing group-specific features is convenient as particular people might not always provide
+annotated learning data. As a contribution to reproducible research, our evaluation framework and database
+have been made publicly available. This research makes motion capture technology directly applicable for
+human recognition.
+CCS Concepts: • Security and privacy? Biometrics; • Computing methodologies? Artificial intelli-
+gence; Machine learning; • Applied computing ? Surveillance mechanisms;
+Additional Key Words and Phrases: gait recognition, MoCap, Maximal Margin Criterion
+ACM Reference Format:
+Michal Balazia and Petr Sojka. 2017. Gait Recognition from Motion Capture Data. ACM Trans. Multimedia
+Comput. Commun. Appl. 1, 1, Article 1 (October 2017), 18 pages.
+https://doi.org/10.1145/nnnnnnn.nnnnnnn
+1 INTRODUCTION
+From the surveillance perspective, gait pattern biometrics is appealing because it can be performed
+at a distance and without body-invasive equipment or the need for the subject’s cooperation.
+This allows data acquisition without a subject’s consent. As the data are collected with a high
+participation rate and the subjects are not expected to claim their identities, the trait is employed
+for identification rather than for authentication.
+Motion capture technology acquires video clips of individuals and generates structured motion
+data. The format maintains an overall structure of the human body and holds estimated 3D positions
+of the main anatomical landmarks as the person moves. These so-called motion capture data
+(MoCap) can be collected online by RGB-D sensors such as Microsoft Kinect, Asus Xtion or Vicon.
+To visualize motion capture data (see Figure 1), a simplified stick figure representing the human
+skeleton (a graph of joints connected by bones) can be automatically recovered from the values of
+body point spatial coordinates. With recent rapid improvements in MoCap sensor accuracy, we
+foresee an affordable MoCap technology [21] that can identify people from MoCap data.
+Authors thank to the reviewers for their detailed commentary and suggestions. The data used in this project was created
+with funding from NSF EIA-0196217 and was obtained from http://mocap.cs.cmu.edu [16]. Our extracted database and
+evaluation framework are available online at https://gait.fi.muni.cz to support reproducibility of results.
+© 2017 Association for Computing Machinery.
+This is the author’s version of the work. It is posted here for your personal use. Not for redistribution. The definitive
+Version of Record was published in ACM Transactions on Multimedia Computing, Communications and Applications, https:
+//doi.org/10.1145/nnnnnnn.nnnnnnn.
+ACM Transactions on Multimedia Computing, Communications and Applications, Vol. 1, No. 1, Article 1. Publication date:
+October 2017.
+ar
+X
+iv
+:1
+70
+8.
+07
+75
+5v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+4 
+A
+ug
+ 2
+01
+7
+Frame: 0 25 50 75 100 125 150
+y
+x
+z
+Fig. 1. Motion capture data. Skeleton is represented by a stick figure of 31 joints (only 15 are drawn here).
+Seven selected video frames of a walk sequence contain 3D spatial coordinates of each joint in time.
+The goal of this work is to present a method for learning robust gait features from raw MoCap
+data. A collection of extracted features builds a gait template that serves as the walker’s signature.
+Templates are stored in a central database. Recognition of a person involves capturing their walk
+sample, extracting gait features to compose a template, and finally querying this database for a set of
+similar templates to report the most likely identity. The similarity of the two templates is expressed
+in a single number computed by a similarity/distance function.
+Related work is outlined in Section 2 and our methods are described in detail in Section 3. We
+provide a thorough evaluation of a number of competitive MoCap-based gait recognition methods
+on a benchmark database and framework described in Section 4.1. Two setups of data separation
+into learning and evaluation parts are presented in 4.2, together with several metrics used for
+thorough evaluation. Results are presented and discussed in Section 4.3.
+2 RELATEDWORK
+Human gait has been an active subject of study in physical medicine (detection of gait abnormalit-
+ies [13, 18] and disorders caused by stroke or cerebral palsy [25]), sport (gait regulation [41]), or
+sociology (age and gender classification [33] or attractiveness evaluation [22]) for a long time. In-
+spired by medical studies of Murray [34], a psychological research of Johansson [24] and by Cutting
+and Kozlowski [17] conducted experiments about how participants are able to recognize pedestrians
+from simply observing the 2D gait pattern generated by light bulbs attached to several joints over
+their body. These experiments proved that the gait is personally unique and can be potentially used
+for biometric recognition. The main challenges from the perspective of biometric security [11]
+are (1) to detect gait cycles in long video footage; (2) to recognize registered participants by their
+biometric samples; and (3) to retrieve relevant biometric samples from large databases.
+Many research groups investigate the discrimination power of gait pattern and develop models
+of human walk for applications in the automatic recognition from MoCap data of walking people. A
+number of MoCap-based gait recognition methods have been introduced in the past few years and
+new ones continue to emerge. In order to move forward with the wealth and scope of competitive
+research, it is necessary to compare the innovative approaches with the state-of-the-art and evaluate
+them against established evaluation metrics on a benchmark database. New frameworks and
+databases have been developed recently [14, 26].
+Over the past few years, most of the introduced gait features are on a geometric basis. They
+typically combine static body parameters (bone lengths, person’s height) with dynamic gait features
+such as step length, walk speed, joint angles and inter-joint distances, along with various statistics
+(mean, standard deviation or local/global extremes) of their signals. We are particularly focused on
+2
+the dynamic parameters. By our definition, gait is a dynamic behavioral trait. Static body parameters
+are not associated with gait, however, they can be used as another biometric.
+What follows is a detailed specification of the thirteen gait features extraction methods that we
+have reviewed in our work to date. Since the idea behind each method has some potential, we
+have implemented each of them for direct comparison.
+• AhmedF by Ahmed et al. [1] chooses 20 joint relative distance signals and 16 joint relative
+angle signals across the whole body, compared using the Dynamic Time Warping (DTW).
+• AhmedM by Ahmed et al. [2] extracts the mean, standard deviation and skew during one
+gait cycle of horizontal distances (projected on the Z axis) between feet, knees, wrists and
+shoulders, and mean and standard deviation during one gait cycle of vertical distances
+(Y coordinates) of head, wrists, shoulders, knees and feet, and finally the mean area during
+one gait cycle of the triangle of root and two feet.
+• AliS by Ali et al. [3] measures the mean areas during one gait cycle of lower limb triangles.
+• AnderssonVO by Andersson and Araujo [4] calculates gait attributes as mean and standard
+deviation during one gait cycle of local extremes of the signals of lower body angles, step
+length as a maximum of feet distance, stride length as a length of two steps, cycle time and
+velocity as a ratio of stride length and cycle time. In addition, they extract the mean and
+standard deviation during one gait cycle of each bone length, and height as the sum of the
+bone lengths between head and root plus the averages of the bone lengths between root and
+both feet.
+• BallA by Ball et al. [9] measures mean, standard deviation and maximum during one gait
+cycle of lower limb angle pairs: upper leg relative to the Y axis, lower leg relative to the upper
+leg, and the foot relative to the Z axis.
+• DikovskiB by Dikovski et al. [19] selects the mean during one gait cycle of step length,
+height, all bone lengths, then mean, standard deviation, minimum, maximum and mean
+difference of subsequent frames during one gait cycle of all major joint angles, and the angle
+between the lines of the shoulder joints and the hip joints.
+• JiangS by Jiang et al. [23] measures angle signals between the Y axis and four major lower
+body (thigh and calf) bones. The signals are compared using the DTW.
+• KrzeszowskiT by Krzeszowski et al. [28] observes the signals of rotations of eight major
+bones (humerus, ulna, thigh and calf) around all three axes, the person’s height and step
+length. These signals are compared using the DTW distance function.
+• KwolekB by Kwolek et al. [30] processes signals of bone angles around all axes, the person’s
+height and step length. The gait cycles are normalized to 30 frames.
+• NareshKumarMS by Naresh Kumar and Venkatesh Babu [29] is an interesting approach
+that extracts all joint trajectories around all three axes and compares gait templates by a
+distance function of their covariance matrices.
+• PreisJ by Preis et al. [35] takes height, length of legs, torso, both lower legs, both thighs,
+both upper arms, both forearms, step length and speed.
+• SedmidubskyJ by Sedmidubsky et al. [36] concludes that only the two shoulder-hand signals
+are discriminatory enough to be used for recognition. These temporal data are compared
+using the DTW distance function.
+• SinhaA by Sinha et al. [37] combines all features of BallA and PreisJ with mean areas during
+one gait cycle of upper body and lower body, then mean, standard deviation and maximum
+distances during one gait cycle between the centroid of the upper body polygon and the
+centroids of four limb polygons.
+3
+The aforementioned features are schematic and human-interpretable, which is convenient for
+visualizations and for intuitive understanding of the models, but unnecessary for automatic gait
+recognition. Instead, to refrain from ad-hoc schemes and to explore beyond the limits of human
+interpretability, we prefer learning gait features that maximally separate the identity classes in
+the feature space. The features calculated by statistical observation of large amounts of data are
+expected to have a much higher discriminative potential, which will be the subject of experimental
+evaluation in Section 4.
+Methods for 2D gait recognition extensively use machine learning models for extracting gait
+features, such as principal component analysis and multi-scale shape analysis [15], genetic al-
+gorithms and kernel principal component analysis [39], radial basis function neural networks [42],
+or convolutional neural networks [12]. All of these and many other models can be reasonably
+utilized in 3D gait recognition as well. The following section provides a scheme for learning the
+features directly from raw data by (i) a modification of Fisher’s Linear Discriminant Analysis with
+Maximum Margin Criterion and (ii) a combination of Principal Component Analysis and Linear
+Discriminant Analysis.
+3 LEARNING GAIT FEATURES
+In statistical pattern recognition, reducing space dimensionality is a common technique to overcome
+class estimation problems. Classes are discriminated by projecting high-dimensional input data
+onto low-dimensional sub-spaces by linear transformations with the goal of maximizing class
+separability. We are interested in finding an optimal feature space where a gait template is close to
+those of the same walker and far from those of different walkers.
+Let the model of a human body have J joints and all NL learning samples of CL walkers be
+linearly normalized to their average length T . Labeled learning data in a sample (measurement)
+space have the form GL = {(gn , ?n)}NLn=1 where
+gn =
+[
+[?1 (1) · · · ? J (1)] · · · [?1 (T ) · · · ? J (T )]
+]? (1)
+is a gait sample (one gait cycle) in which ?j (t) ? R3 are 3D spatial coordinates of joint j ? {1, . . . , J }
+at time t ? {1, . . . ,T } normalized with respect to the person’s position and walk direction. See
+that GL has dimensionality D = 3JT . Each learning sample falls strictly into one of the learning
+identity classes {Ic }CLc=1 labeled by ?n . A class Ic ? GL has Nc samples. The classes are complete
+and mutually exclusive. We say that samples (gn , ?n) and (gn?, ?n?) share a common walker if and
+only if they belong to the same class, i.e., (gn , ?n) , (gn?, ?n?) ? Ic ? ?n = ?n? . For the whole labeled
+data, we denote the between- and within-class and total scatter matrices
+?B =
+CL?
+c=1
+(µc ? µ) (µc ? µ)?
+?W =
+CL?
+c=1
+1
+Nc
+Nc?
+n=1
+(
+g(c)n ? µc
+) (
+g(c)n ? µc
+)?
+?T =
+CL?
+c=1
+1
+Nc
+Nc?
+n=1
+(
+g(c)n ? µ
+) (
+g(c)n ? µ
+)?
+= ?B + ?W
+(2)
+where g(c)n denotes the n-th sample in class Ic and µc and µ are sample means for class Ic and the
+whole data set, respectively, that is, µc = 1Nc
+?Nc
+n=1 g
+(c)
+n and µ = 1NL
+?NL
+n=1 gn . Margin is defined as
+4
+the Euclidean distance of class means minus both individual variances (traces of scatter matrices)
+?c =
+1
+Nc
+Nc?
+n=1
+(
+g(c)n ? µc
+) (
+g(c)n ? µc
+)?
+. (3)
+We measure class separability of a given feature space by a representation of the Maximum
+Margin Criterion (MMC) [27, 31] used by the Vapnik’s Support Vector Machines (SVM) [40] which
+maximizes the sum of 12CL(CL ? 1) between-class margins
+J = 1
+2
+CL?
+c,c ?=1
+(
+(µc ? µc ?)? (µc ? µc ?) ? tr (?c + ?c ?)
+)
+=
+1
+2
+CL?
+c,c ?=1
+(µc ? µc ?)? (µc ? µc ?) ?
+1
+2
+CL?
+c,c ?=1
+tr (?c + ?c ?)
+=
+1
+2
+CL?
+c,c ?=1
+(µc ? µ + µ ? µc ?)? (µc ? µ + µ ? µc ?) ?
+CL?
+c=1
+tr (?c )
+= tr
+(
+CL?
+c=1
+(µc ? µ) (µc ? µ)?
+)
+? tr
+(
+CL?
+c=1
+?c
+)
+= tr (?B) ? tr (?W) = tr (?B ? ?W) .
+(4)
+Since tr (?B) measures the overall variance of the class mean vectors, a large one implies that the
+class mean vectors scatter in a large space. On the other hand, a small tr (?W) implies that classes
+have a small spread. Thus, a large J indicates that samples are close to each other if they share
+a common walker but are far from each other if they are performed by different walkers. Extracting
+features, that is, transforming the input data in the sample space into a feature space of higher
+J , can be used to link new observations of walkers more successfully.
+Feature extraction is given by a linear transformation (feature) matrix ? ? RD×D? from a D-
+dimensional sample space G = {gn}Nn=1 of not necessarily labeled gait samples to a D?-dimensional
+feature space G? =
+{
+g?n
+}N
+n=1 of gait templates where D? < D and each gait sample gn is transformed
+into a gait template g?n = ??gn . The objective is to learn a transform ? that maximizes MMC
+in the feature space
+J (?) = tr
+(
+?? (?B ? ?W)?
+)
+. (5)
+Once the transformation is found, all measured samples are transformed into templates (in the
+feature space) along with the class means and covariances. The templates are compared by the
+Mahalanobis distance function
+??
+(?
+gn , g?n?
+)
+=
+?(?
+gn ? g?n?
+)? ???1T (?gn ? g?n? ) . (6)
+We show that a solution to the optimization problem in Equation (5) can be obtained by eigen-
+decomposition of the matrix ?B ? ?W. An important property to notice about the objective J (?)
+is that it is invariant w.r.t. rescalings ? ? ??. Hence, we can always choose ? = f1? · · · ?fD? such
+that f?
+d?
+fd? = 1, since it is a scalar itself. For this reason we can reduce the problem of maximizing
+5
+J (?) into the constrained optimization problem
+max
+D??
+d?=1
+f?
+d?
+(?B ? ?W) fd?
+subject to f?
+d?
+fd? ? 1 = 0 ?d? ? {1, . . . , D?}.
+(7)
+To solve the above optimization problem, let us consider the Lagrangian
+L
+(
+fd? , ?d?
+)
+=
+D??
+d?=1
+f?
+d?
+(?B ? ?W) fd? ? ?d?
+(
+f?
+d?
+fd? ? 1
+)
+(8)
+with multipliers ?d? . To find the maximum, we derive it with respect to fd? and equate it to zero
+?L
+(
+fd? , ?d?
+)
+?fd?
+=
+(
+(?B ? ?W) ? ?d? I
+)
+fd? = 0 (9)
+which leads to
+(?B ? ?W) fd? = ?d? fd? (10)
+where ?d? are the eigenvalues of ?B ? ?W and fd? are the corresponding eigenvectors. Putting it
+all together,
+(?B ? ?W)? = ?? (11)
+where ? = diag
+(
+?1, . . . , ?D?
+)
+is the eigenvalue matrix. Therefore,
+J (?) = tr
+(
+?? (?B ? ?W)?
+)
+= tr
+(
+????
+)
+=
+D??
+d?=1
+f?
+d?
+?d? fd? =
+D??
+d?=1
+?d? f
+?
+d?
+fd? =
+D??
+d?=1
+?d? = tr (?) (12)
+is maximized when ? has D? largest eigenvalues and ? contains the corresponding eigenvectors.
+In the following we discuss how to calculate the eigenvectors of ?B ? ?W and to determine an
+optimal dimensionality D? of the feature space. Rewrite ?B ? ?W = 2?B ? ?T. Note that the null
+space of ?T is a subspace of that of ?B since the null space of ?T is the common null space of ?B
+and ?W. Thus, we can simultaneously diagonalize ?B and ?T to some ? and I
+???B? = ?
+???T? = I
+(13)
+with the D × rank (?T) eigenvector matrix
+? = ???
+1
+2 ? (14)
+where ? and ? are the eigenvector and corresponding eigenvalue matrices of ?T, respectively, and
+? is the eigenvector matrix of ??1/2???B???1/2. To calculate ?, we use a fast two-step algorithm
+in virtue of Singular Value Decomposition (SVD). SVD expresses a real r × s matrix A as a product
+A = UDV? where D is a diagonal matrix with decreasing non-negative entries, and U and V
+are r ×min {r , s} and s ×min {r , s} eigenvector matrices of AA? and A?A, respectively, and the
+6
+non-vanishing entries of D are square roots of the non-zero corresponding eigenvalues of both
+AA? and A?A. See that ?T and ?B can have the forms
+?T = XX? where X =
+1
+?
+NL
+[
+(g1 ? µ) · · ·
+(
+gNL ? µ
+) ]
+and
+?B = ??? where ? =
+[
+(µ1 ? µ) · · ·
+(
+µCL ? µ
+) ]
+,
+(15)
+respectively. Hence, we can obtain the eigenvectors ? and the corresponding eigenvalues ? of
+?T through the SVD of X and analogically ? of ??1/2???B???1/2 through the SVD of ??1/2???.
+The columns of ? are clearly the eigenvectors of 2?B ? ?T with the corresponding eigenvalues
+2? ? I. Therefore, to constitute the transform ? by maximizing the MMC, we should choose the
+eigenvectors in ? that correspond to the eigenvalues of at least 1/2 in ?. Note that ? contains at
+most rank (?B) = CL ? 1 positive eigenvalues, which gives an upper bound on the feature space
+dimensionality D?.
+We found inspiration in the Fisher Linear Discriminant Analysis (LDA) [20] that uses Fisher’s
+criterion
+J (?LDA) = tr
+(
+??LDA?B?LDA
+??LDA?W?LDA
+)
+. (16)
+However, since the rank of ?W is at most NL ?CL , it is a singular (non-invertible) matrix if NL is
+less than D +CL , or, analogously might be unstable if NL ? D. Small sample size is a substantial
+difficulty as it is necessary to calculate ??1W . To alleviate this, the measured data can be first projected
+to a lower dimensional space using Principal Component Analysis (PCA), resulting in a two-stage
+PCA+LDA feature extraction technique [10] originally introduced for face recognition
+J (?PCA) = tr
+(
+??PCA?T?PCA
+)
+J (?LDA) = tr
+( ??LDA??PCA?B?PCA?LDA
+??LDA?
+?
+PCA?W?PCA?LDA
+) (17)
+and the final transform is ? = ?PCA?LDA. Given that there are D principal components, then
+regardless of the dimensionality D there are at least D + 1 independent data points. Thus, if the
+D ×D matrix ??PCA?W?PCA is estimated from NL ?CL independent observations and providing the
+CL ? D ? NL ?CL , we can always invert ??PCA?W?PCA and in this way obtain the LDA estimate.
+Note that this method is sub-optimal for multi-class problems [32] as PCA keeps at most NL ?CL
+principal components whereas at least NL ?1 of them are necessary in order not to lose information.
+PCA+LDA in this form has been used for silhouette-based (2D) gait recognition by Su et al. [38]
+and is included in our experiments with MoCap (3D).
+On given labeled learning data GL , Algorithm 1 and Algorithm 2 [5, 6] provided below are
+efficient ways of learning the transforms ? for MMC and PCA+LDA, respectively.
+4 EVALUATION
+This paper provides an extended evaluation. In the following we describe the evaluation database
+and framework, setups for data separation into learning and evaluation parts, evaluation metrics,
+and results with discussion.
+4.1 Database and Framework
+For evaluation purposes we have extracted a large number of gait samples from the MoCap
+database obtained from the CMUGraphics Lab [16], which is available under the Creative Commons
+license. It is a well-known and recognized database of structural human motion data and contains
+a considerable number of gait sequences. Motions are recorded with an optical marker-based Vicon
+7
+ALGORITHM 1: LearnTransformationMatrixMMC(GL)
+1: split GL = {(gn , ?n )}NLn=1 into classes {Ic }
+CL
+c=1 of Nc = |Ic | samples
+2: compute overall mean µ = 1NL
+?NL
+n=1 gn and individual class means µc =
+1
+Nc
+?Nc
+n=1 g
+(c)
+n
+3: compute ?B =
+?CL
+c=1 (µc ? µ) (µc ? µ)
+?
+4: compute X = 1?
+NL
+[
+(g1 ? µ) · · ·
+(
+gNL ? µ
+) ]
+5: compute ? =
+[
+(µ1 ? µ) · · ·
+(
+µCL ? µ
+) ]
+6: compute eigenvectors ? and corresponding eigenvalues ? of ?T through SVD of X
+7: compute eigenvectors ? of ??1/2???B??
+?1/2 through SVD of ??1/2???
+8: compute eigenvectors ? = ???1/2?
+9: compute eigenvalues ? = ???B?
+10: return transform ? as eigenvectors in ? that correspond to the eigenvalues of at least 1/2 in ?
+ALGORITHM 2: LearnTransformationMatrixPCALDA(GL)
+1: split GL = {(gn , ?n )}NLn=1 into classes {Ic }
+CL
+c=1 of Nc = |Ic | samples
+2: compute ?B =
+?CL
+c=1 (µc ? µ) (µc ? µ)
+?
+3: compute ?W =
+?CL
+c=1
+1
+Nc
+?Nc
+n=1
+(
+g(c)n ? µc
+) (
+g(c)n ? µc
+)?
+4: compute eigenvectors ?PCA of ?T = ?B + ?W that correspond to D largest eigenvalues (we set D = CL)
+5: compute eigenvectors ?LDA of (??PCA?W?PCA)
+?1(??PCA?B?PCA)
+6: return transform ? = ?PCA?LDA
+system. People wear a black jumpsuit with 41 markers taped on. The tracking space of 30m2 is
+surrounded by 12 cameras with a sampling rate of 120Hz at heights ranging from 2 to 4 meters
+above ground thereby creating a video surveillance environment. Motion videos are triangulated
+to get highly accurate 3D data in the form of relative body point coordinates (with respect to
+the root joint) in each video frame and are stored in the standard ASF/AMC data format. Each
+registered participant is assigned with their respective skeleton described in an ASF file. Motions
+in the AMC files store bone rotational data, which is interpreted as instructions about how the
+associated skeleton deforms over time.
+These MoCap data, however, contain skeleton parameters pre-calibrated by the CMU staff. Skel-
+etons are unique to each walker and even a trivial skeleton check could result in 100% recognition.
+In order to fairly use the collected data, a prototypical skeleton is constructed and used to represent
+bodies of all subjects, shrouding the skeleton parameters. Assuming that all walking individuals are
+physically identical disables the skeleton check from being a potentially unfair classifier. Moreover,
+this is a skeleton-robust solution as all bone rotational data are linked to one specific skeleton. To
+obtain realistic parameters, it is calculated as the mean of all skeletons in the provided ASF files.
+The raw data are in the form of bone rotations or, if combined with the prototypical skeleton, 3D
+joint coordinates. The bone rotational data are taken from the AMC files without any pre-processing.
+We calculate the joint coordinates using the bone rotational data and the prototypical skeleton.
+One cannot directly use raw values of joint coordinates, as they refer to absolute positions in the
+tracking space, and not all potential methods are invariant to a person’s position or walk direction.
+To ensure such invariance, the center of the coordinate system is moved to the position of root
+joint ?root (t) = [0, 0, 0]? for each time t and the axes are adjusted to the walker’s perspective: the
+X axis is from right (negative) to left (positive), the Y axis is from down (negative) to up (positive),
+and the Z axis is from back (negative) to front (positive). In the AMC file structure notation it is
+8
+achieved by setting the root translation and rotation to zero (root 0 0 0 0 0 0) in all frames
+of all motion sequences.
+Since the general motion database contains all motion types, we extracted a number of sub-
+motions that represent gait cycles. First, an exemplary gait cycle was identified, and clean gait
+cycles were then filtered out using a threshold for their DTW distance on bone rotations in time.
+The distance threshold was explicitly set low enough so that even the least similar sub-motions still
+semantically represent gait cycles. Setting this threshold higher might also qualify sub-motions that
+do not resemble gait cycles anymore. Finally, subjects that contributed with less than 10 samples
+were excluded. The final database [8] has 54 walking subjects that performed 3,843 samples in
+total, resulting in an average of about 71 samples per subject.
+As a contribution to reproducible research, we release our database and framework to improve
+the development, evaluation and comparison of methods for gait recognition from MoCap data.
+They are intended also for our fellow researchers and reviewers to reproduce the results of our
+experiments. Our recent paper [7] provides amanual and comments on reproducing the experiments.
+With this manual, a reader should be able to reproduce the evaluation and to use the implementation
+in their own application. The source codes and data are available online at our research group web
+page [8] with link to our departmental Git repository.
+The evaluation framework comprises (i) source codes of the state-of-the-art human-interpretable
+geometric features that we have reviewed in our work to date as well as own our two approaches
+where gait features are learned by MMC (see Algorithm 1) and by PCA+LDA (see Algorithm 2),
+the Random method (no features and random classifier), and the Raw method (raw data and DTW
+distance function). Depending on whether the raw data are in the form of bone rotations or joint
+coordinates, the methods are referred to with BR or JC subscripts, respectively. The framework
+includes (ii) a mechanism for evaluating four class separability coefficients of feature space and
+four classifier performance metrics. It also contains (iii) a tool for learning a custom classifier and
+for classifying a custom probe on a custom gallery. We provide (iv) an experimental database along
+with source codes for its extraction from the CMU MoCap database.
+4.2 Evaluation Setup and Metrics
+In the following, we introduce two setups of data separation: homogeneous and heterogeneous.
+The homogeneous setup learns the transformation matrix on a fraction of samples of CL identities
+and is evaluated on templates derived from the remaining samples of the same CE = CL identities.
+The heterogeneous setup learns the transform on all samples of CL identities and is evaluated
+on all templates derived from all samples of other CE identities. An abstraction of this concept is
+depicted in Figure 2. Note that in heterogeneous setup no walker identity is ever used for both
+learning and evaluation at the same time.
+A use of the homogeneous setup can be any system to recognize people that cooperated at
+learning the features. For example, a small company entrance authentication where all employees
+cooperated to register. MoCap data of each employee’s gait pattern can be registered along with
+a picture of their face. On the other hand, the heterogeneous setup can be used at person re-
+identification. During video surveillance, new identities can appear on the fly and labeled data for
+all the people encountered may not always be available. In this scenario, forensic investigators
+may ask for tracking the suspects.
+The homogeneous setup is parametrized by a single numberCL = CE of learning-and-evaluation
+identity classes, whereas the heterogeneous setup has the form (CL,CE ). This parametrization
+specifies how many learning and how many evaluation identity classes are randomly selected
+from the database. The evaluation of each setup is repeated 3 times, selecting new random identity
+classes each time and reporting the average result.
+9
+Id
+en
+tit
+ie
+s
+Samples
+Homogeneous setup
+EvaluationLearning
+Id
+en
+tit
+ie
+s
+Samples
+Heterogeneous setup
+Evaluation
+Learning
+Fig. 2. Abstraction of the concept of homogeneous and heterogeneous setups. Consider a matrix (visualized
+as a rectangle) of all database samples where each row contains samples of one identity class. The homo-
+geneous setup separates all identities into 1/3 learning samples and 2/3 evaluation samples (left), whereas the
+heterogeneous setup takes 1/3 learning identities and 2/3 evaluation identities with all their samples (right).
+Setting the sizes of learning and evaluation parts is a subject of setup configuration.
+In both setups, the class separability coefficients are calculated directly on the full evaluation
+part whereas the classification metrics are estimated with the 10-fold cross-validation taking one
+dis-labeled fold as a testing set and the other nine labeled folds as gallery. Test templates are
+classified by the winner-takes-all strategy, in which a test template g?test gets assigned with the
+label ?
+argmini ??
+(?
+gtest, g?galleryi
+) of the gallery’s closest identity class.
+What follows is a list of evaluation metrics. Recognition rate is often perceived as the ultimate
+qualitative measure; however, it is more explanatory to include an evaluation in terms of class
+separability of the feature space. The class separability measures give an estimate of the recognition
+potential of the extracted features and do not reflect eventual combination with an unsuitable
+classifier:
+• Davies-Bouldin Index: DBI
+DBI =
+1
+CE
+CE?
+c=1
+max
+1?c ??CE, c ?,c
+?c + ?c ?
+?? (µ?c , µ?c ?)
+(18)
+where ?c = 1Nc
+?Nc
+n=1 ??
+(?
+gn , µ?c
+)
+is the average distance of all elements in identity class Ic to its
+centroid, and analogically for ?c ? . Templates of low intra-class distances and of high inter-class
+distances have a low DBI.
+• Dunn Index: DI
+DI =
+min
+1?c<c ??CE
+?? (µ?c , µ?c ?)
+max
+1?c?CE
+?c
+(19)
+with ?c from the above DBI. Since this criterion seeks classes with high intra-class similarity and
+low inter-class similarity, a high DI is more desirable.
+• Silhouette Coefficient: SC
+SC =
+1
+NE
+NE?
+n=1
+b
+(?
+gn
+)
+? a
+(?
+gn
+)
+max
+{
+a
+(?
+gn
+)
+,b
+(?
+gn
+)} (20)
+10
+where a
+(?
+gn
+)
+= 1Nc
+?Nc
+n?=1 ??
+(?
+gn , g?n?
+)
+is the average distance from g?n to other samples within the
+same identity class and b
+(?
+gn
+)
+= min
+1?c ??CE, c ?,c
+1
+Nc?
+?Nc?
+n?=1 ??
+(?
+gn , g?n?
+)
+is the average distance of g?n to
+the samples in the closest class. It is clear that ?1 ? SC ? 1 and a SC close to one mean that classes
+are appropriately separated.
+• Fisher’s Discriminant Ratio: FDR
+FDR =
+1
+CE
+?CE
+c=1 ?? (µ?c , µ?)
+1
+NE
+?CE
+c=1
+?Nc
+n=1 ??
+(?
+gn , µ?c
+) . (21)
+A high FDR is preferred for seeking classes with low intra-class sparsity and high inter-class
+sparsity.
+Apart from analyzing the distribution of templates in the feature space, it is schematic to combine
+the features with a rank-based classifier and to evaluate the system based on distance distribution
+with respect to a query. For obtaining a more applied performance evaluation, we evaluate:
+• Cumulative Match Characteristic: CMC
+Sequence of Rank-k (for k on X axis from 1 up to CE ) recognition rates (Y axis) to measure ranking
+capabilities of a recognition method. Its headline Rank-1 is the Correct Classification Rate (CCR).
+• False Accept Rate vs. False Reject Rate: FAR/FRR
+Two sequences of the error rates (Y axis) as functions of the discrimination threshold (X axis). Each
+method has a value e of this threshold giving Equal Error Rate (EER=FAR=FRR).
+• Receiver Operating Characteristic: ROC
+Sequence of True Accept Rate (TAR) and False Accept Rate with a varied discrimination threshold.
+For a given threshold, the system signalizes both TAR (Y axis) and FAR (X axis). The value of Area
+Under Curve (AUC) is computed as the integral of the ROC curve.
+• Recall vs. Precision: RCL/PCN
+Sequence of the rates with a varied discrimination threshold. For a given threshold the system
+signals both RCL (X axis) and PCN (Y axis). The value ofMean Average Precision (MAP) is computed
+as the area under the RCL/PCN curve.
+These measures reflect how class-separated the feature space is, how often the walk pattern of a
+person is classified correctly and how difficult it is to confuse different people. They do not, in fact,
+provide complementary information, although a quality evaluation framework should be able to
+evaluate the most popular measures. Different applications use different evaluation measures. For
+example, a hotel lobby authentication system could use a high Rank-3 at the CMC, while a city-level
+person tracking system is likely to need the ROC curve leaning towards the upper left corner.
+Finally, the evaluation incorporates two scalability measures: average distance computation time
+(DCT) in milliseconds and average template dimensionality (TD).
+4.3 Results
+In this section we provide comparative evaluation results of the feature extraction methods in terms
+of evaluation metrics defined in Section 4.2. To ensure a fair comparison, we evaluate all methods
+on the same experimental database and framework described in Section 4.1. Table 1 presents
+the implementation details of all the methods and the results of class separability coefficients,
+classification metrics and scalability.
+The goal of the MMC-based learning is to find a linear discriminant that maximizes the misclassi-
+fication margin. This optimization technique appears to be more effective than designing geometric
+gait features. A variety of class-separability coefficients and classification metrics allows insights
+from different statistical perspectives. The results in Table 1 indicate that the proposed MMCBR
+11
+Table 1. Class separability coefficients, classification metrics and scalability metrics for all implemented methods. Homogeneous setup, evaluated on the full
+database with nested cross-validation. We advise readers to read the original papers for better understanding of the implementation column. The last column
+contains the total evaluation times (seconds s, minutes m, hours h, days d).
+implementation class separability coefficients classification metrics scalability evaluation
+method gait features dist. function DBI DI SC FDR CCR EER AUC MAP DCT TD total time
+AhmedF JRD + JRA DTW+L1 185.8 1.708 ?0.164 0.77 0.891 0.374 0.677 0.254 45 5,254 10.3 d
+AhmedM HDF + VDF L1 216.2 0.842 ?0.246 0.954 0.657 0.38 0.659 0.165 <1 24 48.6m
+AliS triangle areas L1 501.5 0.26 ?0.463 1.175 0.225 0.384 0.679 0.111 <1 2 40.9m
+AnderssonVO all described L1 142.3 1.297 ?0.102 1.127 0.84 0.343 0.715 0.251 <1 68 45.7m
+BallA all described L1 161 1.458 ?0.163 1.117 0.75 0.346 0.711 0.231 <1 18 48.5m
+DikovskiB Dataset 3 L1 144.5 1.817 ?0.135 1.227 0.881 0.363 0.695 0.254 <1 71 50.7m
+JiangS angles DTW+L1 206.6 1.802 ?0.249 0.85 0.811 0.395 0.657 0.242 8 584 1.9 d
+KrzeszowskiT all described DTW+L1 154.1 1.982 ?0.147 0.874 0.915 0.392 0.662 0.275 35 3,795 8.1 d
+KwolekB g_all L1 150.9 1.348 ?0.084 1.175 0.896 0.358 0.723 0.323 <1 660 1.1 h
+NareshKumarMS normalized JC cov. matrices 118.6 1.618 ?0.086 1.09 0.801 0.459 0.631 0.217 8 13,950 1.8 d
+PreisJ static + dynamic L1 1,980.6 0.055 ?0.512 1.067 0.143 0.401 0.626 0.067 <1 13 48.7m
+SedmidubskyJ SCLHL + SCRHR DTW+L1 398.1 1.35 ?0.425 0.811 0.543 0.388 0.657 0.149 <1 292 1.4 d
+SinhaA all described L1 214.8 1.112 ?0.215 1.101 0.674 0.356 0.697 0.191 <1 45 49.6m
+MMCBR MMC on BR Mahalanobis 154.2 1.638 0.062 1.173 0.925 0.297 0.748 0.353 <1 53 2.6 h
+MMCJC MMC on JC Mahalanobis 130.3 1.891 0.051 1.106 0.918 0.378 0.721 0.315 <1 51 3.0 h
+PCA+LDABR PCA+LDA on BR Mahalanobis 182 1.596 ?0.015 0.984 0.918 0.361 0.695 0.276 <1 54 4.7 h
+PCA+LDAJC PCA+LDA on JC Mahalanobis 174.4 1.309 ?0.091 0.827 0.863 0.44 0.643 0.201 <1 54 10.9 h
+Random none 0.042 0 27.9m
+RawBR BR DTW+L2 163.7 2.092 0.011 0.948 0.966 0.315 0.743 0.358 70 8,229 16.1 d
+RawJC JC DTW+L2 155.1 1.954 ?0.12 0.897 0.926 0.377 0.679 0.283 161 13,574 36.7 d
+12
+method (on bone rotational data) is a leading concept for rank-based classifier systems: highest SC
+and AUC, lowest EER, and competitive DBI, DI, FDR, CCR and MAP. In terms of recognition rate,
+the MMC method was only outperformed by the Raw method, which is implemented here as a
+form of baseline. We interpret the high scores as a sign of robustness.
+Apart from the performance merits, the MMCmethod is also efficient: relatively low-dimensional
+templates and Mahalanobis distance ensure fast distance computations and thus contribute to high
+scalability. Note that even if the Raw method has some of the best results, it can hardly be used in
+practice due to its extreme consumption of time and space resources. On the other hand, Random
+has no features but cannot be considered a serious recognition method. To illustrate the evaluation
+time, calculating the distance matrix (a matrix of distances between all evaluation templates) took
+a couple minutes for the MMC method, almost nothing for the Random method, and more than
+two weeks for the Raw method. The learning time of the MMC and PCA+LDA methods increases
+with the number of learning samples NL (counting ?W and ?T matrices); however, this is not an
+issue in the field of gait recognition as training the models suffers from the opposite problem,
+undersampling.
+To reproduce the experiments in Table 1, instructions to follow are to be found at [8]. Please note
+that some methods are rather slow – total evaluation times (learning included) in the last column
+were measured on a computer with Intel® Xeon® CPU E5-2650 v2 @ 2.60GHz and 256GB RAM.
+An additional experiment was carried out with the traditional 10-fold cross-validation in which
+gait cycles of a common walk sequence are always kept together in the same fold. This is to prevent
+a situation in which two consecutive gait cycles are split between testing and training folds which
+would cause a potential overtraining. The classification metrics of methods include CCR, EER, AUC,
+MAP, and the CMC curve up to Rank-10. Displayed in Table 2, the results suggest that the methods
+based on machine learning outperform the methods of hand-designed features in terms of all
+measured metrics. Note that the results are slightly worse than those in Table 1 due to avoiding the
+overtraining cases and that the order of the tested methods is preserved. We interpret this order as
+a demonstrative result of comparison of all tested methods based on their classification potential.
+Finally, the experiments A, B, C, D described below compare the homogeneous and hetero-
+geneous setup and examine how quality of the system in the heterogeneous setup improves with
+an increased number of learning identities. The main idea is to show that we can learn what aspects
+of walk people generally differ in and extract those as general gait features. Recognizing people
+without needing group-specific features is convenient as particular people might not always provide
+annotated learning data. Results are illustrated in Figure 3 and in Figure 4.
+A homogeneous setup with CL = CE ? {2, . . . , 27};
+B heterogeneous setup with CL = CE ? {2, . . . , 27};
+C heterogeneous setup with CL ? {2, . . . , 27} and CE = 27;
+D heterogeneous setup with CL ? {2, . . . , 27} and CE = 27 ?CL .
+ExperimentsA and B compare homogeneous and heterogeneous setups by measuring the drop in
+the quality measures on an identical number of learning and evaluation identities (CL = CE ). Please
+note that based on Section 4.1 our database has 54 identity classes in total and they can be split into
+the learning and evaluation parts in the numbers of at most (27, 27). Top plot in Figure 3 shows the
+values of DBI and CCR metrics in both alternatives, which not only appear comparable but also
+in some configurations the heterogeneous setup has an even higher CCR. Bottom plot expresses
+heterogeneous setup as a percentage of the homogeneous setup in each of the particular metrics.
+Here we see that with raising number of identities the heterogeneous setup approaches 100% of
+the homogeneous setup. Therefore, the gait features learned by the introduced MMC method are
+walker-independent, which means that they can be learned on anybody.
+13
+Table 2. Classification metrics for all implemented methods. Homogeneous setup, evaluated on the full
+database with 10-fold cross-validation. Methods are ordered by their CCR score.
+method CCR EER AUC MAP CMC
+RawJC 0.872 0.321 0.731 0.317
+Powered by TCPDF (www.tcpdf.org)
+0.45
+0.50
+0.55
+0.60
+0.65
+0.70
+0.75
+0.80
+0.85
+0.90
+0.95
+1.00
+C
+u
+m
+u
+la
+ti
+v
+e
+ C
+o
+r
+r
+e
+c
+t 
+C
+la
+s
+s
+if
+ic
+a
+ti
+o
+n
+ R
+a
+te
+0.00
+0.05
+0.10
+0.15
+0.20
+0.25
+0.30
+0.35
+0.40
+1 2 3 4 5 6 7 8 9 10
+C
+u
+m
+u
+la
+ti
+v
+e
+ C
+o
+r
+r
+e
+c
+t 
+C
+la
+s
+s
+if
+ic
+a
+ti
+o
+n
+ R
+a
+te
+Rank
+MMCBR 0.868 0.305 0.739 0.332
+RawBR 0.867 0.333 0.701 0.259
+MMCJC 0.861 0.325 0.72 0.309
+PCA+LDABR 0.845 0.335 0.682 0.247
+KwolekB 0.823 0.367 0.711 0.296
+KrzeszowskiT 0.802 0.348 0.717 0.273
+PCA+LDAJC 0.79 0.417 0.634 0.189
+DikovskiB 0.787 0.376 0.679 0.227
+AhmedF 0.771 0.371 0.664 0.22
+AnderssonVO 0.76 0.352 0.703 0.228
+NareshKumarMS 0.717 0.459 0.613 0.19
+JiangS 0.692 0.407 0.637 0.204
+BallA 0.667 0.356 0.698 0.207
+SinhaA 0.598 0.362 0.69 0.176
+AhmedM 0.58 0.392 0.646 0.145
+SedmidubskyJ 0.464 0.394 0.65 0.138
+AliS 0.186 0.394 0.662 0.096
+PreisJ 0.131 0.407 0.618 0.066
+Random 0.039
+Experiments C and D investigate the impact of the number of learning identities in the hetero-
+geneous setup. Experiment D has only been evaluated up until (27, 27) as results with a learning
+part larger than an evaluation part would be insignificant. As can be seen in Figure 4, the perform-
+ance grows quickly on the first configurations with very few learning identities, which we can
+interpret as an analogy to the Pareto (80–20) principle. Specifically, the results of experiment C
+say that 8 learning identities achieve almost the same performance (66.78 DBI and 0.902 CCR) as if
+they had been learned on 27 identities (68.32 DBI and 0.947 CCR). The outcome of experiment D
+indicates a similar growth of performance and we see that 14 identities can be enough to learn the
+transformation matrix to distinguish 40 completely different people (0.904 CCR).
+5 CONCLUSION
+A common practice in state-of-the-art MoCap-based human identification is designing geometric
+gait features by hand. However, the field of pattern recognition has not recently advanced to a point
+where best results are frequently obtained using a machine learning approach. Finding optimal
+features for MoCap-based gait recognition is no exception. This work introduces the concept of
+learning robust and discriminative features directly from raw MoCap data by a modification of the
+Fisher Linear Discriminant Analysis with Maximum Margin Criterion and by combining Principal
+Component Analysis and Linear Discriminant Analysis, both with the goal of maximal separation
+of identity classes, avoiding the potential singularity problem caused by undersampling. Instead
+of instinctively drawing ad-hoc features, these methods are computed from a much larger space
+beyond the limits of human interpretability. The collection of features learned by MMC achieves
+14
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1.0
+21
+28
+35
+42
+49
+56
+63
+70
+DBI homogeneous
+DBI heterogeneous
+CCR homogenous
+CCR heterogeneous
+0.0
+0.1
+0.2
+0
+7
+14
+(2
+,2
+)
+(3
+,3
+)
+(4
+,4
+)
+(5
+,5
+)
+(6
+,6
+)
+(7
+,7
+)
+(8
+,8
+)
+(9
+,9
+)
+(1
+0
+,1
+0
+)
+(1
+1
+,1
+1
+)
+(1
+2
+,1
+2
+)
+(1
+3
+,1
+3
+)
+(1
+4
+,1
+4
+)
+(1
+5
+,1
+5
+)
+(1
+6
+,1
+6
+)
+(1
+7
+,1
+7
+)
+(1
+8
+,1
+8
+)
+(1
+9
+,1
+9
+)
+(2
+0
+,2
+0
+)
+(2
+1
+,2
+1
+)
+(2
+2
+,2
+2
+)
+(2
+3
+,2
+3
+)
+(2
+4
+,2
+4
+)
+(2
+5
+,2
+5
+)
+(2
+6
+,2
+6
+)
+(2
+7
+,2
+7
+)
+40%
+60%
+80%
+100%
+120%
+DBI
+CCR
+0%
+20%
+(2
+,2
+)
+(3
+,3
+)
+(4
+,4
+)
+(5
+,5
+)
+(6
+,6
+)
+(7
+,7
+)
+(8
+,8
+)
+(9
+,9
+)
+(1
+0
+,1
+0
+)
+(1
+1
+,1
+1
+)
+(1
+2
+,1
+2
+)
+(1
+3
+,1
+3
+)
+(1
+4
+,1
+4
+)
+(1
+5
+,1
+5
+)
+(1
+6
+,1
+6
+)
+(1
+7
+,1
+7
+)
+(1
+8
+,1
+8
+)
+(1
+9
+,1
+9
+)
+(2
+0
+,2
+0
+)
+(2
+1
+,2
+1
+)
+(2
+2
+,2
+2
+)
+(2
+3
+,2
+3
+)
+(2
+4
+,2
+4
+)
+(2
+5
+,2
+5
+)
+(2
+6
+,2
+6
+)
+(2
+7
+,2
+7
+)
+Fig. 3. DBI (left vertical axis) and CCR (right vertical axis) for experiments A of homogeneous setup and B of
+heterogeneous setup (top) with (CL ,CE ) configurations (horizontal axes) and their percentages (bottom).
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1.0
+300
+400
+500
+600
+700
+800
+0.0
+0.1
+0.2
+0
+100
+200
+(2
+,2
+7
+)
+(3
+,2
+7
+)
+(4
+,2
+7
+)
+(5
+,2
+7
+)
+(6
+,2
+7
+)
+(7
+,2
+7
+)
+(8
+,2
+7
+)
+(9
+,2
+7
+)
+(1
+0
+,2
+7
+)
+(1
+1
+,2
+7
+)
+(1
+2
+,2
+7
+)
+(1
+3
+,2
+7
+)
+(1
+4
+,2
+7
+)
+(1
+5
+,2
+7
+)
+(1
+6
+,2
+7
+)
+(1
+7
+,2
+7
+)
+(1
+8
+,2
+7
+)
+(1
+9
+,2
+7
+)
+(2
+0
+,2
+7
+)
+(2
+1
+,2
+7
+)
+(2
+2
+,2
+7
+)
+(2
+3
+,2
+7
+)
+(2
+4
+,2
+7
+)
+(2
+5
+,2
+7
+)
+(2
+6
+,2
+7
+)
+(2
+7
+,2
+7
+)
+DBI
+CCR
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1.0
+600
+800
+1000
+1200
+1400
+1600
+1800
+2000
+0.0
+0.1
+0.2
+0
+200
+400
+(2
+,5
+2
+)
+(3
+,5
+1
+)
+(4
+,5
+0
+)
+(5
+,4
+9
+)
+(6
+,4
+8
+)
+(7
+,4
+7
+)
+(8
+,4
+6
+)
+(9
+,4
+5
+)
+(1
+0
+,4
+4
+)
+(1
+1
+,4
+3
+)
+(1
+2
+,4
+2
+)
+(1
+3
+,4
+1
+)
+(1
+4
+,4
+0
+)
+(1
+5
+,3
+9
+)
+(1
+6
+,3
+8
+)
+(1
+7
+,3
+7
+)
+(1
+8
+,3
+6
+)
+(1
+9
+,3
+5
+)
+(2
+0
+,3
+4
+)
+(2
+1
+,3
+3
+)
+(2
+2
+,3
+2
+)
+(2
+3
+,3
+1
+)
+(2
+4
+,3
+0
+)
+(2
+5
+,2
+9
+)
+(2
+6
+,2
+8
+)
+(2
+7
+,2
+7
+)
+DBI
+CCR
+Fig. 4. DBI (left vertical axes) and CCR (right vertical axes) for experiments C (top) and D (bottom) on
+heterogeneous setup with (CL ,CE ) configurations (horizontal axes).
+15
+leading scores in four class separability coefficients and therefore has a great potential for gait
+recognition applications. This is demonstrated on our extracted and normalized MoCap database
+of 54 walkers with 3,843 gait cycles by outperforming other 13 methods in numerous evaluation
+metrics. MMC is suitable for optimizing gait features; however, our future work will continue with
+research on further potential optimality criteria and multi-linear machine learning approaches.
+The second contribution lies in showing the possibility of building a representation on a problem
+and using it on another (related) problem. Simulations on the CMU MoCap database show that our
+approach is able to build robust feature spaces without pre-registering and labeling all potential
+walkers. In fact, we can take different people (experiments A and B) and use just a fraction of them
+(experiments C and D). We have observed that already on 5 identities the heterogeneous evaluation
+setup exceeds 95% of the homogeneous setup and improves with an increasing volume of identities.
+This means that one does not have to rely on the availability of all walkers for learning; instead,
+the features can be learned on anybody. The CCR of over 90% when learning on 14 identities and
+evaluating on other 40 identities shows that an MMC-based system once learned on a fixed set
+of walker identities can be used to distinguish many more additional walkers. This is particularly
+important for a system that supports video surveillance applications where the encountered walkers
+never supply labeled data. Multiple occurrences of individual walkers can now be linked together
+even without knowing their actual identities.
+In the name of reproducible research, our third contribution is the provision of the evaluation
+framework and database. All our data and source codes have been made available [8] under the
+Creative Commons Attribution license (CC-BY) for database and the Apache 2.0 license for software,
+which grant free use and allow for experimental evaluation. We hope that they will contribute to
+a smooth development and evaluation of further novel MoCap-based gait recognition methods. We
+encourage all readers and developers of MoCap-based gait recognition methods to contribute to
+the framework with new algorithms, data and improvements.
+REFERENCES
+[1] Faisal Ahmed, Padma Polash Paul, and Marina L. Gavrilova. 2015. DTW-Based Kernel and Rank-Level Fusion for 3D
+Gait Recognition Using Kinect. The Visual Computer 31, 6 (2015), 915–924. https://doi.org/10.1007/s00371-015-1092-0
+[2] Mohammed Ahmed, Naseer Al-Jawad, and Azhin Sabir. 2014. Gait Recognition Based on Kinect Sensor. Proc. SPIE
+9139 (2014), 91390B–91390B–10. https://doi.org/10.1117/12.2052588
+[3] Sajid Ali, ZhongkeWu, Xulong Li, Nighat Saeed, DongWang, andMingquan Zhou. 2016. Transactions on Computational
+Science XXVI: Special Issue on Cyberworlds and Cybersecurity. Springer, Berlin, Heidelberg, Chapter Applying Geometric
+Function on Sensors 3D Gait Data for Human Identification, 125–141. https://doi.org/10.1007/978-3-662-49247-5_8
+[4] Virginia O. Andersson and Ricardo M. Araujo. 2015. Person Identification Using Anthropometric and Gait Data from
+Kinect Sensor. In Proc. of the Twenty-Ninth AAAI Conference on Artificial Intelligence (AAAI-15). AAAI Press, 425–431.
+http://www.aaai.org/ocs/index.php/AAAI/AAAI15/paper/view/9680
+[5] Michal Balazia and Petr Sojka. 2016. Learning Robust Features for Gait Recognition by Maximum Margin Criterion. In
+Proc. of 23rd International Conference on Pattern Recognition, ICPR 2016. IEEE, 901–906. https://doi.org/10.1109/ICPR.
+2016.7899750
+[6] Michal Balazia and Petr Sojka. 2016. Walker-Independent Features for Gait Recognition from Motion Capture Data. In
+Structural, Syntactic, and Statistical Pattern Recognition: Joint IAPR International Workshop, S+SSPR 2016, Mérida, Mexico,
+November 29–December 2, 2016, Proceedings, Antonio Robles-Kelly, Marco Loog, Battista Biggio, Francisco Escolano, and
+RichardWilson (Eds.). Springer International Publishing, Cham, 310–321. https://doi.org/10.1007/978-3-319-49055-7_28
+[7] Michal Balazia and Petr Sojka. 2017. An Evaluation Framework and Database for MoCap-Based Gait Recognition
+Methods. In Reproducible Research in Pattern Recognition: First International Workshop, RRPR 2016, Cancún, Mexico,
+December 4, 2016, Revised Selected Papers, Bertrand Kerautret, Miguel Colom, and Pascal Monasse (Eds.). Springer
+International Publishing, Cham, 33–47. https://doi.org/10.1007/978-3-319-56414-2_3
+[8] Michal Balazia and Petr Sojka. 2017. Gait Recognition from Motion Capture Data. (Feb. 2017). Retrieved May 30, 2017
+from https://gait.fi.muni.cz/ Faculty of Informatics, Masaryk University, Brno.
+[9] Adrian Ball, David Rye, Fabio Ramos, and Mari Velonaki. 2012. Unsupervised Clustering of People from ’Skeleton’
+Data. In Proceedings of the Seventh Annual ACM/IEEE International Conference on Human-Robot Interaction (HRI ’12).
+16
+ACM, New York, NY, USA, 225–226. https://doi.org/10.1145/2157689.2157767
+[10] Peter N. Belhumeur, João P. Hespanha, and David J. Kriegman. 1997. Eigenfaces vs. Fisherfaces: Recognition Using
+Class Specific Linear Projection. IEEE Trans. Pattern Anal. Mach. Intell. 19, 7 (July 1997), 711–720. https://doi.org/10.
+1109/34.598228
+[11] N. V. Boulgouris, Konstantinos N. Plataniotis, and Evangelia Micheli-Tzanakou. 2009. Biometrics: Theory, Methods, and
+Applications. Wiley-IEEE Press.
+[12] Francisco M. Castro, Manuel J. Marín-Jiménez, Nicolás Guil, and Nicolas Pérez de la Blanca. 2016. Automatic Learning
+of Gait Signatures for People Identification. CoRR abs/1603.01006 (2016). https://arxiv.org/abs/1603.01006
+[13] Alexandros Andre Chaaraoui, José Ramón Padilla-López, and Francisco Flórez-Revuelta. 2015. Abnormal Gait Detection
+with RGB-D Devices using Joint Motion History Features. In 11th IEEE International Conference and Workshops on
+Automatic Face and Gesture Recognition (FG), 2015, Vol. 7. IEEE, 1–6.
+[14] Xi Chen and Markus Koskela. 2013. Classification of RGB-D and Motion Capture Sequences Using Extreme Learning
+Machine. In Proc. of Image Analysis: 18th Scandinavian Conference, SCIA 2013, Espoo, Finland, June 17–20, 2013, Joni-
+Kristian Kämäräinen and Markus Koskela (Eds.). Springer, 640–651. https://doi.org/10.1007/978-3-642-38886-6_60
+[15] Sruti Das Choudhury and Tardi Tjahjadi. 2015. Robust View-Invariant Multiscale Gait Recognition. Pattern Recognition
+48, 3 (2015), 798–811. https://doi.org/10.1016/j.patcog.2014.09.022
+[16] CMU Graphics Lab. 2003. Carnegie-Mellon Motion Capture (MoCap) Database. (2003). http://mocap.cs.cmu.edu.
+[17] James E. Cutting and Lynn T. Kozlowski. 1977. Recognizing friends by their walk: Gait perception without familiarity
+cues. Bulletin of the Psychonomic Society 9, 5 (1977), 353–356. https://doi.org/10.3758/BF03337021
+[18] Maxime Devanne, Hazem Wannous, Mohamed Daoudi, Stefano Berretti, Alberto Del Bimbo, and Pietro Pala. 2016.
+Learning Shape Variations of Motion Trajectories for Gait Analysis. In Proc. of 23rd International Conference on Pattern
+Recognition, ICPR 2016, Cancún, Mexico. 895–900. https://doi.org/10.1109/ICPR.2016.7899749
+[19] Bojan Dikovski, Gjorgji Madjarov, and Dejan Gjorgjevikj. 2014. Evaluation of Different Feature Sets for Gait Recognition
+Using Skeletal Data from Kinect. In 37th Intl. Convention on Information and Communication Technology, Electronics
+and Microelectronics. 1304–1308. https://doi.org/10.1109/MIPRO.2014.6859769
+[20] Ronald A. Fisher. 1936. The Use of Multiple Measurements in Taxonomic Problems. Annals of Eugenics 7, 2 (1936),
+179–188. https://doi.org/10.1111/j.1469-1809.1936.tb02137.x
+[21] SangUk Han, Madhav Achar, SangHyun Lee, and Feniosky Peña-Mora. 2013. Empirical assessment of a RGB-D sensor
+on motion capture and action recognition for construction worker monitoring. Visualization in Engineering 1, 1 (2013),
+6. https://doi.org/10.1186/2213-7459-1-6
+[22] Jie Hong, Jinsheng Kang, andMichael E. Price. 2014. Extraction of bodily features for gait recognition and gait attractive-
+ness evaluation. Multimedia Tools and Applications 71, 3 (2014), 1999–2013. https://doi.org/10.1007/s11042-012-1319-2
+[23] Shuming Jiang, Yufei Wang, Yuanyuan Zhang, and Jiande Sun. 2015. Real Time Gait Recognition System Based on
+Kinect Skeleton Feature. In Computer Vision – ACCV 2014 Workshops, C.V. Jawahar and Shiguang Shan (Eds.). LNCS,
+Vol. 9008. Springer, 46–57. https://doi.org/10.1007/978-3-319-16628-5_4
+[24] Gunnar Johansson. 1973. Visual perception of biological motion and a model for its analysis. Perception & Psychophysics
+14, 2 (1973), 201–211. https://doi.org/10.3758/BF03212378
+[25] J. Kamruzzaman and R. K. Begg. 2006. Support Vector Machines and Other Pattern Recognition Approaches to
+the Diagnosis of Cerebral Palsy Gait. IEEE Transactions on Biomedical Engineering 53, 12 (Dec 2006), 2479–2490.
+https://doi.org/10.1109/TBME.2006.883697
+[26] Dimitris Kastaniotis, Ilias Theodorakopoulos, Christos Theoharatos, George Economou, and Spiros Fotopoulos. 2015.
+A Framework for Gait-Based Recognition Using Kinect. Pattern Recognition Letters 68, Part 2 (2015), 327–335. https:
+//doi.org/10.1016/j.patrec.2015.06.020
+[27] András Kocsor, Kornél Kovács, and Csaba Szepesvári. 2004. Margin Maximizing Discriminant Analysis. Springer Berlin
+Heidelberg, Berlin, Heidelberg, 227–238. https://doi.org/10.1007/978-3-540-30115-8_23
+[28] Tomasz Krzeszowski, Adam Switonski, Bogdan Kwolek, Henryk Josinski, and KonradWojciechowski. 2014. DTW-Based
+Gait Recognition from Recovered 3-D Joint Angles and Inter-ankle Distance. In Proc. of Computer Vision and Graphics:
+International Conference, ICCVG 2014, Warsaw, Poland (LNCS), Leszek J. Chmielewski, Ryszard Kozera, Bok-Suk Shin,
+and Konrad Wojciechowski (Eds.), Vol. 8671. Springer, 356–363. https://doi.org/10.1007/978-3-319-11331-9_43
+[29] M. S. Naresh Kumar and R. Venkatesh Babu. 2012. Human Gait Recognition Using Depth Camera: A Covariance Based
+Approach. In Proc. of the Eighth Indian Conference on Computer Vision, Graphics and Image Processing (ICVGIP ’12).
+ACM, New York, NY, USA, Article 20, 6 pages. https://doi.org/10.1145/2425333.2425353
+[30] Bogdan Kwolek, Tomasz Krzeszowski, Agnieszka Michalczuk, and Henryk Josinski. 2014. 3D Gait Recognition Using
+Spatio-Temporal Motion Descriptors. In Proc. of Intelligent Information and Database Systems: 6th Asian Conference,
+ACIIDS 2014, Bangkok, Thailand, Part II (LNCS), Vol. 8398. Springer, 595–604. https://doi.org/10.1007/978-3-319-05458-2_
+61
+17
+[31] Haifeng Li, Tao Jiang, and Keshu Zhang. 2006. Efficient and Robust Feature Extraction by Maximum Margin Criterion.
+IEEE Transactions on Neural Networks 17, 1 (Jan 2006), 157–165. https://doi.org/10.1109/TNN.2005.860852
+[32] Marco Loog, Robert P.W. Duin, and Reinhold Haeb-Umbach. 2001. Multiclass Linear Dimension Reduction by Weighted
+Pairwise Fisher Criteria. IEEE Transactions on Pattern Analysis and Machine Intelligence 23, 7 (July 2001), 762–766.
+https://doi.org/10.1109/34.935849
+[33] Yasushi Makihara, Hidetoshi Mannami, and Yasushi Yagi. 2011. Gait Analysis of Gender and Age Using a Large-scale
+Multi-view Gait Database. In Proceedings of the 10th Asian Conference on Computer Vision - Volume Part II (ACCV’10).
+Springer-Verlag, Berlin, Heidelberg, 440–451. http://dl.acm.org/citation.cfm?id=1965992.1966027
+[34] M. P. Murray. 1967. Gait as a total pattern of movement: Including a bibliography on gait. American Journal of Physical
+Medicine & Rehabilitation 46, 1 (1967), 290.
+[35] Johannes Preis, Moritz Kessel, Martin Werner, and Claudia Linnhoff-Popien. 2012. Gait Recognition with Kinect. In 1st
+International Workshop on Kinect in Pervasive Computing, New Castle, UK, June 18–22. 1–4. https://www.researchgate.
+net/publication/239862819_Gait_Recognition_with_Kinect
+[36] Jan Sedmidubsky, Jakub Valcik, Michal Balazia, and Pavel Zezula. 2012. Gait Recognition Based on Normalized Walk
+Cycles. InAdvances in Visual Computing. LNCS, Vol. 7432. Springer, 11–20. https://doi.org/10.1007/978-3-642-33191-6_2
+[37] Aniruddha Sinha, Kingshuk Chakravarty, and Brojeshwar Bhowmick. 2013. Person Identification Using Skeleton
+Information from Kinect. In ACHI 2013: Proc. of the Sixth Intl. Conf. on Advances in CHI. 101–108. https://www.
+thinkmind.org/index.php?view=article&articleid=achi_2013_4_50_20187
+[38] Han Su, Zhi-Wu Liao, and Guo-Yue Chen. 2009. A gait recognition method using L1-PCA and LDA. In Proc. of the
+Eighth Intl. Conf. on Machine Learning and Cybernetics, Vol. 6. 3198–3203. https://doi.org/10.1109/ICMLC.2009.5212776
+[39] Faezeh Tafazzoli, George Bebis, Sushil J. Louis, and Muhammad Hussain. 2015. Genetic Feature Selection for Gait
+Recognition. J. of Electron. Imaging 24, 1 (25 Feb. 2015), 013036. https://doi.org/10.1117/1.JEI.24.1.013036
+[40] Vladimir N. Vapnik. 1995. The Nature of Statistical Learning Theory. Springer-Verlag, New York, NY, USA.
+[41] Y. Wahab and N. A. Bakar. 2011. Gait analysis measurement for sport application based on ultrasonic system. In 2011
+IEEE 15th International Symposium on Consumer Electronics (ISCE). 20–24. https://doi.org/10.1109/ISCE.2011.5973775
+[42] Wei Zeng and Cong Wang. 2014. View-Invariant Gait Recognition via Deterministic Learning. In International Joint
+Conference on Neural Networks (IJCNN). 3465–3472. https://doi.org/10.1109/IJCNN.2014.6889507
+Received February 2017; revised August 2017; accepted August 2017
+18

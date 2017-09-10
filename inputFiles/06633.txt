@@ -1,0 +1,1579 @@
+Nonparametric regression using deep neural networks with
+ReLU activation function
+Johannes Schmidt-Hieber
+Abstract
+Consider the multivariate nonparametric regression model. It is shown that estima-
+tors based on sparsely connected deep neural networks with ReLU activation function
+and properly chosen network architecture achieve the minimax rates of convergence (up
+to log n-factors) under a general composition assumption on the regression function.
+The framework includes many well-studied structural constraints such as (generalized)
+additive models. While there is a lot of flexibility in the network architecture, the tun-
+ing parameter is the sparsity of the network. Specifically, we consider large networks
+with number of potential parameters being much bigger than the sample size. The
+analysis gives some insights why multilayer feedforward neural networks perform well
+in practice. Interestingly, the depth (number of layers) of the neural network architec-
+tures plays an important role and our theory suggests that scaling the network depth
+with the logarithm of the sample size is natural.
+1 Introduction
+In the nonparametric regression model with random design, we observe n i.i.d. vectors
+Xi ? [0, 1]d and n responses Yi ? R from the model
+Yi = f(Xi) + ?i, i = 1, . . . , n. (1.1)
+The noise variables ?i are assumed to be i.i.d. standard normal and independent of (Xi)i.
+The statistical problem is to recover the unknown function f : [0, 1]d ? R from the data
+(Xi, Yi)i. Various methods exist that allow to estimate the regression function nonparamet-
+rically, including kernel smoothing, series estimators/wavelets and splines, cf. [11, 37, 36].
+In this work, we consider fitting a multilayer feedforward artificial neural network to the
+data. It is shown that the estimator achieves nearly optimal convergence rates under various
+constraints on the regression function.
+1
+ar
+X
+iv
+:1
+70
+8.
+06
+63
+3v
+1 
+ [
+m
+at
+h.
+ST
+] 
+ 2
+2 
+A
+ug
+ 2
+01
+7
+Multilayer (or deep) neural networks have been successfully trained recently to achieve
+impressive results for complicated tasks such as object detection on images and speech
+recognition. Deep learning is now considered to be the state-of-the art for these tasks. But
+there is a lack of theoretical understanding. One problem is that fitting a neural network
+to data is highly non-linear in the parameters. Moreover, the function class is non-convex
+and different regularization methods are combined in practice.
+This article is inspired by the idea to build a statistical theory that provides some un-
+derstanding of these procedures. As the full method is too complex to be theoretically
+tractable, we need to make some selection of important characteristics that we believe are
+crucial for the success of the procedure.
+To fit a neural network, an activation function ? : R ? R needs to be chosen. Tradition-
+ally, sigmoidal activation functions were employed. Recall that an activation function is
+called sigmoidal if it can be written as cumulative distribution function of a real valued
+random variable. For deep neural networks, however, there is a clear gain using the non-
+sigmoidal rectifier linear unit (ReLU) ?(x) = max(x, 0) = (x)+. Indeed, in practice the
+ReLU outperforms other activation functions with respect to the statistical performance
+and the computational cost, cf. [9]. While most of the existing statistical theory deals with
+sigmoidal activation functions, we provide statistical theory for deep neural networks with
+ReLU activation function.
+The statistical analysis for the ReLU activation function is quite different from earlier
+approaches and we discuss this in more detail in the overview on related literature in
+Section 4. Viewed as a nonparametric method the ReLU has some surprising properties.
+To explain this, notice that deep networks with ReLU activation produce functions that are
+piecewise linear in the input. Nonparametric methods which are based on piecewise linear
+approximations are typically not able to capture higher-order smoothness in the signal
+and are rate-optimal only up to smoothness index two. Interestingly, we can show that the
+ReLU combined with a deep network architecture achieves near minimax rates for arbitrary
+smoothness of the regression function.
+The number of hidden layers of state-of-the-art network architectures has been growing
+over the past years, cf. [34]. There are versions of the recently developed deep network
+ResNet which are based on 152 layers, cf. [13]. Our analysis indicates that for the ReLU
+activation function the network depth should scale with the logarithm of the sample size.
+This suggests, that for larger samples, additional hidden layers should be added.
+Recent deep architectures include more parameters than training samples. The well-known
+AlexNet [24] for instance is based on 60 million network parameters using only 1.2 million
+2
+samples. We account for high-dimensional parameter spaces in our analysis by assuming
+that the number of potential network parameters is bounded by an arbitrary power of
+the sample size. To avoid overfitting, some sort of regularization or sparsity has to be
+incorporated. In the deep networks literature, one option is to make the network thinner
+assuming that only few parameters are non-zero (or active), cf. [10], Section 7.10. Our
+analysis shows that the number of non-zero parameters plays the role of the effective model
+dimension and - as common in non-parametric regression - needs to be chosen carefully.
+Existing statistical theory often requires that the size of the network parameters tends to
+infinity as the sample size increases. In practice, estimated network weights are, however,
+rather small. We can incorporate small parameters in our theory, proving that it is sufficient
+to consider neural networks with all network parameters bounded in absolute value by one.
+Multilayer neural networks are typically applied to high-dimensional input. Without addi-
+tional structure in the signal besides smoothness, nonparametric estimation rates are then
+slow because of the well-known curse of dimensionality. This means that no statistical
+procedure can do well regarding pointwise reconstruction of the signal. Multilayer neural
+networks are believed to be able to adapt to many different structures in the signal, there-
+fore avoiding the curse of dimensionality and achieving faster rates in many situations. In
+this work, we stick to the regression setup and show that deep networks can indeed attain
+faster rates under a hierarchical composition structure assumption on the regression func-
+tion, which includes (generalized) additive models and the composition models considered
+in [16, 17, 2, 21, 5].
+Parts of the success of multilayer neural networks can be explained by the fast algorithms
+that are available to estimate the network weights from data. These iterative algorithms are
+based on minimization of some empirical loss function using stochastic gradient descent. To
+regularize the reconstruction, a common method is to stop after few iterations. Because of
+the non-convex function space, these gradient descent methods converge to one of the many
+local minima. It is now widely believed that the risk of most of the local minima is not
+much larger than the risk of the global minimum, cf. [7]. On the contrary, the statistical
+estimation theory deals with the estimator minimizing the (global) least-squares functional
+over a class of network functions. Although this estimator is in general not computable it is
+conceivable that it has similar properties as an estimator obtained using stochastic gradient
+descent.
+Our setting deviates in two other important features from the computer science literature on
+deep learning. Firstly, we consider regression and not classification. Secondly, we restrict
+ourselves in this article to multilayer feedforward artificial neural networks, while most
+of the many recent deep learning applications have been obtained using convolutional or
+3
+recurrent neural networks. Although these are limitations, one should be aware that our
+setting is much more general than previous statistical work on the topic and provides, to
+the best of our knowledge, for the first time nearly optimal estimation rates for multilayer
+neural networks with ReLU activation function.
+The article is structured as follows. Section 2 introduces multilayer feedforward artificial
+neural networks. The considered function classes and the main result can be found in
+Section 3. This part also discusses several specific examples such as additive models. We
+given an overview of relevant related literature in Section 4. The proof of the main result
+together with additional discussion can be found in Section 5.
+Notation: Vectors are denoted by bold letters, x := (x1, . . . , xd), 0 := (0, . . . , 0), . . . As
+usual, we define |x|p := (
+?d
+i=1 |xi|p)1/p, |x|? := maxi |xi|, |x|0 =
+?
+i 1(xi 6= 0), and write
+?f?p := ?f?Lp(D) for the Lp-norm on D, whenever there is no ambiguity of the domain D.
+For two sequences (an)n and (bn)n, we write an . bn if there exists a constant C such that
+an ? Cbn for all n. Moreover, an  bn means that an . bn and bn . an.
+2 Mathematical definition of multilayer neural networks
+Fitting a multilayer neural network requires the choice of an activation function ? : R? R
+and the network architecture. Motivated by the importance in deep learning, we study the
+rectifier linear unit (ReLU) activation function
+?(x) = max(x, 0).
+The network architecture (L,p) consists of a positive integer L called the number of hidden
+layers or depth and a width vector p = (p0, . . . , pL+1) ? NL+2. For v = (v1, . . . , vr) ? Rr,
+define the shifted activation function ?v : Rr ? Rr as
+?v
+????
+y1
+...
+yr
+???? =
+????
+?(y1 ? v1)
+...
+?(yr ? vr)
+???? .
+A neural network with network architecture (L,p) is any function of the form
+f : Rp0 ? RpL+1 , x 7? f(x) = WL+1?vLWL?vL?1 · · ·W2?v1W1x, (2.1)
+where Wi is a pi× pi?1 weight matrix and vi ? Rpi is a shift vector. Network functions are
+therefore build by alternating matrix-vector multiplications with the action of the non-linear
+activation function ?. In (2.1), it is also possible to omit the shift vectors by considering the
+4
+Figure 1: Representation as a direct graph of a network with two hidden layers L = 2 and
+width vector p = (4, 3, 3, 2).
+input (x, 1) and enlarging the weight matrices by one row and one column with appropriate
+entries. For our analysis it is, however, more convenient to work with the representation
+(2.1).
+In computer science, neural networks are more commonly introduced via their representa-
+tion as directed acyclic graph, cf. Figure 1. Using this equivalent definition, the nodes in
+the graph (also called units) are arranged in layers. The input layer is the first layer and
+the output layer the last layer. The layers that lie in between are the hidden layers. The
+number of hidden layers corresponds to L and the number of units in each layer generates
+the width vector p. Each node/unit in the graph representation stands for a scalar prod-
+uct of the incoming signal with a weight vector which is then shifted and applied to the
+activation function.
+Given a network function f(x) = WL+1?vLWL?vL?1 · · ·W2?v1W1x, the network parameters
+are the entries of the matrices (Wj)j=1,...,L+1 and vectors (vj)j=1,...,L. Denote by ?Wj?0 the
+number of non-zero entries of Wj . Similarly, define by ?Wj?? the maximum-entry norm of
+Wj . The aim of this article is to study the statistical properties of large but sparse networks
+with bounded parameters. To this end, define the space of network functions with given
+network architecture and network parameters bounded by one,
+F(L,p) :=
+{
+f of the form (2.1) : max
+j?1,...,L+1
+?Wj?? ? |vj |? ? 1
+}
+, (2.2)
+with the convention vL+1 := 0. Also define
+F(L,p, s) :=
+{
+f ? F(L,p) :
+L+1?
+j=1
+?Wj?0 + |vj |0 ? s
+}
+. (2.3)
+We consider cases where the number of network parameters s is small compared to the
+total number of parameters.
+5
+Recall that we consider the d-variate nonparametric regression model. We therefore must
+have p0 = d and pL+1 = 1. The multilayer neural network estimator f? is the network in
+F(L,p, s) that fits the data best in a least squares sense, that is,
+f? ? arg min
+f?F(L,p,s)
+n?
+i=1
+(Yi ? f(Xi))2. (2.4)
+To evaluate the statistical performance of this estimator, we derive bounds on the L2-risk
+R(f? , f) := Ef
+[(
+f?(X)? f(X)
+)2]
+,
+where Ef denotes the expectation with respect to Yi|Xi ? N (f(Xi), 1) and X having the
+same distribution as X1.
+3 Main results
+In this section we show that if the number of parameters s is of the right order, the neural
+network estimator achieves the optimal nonparametric rates (up to log n-factors) over a wide
+range of function classes with different structural constraints and smoothness properties.
+We start by defining appropriate function classes.
+A simple structural constraint is that the regression function f : [0, 1]d ? R can be written
+as a composition of functions
+f = g1 ? g0 (3.1)
+with g0 : [0, 1]
+d ? Rd1 and g1 : Rd1 ? Rd2 . Nonparametric estimation under this compo-
+sition assumption has been studied in [17]. Notice that (3.1) generalizes additive models
+f(x) =
+?d
+j=1 fj(xj) by taking g0(x) = (f1(x1), . . . , fd(xd))
+t and g1(y) =
+?d
+j=1 yj . Then, g1
+is arbitrarily smooth and the components of g0 depend on one variable only. This causes
+the fast rates that can be obtained for additive models. Assumption (3.1) can also be seen
+as a generalization of shape constraints such as log-concavity.
+To represent higher order structure, such as generalized additive models, (3.1) turns out to
+be insufficient and we consider instead compositions of arbitrary depth
+f = gq ? gq?1 ? . . . ? g1 ? g0 (3.2)
+with gi : [ai, bi]
+di ? [ai+1, bi+1]di+1 . Denote by gi = (gij)tj=1,...,di the components of gi and
+let ti be the maximal number of variables on which each of the gij depends on. Thus, each
+gij is a ti-variate function and for specific constraints such as additive models, ti might be
+6
+much smaller than di. The single components g0, . . . , gq are obviously not identifiable. As
+we are only interested in estimation of f this causes no problems. Since f : [0, 1]d ? R, we
+must have d0 = d, a0 = 0, b0 = 1 and dq+1 = 1.
+The composition assumption in (3.2) occurs very naturally in combination with multilayer
+neural networks. Notice that nonparametric estimation of f is a challenging task and
+many estimation techniques such as series estimators/wavelets might not be able to take
+advantage from the underlying composition structure in the regression function. Slightly
+more specific function spaces, which alternate between summations and composition of
+functions, have been considered in [16, 5]. We provide below an example of a function class
+that can be decomposed in the form (3.2) but is not contained in these spaces.
+We assume that each of the functions gij has some Ho?lder smoothness. Recall that a
+function has Ho?lder smoothness index ? if all partial derivatives up to order b?c exist and
+are bounded and the partial derivatives of order b?c are ??b?c Ho?lder, where b?c denotes
+the largest integer strictly smaller than ?. The ball of ?-Ho?lder functions with radius K is
+then defined as
+C?r (D,K) =
+{
+f : D ? Rr ? R :
+?
+?:|?|<?
+???f?? +
+?
+?:|?|=b?c
+sup
+x,y?D
+x 6=y
+|??f(x)? ??f(y)|
+|x? y|??b?c?
+? K
+}
+,
+where we used multi-index notation, that is, ?? = ??1 . . . ??r with ? = (?1, . . . , ?r) ? Nr
+and |?| := |?|1.
+We assume that each of the functions gij has Ho?lder smoothness ?i. Since gij is also ti-
+variate, gij ? C?iti ([ai, bi]
+ti ,Ki). For estimation rates in the nonparametric regression model,
+the crucial quantity is the smoothness of f. If, for instance, q = 1, ?0, ?1 ? 1, d0 = d1 =
+t0 = t1 = 1, then f = g1 ? g0 and f has smoothness ?0?1, cf. [17, 32]. We should then be
+able to achieve at least the convergence rate n?2?0?1/(2?0?1+1). For ?1 > 1, the rate changes.
+Below we see that the estimation rate is described by the effective smoothness indices
+??i := ?i
+q?
+`=i+1
+(?` ? 1).
+Theorem 1. Consider the d-variate nonparametric regression model (1.1) for composite
+regression function (3.2) assuming that gij ? C?iti ([ai, bi]
+ti ,Ki), for all i = 0, . . . , q and
+j = 1, . . . , di. Let f? be the neural network estimator defined in (2.4) for a network class
+7
+F(L, (pi)i=0,...,L+1, s) satisfying for some C > 0,
+q?
+i=0
+(2 + log2 ti) log2 n ? L . log n
+max
+i=0,...,q
+n
+ti
+2??
+i
++ti . min
+i=1,...,L
+pi ? max
+i=1,...,L
+pi . n
+C
+s  max
+i=0,...,q
+n
+ti
+2??
+i
++ti log n.
+Then,
+R(f? , f) . max
+i=0,...,q
+n
+? 2?
+?
+i
+2??
+i
++ti log2 n.
+The result shows that there is a lot of flexibility in picking a good network architecture as
+long as the number of active parameters s is taken to be of the right order. Interestingly,
+the depth L of the network can be chosen without knowledge of the smoothness indices
+and it is sufficient to know an upper bound on the ti ? di. The network width can also be
+chosen independent of the smoothness indices by taking n . mini pi ? maxi pi . nC . One
+might wonder whether the sparsity s can be made adaptive by minimizing a penalized least
+squares problem with an `1-penalty on the network weights. As this requires much more
+machinery, the question will be moved to future work.
+The number of network parameters in a fully connected network is of the order
+?L
+i=0 pipi+1.
+This shows that Theorem 1 requires sparse networks. More specifically, the network has at
+least
+?L
+i=1 pi ? s completely inactive nodes, meaning that all incoming signal is zero.
+For convenience, Theorem 1 is stated without explicit constants. The proofs, however, are
+non-asymptotic although we did not make an attempt to minimize the constants. It is
+well-known that deep learning outperforms other methods only for large sample sizes. This
+indicates that the method might be able to adapt to underlying structure in the signal
+and therefore achieving fast convergence rates but with large constants or remainder terms
+which spoil the results for small samples.
+The proof of the upper bound on the risk in Theorem 1 is based on the following oracle-type
+inequality. The constant two can be sharpened to 1+? at the expense of an inflated penalty
+term.
+Theorem 2. Consider the d-variate nonparametric regression model (1.1) with parameter
+space F(L,p, s). If f? is the least-squares estimator and V :=
+?L
+`=0(p` + 1), then,
+R(f? , f0) ? 2 inf
+f?F(L,p,s)
+??f ? f0??2? + 10 + 6(s+ 1) log(2n(L+ 1)V 2)n .
+8
+Let us remark on the optimality of the rate in Theorem 1. Obviously, the log2 n-factor is
+an artifact of the upper bound. For composition of two functions (3.1), [17] derives the
+minimax rates for sup-norm loss. Unlike the classical nonparametric regression model, the
+minimax estimation rates for L2-loss can be different by a polynomial power in the sample
+size n. Nevertheless, our rate coincides in most regimes with the rates obtained in Section
+4.1 of [17] for q = 1.
+A complete proof for a lower bound could be established using the standard multiple testing
+approach, cf. [36], Section 2.6. We only sketch the idea here. For simplicity assume that
+ti = di = 1 for all i. In this case, the functions gi are univariate and real-valued. Define
+i? ? arg maxi=0,...,q n?2?
+?
+i /(2?
+?
+i +1) as an index for which the estimation rate is obtained. For
+any ? > 0, x? has Ho?lder smoothness ? and for ? = 1, the function is infinitely often
+differentiable and has finite Ho?lder norm for all smoothness indices. Define g`(x) = x for
+` < i? and g`(x) = x
+?`?1 for ` > i?. Then,
+f(x) = gq ? gq?1 ? . . . ? g1 ? g0(x) =
+(
+gi?(x)
+)?q
+`=i?+1 ?`?1.
+The Kullback-Leibler divergence for the model is KL(Pf , Pg) =
+n
+2 ?f ? g?
+2
+2. Take a ker-
+nel function K and consider g?(x) = h?i?K(x/h). Under standard assumptions on K, g?
+has Ho?lder smoothness index ?i? . Now we can generate two hypotheses f0(x) = 0 and
+f1(x) = (h
+?i?K(x/h))
+?q
+`=i?+1 ?`?1 by taking gi?(x) = 0 and gi?(x) = g?(x). Therefore,
+|f0(0) ? f1(0)| & h?
+?
+i? assuming that K(0) > 0 and KL(Pf , Pg) . nh
+2??
+i?+1. Using The-
+orem 2.2 (iii) in [36], this shows that the pointwise rate of convergence is n?2?
+?
+i?/(2?
+?
+i?+1) =
+maxi=0,...,q n
+?2??i /(2??i +1). This matches with the upper bound since ti = 1 for all i. In a
+similar fashion, we can extend the number of hypotheses to obtain rates with respect to
+L2-loss.
+Examples: There are several well-studied special cases in which the estimation rate in
+Theorem 1 leads to a simpler expression.
+Additive models: In an additive model the regression function has the form
+f(x1, . . . , xd) =
+d?
+i=1
+fi(xi).
+As mentioned above this can be written as f = g1 ? g0 with d1 = d, t0 = 1, and
+g2(y1, . . . , yd) =
+?d
+j=1 yj . Suppose that fi ? C
+?
+1 ([0, 1],K). Then, f : [0, 1]
+d g0?? [?K,K]d g1??
+[?Kd,Kd]. Since for any ? > 1, g ? C?d ([?K,K]
+d, (K + 1)d), we can set ? = (? ? 1)d and
+thus obtain for network architectures satisfying the assumptions of Theorem 1,
+R(f? , f) . n?
+2?
+2?+1 log2 n.
+9
+This coincides up to the log2 n-factor with the minimax estimation rate.
+Generalized additive models: Suppose the regression function is of the form
+f(x1, . . . , xd) = h
+( d?
+i=1
+fi(xi)
+)
+,
+for some unknown link function h : R ? R. This can be written as composition of three
+functions f = g2 ? g1 ? g0 with g0 and g1 as before and g2 = h. If fi ? C?1 ([0, 1],K) and
+h ? C?1 (R,K ?), then f : [0, 1]d
+g0?? [?K,K]d g1?? R g2?? R. For network architectures
+satisfying the assumptions of Theorem 1, the bound on the estimation rate becomes
+R(f? , f) .
+(
+n
+? 2?(??1)
+2?(??1)+1 + n
+? 2?
+2?+1
+)
+log2 n.
+For ? = ? ? 2 and ?, ? integers, Theorem 2.1 of [16] establishes the estimation rate
+n?2?/(2?+1) which matches with our convergence rate up to the log2 n-factor.
+Multiplicative models: Assume that the function f can be written as
+f(x) =
+N?
+`=1
+a`
+d?
+i=1
+fi`(xi), (3.3)
+for fixed N. Particularly, if N = 1, then f(x) =
+?d
+i=1 fi(xi). The multiplicative structural
+constraint can be motivated by series estimators. Series estimators are based on the idea
+that the unknown function is close to a linear combination of few basis functions, where
+the approximation error depends on the smoothness of the signal. This means that any
+L2-function can be approximated by f(x) ?
+?N
+`=1 a`
+?d
+i=1 ?i`(xi) for suitable coefficients
+a`. Therefore, (3.3) generates a rich function class.
+One should also notice that (3.3) is much more general than series expansions. Firstly,
+(3.3) will be satisfied whenever there exists a basis such that f has an expansion with finite
+terms, while for series estimators we need to pick a basis. Secondly, the functions fi` do
+not need to be orthogonal.
+We can rewrite (3.3) as a composition of functions f = g2 ? g1 ? g0 with g0(x) = (fi`(xi))i,`,
+g1 = (g1j)j=1,...,N performing the N multiplications
+?d
+i=1 and g2(y) =
+?N
+`=1 a`y`. Observe
+that t0 = 1 and t1 = d. Assume that fi` ? C?1 ([0, 1],K) and max` |a`| ? 1. Because of g1,j ?
+C?d ([?K,K]
+d, d!Kd) for all ? ? d + 1 and g2 ? C?
+?
+1 ([?d!Kd, d!Kd], Nd!Kd) for ?? ? 1, we
+have [0, 1]d
+g0?? [?K,K]Nd g1?? [?d!Kd, d!Kd]N g2?? [?Nd!Kd, Nd!Kd]. Applying Theorem
+1 with ? = (?d)?(d+1) and ?? = N?+1, the rate for estimators based on suitable network
+architectures is bounded by
+R(f? , f) . n?
+2?
+2?+1 log2 n,
+which is unaffected by the curse of dimensionality.
+10
+4 A brief summary of related statistical theory for neural
+networks
+This section is intended as a condensed overview on related literature summarizing main
+proving strategies for bounds on the statistical risk. To control the stochastic error of
+neural networks, bounds on the covering entropy and VC dimension can be found in the
+monograph [1]. The challenging part in the analysis of neural networks is the approximation
+theory for multivariate functions. We first recall results for shallow neural networks, that
+is, neural networks with one hidden layer.
+Shallow neural networks and cosine expansions: A shallow network with one output
+unit and width vector (d,m, 1) can be written as
+fm(x) =
+m?
+j=1
+cj?
+(
+wtjx + vj
+)
+, wj ? Rd, vj , cj ? R. (4.1)
+The universal approximation theorem states that a neural network with one hidden layer
+can approximate any continuous function f arbitrarily well with respect to the uniform
+norm provided there are enough hidden units (cf. [14, 15, 8, 25, 33]). If f has a derivative
+f ?, then the derivative of the neural network also approximates f ?. The number of required
+hidden units might be, however, extremely large, cf. [31] and [30].
+The essential idea of the universal approximation theory can be described as follows. Recall
+the addition theorem cos(u) cos(v) = 12(cos(u + v) + cos(u ? v)). Using this together with
+the fact that any function f ? L2[0, 1]d can be expanded in the tensorized cosine basis, we
+obtain f(x1, . . . , xd) =
+?
+(i1,...,id)?Nd ai1...id
+?d
+j=1 cos(ij?xj) =
+?
+j c?j cos(w?
+t
+jx) for suitable
+w?j ? Rd and c?j ? R. We can bring this then in the form (4.1) by approximating cos(·)
+through linear combinations of ?(a ·+b
+)
+.
+This idea can be sharpened in order to obtain rates of convergence. In [28] the convergence
+rate n?2?/(2?+d+5) is derived. Compared with the minimax estimation rate this is subop-
+timal by a polynomial factor. The reason for the loss of performance with this approach is
+that rewriting the function as a network requires too many parameters.
+In [3, 4, 18, 19] a similar strategy is used to derive the rate Cf (d
+logn
+n )
+1/2 for the squared L2-
+risk, where Cf :=
+?
+|?|1|Ff(?)|d? and Ff denotes the Fourier transform of f. If Cf <?
+and d is fixed the rate is always n?1/2 up to logarithmic factors. Since
+?
+i ??if?? ? Cf ,
+this means that Cf <? can only hold if f has Ho?lder smoothness at least one. This rate
+is difficult to compare with the standard nonparametric rates except for the special case
+d = 1 where the rate is suboptimal compared with the minimax rate n?2/(2+d) for d-variate
+functions with smoothness one.
+11
+Results for multilayer neural networks: [20, 12, 22, 21] use two-layer neural networks
+with sigmoidal activation function and achieve the nonparametric rate n?2?/(2?+d) up to
+log n-factors. Unfortunately, the result requires that the activation function is at least as
+smooth as the signal, cf. Theorem 1 in [5]. It therefore rules out the ReLU activation
+function.
+The activation function ?(x) = x2 is not of practical relevance but has some interesting
+theory. Indeed, with one hidden layer, we can generate quadratic polynomials and with L
+hidden layers polynomials of degree 2L. For this activation function, the role of the network
+depth is the polynomial degree and we can use standard results to approximate functions
+in common function classes. A natural generalization is the class of activation functions
+satisfying limx??? x
+?k?(x) = 0 and limx?+? x
+?k?(x) = 1.
+If the growth is at least quadratic (k ? 2), the approximation theory has been derived in
+[29] for deep networks with number of layers scaling with log d. The same class has also
+been considered recently in [6]. For the approximations to work, the assumption k ? 2 is
+crucial and the same approach does not generalize to the ReLU activation function, which
+satisfies the growth condition with k = 1, and always produces functions that are piecewise
+linear in the input.
+Approximation theory for the ReLU activation function has been only recently developed
+in [35, 26, 38]. The key observation is that there are specific deep networks with few units
+which approximate the square function well. In particular, the function approximation
+presented in [38] is essential for our approach and we use a similar strategy to construct
+networks that are close to a given function. An additional difficulty in our approach is the
+explicit control on the network architecture and the network parameters.
+5 Proofs
+5.1 Embedding properties of network function classes
+For the approximation of a function by a network, we first construct smaller networks
+computing simpler objects. To combine networks, we make frequently use of the following
+rules. Recall that p = (p0, . . . , pL+1) and p
+? = (p?0, . . . , p
+?
+L+1).
+Enlarging: F(L,p, s) ? F(L,q, s?) whenever p ? q componentwise and s ? s?.
+Composition: Suppose that f ? F(L,p) and g ? F(L?,p?) with pL+1 = p?0. For a vector
+v ? RpL+1 we define the composed network g ? ?v(f) which is in the space F(L + L? +
+1, (p, p?1, . . . , p
+?
+L?+1)). In most of the cases that we consider, the output of the first network
+12
+is non-negative and the shift vector v will be taken to be zero.
+Additional layers/depth synchronization: To synchronize the number of hidden layers for
+two networks, we can add additional layers with identity weight matrix, such that
+F(L,p, s) ? F(L+ q, (p0, . . . , p0? ?? ?
+q times
+,p), s+ qd). (5.1)
+Parallelization: Given two networks with the same number of hidden layers and the same
+input dimension, that is, f ? F(L,p) and g ? F(L,p?) with p0 = p?0. The parallelized
+network (f, g) computes f and g simultaneously in a joint network in the class F(L, (p0, p1+
+p?1, . . . , pL+1 + p
+?
+L+1)).
+We frequently make use of the fact that for a fully connected network in F(L,p) the number
+of parameters is
+L?
+`=0
+(p` + 1)p`+1 ? pL+1. (5.2)
+5.2 Approximation of polynomials by neural networks
+In a first step, we construct a network, with all network parameters bounded by one, which
+approximately computes xy given input x and y. Let T k : [0, 22?2k]? [0, 2?2k],
+T k(x) := (x/2) ? (21?k ? x/2) = (x/2)+ ? (x? 21?k)+
+and Rk : [0, 1]? [0, 2?2k],
+Rk := T k ? T k?1 ? . . . T 1.
+The next result shows that
+?m
+k=1R
+k(x) approximates x(1 ? x) exponentially fast in m
+and that in particular x(1? x) =
+??
+k=1R
+k(x) in L?[0, 1]. This lemma can be viewed as a
+slightly sharper variation of Lemma 2.4 in [35] and Proposition 2 in [38]. In contrast to the
+existing results, we can use it to build networks with parameters bounded by one. It also
+provides an explicit bound on the approximation error.
+Lemma 1. ??x(1? x)? m?
+k=1
+Rk(x)
+?? ? 2?m.
+Proof. In a first step, we show by induction that Rk is a triangle wave. More, precisely Rk
+is piecewise linear on the intervals [`/2k, (`+ 1)/2k] with endpoints Rk(`/2k) = 2?2k if ` is
+13
+odd and Rk(`/2k) = 0 if ` is even. For R1 = T 1 this is obviously true. For the inductive
+step, suppose this is true for Rk. Write ` ? k mod 4 if `? k is divisible by 4 and consider
+x ? [`/2k+1, (` + 1)/2k+1]. If ` ? 0 mod 4 then, Rk(x) = x ? `/22k+1. Similar for ` ? 2
+mod 4, Rk(x) = 2?2k ? (x ? `/22k+1); for ` ? 1 mod 4, we have ` + 1 ? 2 mod 4 and
+Rk(x) = 2?2k?1 + (x ? `/22k+1); and for ` ? 3 mod 4, Rk(x) = 2?2k?1 ? (x ? `/22k+1).
+Together with
+Rk+1(x) = T k+1 ?Rk(x)
+=
+Rk(x)
+2
+1(Rk(x) ? 2?2k?1) +
+(
+2?2k?1 ? R
+k(x)
+2
+)
+1(Rk(x) > 2?2k?1).
+this shows the claim for Rk+1 and completes the induction.
+For convenience, write g(x) = x(1? x). In the next step, we show that for any m ? 1 and
+any ` ? {1, . . . , 2m},
+g(`2?m) =
+m?
+k=1
+Rk(`2?m).
+We prove this by induction over m. For m = 1 the result can be checked directly. For
+the inductive step, suppose it holds for m. If ` is even we use that Rm+1(`2?m?1) = 0 to
+obtain that g(`2?m?1) =
+?m
+k=1R
+k(`2?m?1) =
+?m+1
+k=1 R
+k(`2?m?1). If ` is odd, recall that
+x 7?
+?m
+k=1R
+k(x) is linear on [(`? 1)2?m?1, (`+ 1)2?m?1]. Observe that for any real t,
+g(x)? g(x+ t) + g(x? t)
+2
+= t2.
+Using this for x = `2?m?1 and t = 2?m?1 yields for odd ` due to Rm+1(`2?m?1) = 2?2m?2,
+g(`2?m?1) = 2?2m?2 +
+m?
+k=1
+Rk(`2?m?1) =
+m+1?
+k=1
+Rk(`2?m?1).
+This completes the inductive step.
+So far we proved that
+?m
+k=1R
+k(x) interpolates g at the points `2?m and is linear on the
+intervals [`2?m, (` + 1)2?m]. Observe also that g is Lipschitz with Lipschitz constant one.
+Thus, for any x, there exists an ` such that??g(x)? m?
+k=1
+Rk(x)
+?? = ???g(x)? (2mx? `)g((`+ 1)2?m)? (`+ 1? 2mx)g(`2?m)??? ? 2?m.
+Let g(x) = x(1?x) as in the last proof. To construct a network which returns approximately
+xy given input x and y, we use the polarization type identity
+g
+(x? y + 1
+2
+)
+? g
+(x+ y
+2
+)
++
+x+ y
+2
+? 1
+4
+= xy. (5.3)
+14
+Figure 2: The network (T+(u), T
+1
+?(u), h(u)) 7?
+?m+1
+k=1 R
+k(u) + h(u).
+Lemma 2. There exists a network Multm ? F(m+4, (2, 6, 6, . . . , 6, 1)), such that Multm(x, y) ?
+[0, 1] and ??Multm(x, y)? xy?? ? 2?m, for all x, y ? [0, 1].
+Proof. Write Tk(x) = (x/2)+ ? (x ? 21?k)+ = T+(x) ? T k?(x) with T+(x) = (x/2)+ and
+T k?(x) = (x ? 21?k)+ and let h : [0, 1] ? [0,?) be a non-negative function. In a first step
+we show that there is a network Nm with m hidden layers and width vector (3, 3, . . . , 3, 1)
+that computes the function
+(
+T+(u), T
+1
+?(u), h(u)
+)
+7?
+m+1?
+k=1
+Rk(u) + h(u),
+for all u ? [0, 1]. The proof is given in Figure 2. Notice that all parameters in this networks
+are bounded by one. In a next step, we show that there is a network with m + 3 hidden
+layers that computes the function
+(x, y) 7?
+(m+1?
+k=1
+Rk
+(x? y + 1
+2
+)
+?
+m+1?
+k=1
+Rk
+(x+ y
+2
+)
++
+x+ y
+2
+? 1
+4
+)
++
+? 1.
+This network computes in the first layer
+(x, y) 7?
+(
+T+
+(x? y + 1
+2
+)
+, T 1?
+(x? y + 1
+2
+)
+,
+(x+ y
+2
+)
++
+, T+
+(x+ y
+2
+)
+, T 1?
+(x+ y
+2
+)
+,
+1
+4
+)
+.
+15
+On the first three and the last three components, we apply the network Nm. This gives a
+network with m+ 1 hidden layers and width vector (2, 3, . . . , 3, 2) that computes
+(x, y) 7?
+(m+1?
+k=1
+Rk
+(x? y + 1
+2
+)
++
+x+ y
+2
+,
+m+1?
+k=1
+Rk
+(x+ y
+2
+)
++
+1
+4
+)
+.
+Apply to the output the two hidden layer network (u, v) 7? (1?(1?(u?v))+)+ = (u?v)+?1.
+The combined network Multm(x, y) has thus m+ 4 hidden layers and computes
+(x, y) 7?
+(m+1?
+k=1
+Rk
+(x? y + 1
+2
+)
+?
+m+1?
+k=1
+Rk
+(x+ y
+2
+)
++
+x+ y
+2
+? 1
+4
+)
++
+? 1.
+This shows that the output is always in [0, 1]. By (5.3) and Lemma 1, |Multm(x, y)?xy| ?
+2?m.
+Denote by log2 the logarithm with respect to the basis two and write dxe for the smallest
+integer ? x.
+Lemma 3. There exists a network Multrm ? F((m + 5)dlog2 re, (r, 6r, 6r, . . . , 6r, 1)) such
+that Multrm ? [0, 1] and???Multrm(x1, . . . , xr)? r?
+i=1
+xi
+??? ? 3r2?m, for all (x1, . . . , xr) ? [0, 1]r.
+Proof. Let q := dlog2(r)e. Let us now describe the construction of the Multrm network. In
+the first hidden layer the network computes
+(x1, . . . , xr) 7? (x1, . . . , xr, 1, . . . , 1? ?? ?
+2q?r
+).
+Next, apply the network Multm in Lemma 2 to the pairs (x1, x2), (x3, x4),. . . , (1, 1) in order
+to compute the vector (Multm(x1, x2),Multm(x3, x4), . . . ,Multm(1, 1)) which has length
+2q?1. Now, we pair neighboring entries and apply Multm again. This procedure is continued
+until there is only one entry left. The resulting network is called Multrm and has q(m+ 5)
+hidden layers and all parameters bounded by one.
+If a, b, c, d ? [0, 1], then by Lemma 2 and triangle inequality, |Multm(a, b) ? cd| ? 2?m +
+|a? c|+ |b? d|. By induction on the number of iterated multiplications q, we therefore find
+that |Multrm(x1, . . . , xr)?
+?r
+i=1 xi| ? 3q?12?m.
+In the next step, we construct a sufficiently large network that approximates all monomials
+x?11 · . . . · x?rr for non-negative integers ?i up to a certain degree. As common, we use
+16
+multi-index notation x?r := x
+?1
+1 · . . . · x?rr , where ? = (?1, . . . , ?r) and |?| :=
+?
+` |?`| is the
+degree of the monomial. The number of monomials with degree 0 < |?| < ? is denoted by
+Cr,? . Obviously, Cr,? + 1 ? (? + 1)r since each ?i has to take values in {0, 1, . . . , b?c}.
+Lemma 4. Given ? > 0, there exists a network
+Monrm,? ? F
+(
+(m+ 5)dlog2 re, (r, 6rCr,? , . . . , 6rCr,? , Cr,?)
+)
+,
+such that Monrm,? ? [0, 1]Cr,? and???Monrm,?(xr)? (x?r )0<|?|<????? ? 3r2?m, for all xr ? [0, 1]r.
+Proof. This follows from computing all monomials with degree 0 < |?| < ? in parallel. The
+claim follows from Lemma 3.
+5.3 Reconstruction of a multivariate function with a multilayer neural
+network
+For a vector a ? [0, 1]r define
+P ?a f(x) =
+?
+0?|?|<?
+(??f)(a)
+(x? a)?
+?!
+. (5.4)
+Since a ? [0, 1]r and f ? C?r ([0, 1]r,K), |(x ? a)?| =
+?
+i |xi ? ai|?i ? |x ? a|
+|?|
+? and by the
+definition of Ho?lder balls, ??P ?a f(x)?? ? K. (5.5)
+By Taylor’s theorem for multivariate functions, we have for a suitable ? ? [0, 1],
+f(x) =
+?
+?:|?|<??1
+(??f)(a)
+(x? a)?
+?!
++
+?
+??1?|?|<?
+(??f)(a + ?(x? a))(x? a)
+?
+?!
+and so, for f ? C?r ([0, 1]r,K),??f(x)? P ?a f(x)?? = ?
+??1?|?|<?
+|(x? a)?|
+?!
+??(??f)(a + ?(x? a))? (??f)(a)??
+? K|x? a|??. (5.6)
+We may also write (5.4) as a linear combination of monomials
+P ?a f(x) =
+?
+0?|?|<?
+x?c? , (5.7)
+17
+for suitable coefficients c? . Since ?
+?P ?a f(x) |x=0 = ?!c? , we must have
+c? =
+?
+???&|?|<?
+(??f)(a)
+(?a)???
+?!(?? ?)!
+.
+Notice that since a ? [0, 1]r and f ? C?r ([0, 1]r,K),
+|c? | ? K/?!. (5.8)
+Consider the set of grid points D(M) := {x` = (`j/M)j=1,...,r : ` = (`1, . . . , `r) ?
+{0, 1, . . . ,M}r}. The cardinality of this set is (M + 1)r. We write x` = (x`j)j to denote
+the components of x`. Define
+P ?f(x) :=
+?
+x`?D(M)
+P ?x`f(x)
+r?
+j=1
+(1?M |xj ? x`j |)+.
+Lemma 5. If f ? C?r ([0, 1]r,K), then ?P ?f ? f?L?[0,1]r ? KM??.
+Proof. Since for all x = (x1, . . . , xr) ? [0, 1]r,
+?
+x`?D(M)
+r?
+j=1
+(1?M |xj ? x`j |)+ =
+r?
+j=1
+M?
+`=0
+(1?M |xj ? `/M |)+ = 1, (5.9)
+we have f(x) =
+?
+x`?D(M):?x?x`???1/M f(x)
+?r
+j=1(1?M |xj ? x`j |)+ and with (5.6),??P ?f(x)? f(x)?? ? max
+x`?D(M):?x?x`???1/M
+??P ?x`f(x)? f(x)?? ? KM??.
+In a next step, we describe how to build a network that approximates P ?f.
+Lemma 6. For M ? 1, there exists a network Hatr ? F(2 + (m + 5)dlog2 re, (r, 6r(M +
+1)r, . . . , 6r(M+1)r, (M+1)r), 49r2(M+1)r(1+(m+5)dlog2 re)) such that Hatr ? [0, 1](M+1)
+r
+and???Hatr(x)? ( r?
+j=1
+(1/M ? |xj ? x`j |)+
+)
+x`?D(M)
+???
+?
+? 3r2?m, for all x = (x1, . . . , xr) ? Rr.
+Proof. The first hidden layer computes the functions (xj ? `/M)+ and (`/M ? xj)+ using
+2r(M + 1) units and 4r(M + 1) parameters. The second hidden layer computes (1/M ?
+|xj ? `/M |)+ = (1/M ? (xj ? `/M)+ ? (`/M ? xj)+)+ = (1/M ? |xj ? `/M |)+ using
+r(M + 1) units and 3r(M + 1) parameters. These functions take values in the interval
+18
+[0, 1] and we can apply Lemma 3 to construct a network which computes the products?r
+j=1(1/M ? |xj ? `/M |)+ approximately. Each of these Mult
+r
+m networks is of size F((m+
+5)dlog2 re, (r, 6r, 6r, . . . , 6r, 1)) and computes
+?r
+j=1(1/M ?|xj?x`j |)+ up to an error that is
+bounded by 3r2?m. By (5.2), the number of parameters of one Multrm network is bounded
+by 42r2(1+(m+5)dlog2 re). As there are (M+1)r of these networks in parallel, this requires
+6r(M + 1)r units in each hidden layer and 42r2(M + 1)r(1 + (m + 5)dlog2 re) parameters
+for the multiplications. Together with the 7r(M + 1) parameters from the first two layers,
+the total number of parameters is thus bounded by 49r2(M + 1)r(1 + (m+ 5)dlog2 re).
+In the next step, we construct a network which approximately computes P ?f and apply
+Lemma 5.
+Theorem 3. For any function f ? C?r ([0, 1]r,K) and any integers m ? 1 and N ? (? +
+1)r ? (K + 1), there exists a network f? ? F
+(
+L, (r, 12rN, . . . , 12rN, 1), s
+)
+with depth
+L = 8 + (m+ 5)(1 + dlog2 re)
+and number of parameters
+s ? 94r2(? + 1)2rN(m+ 6)(1 + dlog2 re),
+such that
+?f? ? f?L?([0,1]r) ? (2K + 1)3r+1N2?m +K2?N?
+?
+r .
+Proof. Let M be the largest integer such that (M + 1)r ? N and define L? := (m +
+5)dlog2 re. Thanks to (5.5), (5.8), and (5.7), we can add a layer to the network Monrm,? to
+obtain a network Q1 ? F(1 +L?, (r, 6rCr,?, . . . , 6rCr,? , Cr,? , (M + 1)r)), such that Q1(x) ?
+[0, 1](M+1)
+r
+and for any x ? [0, 1]r,
+???Q1(x)? (P ?x`f(x)
+B
++
+1
+2
+)
+x`?D(M)
+???
+?
+? 3r2?m (5.10)
+with B := d2Ke. By (5.2), the number of non-zero parameters in the Q1 network is bounded
+by 42r2C2r,?L
+? + (Cr,? + 1)(M + 1)
+r.
+Recall that the network Hatr computes the products of hat functions
+?r
+j=1(1/M ? |xj ?
+x`j |)+ up to an error that is bounded by 3r2?m. It requires at most 49r2N(1 + L?) active
+parameters. Consider now the parallel network (Q1,Hat
+r). Observe that Cr,? + 1 ? (? +
+1)r ? N by the definition of Cr,? and the assumptions on N. By Lemma 6, the networks Q1
+and Hatr can be embedded into a joint network (Q1,Hat
+r) with 2+L? hidden layers, weight
+19
+vector (r, 12rN, . . . , 12rN, 2(M + 1)r) and all parameters bounded by one. The number of
+non-zero parameters in the combined network (Q1,Hat
+r) is bounded by
+r + 42r2C2r,?L
+? + (Cr,? + 1)(M + 1)
+r + 49r2N(1 + L?) ? 51r2(Cr,? + 1)2N(1 + L?).
+(5.11)
+Next, we pair the x`-th entry of the output of Q1 and Hat
+r and apply to each of the (M+1)r
+pairs the Multm network described in Lemma 2. In the last layer, we add all entries. By
+Lemma 2 this requires at most 42(m + 5)r2(M + 1)r + (M + 1)r active parameters for
+the (M + 1)r multiplications and the sum. Using Lemma 2, Lemma 6, (5.10) and triangle
+inequality, there is a network Q2 ? F(3 + (m+ 5)(1 + dlog2 re), (r, 12rN, . . . , 12rN, 1)) such
+that for any x ? [0, 1]r,???Q2 ? ?
+x`?D(M)
+(P ?x`f(x)
+B
++
+1
+2
+) r?
+j=1
+( 1
+M
+? |xj ? x`j |
+)
++
+??? ? 2?m + 3r2?m + 3r2?m
+? 3r+12?m. (5.12)
+Because of (5.11), the network Q2 has at most
+94r2(Cr,? + 1)
+2N(m+ 5)(1 + dlog2 re) ?94r2(? + 1)2rN(m+ 5)(1 + dlog2 re) (5.13)
+active parameters.
+To obtain a network reconstruction of the function f , it remains to scale and shift the
+output entries. This is not entirely trivial because of the bounded parameter weights in
+the network. Recall that B = d2Ke. Notice that the network x 7? BM rx is in the class
+F(3, (1,M r, 1, d2Ke, 1)) with shift vectors vj are all equal to zero and weight matrices Wj
+having all entries equal to one. Because of N ? (K + 1), the number of parameters of this
+network is bounded by 2M r + 2d2Ke ? 6N. It shows that there is a network in the class
+F(4, (1, 2, 2M r, 2, 2d2Ke, 1)) computing a 7? BM r(a? c) with c := 1/(2M r). This network
+computes in the first hidden layer (a ? c)+ and (c ? a)+ and then applies the network
+x 7? BM rx to both units. In the output layer both entries are added. This requires at
+most 6 + 12N active parameters.
+Because of (5.12) and (5.9), there exists a network
+Q3 ? F
+(
+8 + (m+ 5)(1 + dlog2 re), (r, 12rN, . . . , 12rN, 1)
+)
+such that???Q3(x)? ?
+x`?D(M)
+P ?x`f(x)
+r?
+j=1
+(
+1?M |xj ? x`j |
+)
++
+??? ? (2K + 1)M r3r+12?m,
+20
+for all x ? [0, 1]r. With (5.13), the number of non-zero parameters of Q3 is bounded by
+94r2(? + 1)2rN(m+ 6)(1 + dlog2 re).
+Observe that by construction (M + 1)r ? N ? (M + 2)r ? (2M)r and hence M?? ?
+N??/r2?. Together with Lemma 5, the result follows.
+Based on the previous result, we can now construct a network that approximates f =
+g1? . . .?g0. In a first step, we show that f can always be written as composition of functions
+defined on hypercubes [0, 1]ti . As in the previous theorem, let gij ? C?iti ([ai, bi]
+ti ,Ki) and
+assume that Ki ? 1. For i = 1, . . . , q ? 1, define
+h0 :=
+g0
+2K0
++
+1
+2
+, hi :=
+gi(2Ki?1 · ?Ki?1)
+2Ki
++
+1
+2
+, hq = gq(2Kq?1 · ?Kq?1).
+Here, 2Ki?1x ?Ki?1 means that we transform the entries componentwise by (2Ki?1xi ?
+Ki?1)i. Clearly,
+f = gq ? . . . g0 = hq ? . . . ? h0. (5.14)
+Using the definition of the Ho?lder balls C?r (D,K), it follows that h0j takes values in
+[0, 1], h0j ? C?0t0 ([0, 1]
+t0 , 1), hij ? C?iti ([0, 1]
+ti , (2Ki?1)
+?i) for i = 1, . . . , q ? 1, and hqj ?
+C?qtq ([0, 1]
+tq ,Kq(2Kq?1)
+?q). Notice that without loss of generality, we can always assume
+that the radii of the Ho?lder balls are at least one, that is, Ki ? 1.
+Lemma 7. Let hij be as above with Ki ? 1. Then, for any functions h?i = (h?ij)tj with
+h?ij : [0, 1]
+ti ? [0, 1],
+??hq ? . . . ? h0 ? h?q ? . . . ? h?0??L?[0,1]d ? Kq q?1?
+`=0
+(2K`)
+?`+1
+q?
+i=0
+??|hi ? h?i|????`=i+1 ?`?1L?[0,1]di .
+Proof. Define Hi = hi ? . . . ? h0 and H?i = h?i ? . . . ? h?0. Using triangle inequality,??Hi(x)? H?i(x)??? ? |hi ?Hi?1(x)? hi ? H?i?1(x)??? + |hi ? H?i?1(x)? h?i ? H?i?1(x)???
+? Ki
+??Hi?1(x)? H?i?1(x)???i?1? + ?|hi ? h?i|??L?[0,1]di .
+Together with the inequality (y+ z)? ? y? + z? for all y, z ? 0 and all ? ? [0, 1], the result
+follows.
+Proof of Theorem 1. It is enough to prove the result for all sufficiently large n. By Theorem
+2 and the upper bounds on L, |p|? and s, it follows that there is a constant C?, such that
+for n ? 3,
+R(f? , f) ? 2 inf
+f?F(L,p,s)
+??f ? f0??2? + C? log2 n maxi=0,...,q n? 2?
+?
+i
+2??
+i
++ti .
+21
+It therefore remains to bound the approximation error. To do this, we rewrite f as in
+(5.14), that is, f = hq ? . . . h0 with hi = (hij)tj and hij taking values in [0, 1].
+Now, we apply Theorem 3 to each hij : [0, 1]
+ti ? [0, 1] separately. Take m = dlog2 ne and
+let L?i := 8 + (dlog2 ne+ 5)(1 + dlog2 tie). This means there exists a network
+h?ij ? F(L?i, (r, 12tiN, . . . , 12tiN, 1), si)
+with si ? 94r2(? + 1)2rN(dlog2 ne+ 6)(1 + dlog2 tie), such that
+?h?ij ? hij?L?([0,1]r) ? (2Qi + 1)3r+1Nn?1 +Qi2?N?
+?
+r ,
+where Qi is any upper bound of the Ho?lder constants of h?ij . If i < q, then we apply to the
+output the two additional layers 1?(1?x)+. This requires four additional parameters. Call
+the resulting network h?ij ? F(L?i+2, (r, 12tiN, . . . , 12tiN, 1), s+4) and observe that ?(h?ij) =
+(x?0)?1. Since hij(x) ? [0, 1], we must have ??(h?ij)?hij?L?([0,1]r) ? ?h?ij ?hij?L?([0,1]r).
+Next, we compute the network
+h?i = (h
+?
+ij)j=1,...,di ? F
+(
+L?i + 2, (r, 12ditiN, . . . , 12ditiN, di), di(s+ 4)
+)
+.
+Finally, we construct the composite network f? = h?q1 ? ?(h?q?1) ? . . . ? ?(h?0) which can be
+realized in the class
+F
+(
+E, (r, 12 max
+i
+ditiN, . . . , 12 max
+i
+ditiN, 1),
+q?
+i=0
+di(si + 4)
+)
+, (5.15)
+with E := ?1+
+?q
+i=0(L
+?
+i+2).Observe that there is an An that is bounded in n such that E =
+An+log2 n(
+?q
+i=0dlog2 tie+1). For sufficiently large n, E ?
+?q
+i=0(2+log2 ti) log2 n ? L. By
+(5.1) and for sufficiently large n, the space (5.15) can be embedded into F(L,p, s+(L?E)d)
+with L,p, s satisfying the assumptions of the theorem by choosingN = dcmaxi=0,...,q n
+ti
+2??
+i
++ti e
+for a sufficiently small constant c > 0. The result follows now from Lemma 7 and Theorem
+3 noting that
+max
+i=0,...,q
+N
+? 2?
+?
+i
+ti  max
+i=0,...,q
+n
+? 2?
+?
+i
+2??
+i
++ti .
+5.4 Proof of Theorem 2
+To derive the oracle inequality, we first prove a covering entropy bound. Recall the definition
+of the network function class F(L,p, s) in (2.3).
+22
+Lemma 8. If V :=
+?L
+`=0(p` + 1), then
+logN
+(
+?,F(L,p, s), ? · ??
+)
+? (s+ 1) log
+(
+2??1(L+ 1)V 2
+)
+.
+Results of this type have been derived earlier, cf. Theorem 14.5 in [1]. We nevertheless give
+a full proof of the lemma as we could not find the statement in this form elsewhere.
+Proof. Given a network function f(x) = WL+1?vLWL?vL?1 · · ·W2?v1W1x we define for
+k ? {1, . . . , L}, A+k f : R
+d ? Rpk ,
+A+k f(x) = ?vkWk?vk?1 · · ·W2?v1W1x
+and A?k f : R
+pk?1 ? RpL+1 ,
+A?k f(y) = WL+1?vLWL?vL?1 · · ·Wk+1?vkWky.
+Set A+0 f(x) = A
++
+L+2f(x) = x and notice that for f ? F(L,p), |A
++
+k f(x)|? ?
+?k?1
+`=0 (p` + 1).
+Composition of two Lipschitz functions with Lipschitz constants L1 and L2 gives again a
+Lipschitz function with Lipschitz constant L1L2. Therefore, the Lipschitz constant of A
+?
+k f
+is bounded by
+?L
+`=k?1 p`. Fix ? > 0. Let f, f
+? ? F(L,p, s) be two network functions, such
+that all parameters are at most ? away from each other. Then, we can bound the absolute
+value of the difference by
+??f(x)? f?(x)?? ? L+1?
+k=1
+???A?k+1f?vkWkA+k?1f?(x)?A?k+1f?v?kW ?kA+k?1f?(x)???
+?
+L?
+`=k
+p`
+L+1?
+k=1
+???vkWkA+k?1f?(x)? ?v?kW ?kA+k?1f?(x)???
+?
+L?
+`=k
+p`
+L+1?
+k=1
+(??(Wk ?W ?k )A+k?1f?(x)??? + |vk ? v?k|?)
+? ?
+L?
+`=k
+p`
+L+1?
+k=1
+(
+pk?1
+??A+k?1f?(x)??? + 1)
+? ?V (L+ 1).
+By (5.2) the total number of parameters is therefore bounded by T :=
+?L
+`=0(p` + 1)p`+1 ??L
+`=0(p`+1) = V and there are
+(
+T
+s
+)
+? V s combinations to pick s non-zero parameters. Since
+all the parameters are bounded in absolute value by one, we can discretize the non-zero
+parameters with grid size ?/(2(L+ 1)V ) and obtain for the covering number
+N
+(
+?,F(L,p, s), ? · ??
+)
+?
+?
+s??s
+(
+2??1(L+ 1)V 2
+)s? ? (2??1(L+ 1)V 2)s+1.
+Taking logarithms yields the result.
+23
+Several oracle inequalities for the least-square estimator are know, cf. [11, 23, 27]. Many
+of them work, however, only under the assumption of bounded response variables. For the
+sake of completeness, we include the following result together with a full proof. Define
+?g?2n := 1n
+?n
+i=1 g(Xi)
+2.
+Lemma 9. Consider the d-variate nonparametric regression model (1.1) with parameter
+space F . If f? ? arg minf?F
+?n
+i=1(Yi ? f(Xi))2 is the least-squares estimator, then, for any
+?, ? ? (0, 1],
+R(f? , f) ? (1 + ?) inf
+f?F
+Ef
+[(
+f(X)? f0(X)
+)2]
++ 8? +
+6 logN (?,F , ? · ?n) + 2
+n?
+.
+Proof. For simplicity we write E = Ef . For any f ? F , we have
+?n
+i=1(Yi ? f?(Xi))2 ??n
+i=1(Yi ? f(Xi))2. This can be rewritten as
+?f0 ? f??2n ? ?f0 ? f?2n +
+2
+n
+n?
+i=1
+?i
+(
+f?(Xi)? f(Xi)
+)
+. (5.16)
+Because of Xi
+D
+= X, E[?f0 ? f??2n] = E[(f?(X) ? f0(X))2] and E[?f ? f0?2n] = E[(f?(X) ?
+f0(X))
+2]. Since E[?if(Xi)] = E[E[?if(Xi) |Xi]] = 0, we also find
+E
+[ n?
+i=1
+?i
+(
+f?(Xi)? f(Xi)
+)]
+= E
+[ n?
+i=1
+?i
+(
+f?(Xi)? f0(Xi)
+)]
+. (5.17)
+Let N (?,F , ? · ?n) be the covering number, that is, the minimal number of ? · ?n-balls with
+radius ? that covers F (the centers do not need to be in F). Given a minimal covering,
+denote the centers of the balls by fj . By construction there exists a (random) j
+? such that
+?f? ? f?j ?n ? ?. By Cauchy-Schwarz inequality,
+E
+[ n?
+i=1
+?i
+(
+f?(Xi)? fj?(Xi)
+)]
+?
+?
+nE
+[( n?
+i=1
+?2i
+)1/2?f? ? fj??n]
+?
+?
+nE1/2
+[ n?
+i=1
+?2i
+]
+E1/2
+[
+?f? ? fj??2n
+]
+? n?. (5.18)
+From (5.16), (5.17), (5.18) and triangle inequality, we find that
+E
+[(
+f?(X)? f0(X)
+)2] ? E[(f(X)? f0(X))2]+ 2? + 2?
+n
+E
+[
+(?f? ? f0?n + ?)|?j? |
+]
+(5.19)
+with
+?j :=
+?n
+i=1 i(fj(Xi)? f0(Xi))?
+n?fj ? f0?n
+.
+24
+Conditionally on (Xi)i, we have ?j ? N (0, 1). Write En := logN (?,F , ?·?n) for the covering
+entropy. With Lemma 10, we obtain E[?2j? ] ? E[maxj ?2j ] ? 3En+1. Using Cauchy-Schwarz,
+E
+[
+(?f? ? f0?n + ?)|?j? |
+]
+?
+(
+E1/2
+[(
+f?(X)? f0(X)
+)2]
++ ?
+)?
+3En + 1. (5.20)
+Let a, b, c be positive real numbers, such that a2 ? 2ab + c. Then, for any ? ? (0, 1],
+a2 ? ?a2/(1 + ?) + (1 + ?)b2/?+ c and a2 ? (1 + ?)2b2/?+ (1 + ?)c ? 4b2/?+ (1 + ?)c. Thus,
+with a := E[(f?(X) ? f0(X))2], b :=
+?
+(3En + 1)/n, c := E[(f?(X) ? f0(X))2] + 2? + 2?b,
+(5.19) and (5.20) yield
+E
+[(
+f?(X)? f0(X)
+)2] ? (1 + ?)E[(f(X)? f0(X))2]+ 4? + 4??3En + 1?
+n
++
+3En + 1
+n?
+? (1 + ?)E
+[(
+f(X)? f0(X)
+)2]
++ 8? +
+6En + 2
+n?
+,
+where we used ? ? 1 for the last inequality.
+Lemma 10. Let ?j ? N (0, 1), then E[maxj=1,...,M ?2j ] ? 3 logM + 1.
+Proof. For ? ? N (0, 1) and T > 0, we find using integration by parts and P (? > T ) ?
+e?T
+2/2,
+E[?21(|?| > T )] = (2?)?1/2
+? ?
+T
+x2e?x
+2/2dx = (2?)?1/2Te?T
+2
++ (2?)?1/2
+? ?
+T
+e?x
+2/2dx
+? (1 + (2?)?1/2T )e?T 2 .
+Therefore, E[maxj=1,...,M ?
+2
+j ] ? 2 logM +
+?M
+j=1E[?
+2
+j1(|?j | ? 2 logM)] ? 3 logM + 1.
+Proof of Theorem 2. The assertion follows from Lemma 8 with ? = 1/n and Lemma 9 with
+? = 1.
+References
+[1] Anthony, M., and Bartlett, P. L. Neural network learning: theoretical founda-
+tions. Cambridge University Press, Cambridge, 1999.
+[2] Baraud, Y., and Birge?, L. Estimating composite functions by model selection.
+Ann. Inst. Henri Poincare? Probab. Stat. 50, 1 (2014), 285–314.
+[3] Barron, A. R. Universal approximation bounds for superpositions of a sigmoidal
+function. IEEE Transactions on Information Theory 39, 3 (1993), 930–945.
+25
+[4] Barron, A. R. Approximation and estimation bounds for artificial neural networks.
+Machine Learning 14, 1 (1994), 115–133.
+[5] Bauer, B., and Kohler, M. On deep learning as a remedy for the curse of di-
+mensionality in nonparametric regression. available on http://www3.mathematik.
+tu-darmstadt.de/hp/ag-stochastik/kohler-michael/publikationen.html.
+[6] Bo?lcskei, H., Grohs, P., Kutyniok, G., and Petersen, P. Optimal approxi-
+mation with sparsely connected deep neural networks. ArXiv e-prints (May 2017).
+[7] Choromanska, A., Henaff, M., Mathieu, M., Arous, G. B., and LeCun, Y.
+The loss surface of multilayer networks. In Aistats (2015), pp. 192–204.
+[8] Cybenko, G. Approximation by superpositions of a sigmoidal function. Mathematics
+of Control, Signals and Systems 2, 4 (1989), 303–314.
+[9] Glorot, X., Bordes, A., and Bengio, Y. Deep sparse rectifier neural networks.
+In Aistats (2011), vol. 15, pp. 315–323.
+[10] Goodfellow, I., Bengio, Y., and Courville, A. Deep Learning. MIT Press,
+2016.
+[11] Gyo?rfi, L., Kohler, M., Krzyz?ak, A., and Walk, H. A distribution-free theory
+of nonparametric regression. Springer Series in Statistics. Springer-Verlag, New York,
+2002.
+[12] Hamers, M., and Kohler, M. Nonasymptotic bounds on the L2-error of neural
+network regression estimates. Annals of the Institute of Statistical Mathematics 58, 1
+(2006), 131–151.
+[13] He, K., Zhang, X., Ren, S., and Sun, J. Deep residual learning for image recogni-
+tion. In 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)
+(2016), pp. 770–778.
+[14] Hornik, K., Stinchcombe, M., and White, H. Multilayer feedforward networks
+are universal approximators. Neural Networks 2, 5 (1989), 359 – 366.
+[15] Hornik, K., Stinchcombe, M., and White, H. Universal approximation of an
+unknown mapping and its derivatives using multilayer feedforward networks. Neural
+Networks 3, 5 (1990), 551 – 560.
+[16] Horowitz, J. L., and Mammen, E. Rate-optimal estimation for a general class
+of nonparametric regression models with unknown link functions. Ann. Statist. 35, 6
+(2007), 2589–2619.
+26
+[17] Juditsky, A. B., Lepski, O. V., and Tsybakov, A. B. Nonparametric estimation
+of composite functions. Ann. Statist. 37, 3 (2009), 1360–1404.
+[18] Klusowski, J. M., and Barron, A. R. Risk bounds for high-dimensional ridge
+function combinations including neural networks. ArXiv e-prints (2016).
+[19] Klusowski, J. M., and Barron, A. R. Uniform approximation by neural networks
+activated by first and second order ridge splines. ArXiv e-prints (2016).
+[20] Kohler, M., and Krzyzak, A. Adaptive regression estimation with multilayer
+feedforward neural networks. Journal of Nonparametric Statistics 17, 8 (2005), 891–
+913.
+[21] Kohler, M., and Krzyz?ak, A. Nonparametric regression based on hierarchical
+interaction models. IEEE Trans. Inform. Theory 63, 3 (2017), 1620–1630.
+[22] Kohler, M., and Mehnert, J. Analysis of the rate of convergence of least squares
+neural network regression estimates in case of measurement errors. Neural Networks
+24, 3 (2011), 273 – 279.
+[23] Koltchinskii, V. Local Rademacher complexities and oracle inequalities in risk
+minimization. Ann. Statist. 34, 6 (2006), 2593–2656.
+[24] Krizhevsky, A., Sutskever, I., and Hinton, G. E. Imagenet classification with
+deep convolutional neural networks. In Advances in Neural Information Processing
+Systems 25, F. Pereira, C. J. C. Burges, L. Bottou, and K. Q. Weinberger, Eds. Curran
+Associates, Inc., 2012, pp. 1097–1105.
+[25] Leshno, M., Lin, V. Y., Pinkus, A., and Schocken, S. Multilayer feedforward
+networks with a nonpolynomial activation function can approximate any function.
+Neural Networks 6, 6 (1993), 861 – 867.
+[26] Liang, S., and Srikant, R. Why deep neural networks for function approximation?
+ArXiv e-prints (Oct. 2016).
+[27] Massart, P., and Picard, J. Concentration Inequalities and Model Selection. Lec-
+ture notes in mathematics. Springer, 2007.
+[28] McCaffrey, D. F., and Gallant, A. R. Convergence rates for single hidden layer
+feedforward networks. Neural Networks 7, 1 (1994), 147 – 158.
+[29] Mhaskar, H. N. Approximation properties of a multilayered feedforward artificial
+neural network. Advances in Computational Mathematics 1, 1 (1993), 61–80.
+27
+[30] Montu?far, G. F. Universal approximation depth and errors of narrow belief networks
+with discrete units. ArXiv e-prints (Mar. 2013).
+[31] Pascanu, R., Montu?far, G., and Bengio, Y. On the number of response regions
+of deep feed forward networks with piece-wise linear activations. ArXiv e-prints (Dec.
+2013).
+[32] Ray, K., and Schmidt-Hieber, J. A regularity class for the roots of nonnegative
+functions. Annali di Matematica Pura ed Applicata (2017), 1–13.
+[33] Stinchcombe, M. Neural network approximation of continuous functionals and con-
+tinuous functions on compactifications. Neural Networks 12, 3 (1999), 467 – 477.
+[34] Szegedy, C., Ioffe, S., Vanhoucke, V., and Alemi, A. A. Inception-v4,
+inception-resnet and the impact of residual connections on learning. In ICLR 2016
+Workshop (2016).
+[35] Telgarsky, M. Benefits of depth in neural networks. ArXiv e-prints (Feb. 2016).
+[36] Tsybakov, A. B. Introduction to nonparametric estimation. Springer Series in Statis-
+tics. Springer, New York, 2009. Revised and extended from the 2004 French original,
+Translated by Vladimir Zaiats.
+[37] Wasserman, L. All of nonparametric statistics. Springer Texts in Statistics. Springer,
+New York, 2006.
+[38] Yarotsky, D. Error bounds for approximations with deep ReLU networks. Neural
+Networks 94 (2017), 103 – 114.
+28

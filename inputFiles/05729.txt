@@ -1,0 +1,492 @@
+ar
+X
+iv
+:1
+70
+8.
+05
+72
+9v
+1 
+ [
+cs
+.C
+L
+] 
+ 1
+8 
+A
+ug
+ 2
+01
+7
+Neural machine translation for low-resource languages
+Robert O?stling and Jo?rg Tiedemann
+robert@ling.su.se, jorg.tiedemann@helsinki.fi
+Abstract
+Neural machine translation (NMT) ap-
+proaches have improved the state of the
+art in many machine translation settings
+over the last couple of years, but they re-
+quire large amounts of training data to pro-
+duce sensible output. We demonstrate that
+NMT can be used for low-resource lan-
+guages as well, by introducing more local
+dependencies and using word alignments
+to learn sentence reordering during trans-
+lation. In addition to our novel model,
+we also present an empirical evaluation of
+low-resource phrase-based statistical ma-
+chine translation (SMT) and NMT to in-
+vestigate the lower limits of the respec-
+tive technologies. We find that while SMT
+remains the best option for low-resource
+settings, our method can produce accept-
+able translations with only 70 000 tokens
+of training data, a level where the baseline
+NMT system fails completely.
+1 Introduction
+Neural machine translation (NMT) has made rapid
+progress over the last few years (Sutskever et al.,
+2014; Bahdanau et al., 2014; Wu et al., 2016),
+emerging as a serious alternative to phrase-
+based statistical machine translation (Koehn et al.,
+2003). Most of the previous literature perform em-
+pirical evaluations using training data in the order
+of millions to tens of millions of parallel sentence
+pairs. In contrast, we want to see how low you
+can push the training data requirement for neural
+machine translation.1 To the best of our knowl-
+edge, there is no previous systematic treatment of
+1The code of our implementation is available at
+http://www.example.com (redacted for review, code
+submitted as nmt.tgz in the review system)
+this question. Zoph et al. (2016) did explore low-
+resource NMT, but by assuming the existence of
+large amounts of data from related languages.
+2 Low-resource model
+The current de-facto standard approach to NMT
+(Bahdanau et al., 2014) has two components: a
+target-side RNN language model (Mikolov et al.,
+2010; Sundermeyer et al., 2012), and an encoder
+plus attention mechanism that is used to condition
+on the source sentence. While an acceptable lan-
+guage model can be trained using relatively small
+amounts of data, more data is required to train the
+attention mechanism and encoder. This has the ef-
+fect that a standard NMT system trained on too lit-
+tle data essentially becomes an elaborate language
+model, capable of generating sentences in the tar-
+get language that have little to do with the source
+sentences.
+We approach this problem by reversing the
+mode of operation of the translation model. In-
+stead of setting loose a target-side language model
+with a weak coupling to the source sentence, our
+model steps through the source sentence token by
+token, generating one (possibly empty) chunk of
+the target sentence at a time. The generated chunk
+is then inserted into the partial target sentence
+into a position predicted by a reordering mecha-
+nism. Table 1 demonstrates this procedure. While
+reordering is a difficult problem, word order er-
+rors are preferable to a nonsensical output. We
+translate each token using a character-to-character
+model conditioned on the local source context,
+which is a relatively simple problem since data is
+not so sparse at the token level. This also results
+in open vocabularies for the source and target lan-
+guages.
+Our model consists of the following compo-
+nents, whose relation are also summarized in Al-
+Input Predictions State
+Source Target Pos. Partial hypothesis
+I ich 1 ich
+can kann 2 ich kann
+not nicht 3 ich kann nicht
+do tun 4 ich kann nicht tun
+that das 3 ich kann das nicht tun
+Table 1: Generation of a German translation of “I
+can not do that” in our model.
+gorithm 1:
+• Source token encoder. A bidirectional
+Long Short-Term Memory (LSTM) en-
+coder (Hochreiter and Schmidhuber, 1997)
+that takes a source token ws as a sequence of
+(embedded) characters and produces a fixed-
+dimensional vector SRC-TOK-ENC(ws).
+• Source sentence encoder. A bidirectional
+LSTM encoder that takes a sequence of en-
+coded source tokens and produces an en-
+coded sequence es1...N . Thus we use the same
+two-level source sentence encoding scheme
+as Luong and Manning (2016) except that we
+do not use separate embeddings for common
+words.
+• Target token encoder. A bidirectional
+LSTM encoder that takes a target token2
+wt and produces a fixed-dimensional vector
+TRG-TOK-ENC(wt).
+• Target state encoder. An LSTM
+which at step i produces a target state
+hi = TRG-ENC(e
+s
+i ?TRG-TOK-ENC(w
+t
+i?1))
+given the i:th encoded source position and
+the i? 1:th encoded target token.
+• Target token decoder. A standard character-
+level LSTM language model conditioned on
+the current target state hi, which produces a
+target token wti = TRG-TOK-DEC(hi) as a
+sequence of characters.
+• Target position predictor. A two-layer
+feedforward network that outputs (af-
+ter softmax) the probability of wti being
+2Note that on the target side, a token may contain the
+empty string as well as multi-word expressions with spaces.
+We use the term token to reflect that we seek to approximate
+a 1-to-1 correspondence between source and target tokens
+Algorithm 1 Our proposed translation model.
+function TRANSLATE(ws1...N )
+? Encode each source token
+for all i ? 1 . . . N do
+esi ? SRC-TOK-ENC(w
+s
+i )
+end for
+? Encode source token sequence
+s1...N ? SRC-ENC(e
+s
+1...N )
+? Translate one source token at a time
+for all i ? 1 . . . N do
+? Encode previous target token
+eti ? TRG-TOK-ENC(w
+t
+i?1)
+? Generate target state vector
+hi ? TRG-ENC(e
+t
+i?si)
+? Generate target token
+p(wti) ? TRG-TOK-DEC(hi)
+? Predict insertion position
+p(ki) ? POSITION(h1...i, k1...i?1)
+end for
+? Search for a high-probability target
+? sequence and ordering, and return it
+end function
+inserted at position ki = j of the par-
+tial target sentence: P (ki = j) ?
+exp(POSITION(hpos(j)?hpos(j+1)?hi)).
+Here, pos(j) is the position i of the source
+token that generated the j:th token of the
+partial target hypothesis. This is akin to the
+attention model of traditional NMT, but less
+critical to the translation process because
+it does not directly influence the generated
+token.
+3 Training
+Since our intended application is translation of
+low-resource languages, we rely on word align-
+ments to provide supervision for the reorder-
+ing model. We use the EFMARAL aligner
+(O?stling and Tiedemann, 2016), which uses a
+Bayesian model with priors that generate good re-
+sults even for rather small corpora. From this,
+we get estimates of the alignment probabilities
+Pf (ai = j) and Pb(aj = i) in the forward and
+backward directions, respectively.
+Our model requires a sequence of source tokens
+and a sequence of target tokens of the same length.
+We extract this by first finding the most confident
+1-to-1 word alignments, that is, the set of con-
+sistent pairs (i, j) with maximum
+?
+(i,j) Pf (ai =
+j)·Pb(aj = i). Then we use the source sentence as
+a fixed point, so that the final training sequence is
+the same length of the source sentence. Unaligned
+source tokens are assumed to generate the empty
+string, and source tokens aligned to a target token
+followed by unaligned target tokens are assumed
+to generate the whole sequence (with spaces be-
+tween tokens). While this prohibits a single source
+token to generate multiple dislocated target words
+(e.g., standard negation in French), our intention
+is that this constraint will result in overall better
+translations when data is sparse.
+Once the aligned token sequences have been ex-
+tracted, we train our model using backpropaga-
+tion with stochastic gradient descent. For this we
+use the Chainer library (Tokui et al., 2015), with
+Adam (Kingma and Ba, 2015) for optimization.
+We use early stopping based on cross-entropy
+from held-out sentences in the training data. For
+the smaller Watchtower data, we stopped after
+about 10 epochs, while about 25–40 were required
+for the 20% Bible data. We use a dimensionality
+of 256 for all layers except the character embed-
+dings (which are of size 64).
+4 Baseline systems
+In addition to our proposed model, we two public
+translation systems: Moses (Koehn et al., 2007)
+for phrase-based statistical machine translation
+(SMT), and HNMT3 for neural machine transla-
+tion (NMT). For comparability, we use the same
+word alignment method (O?stling and Tiedemann,
+2016) with Moses as with our proposed model (see
+Section 3).
+For the SMT system, we use 5-gram modi-
+fied Kneser-Ney language models estimated with
+KenLM (Heafield et al., 2013). We symmetrize
+the word alignments using the GROW-DIAG-FINAL
+heuristic. Otherwise, standard settings are used
+for phrase extraction and estimation of transla-
+tion probabilities and lexical weights. Parameters
+are tuned using MERT (Och, 2003) with 200-best
+lists.
+The baseline NMT system, HNMT, uses
+standard attention-based translation with
+the hybrid source encoder architecture of
+Luong and Manning (2016) and a character-
+based decoder. We run it with parameters
+comparable to those of our proposed model:
+256-dimensional word embeddings and encoder
+3
+https://github.com/robertostling/hnmt
+LSTM, 64-dimensional character embeddings,
+and an attention hidden layer size of 256. We used
+a decoder LSTM size of 512 to account for the
+fact that this model generates whole sentences, as
+opposed to our model which generates only small
+chunks.
+5 Data
+The most widely translated publicly available par-
+allel text is the Bible, which has been used previ-
+ously for multilingual NLP (e.g. Yarowsky et al.,
+2001; Agic? et al., 2015). In addition to this, the
+Watchtower magazine is also publicly available
+and translated into a large number of languages.
+Although generally containing less text than the
+Bible, Agic? et al. (2016) showed that its more
+modern style and consistent translations can out-
+weigh this disadvantage for out-of-domain tasks.
+The Bible and Watchtower texts are quite similar,
+so we also evaluate on data from the WMT shared
+tasks from the news domain (newstest2016
+for Czech and German, newstest2008 for
+French and Spanish). These are four languages
+that occur in all three data sets, and we use them
+with English as the target language in all experi-
+ments.
+The Watchtower texts are the shortest, after re-
+moving 1000 random sentences each for develop-
+ment and test, we have 62–71 thousand tokens in
+each language for training. For the Bible, we used
+every 5th sentence in order to get a subset simi-
+lar in size to the New Testament.4 After remov-
+ing 1000 sentences for development and test, this
+yielded 130–175 thousand tokens per language for
+training.
+6 Results
+Table 3 summarizes the results of our evalua-
+tion, and Table 2 shows some example transla-
+tions. For evaluation we use the BLEU met-
+ric (Papineni et al., 2002). To summarize, it
+is clear that SMT remains the best method for
+low-resource machine translation, but that current
+methods are not able to produce acceptable gen-
+eral machine translation systems given the parallel
+data available for low-resource languages.
+Our model manages to reduce the gap between
+phrase-based and neural machine translation, with
+4The reason we did not simply use the New Testament is
+because it consists largely of four redundant gospels, which
+makes it difficult to use for machine translation evaluation.
+Source pues bien , la biblia da respuestas satisfactorias .
+Reference the bible provides satisfying answers to these questions .
+SMT well , the bible gives satisfactorias answers .
+HNMT jehovah ’s witness .
+Our the bible to answers satiful .
+Source 4 , 5 . cules son algunas de las preguntas ms importantes que podemos hacernos , y
+por qu debemos buscar las respuestas ?
+Reference 4 , 5 . what are some of the most important questions we can ask in life , and why
+should we seek the answers ?
+SMT 4 , 5 . what are some of the questions that matter most that we can make , and why
+should we find answers ?
+HNMT 4 , 5 . what are some of the bible , and why ?
+Our , 5 . what are some of the special more important that can , and we why should feel
+the answers
+Table 2: Example translations from the different systems (Spanish-English; Watchtower test set, trained
+on Watchtower data).
+BLEU scores of 9–17% (in-domain) using only
+about 70 000 tokens of training data, a condi-
+tion where the traditional NMT system is un-
+able to produce any sensible output at all. It
+should be noted that due to time constraints, we
+performed inference with greedy search for our
+model, whereas the NMT baseline used a beam
+search with a beam size of 10.
+7 Discussion
+We have demonstrated a possible road towards
+better neural machine translation for low-resource
+languages, where we can assume no data beyond
+a small parallel text. In our evaluation, we see
+that it outperforms a standard NMT baseline, but
+is not currently better than the SMT system. In
+the future, we hope to use the insights gained from
+this work to further explore the possibility of con-
+straining NMT models to perform better under se-
+vere data sparsity. In particular, we would like
+to explore models that preserve more of the flu-
+ency characteristic of NMT, while ensuring that
+adequacy does not suffer too much when data is
+sparse.
+References
+Z?eljko Agic?, Dirk Hovy, and Anders Søgaard. 2015. If
+all you have is a bit of the bible: Learning pos tag-
+gers for truly low-resource languages. In Proceed-
+ings of the 53rd Annual Meeting of the Association
+BLEU (%)
+Test Source SMT HNMT Our
+Trained on 20% of Bible
+Bible German 25.7 7.9 10.2
+Bible Czech 24.2 5.5 9.3
+Bible French 39.7 19.8 25.7
+Bible Spanish 22.5 3.9 9.3
+Watchtower German 9.2 1.3 4.7
+Watchtower Czech 7.5 0.7 3.5
+Watchtower French 12.3 3.1 6.6
+Watchtower Spanish 12.5 0.5 5.9
+News German 4.1 0.1 1.7
+News Czech 7.1 0.0 1.0
+News French 9.0 0.0 2.4
+News Spanish 6.5 0.0 1.7
+Trained on Watchtower
+Bible German 7.7 0.3 3.7
+Bible Czech 5.5 0.2 1.8
+Bible French 16.3 0.6 10.1
+Bible Spanish 8.9 0.3 4.7
+Watchtower German 27.6 2.5 11.2
+Watchtower Czech 26.3 1.6 8.7
+Watchtower French 29.3 2.5 13.5
+Watchtower Spanish 35.7 3.0 17.0
+News German 9.5 0.1 1.8
+News Czech 5.4 0.0 0.8
+News French 9.2 0.0 2.5
+News Spanish 9.4 0.0 1.8
+Table 3: Results from our empirical evaluation.
+for Computational Linguistics and the 7th Interna-
+tional Joint Conference on Natural Language Pro-
+cessing (Volume 2: Short Papers). Association for
+Computational Linguistics, Beijing, China, pages
+268–272.
+Z?eljko Agic?, Anders Johannsen, Barbara Plank, He?ctor
+Martnez Alonso, Natalie Schluter, and Anders
+Søgaard. 2016. Multilingual projection for parsing
+truly low-resource languages. Transactions of the
+Association for Computational Linguistics 4:301–
+312.
+Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua
+Bengio. 2014. Neural machine translation by
+jointly learning to align and translate. CoRR
+abs/1409.0473.
+Kenneth Heafield, Ivan Pouzyrevsky, Jonathan H.
+Clark, and Philipp Koehn. 2013. Scalable modi-
+fied Kneser-Ney language model estimation. In Pro-
+ceedings of ACL. pages 690–696.
+Sepp Hochreiter and Ju?rgen Schmidhu-
+ber. 1997. Long short-term memory.
+Neural Computation 9(8):17351780.
+https://doi.org/10.1162/neco.1997.9.8.1735.
+Diederik P. Kingma and Jimmy Ba. 2015. Adam: A
+method for stochastic optimization. The Interna-
+tional Conference on Learning Representations.
+Philipp Koehn, Hieu Hoang, Alexandra Birch, Chris
+Callison-Burch, Marcello Federico, Nicola Bertoldi,
+Brooke Cowan, Wade Shen, Christine Moran,
+Richard Zens, Christopher J. Dyer, Ondr?ej Bo-
+jar, Alexandra Constantin, and Evan Herbst. 2007.
+Moses: Open Source Toolkit for Statistical Machine
+Translation. In Proceedings of ACL. pages 177–180.
+Philipp Koehn, Franz Josef Och, and Daniel Marcu.
+2003. Statistical phrase-based translation. In Pro-
+ceedings of the 2003 Conference of the North Amer-
+ican Chapter of the Association for Computational
+Linguistics on Human Language Technology - Vol-
+ume 1. Association for Computational Linguistics,
+Stroudsburg, PA, USA, NAACL ’03, pages 48–54.
+https://doi.org/10.3115/1073445.1073462.
+Minh-Thang Luong and Christopher D. Manning.
+2016. Achieving open vocabulary neural machine
+translation with hybrid word-character models. In
+Proceedings of the 54th Annual Meeting of the As-
+sociation for Computational Linguistics (Volume 1:
+Long Papers). Association for Computational Lin-
+guistics, Berlin, Germany, pages 1054–1063.
+Toma?s? Mikolov, Martin Karafia?t, Luka?s? Burget, Jan
+C?ernocky?, and Sanjeev Khudanpur. 2010. Recur-
+rent neural network based language model. In IN-
+TERSPEECH 2010. pages 1045–1048.
+Franz Josef Och. 2003. Minimum error rate training
+in statistical machine translation. In Proceedings of
+ACL. pages 160–167.
+Robert O?stling and Jo?rg Tiedemann. 2016. Effi-
+cient word alignment with Markov Chain Monte
+Carlo. Prague Bulletin of Mathematical Linguistics
+106:125–146.
+Kishore Papineni, Salim Roukos, Todd
+Ward, and Wei-Jing Zhu. 2002.
+Bleu: a method for automatic evaluation of machine translation.
+In Proceedings of 40th Annual Meeting of
+the Association for Computational Linguis-
+tics. Association for Computational Linguistics,
+Philadelphia, Pennsylvania, USA, pages 311–318.
+https://doi.org/10.3115/1073083.1073135.
+Martin Sundermeyer, Ralf Schlu?ter, and Hermann Ney.
+2012. LSTM neural networks for language model-
+ing. In INTERSPEECH 2012. pages 194–197.
+Ilya Sutskever, Oriol Vinyals, and Quoc V. V Le.
+2014. Sequence to sequence learning with neural
+networks. In Z. Ghahramani, M. Welling, C. Cortes,
+N.D. Lawrence, and K.Q. Weinberger, editors, Ad-
+vances in Neural Information Processing Systems
+27, Curran Associates, Inc., pages 3104–3112.
+Seiya Tokui, Kenta Oono, Shohei Hido, and Justin
+Clayton. 2015. Chainer: a next-generation open
+source framework for deep learning. In Proceedings
+of Workshop on Machine Learning Systems (Learn-
+ingSys) in The Twenty-ninth Annual Conference on
+Neural Information Processing Systems (NIPS).
+Yonghui Wu, Mike Schuster, Zhifeng Chen, Quoc V.
+Le, Mohammad Norouzi, Wolfgang Macherey,
+Maxim Krikun, Yuan Cao, Qin Gao, Klaus
+Macherey, Jeff Klingner, Apurva Shah, Melvin
+Johnson, Xiaobing Liu, Lukasz Kaiser, Stephan
+Gouws, Yoshikiyo Kato, Taku Kudo, Hideto
+Kazawa, Keith Stevens, George Kurian, Nishant
+Patil, Wei Wang, Cliff Young, Jason Smith, Jason
+Riesa, Alex Rudnick, Oriol Vinyals, Greg Corrado,
+Macduff Hughes, and Jeffrey Dean. 2016. Google’s
+neural machine translation system: Bridging the gap
+between human and machine translation. CoRR
+abs/1609.08144.
+David Yarowsky, Grace Ngai, and
+Richard Wicentowski. 2001.
+Inducing multilingual text analysis tools via robust projection across aligned corpora.
+In Proceedings of the First International Confer-
+ence on Human Language Technology Research.
+Association for Computational Linguistics,
+Stroudsburg, PA, USA, HLT ’01, pages 1–8.
+https://doi.org/10.3115/1072133.1072187.
+Barret Zoph, Deniz Yuret, Jonathan
+May, and Kevin Knight. 2016.
+Transfer learning for low-resource neural machine translation.
+In Proceedings of the 2016 Conference on
+Empirical Methods in Natural Language Pro-
+cessing. Association for Computational Lin-
+guistics, Austin, Texas, pages 1568–1575.
+https://aclweb.org/anthology/D16-1163.

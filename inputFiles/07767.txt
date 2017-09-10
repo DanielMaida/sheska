@@ -1,0 +1,845 @@
+ar
+X
+iv
+:1
+70
+8.
+07
+76
+7v
+1 
+ [
+cs
+.A
+I]
+  2
+5 
+A
+ug
+ 2
+01
+7
+Non-FPT lower bounds for structural restrictions of
+decision DNNF
+Andrea Cal?? Florent Capelli Igor Razgon
+August 28, 2017
+Abstract
+We give a non-FPT lower bound on the size of structured decision
+DNNF and OBDD with decomposable AND-nodes representing CNF-
+formulas of bounded incidence treewidth. Both models are known to
+be of FPT size for CNFs of bounded primal treewidth. To the best
+of our knowledge this is the first parameterized separation of primal
+treewidth and incidence treewidth for knowledge compilation models.
+1 Introduction
+Counting the satisfying assignments of a given CNF-formula, a problem
+known as #SAT, is a central task to several areas of computer science such
+as probabilistic reasoning [18, 1] or probabilistic databases [3, 2, 11]. Many
+tools such as c2d [13], Cachet [21], sharpSAT [24] or more recently D4 [12]
+have been developed to solve this problem in practice. They are all based
+on the same algorithm, called exhaustive DPLL [1], which relies on the fact
+that for a given CNF F and a variable x, #F = #F [x 7? 0] + #F [x 7? 1]
+together with the fact that if F = G?H with G,H having disjoint variables,
+then #F = #G ·#H. These algorithms also use a cache, that is, they some-
+times store the number of satisfying assignments of a subformula to reuse it
+later in the computation. The performance of these implementations mainly
+depends on the heuristics that are chosen concerning the order variables are
+eliminated and the caching policy. It has been observed by Darwiche and
+Huang [10] that the trace of these algorithms can be seen as a very special
+kind of Boolean circuits – known as decision Decomposable Normal Form
+(decDNNF) in the field of Knowledge Compilation – computing the input
+CNF. The size of this circuit is proportional to the runtime of the algorithm.
+This observation leads to the interesting fact that proving lower bounds on
+the size of decDNNF computing a given CNF-formula gives a lower bound
+on the runtime of these algorithms, independently from the implementation.
+Another successful line of research concerning the complexity of #SAT
+is to study the so-called structural restrictions of CNF-formulas in order to
+1
+find classes of formulas for which the number of satisfying assignments can
+be computed in polynomial time. Such classes, usually referred as tractable
+classes, are often defined by specifying a structure describing the way the
+clauses and the variables interact in the formula. This interaction is usually
+represented with a graph, the incidence graph, whose vertices are the vari-
+ables and the clauses and where a variable x and a clause C are connected by
+an edge if x is a variable of C. Many polynomial time algorithms have been
+designed to solve #SAT when the incidence graph belongs to some interest-
+ing class [22, 19, 5, 4, 14, 6]. Most of the time however, these algorithms
+work in a very different way than exhaustive DPLL and are relevant only
+when the input belongs to a particular class of formulas. Moreover, these al-
+gorithms usually start with a costly step of decomposing the incidence graph,
+making them currently of little interest in practice. An interesting question
+is thus to understand how the existing tools behave on these instances that
+are easy to solve in theory.
+Unfortunately, the performance of exhaustive DPLL – and thus, of practi-
+cal tools for #SAT – is not very well understood on classes of CNF-formulas
+that are known to be tractable. It is known that formulas whose primal
+graph – the graph whose vertices are the variables and two variables are
+linked by an edge if they appear together in at least one clause – is of
+treewidth k can be compiled into decDNNF of size 2?(k)p(|F |) [13] where p
+is a polynomial which does not depend on k. Thus, for reasonable values
+of k, if the right elimination order and the right caching policy is chosen,
+exhaustive DPLL can solve these instances efficiently. A similar result have
+been shown for ?-acyclic CNF-formulas [6]. However, for other structural
+restrictions, nothing is known. In this paper, we investigate the complexity
+of exhaustive DPLL on instances of bounded incidence treewidth, that is, in-
+stances whose treewidth of the incidence graph is bounded. It is known [20]
+that these instances can be solved in FPT time, that is, more precisely, in
+time 2?(k)p(|F |) where k is the incidence treewidth and p is a polynomial
+that does not depend on k. It is not known however whether these in-
+stances can be compiled into FPT-size decDNNF. We answer this question
+on two natural restrictions of decDNNF: we show that they cannot repre-
+sent instances of bounded incidence treewidth efficiently. The restrictions
+of decDNNF that we are interested in correspond to natural restriction on
+exhaustive DPLL. The first restriction we are interested in is a restriction
+known as structuredness, which has been introduced in [15]. This restric-
+tion corresponds to the trace of the tool c2d [13]. The other restriction we
+will be interested in is a restriction that we call ?d-OBDD. Intuitively, it
+corresponds to a run of exhaustive DPLL when the elimination order of the
+variables is fixed at the beginning of the algorithm. For both restrictions
+and for every k, we show a |F |?(k) lower bound for an infinite family of
+instances of incidence treewidth k, showing that these restrictions cannot
+represent bounded incidence treewidth instances efficiently. Proving such
+2
+lower bound on unrestricted decDNNF is still open.
+It is worth noting that both of the considered restrictions of decDNNF
+are FPT on CNFs of bounded primal treewidth. Indeed, the FPT result for
+structural decDNNFs follows from Section 5 of [13]. In fact the decDNNF
+constructed there can be shown to be an ?d-OBDD as well. In light of the
+above, we believe that our results are significant from the knowledge compi-
+lation perspective because they are the first to show different parameterized
+complexities for primal and incidence treewidth.
+The paper is organised as follows. Section 2 contains the definitions
+of the different notions that are needed to understand the results of this
+paper. Section 3 is dedicated to the proof of the lower bound on structured
+decDNNF and Section 4 is dedicated to the proof of the lower bound on
+?d-OBDD.
+2 Preliminaries
+2.1 Boolean functions
+Assignments and Boolean functions. Let X be a finite set of variables.
+A truth assignment on X is a mapping from X to {0, 1}. The set of truth
+assignments on X is denoted by {0, 1}X . Given Y ? X and ? ? {0, 1}X , we
+denote by ? |Y the restriction of ? on Y . Let X,X ? be two sets of variables,
+? ? {0, 1}X and ? ? ? {0, 1}X? . We denote by ? ? ? ? if ? |X?X? = ? ?|X?X? .
+Moreover, if ? ? ? ?, we let ? ? ? ? be the truth assignment on variables
+X ?X ? such that (? ? ? ?)|X = ? and (? ? ? ?)|X? = ? ?. A boolean function
+on variables X is a mapping from {0, 1}X to {0, 1}. Given ? ? {0, 1}X , we
+denote by ? |= f iff f(?) = 1. For Y ? X and ? ? {0, 1}Y , we denote by f [? ]
+the boolean function on variables X \ Y such that for every ? ? ? {0, 1}X\Y ,
+f [? ](? ?) = f(? ? ? ?).
+CNF-formulas. A literal over X is either a variable x or its negation ¬x
+for x ? X. For a literal ?, we denote by var(?) the underlying variable of
+?. A clause C on X is a set of literals on X such that for every ?, ?? ? C,
+if var(?) = var(??) then ? = ??. We denote by var(C) = {var(?) | ? ? C}.
+A CNF-formula F on X is set of clauses on X. We denote by var(F ) =?
+C?F var(C). A CNF-formula is monotone if it does not contain negated
+literals. A CNF-formula naturally defines a Boolean function as follows:
+given a truth assignment ? , we naturally extend a truth assignment on X
+to literals on X by defining ?(¬x) = 1? ?(x). We say that a clause C on X
+is satisfied by ? if there exists ? ? C such that ?(?) = 1. A CNF-formula F
+on X is satisfied by ? if for every C ? F , C is satisfied by ? . The Boolean
+function defined by a CNF-formula F is the function mapping satisfying
+assignments to 1 and the others to 0.
+3
+2.2 Graphs
+We assume the reader familiar with the basics notions of graph theory. For
+an introduction to this topic, we refer to [9].
+Given a graph G = (V,E) and x ? V , we denote by G \ x the graph
+having vertices V \ {x} and edges E \ {e ? E | x ? e}, that is, G \ x is
+obtained by removing x and all its adjacent edges from G.
+Matchings. A matching is a set M ? E of edges such that for every
+e, f ? M , if e 6= f then e ? f = ?. A matching M in an induced matching if
+for every {u, v}, {u?, v?} ? M , we have {u, u?} /? E, {v, v?} /? E, {u, v?} /? E
+and {u?, v} /? E.
+In bounded degree graphs, we can always extract a large induced match-
+ing from a matching:
+Lemma 1. Let G = (V,E) be a graph of degree d and M ? E be a matching
+of G. There exists an induced matching M ? ? M of size at least |M |/2d.
+Proof. Take an edge {u, v} ? M and remove from M every edges {u?, v?} ?
+M such that either {u, u?} ? E, {v, v?} ? E, {u, v?} ? E or {u?, v} ? E.
+Since G is of degree d, there are at most 2d such edges (d adjacent to u,
+d adjacent to v). Thus, we remove at most 2d edges. We can repeat the
+process until we have an induced matching.
+Treewidth. Treewidth is a graph parameter that intuitively measures the
+distance from a graph to a tree. Given a graph G = (V,E), a tree decompo-
+sition of G is a tree T = (VT , ET ) where each t ? Vt is labelled with Bt ? V ,
+called a bag, such that:
+• for every e ? E, there exists t ? VT such that e ? Bt,
+• for every x ? V , {t | x ? Bt} is a connected subtree of T .
+The width of a tree decomposition is maxt?VT (|Bt| ? 1). The tree width k
+of G is the smallest k such that there exists a tree decomposition of G of
+width k. Given a graph G, we denote its treewidth by tw(G).
+Graphs for CNF-formulas. The structure of a CNF-formula is usually
+studied using graphs representing the interaction between the clauses and
+the variables. Given a CNF-formula F , we define two graphs characterising
+its structure:
+• The primal graph of F is the graph having vertices var(F ) and such
+that {x, y} is an edge if and only if there exists a clause C ? F such
+that {x, y} ? C.
+4
+• The incidence graph of F is the bipartite graph having vertices var(F )?
+F and such that for x ? var(F ) and C ? F , {x,C} is an edge if and
+only if x ? var(C).
+The primal treewidth of a CNF-formula F , denoted by ptw(F ), is the
+treewidth of the primal graph of F . The incidence treewidth of a CNF-
+formula F , denoted by itw(F ), is the treewidth of the incidence graph of F .
+Both measures are related thanks to the following theorem:
+Theorem 2 ([23]). For every CNF-formula F , we have itw(F ) ? ptw(F ).
+2.3 Decision DNNF
+In this section, we define Decision Decomposable Negation Normal Form
+(decDNNF for short). These circuits have first been introduced by Dar-
+wiche [10] as special cases of (deterministic) DNNF [7, 8]. Decision DNNF
+can also be seen as branching programs (FBDD), augmented with decom-
+posable ?-nodes [2]. To make the proofs and definition easier to understand,
+we choose in this paper to present decDNNF as a generalisation of branching
+programs.
+?-FBDD. Let X be a finite set of variables. An ?-FBDD Z on variables
+X is a DAG with one distinguished node called the root. The nodes of Z
+without outgoing edges are called the sinks and are labeled with a constant
+0 or 1. The internal nodes of G can be of two types:
+• the decision nodes, labelled with a variables x ? X and having two
+distinguished outgoing edges: one is labelled by 1 (represented with
+a solid line in our figures) and the second by 0 (represented with a
+dashed line in our figures),
+• the ?-nodes, labelled with ? and having two unlabeled outgoing edges.
+Moreover, Z respects the following condition: if there exists a directed path
+in Z from a decision node ? to a decision node ? then ? and ? are labelled
+by a different variables.
+Let Y ? X and ? ? {0, 1}Y . A directed path P in Z is said to be
+compatible with ? if for every edge (?, ?) of P where ? is a decision node on
+variable v, we have:
+• v ? Y and
+• (?, ?) is labelled by ?(v).
+We say that a node ? is reached by ? if there exists a path from the root of
+Z to ? that is compatible with ? . For ? ? {0, 1}X , we say that ? satisfies
+Z if no 0-sink is reached by ? . The Boolean function computed by Z is the
+5
+x
+? y
+y z z
+0 1
+Figure 1: A decDNNF computing the assignment ? of {x, y, z} such that
+?(x)+?(y)+?(z) = 2. In bold, the nodes reached by {x 7? 0, y 7? 1, z 7? 1}.
+Boolean function that maps satisfying assignment of Z to 1 and the others
+to 0. Figure 1 pictures an ?-FBDD computing the Boolean Function on
+variables x, y, z that is true if and only if exactly two variables among x, y
+and z are set to 1. The nodes reached by ? = {x 7? 0, y 7? 1, z 7? 1} are
+depicted in bold font. It is a satisfying assignment as only the sink 1 is
+reached.
+The size of Z, denoted by |Z|, is defined to be the number of edges of
+the underlying DAG of Z. Given a ?-FBDD Z on variables X, we denote
+by var(Z) the set of variables labelling its decision nodes. Observe that
+var(Z) ? X but that the inclusion may be strict. Given a node ? of Z, we
+denote by Z? the ?-FBDD whose root is ? and containing every node that
+can be reached from ? in Z.
+An FBDD is an ?-FBDD that has no ?-nodes.
+Decision DNNF. Let ? be an ?-node and let ?1, ?2 be its two succes-
+sor. The node ? is said to be decomposable if var(Z?1) ? var(Z?2) = ?. In
+this paper, we sometimes use the notation ?d to stress out the fact that A
+decision DNNF, decDNNF for short, is an ?-FBDD whose all ?-nodes are
+decomposable. It is easy to check that the ?-FBDD depicted in Figure 1 is
+an decDNNF since the variables on the left side of the ?-nodes are {y} and
+the variables on the right side are {z}.
+Normalising decDNNF. Observe that if ? is a decomposable ?-node
+with successors ?1, ?2 then Z?1 and Z?2 do not share any decision nodes
+otherwise they would not have disjoint variables. That is, the only nodes
+they share do not contain variables and then computes constants that can be
+replaced by sinks. Thus, we can assume without any increase in the size of
+Z, that the only nodes that are shared by Z?1 and Z?2 are sinks. By copying
+each sink such that they have exactly one ingoing edge, we can construct a
+decDNNF equivalent to Z of size at most 2|Z| such that for every ?-node
+with successors ?1, ?2, Z?1 and Z?2 are disjoint circuits. In this paper, we
+will always assume that every decomposable ?-nodes have this property.
+6
+2.4 Restricted decDNNF
+In the framework of branching programs, FBDD are distinguished from
+OBDD by the fact that in an OBDD, each source-sink path has to test
+the variables in the same order. This ordering constraint allows to have
+more tractable transformations on OBDD than on FBDD. In this section,
+we introduce two generalisations of such an idea for decDNNF.
+Structured decDNNF. Structured DNNF have first been introduced
+in [15] as a restriction of DNNF. The structuredness restriction corresponds
+to a restriction on the way variables are partitioned the nodes of the DNNF.
+Let X be a finite set of variables. A vtree T on variables X is a rooted
+tree whose leaves are in one to one correspondence with X and such that
+every non-leaf node t of T has exactly two children. Given a node t of T , we
+denote by Tt the subtree of T rooted in t and var(t) the variables labelling
+the leaves of Tt.
+A decDNNF Z on variables X respects a vtree on variables X if: for every
+?-node of Z having children v1, v2, there exists a node t in T having children
+t1, t2 such that var(Zv1) ? var(t1) and var(Zv2) ? var(t2). For every decision
+node in Z having children v1, v2 and testing the variable x, there exists t in T
+having children t1, t2 such that x ? var(t1) and var(Zv1)? var(Zv2) ? var(t2).
+The class of decDNNF respecting a given vtree T is denoted by decDNNFT .
+A decDNNF Z is said to be structured if there exists a vtree T such that Z
+respects T .
+Decomposable ?-OBDD (?d-OBDD). OBDDs are a well-known re-
+striction of FBDDs where the variables have to appear on a fixed order
+along a path from the root to the sinks. We naturally generalise this restric-
+tion to ?-FBDD as follows: let Z be an ?-FBDD on variables X and < a
+linear order on X. We say that Z respects the order < if for every decision
+nodes ? labeled with x and ? labeled with y of Z, if there exists a directed
+path from ? to ? in Z, then x < y.
+The class of ?-FBDD respecting order < is denoted by ?-OBDD<. The
+class of ?-FBDD respecting some order < on its variables is denoted by
+?-OBDD. A decomposable ?-OBDD is an ?-OBDD whose ?-nodes are all
+decomposable. We denote the class of decomposable ?-OBDD by ?d-OBDD.
+An OBDD is an ?-OBDD that has no ?-nodes.
+Comparing structured decDNNF and ?d-OBDD. It is easy to see
+that the decDNNF represented in Figure 1 is also a ?d-OBDD for the order
+x < y < z. Moreover, it is also structured since it respects the vtree given
+in Figure 2.
+We will see that we can use the instances of Section 3 to separate struc-
+tured decDNNF from ?d-OBDD, by construction instances having struc-
+7
+x
+y z
+Figure 2: A vtree respected by the decDNNF of Figure 1
+x
+y
+z
+z
+y
+1 0
+Figure 3: A structured decDNNF respecting the vtree of Figure 2 that are
+not an ?d-OBDD.
+tured decDNNF of size at least n?(logn) and polynomial size ?d-OBDD. A
+stronger separation of both classes may be found in [6] where CNF-formulas
+with n variables having polynomial size ?d-OBDD are proven to have no
+structured decDNNF of size 2?(
+?
+(n)).
+However, it is not clear to us if structured decDNNF are weaker than
+?d-OBDD. Figure 3 gives a decDNNF which is structured – it indeed re-
+spects the vtree of Figure 2 – but is not an ?d-OBDD. Even if this example
+is easy to transform into an ?d-OBDD, we do not know if such a transfor-
+mation always exists.
+3 Lower bound for structured decDNNF
+This section is dedicated to the proof of our first main theorem:
+Theorem 3. For every k, there exists an infinite family F of CNF of inci-
+dence treewidth k having no structured decDNNF smaller than n?(k) where
+n = |var(F )|.
+The instances we use for proving this lower bounds are the following: for
+a graph G = (V,E), we define a CNF FG from G on variables V as follows:
+FG = (
+?
+x?V
+¬x) ?
+?
+(x,y)?E
+(x ? y).
+The clause
+?
+x?V ¬x is denoted by CG.
+The proof then goes as follows. After some preliminaries observations on
+structured decDNNF in Section 3.1, we show in Section 3.2 that the smallest
+structured decDNNF computing FG is actually an FBDD. We finally show
+8
+x0
+x1
+x2
+x3 x4
+Figure 4: A linear vtree.
+the lower bound in Section 3.3 by using a non-FPT lower bound from [16]
+on the size of FBDD computing FG \ CG,
+3.1 Preliminary observations on structured decDNNF
+In this section, we are interested in structured decDNNF having a sequence
+of decision nodes testing all of its variables. We show that these structured
+decDNNF can be efficiently simulated by FBDDs. Given a decDNNF Z on
+variable X and Y ? X, we call a path P = (v1, . . . , vn) of Z a decision path
+on Y if P verifies the following:
+• for all i, vi is a decision node,
+• for all x ? Y , there exists i such that vi is labelled with the variable
+x.
+We say that a vtree T on X is linear if for every non-leaf node of T , at
+least one of its child is a leaf (see Figure 4).
+It has been observed but not proven by Darwiche and Pipatsrisawat
+in [15] that a decDNNF respecting a linear vtree can be efficiently simulated
+with an OBDD. Lemma 4 gives a proof of a slightly less general version of
+this observation: we prove that such decDNNF can be efficiently simulated
+by FBDD. It is not hard to show from there that the FBDD constructed in
+the proof can be easily turned into an OBDD.
+Lemma 4. Let T be a linear vtree on variables X and Z a decDNNF re-
+specting T . There exists an FBDD Z ? of size O(|Z|) equivalent to Z.
+Proof. Let Z be a decDNNF respecting a linear vtree T . We explain how to
+remove ?-nodes from Z. Let v be an ?-node of Z having children v1, v2 and
+let t be the node in T with children t1, t2 such that var(Zv1) ? var(t1) and
+var(Zv2) ? var(t2). Since T is linear, either t1 or t2 is a leaf of T . Assume
+wlog that t1 is a leaf labelled with x ? X. Thus var(Zv1) ? {x}. In other
+words, Zv1 computes either x 7? 0, x 7? 1, x 7? x or x 7? ¬x. If Zv1
+computes x 7? 0, then Zv computes the function 0. Hence, we can replace v
+by a 0-sink. If Zv1 computes x 7? 1, then Zv computes the same function as
+Zv2 , hence we can remove v and v1 from Z and connects every predecessor
+of v directly to v2. If Zv1 computes x 7? x, then Zv computes x ? Zv2 .
+9
+Hence, we can replace v by a decision-node whose 1-edge is connected to v2
+and 0-edge is connected to the constant 0. The case where Zv1 computes
+x 7? ¬x is symmetric.
+It is easy to check that for each case, the transformation does not change
+the function computed by Z nor does it increase its size. Applying this
+transformation to every ?-node of Z leads to an FBDD Z ?, equivalent to Z
+and of size at most |Z|.
+The following lemma suggests that long paths in structured decDNNF
+put strong constraints on the respected vtree:
+Lemma 5. Let Z be a structured decDNNF on variables X such that there
+exists a source-sink decision path on X. Every vtree T such that Z respects
+T is linear.
+Proof. The proof is by induction on n = |X|. If n ? 2, then every vtree
+is linear so there is nothing to prove. Now assume that the result holds
+for any structured decDNNF Z with n variables and let X be such that
+|X| = n+ 1 and Z be a structured decDNNF such that there exists a path
+v1, . . . , vn+1, vn+2 in Z as in the statement of the lemma. Let T be a vtree
+such that Z respects T . By definition, v1 is a decision node on x1 and one
+of its children is v2 and we have var(Zv2) = X \ {x1} since every variable of
+X is tested on the path.
+Since Z is structured, there exists a node t in T with children t1, t2 such
+that x1 ? var(t1) and X \ {x1} = var(Zv2) ? var(t2). Thus, var(t1) = {x1}
+and X \ {x1} = var(t2). That is, t is the root of t and t1 is a leaf labelled
+with x1.
+Now, observe that Zv2 is a structured decDNNF on variables X \ {x1}.
+Moreover, Zv2 respects Tt2 and there exists a path v2, . . . , vn+1, vn+2 of
+length n of decision nodes and such that for every x ? X \ {x1}, there
+exists i such that vi tests x. Thus, we can apply the induction hypothesis
+on Zv2 and it follows that Tt2 is linear.
+Thus let t be a non-leaf node of T . If t is the root, then one of its child
+is a leaf labelled by x1. Otherwise, t is a node of Tt2 . Since Tt2 is linear,
+there exists a child of t which is a leaf labelled with a variable x ? X \ {x1}.
+Thus, T is linear.
+An immediate corollary of Lemma 5 and Lemma 4 is the following:
+Corollary 6. Let Z be a structured decDNNF on variables X such that
+there exists a source-sink decision path on X v1, . . . , vn, vn+1. There exists
+an FBDD of size O(|Z|) computing the same function as Z.
+10
+3.2 Instances
+In this section, we construct CNFs such that every structured decDNNF
+computing them must contain a path of decision-nodes testing every vari-
+ables. By Corollary 6, it implies that every structured decDNNF computing
+them can be efficiently simulated by FBDD. We then use lower bounds
+from [16] on FBDD to conclude.
+The two following lemmas show that the clause CG forces a long path of
+decision nodes in any decDNNF computing FG.
+Lemma 7. Let G = (V,E) be a graph, |V | ? 2 and x ? V . We have
+FG[x 7? 1] = FG\x.
+Proof. We show that both functions have the same satisfying assignments.
+Let ? |= FG\x. We claim that ? ? = ? ? {x 7? 1} |= FG. Indeed, since
+? |= FG\x and |V | ? 2, we have that ? |=
+?
+y?V \{x} ¬y thus there exists
+y ? V \ {x} such that ?(y) = 0 and then ? |= CG. Now, let (u, v) ? E. If
+both u 6= x and v 6= x then (u, v) is also an edge of G\x and then ? |= u? v.
+Now if u = x, then clearly ? ? |= u ? v. Thus, ? ? |= FG.
+Now let ? ? be such that ? ? |= FG and ? ?(x) = 1. Let ? = ? ?|V \{x}. We
+claim that ? |= FG\x. Indeed, let (u, v) be an edge of G \x. By definition of
+G \ x, (u, v) is an edge of G with u 6= x and v 6= x. Thus since ? ? |= u ? v
+we have ? |= u ? v. Moreover, since ? ? |= CG and ? ?(x) = 1, there exists
+y ? V \ {x} such that ? ?(y) = 0. Thus ? ? |= ?z?V \{x} ¬z.
+Lemma 8. Let G = (V,E) be a graph and let Z be a decDNNF computing
+FG. There exists a source-sink decision path on X v1, . . . , vn, vn+1 in Z.
+Proof. The proof is by induction on n = |V |. If n = 1, then V = {x} and
+FG = ¬x. Thus FG is reduced to a decision node on x and the result is
+trivial.
+Let n ? 1, G = (V,E) be a graph with |V | = n+1 ? 2 and assume that
+the result holds for any graph having n nodes. Let Z be a decDNNF for FG.
+We start by proving that we can assume that the source of Z is necessarily
+a decision-node. Indeed, assume that the source of Z is a decomposable
+?-node with children v1, v2. Recall that we have shown that w.l.o.g, we
+can assume that var(Zv1) 6= ? and var(Zv1) 6= ?. It means that FG can be
+rewritten as F1 ? F2 with var(F1) = V1 6= ? and var(F2) = V2 6= ?. Let
+?1 ? {0, 1}V1 be the assignment such that ?1(x) = 1 for every x ? V1 and let
+?2 ? {0, 1}V2 be the assignment such that ?2(x) = 1 for every x ? V2.
+Assume first that ?1 6|= F1. In this case, choose y ? V2 and define
+? ? {0, 1}V as ?(y) = 0 and for every x ? V \{y}, ?(x) = 1. It is easy to see
+that ? |= FG since CG is satisfied as ?(y) = 0 and if (u, v) ? E, then w.l.o.g
+we have u 6= y. Therefore u? v is satisfied since ?(u) = 1. However, ? 6|= F1
+11
+since ? |V1 = ?1, thus ? 6|= Z which contradicts the fact that Z computes F .
+If ?2 6|= F2, we have a similar contradiction.
+Finally, assume that ?1 |= F1 and ?2 |= F2. Thus, the assignment ? =
+?1 ? ?2 |= F1 ? F2 = F . However, ? does not satisfy CG, contradictions.
+Thus, the source s of Z is a decision-node. Let x be the variable tested
+by s of Z and let v be the child of v that corresponds to x 7? 1. We have that
+Zv computes FG[x 7? 1]. By Lemma 7, since |V | ? 2, FG[x 7? 1] = FG\x.
+By induction, there exists a source-sink path of decision nodes in Zv testing
+every variable in V \{x}. Thus we have a source-sink path of decision nodes
+in Z testing every variable in V .
+By combining Corollary 6 and Lemma 8, we have the following:
+Corollary 9. Let G = (V,E) be a graph and let Z be a structured decDNNF
+computing FG. There exists an FBDD of size at most |Z| computing FG.
+3.3 Lower bound
+The following has been proven in [17]:
+Theorem 10 ([17]). There exists a constant c such that for every k ? N,
+there exists an infinite family Gk of graphs of treewidth at most k such for
+every graph G = (V,E) ? Gk, any FBDD computing FG \ CG is of size at
+least |V |ck.
+We will Theorem 10 to prove our lower bound. We start by showing that
+FG is not easier to compute than FG \ CG with FBDD:
+Lemma 11. Let G = (V,E) be a graph and Z be an FBDD computing FG.
+Then, there exists an FBDD Z ? of size at most |V | · |Z| computing FG \CG.
+Proof. Let (x1, . . . , xn) be an arbitrary ordering of V . We let ?i : {x1, . . . , xi} ?
+{0, 1} be defined as ?i(xj) = 1 for j < i and ?i(xi) = 0.
+We create an FBDD Z ? as follows: Z ? has n decision nodes ?i, ?i testing
+variable xi and n disjoint FBDD, each of them computing Z[?i], which can
+be done with an FBDD of size at most |Z| by projecting Z on ?i. The root
+of Z ? is ?1.
+For i < n, the outgoing edge of ?i that is labelled by 1 goes into ?i+1
+and the outgoing edge of labelled by 0 goes into the FBDD computing Z[?i].
+The outgoing edge of ?n labelled with 1 goes into a 1-source.
+It is easy to check that |Z ?| ? |V | · |Z| and that Z ? computes FG \ CG.
+Indeed, let ? be a satisfying assignment of FG\CG. If ? assigns every variable
+to 1. In this case, the corresponding path in Z ? goes through every ?i and
+ends up in a 1-sink. Otherwise, let xi be the smallest variables that is set
+to 0 by ? . In this case, the path corresponding to ? goes through ?1, . . . , ?i
+and then into the FBDD computing Z[?i]. However, it is readily verified
+12
+that ? ? ?i. Moreover, since ? |= CG, Z[?i] is satisfied by ? if and only if ?
+satisfies FG \ CG.
+Moreover, the incidence treewidth of FG is directly related to the treewidth
+of G:
+Lemma 12. Let G = (V,E) be a graph of treewidth k. We have itw(FG) ?
+k + 1.
+Proof (sketch). It is easy to see that the primal graph of FG \ CG is G so
+the primal treewidth of FG \ CG is k. Now, by Theorem 2, the incidence
+treewidth of FG \ CG is at most k. Let T be a tree decomposition for the
+incidence graph of FG \CG. Construct a new tree decomposition by adding
+CG in every bag of T . It is easy to check that this is a tree decomposition
+of the incidence graph of FG of width k + 1.
+Proof (of Theorem 3). Let Gk the family of graphs given by Theorem 10 and
+let Fk = {FG | G ? Gk}. By Lemma 12, Fk is an infinite family of formulas
+of incidence treewidth k. Now let F ? Fk and let G = (V,E) ? Gk the
+graph such that F = FG. By Theorem 10, any FBDD computing F \ CG is
+of size at least |V |ck. We conclude by using Lemma 11 that implies that the
+smallest FBDD computing FG is of size at least |V |ck?1.
+4 Lower bound for ?d-OBDD
+This section is dedicated to the proof of our second lower bound:
+Theorem 13. For every k, there exists an infinite family Fk of CNF of
+incidence treewidth k having no ?d-OBDD smaller than n?(k) where n =
+|var(F )|.
+Unfortunately, contrary to the proof of Section 3, we cannot directly
+transfer a lower bound for FBDD. We have to generalise the technique of [17]
+to this class of circuits. Moreover, it can be shown that FG has ?d-OBDD
+of size FPT in the treewidth of G, thus we cannot use that same instances
+as in Section 3. Fortunately, we will see that only adding two long clauses
+is enough for proving such a lower bound.
+We start by proving in Section 4.1 some general results concerning ?d-OBDD.
+We then describe how we construct our instances in Section 4.2. Finally, Sec-
+tion 4.3 gives a proof of Theorem 13.
+4.1 Properties of ?d-OBDD
+Given a finite set X, < an order on X and x ? X, we denote by [? x] =
+{y ? X | y ? x}. We similarly define [< x], [? x], [> x].
+13
+In the rest of this section, we fix X a set of variables, < an order on X,
+Z an ?d-OBDD< Z on variables X, u ? X and ? : [? u] ? {0, 1}. A node
+? of Z reached by ? is maximal if ? is the only node of Z? that is reached
+by ? . We will show that we can nicely characterise Z[? ] in terms of maximal
+nodes.
+Lemma 14. Let ?, ? be two nodes of Z. Let P? and P? be two path from
+the root of Z to ? and ? respectively compatible with ? .
+• If ? is in Z? then P? contains ?.
+• If ? is not in Z? and ? is not in Z? then var(Z?) ? var(Z?) = ?.
+Proof. First, assume that ? is in Z? and that ? is not in P? . Since P? and
+P? both start from the root, there must exist a node ? where they split, that
+is, ? is a node with successor ?1 and ?2 such that ? is in both P? and P? but
+?1 is only in P? and ?2 on P? . We claim that this is not possible. Indeed,
+by definition, ? is not a sink. Moreover ? is not an ?d-node. Indeed, ? is in
+both Z?1 and Z?2 and if ? were an ?-node, Z?1 and Z?2 would be disjoint.
+Finally, assume that ? is a decision node on variable v. Since (?, ?1) is in
+P? and P? is compatible with ? , we have v ? [? u] and (?, ?1) is labelled
+with ?(v). But since (?, ?2) is in P?, (?, ?2) is also labelled with ?(v) which
+contradicts the definition of decision nodes.
+Now assume that ? is not in Z? and ? is not in Z?. Thus P? and P?
+split at a node ? defined as in the previous paragraph. For the same reasons
+as before, ? is not a decision node, nor a sink. Thus ? is an ?-node, meaning
+that var(Z?1) ? var(Z?2) = ?. The result follows since var(Z?) ? var(Z?1)
+and var(Z?) ? var(Z?2).
+It follows from Lemma 14:
+Lemma 15. Let W be the set of nodes ? reached by ? that are maximal.
+We have:
+Z[? ] ?
+?
+??W
+Z?.
+And for every ?, ? ? W , if ? 6= ? then var(Z?) ? var(Z?) = ?.
+Proof. Let ? ? : [> u] ? {0, 1}. We prove that ? ? |= Z[? ] if and only if
+? ? |= Z? for every ? ? W . First, assume that ? ? |= Z[? ], that is, ? ? ? ? |= Z.
+Let ? ? W and ? be a sink of Z? reached by ? ?. By definition, ? is reached
+by ? ? ? ? in Z, thus, ? is also reached by ? ? ? ? in Z. Thus, since ? ? ? ? |= Z,
+? is labelled with 1.
+Now assume that for every ? ? W , ? ? |= Z?. Let ? be a sink reached
+by ? ? ? ? in Z by a path P . Let ? be the last node on P that is reached
+by ? . We claim that ? is maximal. Indeed, if ? is a sink then it is clearly
+maximal. Otherwise, let ?1 and ?2 be the successor of ? and assume that
+14
+?1 is in P . If ? is an ?-node, then ?1 would be reached by ? contradicting
+the maximality of ? on P . If ? is a decision node for a variable v ? u, then
+since P is compatible with ? ? ? ?, (?,?1) is labelled with (? ? ? ?)(v) = ?(v),
+that is, ?1 is reached by ? , contradicting again the maximality of ?. Thus
+? is a decision node on a variable v > u. Now, assume there exists ? 6= ?
+in Z? that is reached by ? and let P? be a path compatible with ? from the
+root of Z to ?. By Lemma 14, P? contains ? and then, it contains either
+?1 or ?2. But since ? is a decision node on v > u, ? does not assign v
+and it contradicts the fact that P? is compatible with ? . Thus ? ? W . By
+assumption. ? ? |= Z?, that is ? ? ? ? |= Z.
+Finally, let ?, ? be two distinct nodes of W . By definition of W , ? is
+not in Z? and ? is not in Z? and both are reached by ? . By Lemma 14,
+var(Z?) ? var(Z?) = ?.
+Finally, we will use the following lemma:
+Lemma 16. Let Z be a ?d-OBDD<, ? : var(Z) ? {0, 1} such that ? |= Z
+and ? a node reached by ? . Then for every ? ? : var(Z?) ? {0, 1} such that
+? ? |= Z?, we have ? ?? := ? |var(Z)\var(Z?) ? ? ? |= Z.
+Proof. First of all, observe that there exists a path P? from the root to ?
+that is compatible with ? . Moreover, every variable tested on this path have
+to be smaller than the variables in Z? since Z is an ?-OBDD<. Thus, this
+path is also compatible with ? ??.
+Now, assume toward a contradiction that there exists a path P from the
+root of Z to a 0-sink that is compatible with ? ??. If P contains ? then it
+gives a path from ? to a 0-sink compatible with ? ?, contradicting the fact
+that ? ? |= Z?. Thus P does not contain ?. Now let ? with successor ?1, ?2
+be the first node on which P and P? splits, that is, ? is in P and P?(?
+??)
+but ?1 is only in P and ?2 only in P?(?
+??). It is easy to see that ? is not a
+decision node thus ? is an ?d-node. Thus, var(Z?1) ? var(Z?2) = ?, that is,
+var(Z?1)? var(Z?) = ?. Thus, P is compatible with ? , which contradicts the
+fact that ? |= Z.
+4.2 Generic instances
+Given a graph G = (V,E), we define V 1 = {v1 | v ? V }, V 2 = {v2 | v ? V }
+and F 2G the formula whose variables are V
+1 ? V 2 and clauses are:
+• for every {u, v} ? V , u1 ? v2 and u2 ? v1,
+• C1 =
+?
+u?V ¬u1 and,
+• C2 =
+?
+u?V ¬u2.
+15
+Example. Let G be the triangle graph on vertices {x, y, z}. We have
+F 2G =(x
+1 ? y2) ? (x2 ? y1) ?
+(z1 ? y2) ? (z2 ? y1) ?
+(x1 ? z2) ? (x2 ? z1) ?
+(¬x1 ? ¬y1 ? ¬z1) ?
+(¬x2 ? ¬y2 ? ¬z2).
+Lemma 17. Let G = (V,E) be a graph, < an order on V 1 ? V 2 and Z be
+an ?d-OBDD< computing F 2G. Let u ? V 1 ? V 2 and ? : [? u] ? {0, 1} and
+W = {v ? V | {u, v} ? E and ?(u1) = 0}. Assume that:
+• there exists z1 ? V 1 with z1 ? u and ?(z1) = 0 and,
+• for every v2 ? V 2 with v2 ? u, we have ?(v2) = 1,
+• (V 2 ? [> u]) \W 2 6= ?.
+There exists a node ? in Z such that ? is reached by ? , is maximal and
+var(Z?) ? (V 2? [> u])\W 2 where W = {v ? V | {u, v} ? E and ?(u1) = 0}.
+Proof. Assume toward a contradiction that there exists a node ? reached by
+? such that var(Z?)? (V 2 ? [> u]) \W 2 6= ? and x ? (V 2 ? [> u]) \W 2 with
+x /? var(Z?) and let y ? var(Z?)?(V 2?[> u])\W 2. Let ?1 be the assignment
+such that ?1(x) = 0 and for every z > u such that z 6= x, ?1(z) = 1. Let ?2
+be the assignment such that ?2(y) = 0 and for every z > u such that z 6= y,
+?2(z) = 1.
+It is easy to see that ? ? ?1 satisfies F 2G. Indeed, C1 is satisfied by ? since
+by assumption ?(z1) = 0 and C2 is satisfied since ?1(x) = 0 and x ? V 2.
+Now, let {v,w} ? E. Observe that the only variable of V 2 set to 0 by ?1 is
+x. Thus, if w 6= x, v1 ? w2 is satisfied. Now, assume w = x. If v1 > u, then
+by definition ?1(v
+1) = 1 thus v1 ? w2 is satisfied. Now if v1 ? u, then since
+x /? W 2, by definition of W 2, v1 is not assigned to 0 by ? . Thus, ?(v1) = 1
+and v1 ?w2 is satisfied. Similarly, ? ? ?2 satisfies F 2G.
+By Lemma 16, ? ? = ? ? ?1|var(Z?) ? ?1|[>u]\var(Z?) |= F 2G. However, it is
+straightforward to see that ? ?(x) = ? ?(y) = 1. And thus, for every v2 ? V 2,
+? ?(v2) = 1, thus ? ? does not satisfy C2. Contradiction.
+We have shown so far that if a node ? is reached by ? , either var(Z?) ?
+(V 2? [> u])\W 2 or var(Z?)?(V 2? [> u])\W 2 = ?. It thus remains to prove
+that there exists a maximal node ? reached by ? such that var(Z?)?(V 2?[>
+u]) \ W 2 6= ?. Let M be the set of nodes reached by ? that are maximal
+and assume that for every ? ? M , var(Z?) ? (V 2 ? [> u]) \ W 2 = ?. By
+Lemma 15, we have Z[? ] =
+?
+??M Z?. That is, Z[? ] does not depend on
+(V 2 ? [> u]) \ W 2. Let ? ? : [> u] ? {0, 1} be such that for every v > u,
+? ?(v) = 1. By definition, for every v ? V , (? ? ? ?)(v2) = 1. Thus ? ? ? ? 6|= F 2G
+16
+since C2 is not satisfied by ? ?? ?. However, we claim that ? ? |= Z[? ]. Indeed,
+let v2 > u be such that v2 /? W 2 which exists since (V 2 ? [> u]) \W 2 6= ?.
+Let ? ?? be the assignment that differs from ? ? only on v2. It is readily verified
+that ? ? ? ?? |= Z thus ? ?? |= Z[? ]. However, since Z[? ] does not depend on
+v2, ? ? |= Z[? ] too. Contradiction.
+We are ready to prove a general lower bounds on ?d-OBDD< computing
+F 2G.
+Theorem 18. Let G = (V,E) be a graph, < an order on V 1 ?V 2 and Z be
+an ?d-OBDD< for F 2G. Assume there exists u ? V 1 ? V 2 and a non-empty
+set M ? V 1 × V 2 such that:
+• for every (v1, w2) ? M , v1 ? u < w2 and,
+• E(M) = {{v,w} | (v1, w2) ? M} is an induced matching of G,
+We have |Z| ? 2|M |?2.
+Proof. If |M | ? 2, the result is trivial. Otherwise, we arbitrarily pick two
+distinct edges (a1, b2), (c1, d2) ? M and let M ? = M \{(a1, b2), (c1, d2)}. Let
+U1 be the variables of V
+1 that are in M ?. That is U1 = {x1 | ?y2(x1, y2) ?
+M ?}. Observe that since E(M ?) is a induced matching of G of size |M | ? 2,
+we have |U1| = |M | ? 2.
+Given A ? U1, we define ?A : [? u] ? {0, 1} as follows:
+• for every v1 ? {a1} ?A, ?A(v1) = 0,
+• ?(c1) = 1 and,
+• for every other v ? u, ?A(v) = 1.
+Since ?A(a
+1) = 0, there exists v1 ? u such that v1 ? V 1 and ?A(v1) = 0.
+Moreover, since A ? V 1, for every v2 ? V 2 ? [? u], ?A(v2) = 1. Finally,
+c1 ? u < d2 and since E(M) is an induced matching, every neighbour n of
+d such that n1 ? u verifies ?A(n1) = 1. Thus, we can apply Lemma 17. Let
+?A be the node given by Lemma 17 applied to Z and ?A.
+We claim that if A 6= B, then ?A 6= ?B . Since U1 = |M ?| = |M | ? 2, the
+theorem follows since it gives 2|M |?2 different nodes in Z.
+We now prove that if A 6= B, then ?A 6= ?B . Assume toward a contra-
+diction that ?A = ?B = ?. Without lost of generality, assume there exists
+v1 ? A \ B and let w2 be the only vertex of W 2 such that (v1, w2) ? M ?
+(the uniqueness of w2 follows from the fact that E(M) is a matching). By
+definition, ?A(v
+1) = 0 and ?B(v
+1) = 1. Moreover, since E(M) is an induced
+matching, w is not in the neighbourhood of any vertex of M but v. Thus, it
+holds that ?B(x
+1) = 1 for every neighbour x of w with x1 ? u. By Lemma 17,
+w2 ? var(Z?B ).
+17
+Now, let ? ?B : [> u] ? {0, 1} be defined as follows: ? ?B(d2) = ? ?B(w2) = 0
+and for every other variables u? of [> u], ? ?B(u
+?) = 1. It is easy to see that
+?B ? ? ?B |= F 2G, thus by Lemma 15, ? ?B |XB |= Z?B where XB = var(Z?B ).
+Finally, let ? ?A : [> u] ? {0, 1} be defined as follows: ? ?A(d2) = 0 and
+for every other variables u? of [> u], ? ?A(u
+?) = 1. It is easy to see that
+?A ? ? ?A |= F 2G. If ?A = ?B then ?A ? ? ?A reaches ?B . By Lemma 16,
+? ? = ?A ? ? ?B |XB ? ? ?A|[>u]\XB |= F 2G. However, ? ?(v1) = ?A(v1) = 0 and
+? ?(w2) = ? ?B(w
+2) = 0 meaning that ? ? does not satisfy the clause {v1, w2},
+contradiction.
+4.3 Instances of small incidence treewidth
+In this section, we finally prove Theorem 13 by constructing a family of
+graphs of incidence treewidth at most k such that for any graph G = (V,E)
+of this family and any order < on V 1 ? V 2, we can find a set M of size
+?(k log(n)) as in the statement of Theorem 18.
+The following has been shown in [16]:
+Theorem 19 (Theorem 3 in [16]). There exists a constant b such that for
+every k, there is an infinite class of graphs Gk of degree at most 5 and
+treewidth at most k such that for every G = (V,E) and linear order < on V ,
+there exists u ? V and a matching M of size at least k log(|V |)/b and such
+that for every {v,w} ? M with v < w, we have v ? u < w.
+Lemma 20. Let G be a graph of treewidth k. We have itw(F 2G) ? 2k + 3.
+Proof. Take a tree decomposition for G of width k. That is, the size of each
+bag is at most k+1. For each u ? V (G), replace the occurrence of u in each
+bag by u1 and u2. Then add the occurrences of negative clauses to each bag.
+It is verifiable by a direct inspection that we obtain a tree decomposition
+of the incidence graph of F 2G where the size of each bag is at most 2k + 4.
+Hence the width of the tree decomposition is at most 2k + 3.
+We are now ready to prove Theorem 13.
+Proof (of Theorem 13). For k ? 2, let k? = ?(k ? 3)/2? and let Fk = {F 2G |
+G ? Gk?} where Gk is the class of graphs from Theorem 19. By Lemma 20, we
+have that every formula of Fk is of incidence treewidth at most 2k? +3 ? k.
+Let G = (V,E) be a graph and < be an order on V 1 ? V 2, we denote by
+? the order on V defined as follows: for every u, v ? V , u ? v if and only if
+min(u1, u2) < min(v1, v2), that is, u ? v iff the first copy of u comes before
+the first copy of v.
+Let u ? V andM be an induced matching such that for every {v,w} ? M
+with v ? w, we have v  u ? w. Let A1 = {v | {v,w} ? M and v ? w}
+and A2 = {v | {v,w} ? M and v ? w}. By definition of ?, there exists
+i ? {1, 2} such that for every {v,w} ? M with v ? w, either v1 ? ui < w2
+18
+or v2 ? ui < w1. Let M ? = {(v1, w2) | {v,w} ? M,v1 ? ui < w2}. We
+assume that |M ?| > |M |/2. If it is not the case, we can enforce it by only
+changing the roles of colors 1 and 2. It is readily verified that M ? verifies
+the conditions of Theorem 18 and thus, any ?d-OBDD< is of size at least
+2|M |/2?1.
+Now, if G is a graph from Gk? , then we know that such a matching M
+exists and is of size ?(k? log(n)) = ?(k log(n)). Moreover, since G is of
+degree at most 5, by using Lemma 1, we can extract an induced matching
+from M of size ?(k log(n)) too, leading to an n?(k) lower bound on the size
+of ?d-OBDD for F 2G.
+5 Future research
+In this paper, we have shown that two restrictions of decDNNF cannot rep-
+resent instances of bounded incidence treewidth efficiently, that is, in FPT-
+size. The question of whether decDNNF can efficiently represent instances
+of bounded incidence treewidth is still open and proving a non-FPT lower
+bound in this case would likely require new techniques to be developed. In-
+deed, if G is of bounded treewidth, then both FG and F
+2
+G can be represented
+by FPT-size decDNNF.
+Another interesting and related question would be to understand the
+proof complexity of CNF-formulas of bounded incidence treewidth. It is
+indeed still open whether unsatisfiable CNF-formulas of incidence treewidth
+k have a resolution refutation of FPT-size.
+References
+[1] Fahiem Bacchus, Shannon Dalmao, and Toniann Pitassi. Algorithms
+and Complexity Results for #SAT and Bayesian Inference. In Proceed-
+ings of the 44th Annual IEEE Symposium on Foundations of Computer
+Science, FOCS ’03, pages 340–, Washington, DC, USA, 2003. IEEE
+Computer Society.
+[2] Paul Beame, Jerry Li, Sudeepa Roy, and Dan Suciu. Lower bounds for
+exact model counting and applications in probabilistic databases. In
+Proceedings of the Twenty-Ninth Conference on Uncertainty in Artifi-
+cial Intelligence, 2013.
+[3] Paul Beame, Jerry Li, Sudeepa Roy, and Dan Suciu. Counting of query
+expressions: Limitations of propositional methods. In Proc. 17th Inter-
+national Conference on Database Theory (ICDT), pages 177–188, 2014.
+[4] Johann Brault-Baron, Florent Capelli, and Stefan Mengel. Understand-
+ing model counting for beta-acyclic CNF-formulas. In 32nd Interna-
+19
+tional Symposium on Theoretical Aspects of Computer Science, pages
+143–156, 2015.
+[5] F. Capelli, A. Durand, and S. Mengel. Hypergraph Acyclicity and
+Propositional Model Counting. In Theory and Applications of Sat-
+isfiability Testing - SAT 2014 - 17th International Conference, pages
+399–414, 2014.
+[6] Florent Capelli. Understanding the complexity of #sat using knowledge
+compilation. Symposium on Logic in Computer Science (LICS), 2017.
+[7] A. Darwiche. Decomposable negation normal form. J. ACM, 48(4):608–
+647, 2001.
+[8] Adnan Darwiche. On the tractable counting of theory models and its
+application to truth maintenance and belief revision. Journal of Applied
+Non-Classical Logics, 11(1-2):11–34, 2001.
+[9] Reinhard Diestel. Graph Theory, 4th Edition, volume 173 of Graduate
+texts in mathematics. Springer, 2012.
+[10] Jinbo Huang and Adnan Darwiche. DPLL with a trace: From SAT to
+knowledge compilation. In Proceedings of the Nineteenth International
+Joint Conference on Artificial Intelligence, pages 156–162, 2005.
+[11] Abhay Kumar Jha and Dan Suciu. Knowledge compilation meets
+database theory: Compiling queries to decision diagrams. Theory Com-
+put. Syst., 52(3):403–440, 2013.
+[12] Jean-Marie Lagniez and Pierre Marquis. An improved decision-dnnf
+compiler. In Proceedings of the Twenty-Sixth International Joint Con-
+ference on Artificial Intelligence, IJCAI 2017, 2017.
+[13] Umut Oztok and Adnan Darwiche. On Compiling CNF into Decision-
+DNNF. In Principles and Practice of Constraint Programming - 20th
+International Conference, CP 2014, pages 42–57, 2014.
+[14] Danie?l Paulusma, Friedrich Slivovsky, and Stefan Szeider. Model Count-
+ing for CNF Formulas of Bounded Modular Treewidth. Algorithmica,
+76(1):168–194, 2016.
+[15] Knot Pipatsrisawat and Adnan Darwiche. New compilation languages
+based on structured decomposability. In Proceedings of the Twenty-
+Third AAAI Conference on Artificial Intelligence, AAAI, pages 517–
+522, 2008.
+[16] Igor Razgon. No small nondeterministic read-once branching programs
+for cnfs of bounded treewidth. In Parameterized and Exact Computa-
+tion - 9th International Symposium, IPEC, pages 319–331, 2014.
+20
+[17] Igor Razgon. On OBDDs for CNFs of Bounded Treewidth. In Prin-
+ciples of Knowledge Representation and Reasoning: Proceedings of the
+Fourteenth International Conference, 2014.
+[18] D. Roth. On the hardness of approximate reasoning. Artificial Intelli-
+gence, 82(1–2):273 – 302, 1996.
+[19] S. Hortemo Sæther, J.A. Telle, and M. Vatshelle. Solving MaxSAT and
+#SAT on structured CNF formulas. In Theory and Applications of
+Satisfiability Testing, pages 16–31, 2014.
+[20] M. Samer and S. Szeider. Algorithms for propositional model counting.
+Journal of Discrete Algorithms, 8(1):50–64, 2010.
+[21] Tian Sang, Fahiem Bacchus, Paul Beame, Henry A Kautz, and Toniann
+Pitassi. Combining component caching and clause learning for effective
+model counting. Theory and Applications of Satisfiability Testing, 4:7th,
+2004.
+[22] F. Slivovsky and S. Szeider. Model Counting for Formulas of Bounded
+Clique-Width. In Algorithms and Computation - 24th International
+Symposium, ISAAC, pages 677–687, 2013.
+[23] Stefan Szeider. On fixed-parameter tractable parameterizations of SAT.
+In Enrico Giunchiglia and Armando Tacchella, editors, Theory and Ap-
+plications of Satisfiability, 6th International Conference, volume 2919
+of LNCS, pages 188–202. Springer, 2004.
+[24] Marc Thurley. sharpsat–counting models with advanced component
+caching and implicit bcp. In Theory and Applications of Satisfiability
+Testing, pages 424–429. Springer, 2006.
+21

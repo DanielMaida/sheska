@@ -1,0 +1,1049 @@
+Network Model Selection
+for Task-Focused Attributed Network Inference
+Ivan Brugere
+University of Illinois at Chicago
+ibruge2@uic.edu
+Chris Kanich
+University of Illinois at Chicago
+ckanich@uic.edu
+Tanya Y. Berger-Wolf
+University of Illinois at Chicago
+tanyabw@uic.edu
+Abstract—Networks are models representing relationships
+between entities. Often these relationships are explicitly given,
+or we must learn a representation which generalizes and
+predicts observed behavior in underlying individual data (e.g.
+attributes or labels). Whether given or inferred, choosing the
+best representation affects subsequent tasks and questions on
+the network. This work focuses on model selection to evaluate
+network representations from data, focusing on fundamental
+predictive tasks on networks. We present a modular methodology
+using general, interpretable network models, task neighborhood
+functions found across domains, and several criteria for robust
+model selection. We demonstrate our methodology on three online
+user activity datasets and show that network model selection
+for the appropriate network task vs. an alternate task increases
+performance by an order of magnitude in our experiments.
+I. INTRODUCTION
+Networks are models representing relationships between
+entities: individuals, genes, documents and media, language,
+products etc. We often assume the expressed or inferred
+edge relationships of the network are correlated with the
+underlying behavior of individuals or entities, reflected in
+their actions or preferences over time.
+On some problems, the correspondence between observed
+behavior and network structure is well-established. For exam-
+ple, simple link-prediction heuristics in social networks tend to
+perform well because they correspond to the social processes
+for how networks grow [1]. However, content sharing in online
+social networks shows that ‘weak’ ties among friends account
+for much of the influence on users [2]. For these different
+tasks, the same friendship network “as-is” is a relatively better
+model for predicting new links than predicting content sharing.
+Learning an alternative network representation for content
+sharing better predicts this behavior and is more informative
+of the relevant relationships for one task against another.
+Why should we learn a network representation at all? First,
+a good network for a particular predictive task will perform
+better than methods over aggregate populations. Otherwise,
+edge relationships are not informative with respect to our pur-
+pose. Evaluating network models against population methods
+measures whether there is a network effect at all within the
+underlying data. In addition, network edges are interpretable
+and suitable for descriptive analysis and further hypothesis
+generation. Finally, a good network model generalizes several
+behaviors of entities observed on the network, and we can
+evaluate this robustness under a shared representation. For
+these reasons, we should learn a network representation if we
+can evaluate ‘which’ network is useful and whether there is
+the presence of any network on the underlying data.
+Much of the previous work focuses on method development
+for better predictive accuracy on a given network. However,
+predictive method development on networks treats the
+underlying network representation as independent of the
+novel task method, rather than coupled to the network
+representation of underlying data. Whether network structure
+is given or inferred, choosing the best representation affects
+subsequent tasks and questions on the network. How do we
+measure the effect of these network modeling choices on
+common and general classes of predictive tasks (e.g. link
+prediction, label prediction, influence maximization)?
+Our work fills this methodological gap, coupling general
+network inference models from data with common predictive
+task methods in a network model selection framework. This
+framework evaluates both the definition of an edge, and the
+‘neighborhood’ function on the network most suitable for
+evaluating various tasks.
+II. RELATED WORK
+Our work is primarily related to research in relational
+machine learning, and network structure inference.
+Relational learning in networks uses correlations
+between network structure, attribute distributions, and label
+distributions to build network-constrained predictive methods
+for several types of tasks. Our work uses two fundamental
+relational learning tasks, link prediction and collective
+classification to evaluate network models inferred from data.
+The link prediction task [3] predicts edges from ‘local’
+information in the network. This is done by simple ranking,
+on information such as comparisons over common neighbors
+[1], higher-order measures such as path similarity [4], or
+learning edge/non-edge classification as a supervised task on
+extracted edge features [5], [6].
+The collective classification task [7], [8] learns relationships
+between local neighborhood structure of labels and/or
+attributes [9] to predict unknown labels in the network. This
+problem has been extended to joint prediction of edges [10],
+and higher-order joint prediction [11]. Our work does not
+extend these methods. Where suitable, more sophisticated
+predictive task methods and higher-order joint methods may
+be used for evaluating network models and model selection.
+ar
+X
+iv
+:1
+70
+8.
+06
+30
+3v
+1 
+ [
+cs
+.S
+I]
+  2
+1 
+A
+ug
+ 2
+01
+7
+Network structure inference [12], [13] is a broad area of
+research aimed at transforming data on individuals or entities
+into a network representation which can leverage methods such
+as relational machine learning. Previous work spans numerous
+domains including bioinformatics [14], neuroscience [15], and
+recommender systems [16]. Much of this work has domain-
+driven network model evaluation and lacks a general method-
+ology for transforming data to useful network representations.
+Models for network inference are generally either
+parametric, or similarity-based. Parametric models make
+assumptions of the underlying data distribution and learn an
+edge structure which best explains the underlying data. For
+example, previous work has modeled the ‘arrival time’ of
+information in a content network with unknown edges, where
+rates of transmission are the learned model [17], [18].
+Several generative models can sample networks with
+correlations between attributes, labels, and network structure,
+and can estimate model parameters from data. These include
+the Attributed Graph Model (AGM) [19], Multiplicative
+Attribute Graph model (MAG) [20], and Exponential Random
+Graph Model (ERGM) [21]. However, these models are
+typically not estimated against a task of interest, so while
+it may fit our modeling assumption, it may not model the
+subsequent task; our proposed methodology straightforwardly
+accepts any of these models estimated from data.
+Similarity-based methods tend to be ad-hoc, incorporating
+domain knowledge to set network model parameters. Recent
+work on task-focused network inference evaluates inferred
+network models according to their ability to perform a set
+of tasks [22]. These methods often have a high sensitivity
+to threshold/parameter choice, and added complexity of
+interactions between network representations and task
+models. Our work identifies these sensitivities, and yields
+robust model selection over several stability criteria.
+III. CONTRIBUTIONS
+We present a general, modular methodology for model
+selection in task-focused network inference. Our work:
+• identifies constituent components of the common
+network inference workflow, including network models,
+tasks, task neighborhood functions, and measures for
+evaluating networks inferred from data,
+• uses fundamental, interpretable network models relevant
+in many application domains, and fundamental tasks
+and task localities measuring different aspects of
+network-attribute correlations,
+• presents significance, stability, and null-model testing
+for task-focused network model selection on three online
+user activity datasets.
+Our work focuses on process and methodology; novel
+network models and task methods are complimentary. Our
+work demonstrates that network representation learning is a
+crucial step for evaluating predictive methods on networks.
+IV. METHODS
+A. Task-Focused Network Inference and Evaluation
+Model selection for task-focused network inference learns
+a network model and associated parameters which perform
+a task or set of tasks with high precision. We learn joint
+relationships between node attribute vectors and some target
+label (e.g. node behavior) of interest.
+Figure 1 presents a high-level schematic of our methodology
+and the constituent components of task-oriented network
+inference problems. First, (a) our data is a collection of
+attributes and labels associated with discrete entities. Edges
+are optionally provided to our methodology, indicated by
+dashed lines. Edges may be entirely missing or one or several
+edge-sets. In all these cases we evaluate each edge-set as one
+of many possible network ‘models.’ Attributes are any data
+associated with nodes (and/or edges) in the network. These
+are often very high dimensional, for example user activity
+logs and post content in social networks, gene expression
+profiles in gene regulatory networks, or full document text and
+other metadata in document, video or audio content networks.
+Labels are a notational convenience denoting a specific
+attribute of predictive interest. Labels are typically low-
+cardinality fields (e.g. boolean) appropriate for supervised
+classification methods. Our methodology accepts (and prefers)
+multi-labeled networks. This simply indicates multiple fields
+of predictive interest. For example, we induce labels as an
+indicator for whether a user is a listener or a viewer of ‘this’
+music or movie genre, given by historical activity data over
+many such genres. Multiple sets of these labels more robustly
+evaluate whether attribute relationships in the fixed underlying
+network model generalize to these many ‘behaviors.’
+Second, in Figure 1 (b) we apply several fundamental net-
+work inference models. These are modular and can be speci-
+fied according to the domain. These models are either paramet-
+ric statistical methods, or functions on similarity spaces, both
+of which take attributes and/or labels as input and produce an
+inferred edge-set. Note in 1 (b) that the stacked edge-sets vary.
+Third, in Figure 1 (c) for every node of interest (black)
+for some predictive task, we select sets of nodes (cyan, grey
+nodes excluded) and their associated attributes and labels
+according to various task locality functions (i.e. varying
+‘neighborhood’ or network query functions). These functions
+include globally selecting the population of all nodes,
+sampling nodes from within ‘this’ node’s community by the
+output of some structural community method, an ensemble
+of a small number of nodes according to attribute or network
+ranking (e.g. degree, centrality), or local sampling by simple
+network adjacency or some other ordered traversal.
+Once selected, the associated attributes and labels of the
+cyan nodes yield a supervised classification problem predicting
+label values from attribute vectors, using a predictive task
+model of interest. Several fundamental prediction problems
+fit within this supervised setting. For example, link prediction
+can use positive (edge) and negative (non-edge) label instances
+rather than learning classifiers on the input labelsets.
+Fig. 1: A schematic of the model selection methodology. (a) Individual node attributes and labels are provided as input, an edge-set may be
+provided (dashed edges). (b) A collection of networks are inferred from functions on attributes and labels, outputting an edge-set. (c) For
+each network model, we build a classification method on attributes and labels for each node of interest (black) constraining node-attribute
+and node-label available to the method (aqua) according to constraints from the network structure. These ‘global’, ‘meso-’, and ‘local’
+methods produce prediction output for some task (e.g. link prediction, collective classification). (d) we select a network representation
+subject to performance for the given task.
+We evaluate network models (b) over the collection of its
+task methods and varying localities (c) to produce Figure 1 (d),
+some predictive output (e.g. label prediction, shown here). The
+model and locality producing the best performance is selected.
+Finally, we further evaluate the stability and significance of
+our selected model over the collection of possible models.
+Below, we infer networks to identify listeners/reviewers of
+music genres, film genres, and beer types in three user activity
+datasets: Last.fm, MovieLens and BeerAdvocate, respectively.
+Problem 1: Task-Focused Network Inference Model
+Selection
+Given: Node Attribute-set A, Node Label-sets L?,
+Network model-set Mj ?M where Mj(A,L)?E?j ,
+Task-set Ck?C where Ck(E?j ,A,L?)?P ?kj
+Find: Network edge-set E?j
+Where: argminjL(P,P ?kj) on validation P
+Problem 1 gives a concise specification of our model selec-
+tion framework, including inputs and outputs. Given individual
+node-attribute vectors ~ai ?A, where ‘i’ corresponds to node
+vi in node-set V , and a collection of node-labelsets L ? L?,
+where li ?L the label of node vi in a single labelset L, our
+general task-focused network inference framework evaluates
+a set of possible network models M = {M1...Mn} where
+each Mj :Mj(A,L)?E?j produces a network edge-set E?j .1
+These instantiated edge-sets are evaluated on a set of
+inference task methods C = {C1...Cm} where each Ck
+produces P ?k, a collection of predicted edges, attributes,
+or labels depending on context: Ck(E?j , A, L?) ? P ?kj . We
+evaluate a P ? under loss L(P,P ?), where P is the validation
+or evaluation data. We select Mselect = argminj L(P,P ?kj)
+1Notation: capital letters denote sets, lowercase letters denote instances
+and indices. Primes indicate predicted and inferred entities. Greek letters
+denote method parameters. Script characters (e.g. C()) denotes functions,
+sometimes with specified parameters.
+based on performance over C and/or L?. Finally, we evaluate
+generalized performance of this model choice.
+Our methodology can be instantiated under many different
+network model-sets M , task methods C, and loss functions
+L(). We present several fundamental, interpretable modeling
+choices common to many domains. All of these identified
+choices are modular and can be defined according to the
+needs of the application. For clarity, we refer to the network
+representation as a model, and the subsequent task as a
+method, because we focus on model selection for the former.
+B. Network models
+Network models are primarily parametric under some
+model assumption, or non-parametric under a similarity
+space. We focus on the latter to avoid assumptions about
+joint attribute-label distributions.
+We present two fundamental similarity-based network
+models applicable in most domains: the k-nearest neighbor
+(KNN) and thresholded (TH) networks.Given a similarity
+measure S(~ai, ~aj) ? sij and a target edge count ?, this
+measure is used to produces a pairwise attribute similarity
+space. We then select node-pairs according to:
+• k-nearest neighbor MKNN(A,S,?): for a fixed vi, select
+the top b ?|V |c most similar S(~ai,{A \~ai}). In directed
+networks, this produces a network which is k-regular in
+out-degree, with k=b ?|V |c.
+• Threshold MTH(A,S,?): for any pair (i,j), select the
+top ? most similar S(~ai,~aj)
+For a fixed number of edges, the varying performance
+of these network models measures the extent that absolute
+similarity, or an equal allocation of modeling per node
+produces better predictive performance.
+1) Node attribute similarity measures: When constructing
+a network model on node attribute and label data, we
+compare pairwise attribute vectors by some similarity and
+criteria to determine an edge. These measures may vary
+greatly according to the nature of underlying data. Issues of
+projections, kernels, and efficient calculation of the similarity
+space are complimentary to our work, but not our focus.
+Our example applications focus on distributions of item
+counts: artist plays, movie ratings, beer ratings, where each
+attribute dimension is a unique item, and the value is its
+associated rating, play-count etc. Therefore we measure the
+simple ‘intersection’ of these vectors.
+Given a pair of attribute vectors (~ai,~aj) with non-negative
+elements, intersection SINT () and normalized intersection
+SINT?N () are given by:
+SINT (~ai,~aj)=
+?
+d
+min(aid,ajd)
+SINT?N (~ai,~aj)=
+?
+dmin(aid,ajd)?
+dmax(aid,ajd)
+(1)
+These different similarity functions measure the extent
+that absolute or relative common elements produce a better
+network model for the task method. Absolute similarity favors
+more active nodes which are highly ranked with other active
+nodes before low activity node-pairs. For example, in our
+last.fm application below, this corresponds to testing whether
+the total count of artist plays between two users is more
+predictive than the fraction of common artist plays.
+2) Explicit network models: Our methodology accepts
+observed, explicit edge-sets (e.g. a given social network) not
+constructed as a function of node attributes and labels. This
+allows us to test given networks as fixed models on attributes
+and labels, for our tasks of interest.
+3) Network density: We evaluate network models at
+varying density, which has previously been the primary focus
+of networks inferred on similarity spaces [18], [22]. When
+evaluating network models against a given explicit network,
+we fix density as a factor of the explicit network density (e.g.
+0.75×d(E)). Otherwise, we explore sparse network settings.
+We don’t impose any density penalty, allowing the framework
+to equally select according to predictive performance.
+C. Tasks for Evaluating Network Models
+We evaluate network models on two fundamental network
+tasks: collective classification and link prediction.
+1) Collective classification (CC): The collective classi-
+fication problem learns relationships between network edge
+structure and attributes and/or labels to predict label values
+[8], [10]. This task is often used to infer unknown labels on the
+network from ‘local’ discriminative relationships in attributes,
+e.g. labeling political affiliations, brand or media preferences.
+Given an edge-set E?, a neighborhood function N (E?, i),
+and node-attribute set A, the collective classification method
+CCC(AN (E?,i), LN (E?,i),~ai) ? l?i trains on attributes and/or
+labels in the neighborhood of vi to predict a label from
+attribute test vector ~ai.
+We use this task to learn network-attribute-label correlations
+to identify positive instances of rare-class labels. As an oracle,
+we provide the method only these positive instances because
+we want to learn the true rather than null association of
+the label behavior. Learning positive instances over many
+such labelsets allows us to robustly evaluate learning on the
+network model under such sparse labels.
+2) Link prediction (LP): The link prediction problem [4]
+learns a method for the appearance of edges from one edge-set
+to another. Link prediction methods can incorporate attribute
+and/or label data, or using simple structural ranking [1].
+Given a training edge-set E? induced from an above
+network model, a neighborhood function N (E?, i), and a
+node-attribute set A, we learn edge/non-edge relationships
+in the neighborhood as a binary classification problem on
+edge/non-edge attribute vectors, ~ajk where (j,k) ? N (E?,i).
+On input test attributes ~ajk, the model produces an edge/non-
+edge label: CLP(AN (E?,i),~ajk) ? l?jk. For our applications,
+the simple node attribute intersection is suitable to construct
+edge/non-edge attributes: ~ajk= min
+d=1...|~aj |
+(ajd,akd).
+D. Task Locality
+Both of the above tasks are classifiers that take attributes
+and labels as input, provided by the neighborhood function
+N (E?,i). However, this neighborhood need not be defined as
+network adjacency. We redefine the neighborhood function to
+provide each task method with node/edge attributes selected
+at varying locality from the test node. These varying localities
+give interpretable feedback to which level of abstraction the
+network model best performs the task of interest. We propose
+four general localities:
+1) Local: For CC, local methods use simple network adja-
+cency of a node vi. For LP, local methods use the egonet of a
+node vi. This is defined as an edge-set from nodes adjacent to
+vi, plus the edges of these adjacent nodes. Non-edges are given
+by the compliment of the egonet edge-set. We also evaluate
+a breadth-first-search neighborhood (BFS) on each model,
+collecting k (=200) nodes encountered in the search order.
+2) Community: We calculate structural community labels
+for each network using the Louvain method [23]. We sample
+nodes and edges/non-edges from the induced subgraph of the
+nodes in the ‘test’ node’s community.
+3) Ensemble: We select k (=30) nodes according to some
+fixed ordering. These nodes become a collection of locally-
+trained task methods. For each test node, we select the KNN
+(=3) ensemble nodes according to the similarity measure of the
+current network model, and take a majority of their prediction.
+We use decreasing node-order on (1) Degree, (2) Sum of
+attributes (i.e. most ‘active’ nodes), (3) Unique attribute count
+(i.e. most diverse nodes), and (4) Random order (one fixed
+sample per ensemble).
+Ensembles provide ‘exemplar’ nodes expected to have
+more robust local task methods than those trained on the test
+node’s neighborhood, on account of their ordering criteria.
+These nodes are expected to be suitably similar to the test
+node, on account of the KNN selection from the collection.
+4) Global: We sample a fixed set of nodes or edges/non-
+edges without locality constraint. This measures whether the
+network model is informative at all, compared to a single
+global classification method. This measures the extent that
+a task is better represented by aggregate population methods
+than encoding local relationships. Although models with
+narrower locality are trained on less training data, they can
+learn local heterogeneity of local attribute relationships which
+may confuse an aggregated model.
+E. Classification Methods
+For all different localities, both of our tasks reduce to
+a supervised classification problem. For the underlying
+classification method, we use standard linear support vector
+machines (SVM), and random forests (RF). These are chosen
+due to speed and suitability in sparse data. Absolute predictive
+accuracy is not the primary goal of our work; these methods
+need only to produces consistent network model ranking over
+many model configurations.
+F. Network Model Configurations
+We define a network model configuration as a combination
+of all specified modeling choices: network model, similarity
+measure, density, task locality, and task method. Each network
+model configuration can be evaluated independently, meaning
+we can easily scale to hundreds of configurations on small
+and medium-sized networks.
+V. DATASETS
+We demonstrate our methodology on three datasets of user
+activity data. This data includes beer review history from
+BeerAdvocate, music listening history from Last.fm, and
+movie rating history from MovieLens.
+A. BeerAdvocate
+BeerAdvocate is a website founded in 1996 hosting user-
+provided text reviews and numeric ratings of individual beers.
+The BeerAdvocate review dataset [26] contains 1.5M beer
+reviews of 264K unique beers from 33K users. We summarize
+each review by the average rating across 5 review categories on
+a 0-5 scale (‘appearance’, ‘aroma’, ‘palate’, ‘taste’, ‘overall’),
+yielding node attribute vectors where non-zero elements are
+the user’s average rating for ‘this’ beer (Details in Table I).
+1) Genre Labels: The BeerAdvocate dataset contains a
+field of beer ‘style,’ with 104 unique values. We consider a
+user a ‘reviewer’ of a particular beer style if they’ve reviewed
+at least 5 beers of the style. We further prune styles with
+fewer than 100 reviewers to yield 45 styles (e.g. ‘Russian
+Imperial Stout’, ‘Hefeweizen’, ‘Doppelbock’). A labelset
+L(‘style?) : li ? {0,1} is generated by the indicator function
+for whether user vi is a reviewer of ‘style.’
+B. Last.fm
+The Last.fm social network is a platform focused on
+music logging,recommendation, and discussion. The platform
+was founded in 2002, presenting many opportunities for
+longitudinal study of user preferences in social networks.
+The largest connected component of the Last.fm social
+network and all associated music listening logs were collected
+through March 2016. Users in this dataset are ordered by their
+discovery in a breadth-first search on the explicit ‘friendship’
+network from the seed node of a user account opened in 2006.
+Previous authors sample a dataset of the first ? 20K users,
+yielding a connected component with 678K edges, a median
+degree of 35, and over 1B plays collectively by the users over
+2.8M unique artists. For each node, sparse non-zero attribute
+values correspond to that user’s total plays of the unique artist.
+The Last.fm ‘explicit’ social network of declared ‘friendship’
+edges is given as input to our framework as one of several net-
+work models. Other network models are inferred on attributes.
+1) Genre Labels: We use the last.fm API to collect
+crowd-sourced artist-genre tag data. We describe a user as
+a ‘listener’ of an artist if they’ve listened to the artist for a
+total of at least 5 plays. A user is a ‘listener’ of a genre if
+they are a listener of at least 5 artists in the top-1000 most
+tagged artists with that genre tag. We generate the labelset
+for ‘genre’ as an indicator function for whether user vi is a
+listener of this genre. We collect artist-genre information for
+60 genres, which are hand-verified for artist ranking quality.
+C. MovieLens
+The MovieLens project is a movie recommendation engine
+created in 1995. The MovieLens 20M ratings dataset [25]
+contains movie ratings (1-5 stars) data over 138,493 users,
+through March 2015. Non-zero values in a node’s attribute
+vector correspond to the user’s star rating of ‘this’ unique film.
+1) Genre and Tag Labels: We generate two different types
+of labelsets on this data. Each movie includes a coarse ‘genre’
+field, with 19 possible values (e.g. ‘Drama’, ‘Musical’, ‘Hor-
+ror’). For each genre value, we generate a binary node label-set
+as an indicator function of whether ‘genre’ is this node’s
+highest-rated genre on average (according to star ratings).
+This collection of labelsets is limiting because each node
+has a positive label in exactly one labelset. This means that
+we cannot build node-level statistics on task performance
+over multiple positive instances.
+To address this, we also generate labels from user-generated
+tags. We find the top-100 tags, and the top-100 movies with the
+highest frequency of the tag. A user is a ‘viewer’ of ‘this’ tag if
+they have rated at least 5 of the these top-100 movies. Our bi-
+nary ‘tag’ labels are an indicator function for this ‘viewer’ rela-
+tionship. These tags include more abstract groupings (e.g. ‘bor-
+ing’,‘inspirational’, ‘based on a book’, ‘imdb top 250’) as well
+as well-defined genres (e.g. ‘zombies’, ‘superhero’, ‘classic’).
+D. Validation, Training and Testing Partitions
+We split our three datasets into contiguous time segments
+for validation, training, and testing, in this order. This choice
+is so models are always validated or tested against adjacent
+partitions, and testing simulates ‘future’ data. These partitions
+are roughly 2-7 years depending on the dataset, to produce
+roughly equal-frequency attribute partitions. For all of our
+label definitions, we evaluate them per partition, so a user
+could be a reviewer/listener/viewer in one partition and not
+another, according to activity.
+For the Last.fm explicit social network, we do not have
+edge creation time between two users. For the LP task, edges
+are split at random 50% to training, and 25% to validation
+Dataset |V| |A| Median/90% Unique Attributes Median/90% Positive Labels Labelsets
+Last.fm 20K [24] 19,990 1,243,483,909 artist plays 578/1713 artists 3/11 music genres 60 genres
+MovieLens [25] 138,493 20,000,263 movie ratings 81/407 ratings 7/53 movie tags 100 tags
+BeerAdvocate [26] 33,387 1,586,259 beer ratings 3/91 ratings 0/3 beer types 45 types
+TABLE I: A summary of datasets used in this paper. |V | reports the total number of nodes (users), |A| the total count of non-zero attribute
+values (e.g. plays, ratings). We report the median and 90th percentile of unique node attributes (e.g. the number of unique artists a user listens
+to) all nodes. We also report the median and 90th percentile count of non-zero labels per node (e.g. how many genres ‘this’ user is a listener of).
+and testing. We sample non-edges disjoint from the union of
+all time segments, e.g. sampled non-edges appear in none of
+training, validation or test edge-sets. This ensures a non-edge
+in each partition is a non-edge in the joined network.
+E. Interpreting Tasks on Our Datasets
+On each of these datasets, what do the link prediction
+(LP) and collective classification (CC) tasks measure for each
+network model? For CC, we construct ‘listener’, ‘viewer’, and
+‘reviewer’ relationships, which are hidden function mappings
+between sets of items (unique artists, movies, beers) and tags.
+The network model is evaluated on how well it implements all
+of these functions under a unified relational model (queried
+by a task at some locality). We then evaluate how well this
+learned function performs over time.
+The LP task measures the stability of underlying similarity
+measures over time. On datasets such as Last.fm and
+MovieLens, new artists/films and genres emerge over the time
+of data collection. LP measures whether learned discriminative
+artists/movies at some locality predict the similarity ranking
+(e.g. the ultimate edge/nonedge status) of future or past node
+attribute distributions, while the constituent contents of those
+distributions may change.
+VI. EVALUATION
+We validate network models under varying configurations
+(similarity measure, network density, task locality and task
+method) on each dataset, over the dataset’s defined L? set of
+labelsets. We measure precision on both collective classifica-
+tion (CC) and link prediction (LP). Over all network model
+configurations, we rank models on precision evaluated on the
+validation partition, and select the top ranked model to be
+used in testing. To evaluate robustness of model selection, we
+evaluate all network model configurations on both validation
+and testing partitions to closely examine their full ranking.
+Let pi denote the precision of the i-th network model
+configuration, ps as the precision of the selected model config-
+uration evaluated on the testing partition, p(1) as the precision
+of the ‘best’ model under the current context, and more
+generally p(10) as the vector of the top-10 precision values.
+A. Model Stability: Precision
+Table II reports the mean precision over all network
+configurations evaluated on the testing partition. A data point
+in this distribution is the precision value of one network
+configuration, organized by each row’s task method. µ reports
+the mean precision over all such configurations (|N |> 100).
+This represents a baseline precision from any considered
+Precision (Testing) Validation vs. Testing
+Task-Method µ µ(10) p(1) ?µ ?µ(10) ?p(1)
+BeerAdvocate
+CC-RF 0.12 0.20 0.23 0.07 0.12 -0.01
+CC-SVM 0.35 0.64 0.70 -0.06 -0.08 -0.03
+LP-RF 0.50 0.53 0.58 0.03 0.06 -0.11
+LP-SVM 0.51 0.57 0.64 0.03 0.06 -0.04
+Last.fm
+CC-RF 0.18 0.38 0.39 0.04 0.08 -0.01
+CC-SVM 0.38 0.62 0.64 0.03 0.06 -0.01
+LP-SVM 0.53 0.60 0.68 -0.01 -0.01 -0.00
+MovieLens: Genres
+CC-RF 0.01 0.03 0.06 0.02 0.02 -0.05
+CC-SVM 0.15 0.30 0.36 -0.03 -0.03 -0.01
+LP-RF 0.46 0.48 0.6 0.06 0.07 -0.21
+LP-SVM 0.45 0.47 0.52 0.08 0.08 -0.09
+MovieLens: Tags
+CC-RF 0.28 0.60 0.68 0.22 0.17 -0.10
+CC-SVM 0.55 0.80 0.86 0.04 0.07 -0.06
+TABLE II: Task precision over all datasets and methods. µ reports
+the mean precision over all network models configurations. µ(10)
+reports the mean precision over the top 10 ranked configurations.
+?µ reports the mean of the differences in precision for a given
+network configuration, between validation and testing partitions
+(0 is best). p(1) reports the precision of the top-ranked model
+configuration. ?p(1) = ps?p(1) reports the precision of the model
+‘s’ selected in validation, evaluated on the testing partition, minus
+precision of the best model in testing (0 is best). Link prediction
+tasks (grey rows) are base-lined by 0.5, which is random in the
+balanced prediction setting. Bold indicates ?p(1)?0.1(p(1)?µ).
+modeling choice. µ(10) reports the mean precision over the
+top-10 ranked configurations. p(1) reports the precision of
+the best network model configuration for ‘this’ task method.
+The difference between p(1) and µ represents the maximum
+possible gain in precision added by model selection.
+Table II reports ?µ, the stability of mean precision
+over validation and testing partitions. A data point in this
+distribution is pi,validation?pi,testing the difference in precision
+for the same ‘i’ model configuration in validation and testing
+partitions. Positive values are more common in Table II,
+indicating better aggregate performance in the validation
+partition. This matches our intuition that relationships among
+new items found in the testing partition may be more difficult
+to learn than preceding validation data, which is largely a
+subset of items found in the training partition.
+The best model in validation need not be the best possible
+model in testing, especially with many similar models. Table II
+reports ?p(1) =ps?p(1), the difference in precision between
+the selected model configuration, and the best possible model
+configuration, both evaluated on the testing partition (0 is
+best). We highlight values in bold with ?p(1)?0.1(p(1)?µ),
+i.e. less than 10% of the possible lift in the testing evaluation.
+?p(1) is one of many possible measures of network model
+robustness. We look more closely at the selected model, as
+well as stability in deeper model rankings.
+B. Model Consistency: Selected Model Ranking
+Selected Model-Locality and rank
+CC-RF CC-SVM LP-RF LP-SVM
+BeerAdvocate
+0.99 0.99 0.09 0.99
+KNN-Local TH-Local KNN-Ensemble TH-Ensemble
+Last.fm
+0.90 0.91 – 1.00
+KNN-Community Social-Community – TH-Local
+MovieLens: Genres
+0.61 0.95 0.06 0.29
+KNN-Local TH-Community TH-Ensemble TH-Ensemble
+MovieLens: Tags
+0.92 0.87 – –
+KNN-Local KNN-Local – –
+TABLE III: The normalized rank of the selected model, evaluated
+in the testing partition. rank = 1 indicates the best models in both
+validation and testing partitions are the same. The row below the
+rank indicates the network model and locality selected in validation.
+Bold indicates all selected models with rank ? 0.9, i.e. in the top
+10% of model configurations.
+Table III reports the normalized rank of the selected model
+configuration, evaluated on the testing partition. Values can be
+interpreted as percentiles, where 1 indicates the same model
+is top-ranked in both partitions (i.e. higher is better). We high-
+light models with high stability in precision between validation
+and testing partitions: rank>0.9, i.e. the selected model is in
+the top 10% of model configurations on the testing partition.
+Table III shows several cases of rank inconsistency for
+particular problem settings (e.g. BeerAdvocate LP-RF, Movie-
+Lens LP-RF) and notable consistency for others (BeerAdvo-
+cate CC-RF, CC-SVM) ranked over many total network con-
+figurations (|N |>100). This is a key result demonstrating that
+appropriate network models change according to the task and
+the underlying dataset. For Last.fm, community localities are
+selected for both CC methods. The social network and commu-
+nity locality are selected for CC-SVM. This is very surprising
+from previous results show poor performance of local models
+on the social network but did not evaluate other localities
+[24]. For CC on BeerAdvocate, local models are consistently
+selected and have a high rank in testing, even though SVM
+and RF methods have very different performance in absolute
+precision. This might indicate that preferences are more local
+in the BeerAdvocate population than Last.fm. In this way,
+interpretability of locality, network model, and underlying sim-
+ilarity measures can drive further hypothesis generation and
+testing, especially for network comparison across domains.
+C. Model Stability: Rank Order
+Table IV reports the Kendall’s ? rank order statistic
+between the ranking of model configurations by precision,
+for validation and testing partitions where ? =1 indicates the
+rankings are the same. We report the associated p-value of the
+Rank Ordering (Validation vs. Test)
+Task-Method ? p-value intersection(10) Total
+BeerAdvocate
+CC-RF 0.7 1.75E-34 6 4
+CC-SVM 0.6 1.54E-25 8 4
+LP-RF 0.34 3.08E-09 3 1
+LP-SVM 0.44 1.09E-14 5 3
+Last.fm
+CC-RF 0.88 2.35E-24 9 4
+CC-SVM 0.88 5.85E-21 8 4
+LP-SVM 0.70 8.15E-14 8 4
+MovieLens: Genres
+CC-RF 0.15 6.89E-03 0 0
+CC-SVM 0.57 9.99E-24 4 3
+LP-RF -0.07 2.29E-01 0 0
+LP-SVM -0.07 2.40E-01 0 0
+MovieLens: Tags
+CC-RF 0.61 8.95E-27 0 2
+CC-SVM 0.52 4.43E-20 1 1
+TABLE IV: The Kendall’s ? rank order correlation between models
+in validation and test partitions, according to precision. 1 indicates
+the rankings are the same, 0 indicates random ranking. ?10 reports
+rank order correlation on the top-10 models. We report associated
+p-values. Bold indicates the models with p < 1.00E?03 and
+intersection10?5.
+? rank order statistic. For several tasks on several data-sets,
+ranking is very consistent over all model configurations.
+While this ranking shows remarkable consistency, it’s not
+suitable when the result contains many bad models, which may
+dominate ? at low ranks. Due to this, intersection(10) reports
+the shared model configurations in the top-10 of validation
+and testing partitions. Since top-k lists may be short and
+have disjoint elements, we find the simple intersection rather
+than rank order. We highlight tasks in bold at a rank order
+significance level of p<1.00E?03, and intersection(10)?5.
+Table IV ‘Total’ summarize the count of bold entries
+across Tables II, III, and IV. This corresponds to scoring the
+network model on (1) precision stability, (2) selected model
+rank consistency, (3) full ranking stability, and (4) top-10
+ranking consistency.
+MovieLens under ‘tag’ labels is a peculiar result. It
+performs very well at both µ(10) and p(1) for both SVM and
+RF. However it has a high ?p(1) and low intersection(10).
+Looking closer at the results, two similar groups of local model
+perform well. However, in validation, this is under ‘adjacency’
+locality, and the testing partition favors the wider ‘BFS’ local
+configurations. One challenge to address is appropriately
+grouping models where the ranking of specific configurations
+is uninformative and can introduce ranking noise, but the
+ranking between categories (e.g. locality) is informative.
+MovieLens improves learning by several factors by using
+‘tag’ labelsets where each node may have several positive
+instances rather than a single positive instance. BeerAdvocate
+and Last.fm have very clear signals of robust selected models
+over our scoring criteria.
+D. Consistency: Task Method Locality
+Our framework allows further investigation of localities
+suitable for particular types of tasks, measured by their
+Fig. 2: Counts of task locality associated with the top-10 ranked
+models in validation and testing partitions (20 total). Primary colors
+denote different datasets, shades denote different task methods.
+ranking. Figure 2 reports the counts of model configurations
+at varying localities for the top-10 model configurations in
+the validation and testing partition (20 total), for CC (left)
+and LP (right). Each principal color represents a dataset, and
+shades denote different task methods.
+Collective classification on BeerAdvocate strongly favors
+local task localities, and Last.fm favors community and global
+localities; both of these agree with model selections in Table
+III. ‘Global’ locality measures the extent that population-level
+models are favored to any locality using network information.
+Looking closer at Last.fm, the ?p(1) for the best-ranked
+‘Global’ configuration in testing is only -0.01 for CC-SVM,
+and -0.05 for CC-RF. This indicates a very weak network
+effect on Last.fm for CC under our explored models.
+From CC to LP tasks (left to right), model ranking
+preferences change greatly per dataset. BeerAdvocate
+increases preference for ensemble methods (primarily “Sum
+of Attributes”, see Section IV-D). The preference for global
+locality largely disappears on Last.fm for LP, instead the
+task has a very strong preference for local models (all using
+‘adjacency,’ rather than BFS local models). This demonstrates
+that we find robust indicators for models and localities suited
+for different tasks, which change both by dataset and task.
+Fig. 3: Counts of network models and density associated with the
+top-10 ranked models in validation and testing partitions (20 total).
+Primary colors denote different datasets, shades denote different task
+methods.
+Median pi?pj , match vs. mismatch (SVM)
+BeerAdvocate Last.fm MovieLens
+CC LP CC LP CC CC-Tags LP
+Locality -0.03 0.01 -0.14 -0.04 -0.04 0.01 -0.02
+Model 0.00 0.00 0.01 0.01 0.00 0.00 0.00
+TABLE V: The difference between medians of pairwise network
+model configurations grouped by matching or mismatching criteria.
+More negative values denote higher median precision difference
+among mismatching configuration pairs.
+Figure 3 reports similar counts across types of network
+models and densities for the top-10 model configurations. The
+first three bar groups report a total of 20 model configurations
+over ‘Social’ (only Last.fm), ‘KNN,’ and ‘TH’ network
+models. The next two bar groups report 20 configurations
+over ‘Sparse’ and ‘Dense’ settings. ‘Sparse’ refers to very
+sparse networks on the order of 0.0025 density, while ‘dense’
+is on the order of densities ordinarily observed in social
+networks (e.g. 0.01). In the case of the Last.fm social network,
+factors on observed density [0.75,1], (e.g. 0.75× d(E)) are
+considered dense and [0.25,0.5] are sparse.
+For all tested datasets, there is not a strong preference for
+a particular network model or density for either CC or LP.
+However, this does not mean that precision is ‘random’ over
+varying network models, or that other types of underlying
+data may have model preferences for our set of models.
+The ? rank order and intersection10 are very consistent in
+several of these task instances (Table IV). Instead, locality
+preferences seem to drive the three datasets we examine,
+where network models will perform similarly under the same
+locality than across localities.
+We evaluate this hypothesis in Table V. We report the
+median of pairwise differences of precision between configu-
+ration pairs by matched and mismatched models or localities:
+median(pi ? pj) ? median(pk ? pl), where (i, j) are all
+matched pairs grouped by the same locality or model, and (k,l)
+all mismatched pairs. More negative values represent higher
+differences in precision on mismatches than matches, for that
+row’s criteria. Mismatching localities indeed account for more
+difference in precision than mismatching network models.
+E. Model Selection and Cross-Task Performance
+Table VI (Upper) reports model performance across tasks.
+We do model selection on the validation partition (for each
+task on the left) and report task performance in testing, on the
+task method given by the column. The ?p(1) and rank are
+calculated as previously, where values on the diagonal are the
+same as in Tables II and III, respectively. On the off-diagonal,
+the model is evaluated in testing on the task it was not
+selected on. Table VI (Lower) reports model performance by
+doing model selection on the average of CC and LP precision.
+This result clearly demonstrates the main take-away of our
+study: the ‘best’ network model depends on the subsequent
+task. The off-diagonal shows that in every case, models
+selected on the ‘other’ task perform very poorly. Consider the
+worst case for same-task selection–LP on MovieLens–scored
+0 on our 4 selection criteria (Table IV), yet has a selected
+Cross-Task Model Ranking (SVM)
+Model Selection \ Testing CC-SVM LP-SVM
+?p(1) rank ?p(1) rank
+BeerAdvocate, CC-SVM -0.03 0.99 -0.17 0.14
+Last.fm, CC-SVM -0.01 0.91 -0.16 0.68
+MovieLens, CC-SVM -0.01 0.95 -0.08 0.47
+BeerAdvocate, LP-SVM -0.65 0.09 -0.04 0.99
+Last.fm, LP-SVM -0.43 0.21 -0.00 1.00
+MovieLens, LP-SVM -0.31 0.76 -0.09 0.29
+Average-Precision Model Selection (SVM)
+BeerAdvocate, SVM -0.29 0.60 -0.10 0.84
+Last.fm, SVM -0.01 0.94 -0.13 0.75
+MovieLens, SVM -0.01 0.98 -0.09 0.31
+TABLE VI: (Upper) Performance of network models selected in the
+validation partition (left), evaluated on varying tasks (top) according
+to the difference against the best model configuration in testing
+?p(1) = ps?p(1), for ‘s’ the selected configuration (0 is best), and
+rank, the normalized rank of the selected model configuration in
+the testing partition (higher is better). Diagonal entries correspond
+to values in Tables II, and III for ?p(1) and rank, respectively.
+(Lower) Average-Precision Model Selection using ranking from the
+average of precision on CC and LP.
+model performing 3x better in ?p(1) than it’s cross-task
+selected model. Over our three datasets, the average factor
+increase in ?p(1) performance from model selection using
+same-task compared to using cross-task is ?10x.
+Average-Precision Model Selection performs poorly in
+both tasks for BeerAdvocate, and is dominated by the CC
+task in Last.fm and MovieLens, closely matching the CC
+rows. Therefore, by selecting a network model on both tasks,
+we never recover the suitable model for link prediction in
+any of the three datasets.
+F. Node Difficulty
+Both of our prediction tasks evaluate the same node over
+many predictions. For collective classification, we make a
+prediction at a node for each positive label instance over
+many labelsets. For link prediction, we associate predictions
+on the ego-net (on the order of hundreds), with that node.
+We can therefore build robust distributions of precision
+for individual nodes over a particular model configuration or
+union of configurations. Figure 4 reports the density map of
+precision of individual nodes for Last.fm, aggregated over
+the top-5 models in validation and testing partitions (10
+models total), on varying methods (left) and tasks (right).
+The left plot shows that RF and SVM methods are mostly
+linearly correlated, with SVM performing better. The right
+plot shows low variance in LP-SVM, with some skew to
+higher-performing LP nodes in purple. CC-SVM shows
+higher variance, with a higher ceiling (the band at y=1) and
+many poorly-performing nodes below y=0.4.
+Figure 5 reports the same comparison for the BeerAdvocate
+dataset. Compared to Last.fm, CC-RF performs weaker in
+relative to CC-SVM, which has higher variance. Comparing
+CC and LP, the gradient has higher variance in both axes than
+in Last.fm, with the skew to poorer-performing nodes in LP.
+Measuring the distribution of node hardness over varying
+multiple predictions on varying tasks allows further hypothesis
+generation and testing related to the distribution of these
+values over the network topology or other feature extraction
+to characterize the task according to the application. Our
+focus in this work is primarily on the evaluation methodology
+for network model selection, so we only give the highest-level
+introduction of this characterization step.
+Fig. 4: The precision per node on Last.fm, aggregated over
+predictions of the top top-5 models in validation and testing
+partitions (10 models total). (Left) the distribution of nodes, varying
+task method, (Right) the distribution of nodes, varying task. x
+and y axes indicate precision over the node’s predictions. Color
+corresponds to the kernel density coefficient.
+Fig. 5: The precision per node on BeerAdvocate, as Figure 4.
+VII. CONCLUSION AND FUTURE WORK
+This work focused on a general task-focused network
+model selection methodology which uses fundamental
+network tasks–collective classification and link prediction–to
+evaluate several common network models and localities.
+We propose evaluating model selection for network tasks
+under several criteria including (1) task precision stability,
+(2) selected model rank consistency, (3) full rank stability,
+and (4) top-k rank consistency. We evaluate three user rating
+datasets and show robust selection of particular models for
+several of the task settings. We demonstrate that network
+model selection is highly subject to a particular task of
+interest, showing that model selection across tasks performs
+an order of magnitude better than selecting on another task.
+A. Limitations and Future Improvements
+1) Incorporating model cost: We currently do not
+incorporate network model cost (e.g. sparsity), nor prediction
+method cost (e.g. method encoding size in bytes, runtime)
+as criteria for model selection. In future work we wish to
+penalize more costly models.
+For example, we train on the order of thousands of small
+‘local’ models, while an ensemble model which may have
+similar performance trains on tens of nodes. Future work will
+explore ensembles of local methods to summarize the task
+under minimal cost. Some task methods are also fairly robust
+to our choice of network density parameters; the sparser
+network model would be preferable.
+2) Network model Alternativeness: We would also
+like to discover alternative network models. Model
+‘alternativeness’ refers to discovering maximally different
+model representations (by some criteria) which satisfy given
+constraints [27], [28]. In future work we would like to
+identify maximally orthogonal network models of similar
+(high) performance over our task and labelset regime, under
+some informative structural or task orthogonality. Section
+VI-F explores node-level joint density of task performance.
+Alternativeness in this setting may maximize differences in
+the joint distributions of well-performing models, and report
+or merge this set of models in model selection.
+3) Model Stationarity: Our results in Section VI-A show
+some indication of improved performance on the preceding
+partition (validation) than the future partition (testing). Our
+model selection framework tests network model temporal
+stationarity ‘for free,’ and can be used to measure the decay
+of both predictive performance and model rank ordering over
+increased time-horizons. Both of these signals can indicate a
+model change in the underlying data over time.
+REFERENCES
+[1] L. A. Adamic and E. Adar, “Friends and neighbors on the Web,”
+Social Networks, vol. 25, no. 3, pp. 211–230, jul 2003. [Online].
+Available: https://doi.org/10.1016/S0378-8733(03)00009-1
+[2] E. Bakshy, I. Rosenn, C. Marlow, and L. Adamic, “The Role of
+Social Networks in Information Diffusion,” in Proceedings of the
+21st International Conference on World Wide Web, ser. WWW ’12.
+New York, NY, USA: ACM, 2012, pp. 519–528. [Online]. Available:
+http://doi.acm.org/10.1145/2187836.2187907
+[3] M. A. Hasan and M. J. Zaki, “A Survey of Link Prediction in
+Social Networks,” in Social Network Data Analytics SE - 9, C. C.
+Aggarwal, Ed. Springer US, 2011, pp. 243–275. [Online]. Available:
+http://dx.doi.org/10.1007/978-1-4419-8462-3_9
+[4] D. Liben-Nowell and J. Kleinberg, “The link-prediction problem for
+social networks,” Journal of the American Society for Information
+Science and Technology, vol. 58, no. 7, pp. 1019–1031, May 2007.
+[Online]. Available: http://doi.wiley.com/10.1002/asi.20591
+[5] M. Al Hasan, V. Chaoji, S. Salem, and M. Zaki, “Link prediction
+using supervised learning,” in SDM06: workshop on link analysis,
+counter-terrorism and security, 2006.
+[6] N. Z. Gong, A. Talwalkar, L. Mackey, L. Huang, E. C. R. Shin,
+E. Stefanov, E. R. Shi, and D. Song, “Joint Link Prediction and
+Attribute Inference Using a Social-Attribute Network,” ACM Trans.
+Intell. Syst. Technol., vol. 5, no. 2, pp. 27:1—-27:20, Apr. 2014.
+[Online]. Available: http://doi.acm.org/10.1145/2594455
+[7] B. London and L. Getoor, “Collective classification of network data.”
+Data Classification: Algorithms and Applications, vol. 399, 2014.
+[8] P. Sen, G. M. Namata, M. Bilgic, L. Getoor, B. Gallagher, and T. Eliassi-
+Rad, “Collective Classification in Network Data,” AI Magazine, vol. 29,
+no. 3, pp. 93–106, 2008.
+[9] L. K. McDowell and D. W. Aha, “Labels or Attributes?: Rethinking
+the Neighbors for Collective Classification in Sparsely-labeled
+Networks,” in Proceedings of the 22Nd ACM International Conference
+on Information & Knowledge Management, ser. CIKM ’13. New
+York, NY, USA: ACM, 2013, pp. 847–852. [Online]. Available:
+http://doi.acm.org/10.1145/2505515.2505628
+[10] M. Bilgic, G. M. Namata, and L. Getoor, “Combining Collective Classi-
+fication and Link Prediction,” in Seventh IEEE International Conference
+on Data Mining Workshops (ICDMW 2007), oct 2007, pp. 381–386.
+[11] G. M. Namata, B. London, and L. Getoor, “Collective Graph Iden-
+tification,” 2015. [Online]. Available: https://doi.org/10.1145/2818378
+[12] I. Brugere, B. Gallagher, and T. Y. Berger-Wolf, “Network Structure
+Inference, A Survey: Motivations, Methods, and Applications,” ArXiv
+e-prints, Oct. 2016. [Online]. Available: https://arxiv.org/abs/1610.00782
+[13] E. Kolaczyk and G. Csárdi, “Network Topology Inference,” in
+Statistical Analysis of Network Data with R SE - 7, ser. Use R!
+Springer New York, 2014, vol. 65, pp. 111–134. [Online]. Available:
+http://dx.doi.org/10.1007/978-1-4939-0983-4_7
+[14] B. Zhang and S. Horvath, “A General Framework for Weighted Gene
+Co-Expression Network Analysis,” Statistical Applications in Genetics
+and Molecular Biology, vol. 4, no. 1, 2005.
+[15] O. Sporns, “Contributions and challenges for network models in
+cognitive neuroscience,” Nature Neuroscience, vol. 17, no. 5, pp.
+652–660, May 2014.
+[16] J. McAuley, R. Pandey, and J. Leskovec, “Inferring Networks of
+Substitutable and Complementary Products,” in Proc. Proc. of ACM
+SIGKDD 2015, ser. KDD ’15. ACM, 2015, pp. 785–794. [Online].
+Available: http://doi.acm.org/10.1145/2783258.2783381
+[17] M. Gomez-Rodriguez, J. Leskovec, and A. Krause, “Inferring Networks
+of Diffusion and Influence,” ACM Transactions on Knowledge
+Discovery from Data, vol. 5, no. 4, pp. 21:1—-21:37, Feb. 2012.
+[Online]. Available: http://doi.acm.org/10.1145/2086737.2086741
+[18] S. Myers and J. Leskovec, “On the Convexity of Latent Social
+Network Inference,” 2010. [Online]. Available: http://papers.nips.cc/
+paper/4113-on-the-convexity-of-latent-social-network-inference
+[19] J. J. Pfeiffer III, S. Moreno, T. La Fond, J. Neville, and B. Gallagher,
+“Attributed Graph Models: Modeling Network Structure with Correlated
+Attributes,” in Proceedings of the 23rd International Conference on
+World Wide Web, ser. WWW ’14. ACM, 2014, pp. 831–842. [Online].
+Available: http://doi.acm.org/10.1145/2566486.2567993
+[20] M. Kim and J. Leskovec, “Multiplicative Attribute Graph Model of
+Real-World Networks,” Internet Mathematics, vol. 8, no. 1-2, pp.
+113–160, mar 2012.
+[21] G. Robins, P. Pattison, Y. Kalish, and D. Lusher, “An introduction
+to exponential random graph (p*) models for social networks,” Social
+Networks, vol. 29, no. 2, pp. 173–191, may 2007. [Online]. Available:
+https://doi.org/10.1016/j.socnet.2006.08.002
+[22] M. De Choudhury, W. A. Mason, J. M. Hofman, and D. J.
+Watts, “Inferring Relevant Social Networks from Interpersonal
+Communication,” in Proceedings of the 19th International Conference
+on World Wide Web, ser. WWW ’10. ACM, 2010, pp. 301–310.
+[Online]. Available: http://doi.acm.org/10.1145/1772690.1772722
+[23] V. D. Blondel, J.-L. Guillaume, R. Lambiotte, and E. Lefebvre, “Fast
+unfolding of communities in large networks,” Journal of Statistical
+Mechanics: Theory and Experiment, vol. 10, 2008.
+[24] I. Brugere, C. Kanich, and T. Berger-Wolf, “Evaluating social networks
+using task-focused network inference,” in Proceedings of the 13th Inter-
+national Workshop on Mining and Learning with Graphs (MLG), 2017.
+[25] F. M. Harper and J. A. Konstan, “The MovieLens Datasets:
+History and Context,” ACM Trans. Interact. Intell. Syst.,
+vol. 5, no. 4, pp. 19:1—-19:19, dec 2015. [Online]. Available:
+http://doi.acm.org/10.1145/2827872
+[26] J. McAuley, J. Leskovec, and D. Jurafsky, “Learning Attitudes and
+Attributes from Multi-aspect Reviews,” in Proceedings of the 2012
+IEEE 12th International Conference on Data Mining, ser. ICDM ’12.
+Washington, DC, USA: IEEE Computer Society, 2012, pp. 1020–1025.
+[Online]. Available: http://dx.doi.org/10.1109/ICDM.2012.110
+[27] Z. Qi and I. Davidson, “A Principled and Flexible Framework for
+Finding Alternative Clusterings,” in Proceedings of the 15th ACM
+SIGKDD International Conference on Knowledge Discovery and Data
+Mining, ser. KDD ’09. New York, NY, USA: ACM, 2009, pp. 717–726.
+[Online]. Available: http://doi.acm.org/10.1145/1557019.1557099
+[28] D. Niu, J. G. Dy, and M. I. Jordan, “Multiple non-redundant spectral
+clustering views,” in Proceedings of the 27th international conference
+on machine learning (ICML-10), 2010, pp. 831–838.

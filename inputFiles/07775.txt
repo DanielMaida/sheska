@@ -1,0 +1,1168 @@
+ar
+X
+iv
+:1
+70
+8.
+07
+77
+5v
+1 
+ [
+cs
+.A
+I]
+  2
+5 
+A
+ug
+ 2
+01
+7
+Subspace Approximation for Approximate
+Nearest Neighbor Search in NLP
+Jing Wang ?
+August 28, 2017
+Abstract
+Most natural language processing tasks can be formulated as the
+approximated nearest neighbor search problem, such as word anal-
+ogy, document similarity, machine translation. Take the question-
+answering task as an example, given a question as the query, the goal
+is to search its nearest neighbor in the training dataset as the answer.
+However, existing methods for approximate nearest neighbor search
+problem may not perform well owing to the following practical chal-
+lenges: 1) there are noise in the data; 2) the large scale dataset yields
+a huge retrieval space and high search time complexity.
+In order to solve these problems, we propose a novel approximate
+nearest neighbor search framework which i) projects the data to a sub-
+space based spectral analysis which eliminates the influence of noise;
+ii) partitions the training dataset to different groups in order to re-
+duce the search space. Specifically, the retrieval space is reduced from
+O(n) to O(log n) (where n is the number of data points in the training
+dataset). We prove that the retrieved nearest neighbor in the pro-
+jected subspace is the same as the one in the original feature space.
+We demonstrate the outstanding performance of our framework on
+real-world natural language processing tasks.
+1 Introduction
+Artificial intelligence (AI) is a thriving field with active research topics and
+practical products, such as Amazon’s Echo, Goolge’s home smart speakers
+?jw998@rutgers.edu
+1
+and Apple’s Siri. The world becomes enthusiastic to communicate with these
+intelligent products. Take Amazon Echo for example, you can ask Echo the
+calories of every food in your plate if you are on diet. Whenever you need
+to check your calendar, just ask “Alexa, what’s on my calendar today?” It
+boosts the development of natural language processing which refers to the
+AI technology that makes the communication between AI products and hu-
+mans with human language possible. It is shown that the communication
+between human and AI products are mainly in the format of question an-
+swering (QA). QA is a complex and general natural language task. Most
+of natural language processing tasks can be treated as question answering
+problem, such as word analogy task [Mikolov et al., 2013], machine trans-
+lation [Wu et al., 2016], named entity recognition (NER) [Liu et al., 2011b,
+Passos et al., 2014], part-of-speech tagging (POS) [Kumar et al., 2016], sen-
+timent analysis [Socher et al., 2013].
+There are many works designed for the question answering task, such as
+deep learning models [Kumar et al., 2016], information extraction systems
+[Yates et al., 2007]. In this work, we propose to solve the question answering
+task by the approximate nearest neighbor search method. Formally, given the
+question as a query q ? Rd, the training data set P = {p1, · · · , pn} ? Rd×n,
+the nearest neighbor search aims to retrieve the nearest neighbor of the query
+q, denoted as p? from P as the answer. We assume that p? is within distance 1
+from the query q, and all other points are at distance at least 1+ ? (? ? (0, 1))
+from the query q. The nearest neighbor p? is called a (1 + ?)-approximate
+nearest neighbor to q which can be expressed as:
+? p? ? P, ?q ? p??2 ? 1 and
+? p ? P \ {p?}, ?q ? p?2 ? 1 + ?
+(1)
+However, in real-world natural language processing applications, there are
+usually noise in the data, such as spelling errors, non-standard words in
+newsgroups, pause filling words in speech. Hence, we assume the data set P
+with arbitrary noise t to create P? = {p?1, · · · , p?n}, where p?i = pi + ti. The
+query q is perturbed similarly to get q? = q+ tq. We assume that the noise is
+bounded, that is ?ti?2 ? ?/25 and ?tq?2 ? ?/25.
+There are many approaches proposed to solve the approximate nearest
+neighbor search problem. Existing methods can be classified as two groups:
+the data-independent methods and the data-dependent methods. The data-
+independent approaches are mainly based on random projection to get data
+2
+partitions, such as Local Sensitive Search, Minwise Hashing. Recently, the
+data-dependent methods received interest for its outstanding performance.
+They utilize spectral decomposition to map the data to different subspace,
+such as Spectral hashing. However, theoretical guarantee about the perfor-
+mance is not provided. Existing methods can not handle natural language
+processing problems well for the following reasons. First the data set in nat-
+ural language processing is usually in large scale which yields a huge search
+space. Moreover, the singular value decomposition which is widely used to
+obtain the low-rank subspace is too expensive here. Second, the data is
+with noise. Existing data-aware projection is not robust to noisy data which
+cannot lead to correct partitions.
+To solve the above mentioned problem, we propose a novel iterated spec-
+tral based approximate nearest neighbor search framework for general ques-
+tion answering tasks (Random Subspace based Spectral Hashing (RSSH)).
+Our framework consists of the following major steps:
+• As the data is with noise, we first project the data to the clean low-rank
+subspace. We obtain a low-rank approximation within (1+?) of optimal
+for spectral norm error by the randomized block Krylov methods which
+enjoys the time complexity O(nnz(X)) [Musco and Musco, 2015].
+• To eliminate the search space, we partition data to different clusters.
+With the low-rank subspace approximation, data points with are clus-
+tered corresponding to their distance to the subspace.
+• Given the query, we first locate its nearest subspace and then search the
+nearest neighbor in the data partition set corresponding to the nearest
+subspace.
+With our framework, we provide theoretical guarantees in the following ways:
+• With the low-rank approximation, we prove that the noise in the pro-
+jected subspace is small.
+• With the data partition strategy, all data will fall to certain partition
+within O(logn) iterations.
+• We prove that our method can return the nearest neighbor of the query
+in low-rank subspace which is the nearest neighbor in the clean space.
+3
+To the best of our knowledge, it is the first attempt of spectral near-
+est neighbor search for question answering problem with theory justification.
+Generally, our framework can solve word similarity task, text classification
+problems (sentiment analysis), word analogy task and named entity recogni-
+tion problem.
+The theoretical analysis in this work is mainly inspired by the work in
+[Abdullah et al., 2014]. The difference is that the subspace of data sets
+is computed directly in [Abdullah et al., 2014], in our work, we approxi-
+mate the subspace by a randomized variant of the Block Lanczos method
+[Musco and Musco, 2015]. In this way, our method enjoys higher time effi-
+ciency and returns a (1+?/5)-approximate nearest neighbor.
+2 Notation
+In this work, we let sj(M) denote the j-th largest singular value of a real
+matrix M . ?M?F is used to denote the Frobenius norm of M . All vector
+norms, i.e. ?v?2 for v ? Rd, refer to the ?2-norm.
+The spectral norm of a matrix X ? Rn×d is defined as
+?X?2 = sup
+y?Rd:?y?
+2
+=1
+?Xy?2 , (2)
+where all vector norms ?·?2 refer throughout to the ?2-norm. It is clear that
+?M?2 = s1(M) equals the spectral norm of M . The Frobenius norm of X is
+defined as ?X?F = (
+?
+ij X
+2
+ij)
+1/2, and let XT denote the transpose of X . A
+singular vector of X is a unit vector v ? Rd associated with a singular value
+s ? R and a unit vector u ? Rn such that Xv = su and uTX = svT. (We
+may also refer to v and u as a pair of right-singular and left-singular vectors
+associated with s.)
+Let pU? denote the projection of a point p onto U? . Then the distance
+between a point x and a set (possibly a subspace) S is defined as d(x, S) =
+infy?S ?x? y?2.
+3 Problem
+Given an n-point dataset P and a query point q, both lying in a k-dimensional
+space U ? Rd, we aim to find its nearest neighbor q? which satisfying that:
+?p? ? P such that ?q ? p??2 ? 1 and ?p ? P \ {p?}, ?q ? p?2 ? 1 + ? (3)
+4
+Algorithm 1 Block Lanczos method [Musco and Musco, 2015]
+1: Input: A ? Rm×d, rank k ? d,m, error ? ? (0, 1)
+2: r := ?
+(
+log(m)?
+?
+)
+, c = rk, ? ? N (0, 1)d×k
+3: Compute K := [A?, (AA?)A?, . . . , (AA?)rA?]
+4: Orthonormalize K’s columns to obtain Q ? Rm×rk
+5: Compute the truncated SVD (Q?A)k := Wk?kV
+?
+k ? Rc×c
+6: Compute Zk := QWk ? Rm×k
+7: Output: Zk
+Assume that the data points are corrupted by arbitrary small noise ti which
+is bounded ?ti?2 ? ?/16 for all i (? ? (0, 1)). The observed set P? consists of
+points p?i = pi + ti for all pi ? P and the noisy query points q? = q + tq with
+?tq?2 ? ?/16.
+4 Algorithm
+4.1 Subspace Approximation
+We utilize a randomized variant of the Block Lanczos method proposed in
+[Musco and Musco, 2015] to approximate the low-rank subspace of the data
+set.
+Theorem 1. [Musco and Musco, 2015] For any A ? Rm×d, the k-
+dimensional low-rank subspace obtained by singular value decomposition is
+denoted as Ak. Algorithm 1 returns Zk which forms the low-rank approxi-
+mation A?k = ZkZ
+?
+k A, then the following bounds hold with probability at least
+9/10:
+?A? A?k?2 ? (1 + ?)?A?Ak?2 ? (1 + ?)?k (4)
+?i ? [k], |z?i AA?zi ? u?i AA?ui| = |??2i ? ?2i |
+? ??2k+1 . (5)
+where ??i is the i-th singular value of A. The runtime of the algorithm is
+O
+(
+mdk log(m)?
+?
++ k
+2(m+d)
+?
+)
+.
+Algorithm 1 returns the matrix Zi which is the approximation to the left
+singular vectors of data matrix A. We use ZTA to approximate the right
+singular vectors of data matrix A.
+5
+Algorithm 2 Spectral Data Partition by Low-rank Subspace Approximation
+1: Input: P? ? Rn×d, rank k ? n, d, error ?, ? ? (0, 1), threshold ? = ?/25
+2: i := 0, P?0 := P?
+3: while P?i 6= ? do
+4: Compute the k-dimensional subspace approximation Si and low-rank
+projection matrix Z?i of P?i by Algorithm 1
+5: Compute the distance between data points and subspace
+d(p?j, Si) := inf
+y?Si
+?p?j ? y?2 (p?j ? P?i)
+6: Partition data points
+Mi := {p?j ? P?i : d(p?i, Sj) ?
+?
+2(1 + ?)?}
+7: Update dataset
+P?i+1 := {P?i \Mi}
+8: Update iteration i = i+ 1
+9: end while
+10: Output: S = {S?0, . . . , S?i?1}, Z = {Z?0, . . . , Z?i?1}, M =
+{M0,M1, . . . ,Mi?1}.
+4.2 Data Partition
+Lemma 2. [Abdullah et al., 2014] The nearest neighbor of q? in P? is p??.
+Lemma 3. Algorithm 2 terminates within O(logn) iterations.
+Proof. Let U be the k-dimensional subspace of P with projection matrix V ,
+let U? be the k-dimensional subspace of P? with projection matrix V? , let S be
+the low-rank approximation returned by Algorithm 1 with projection matrix
+Zk. The distance between data points and subspace is computed as:
+?
+p??P?
+d(p?, U?)2 =
+?
+p??P?
+inf
+y?U?
+||p?? y||22
+= inf ||P? ? U?kU?Tk P? ||22.
+6
+?
+p??P?
+d(p?, S)2 =
+?
+inf
+y?S
+||p?? y||22
+= inf ||P? ? ZkZTk P? ||22.
+According to Theorem 1, we can have:
+||P? ? ZkZ?k P? ||2 ? (1 + ?)||P? ? UkU?k P? ||2
+, We can get
+?
+p??P?
+d(p?, S) ? (1 + ?)2
+?
+p??P?
+d(p?, U?). (6)
+Since U? minimizes the sum of squared distances from all p? ? P? to U? ,
+?
+p??P?
+d(p?, U?)2 ?
+?
+p??P?
+d(p?, U)2 ?
+?
+p??P?
+?p?? p?22 ? ?2n.
+Then, we can get:
+?
+p??P?
+d(p?, S)2 ? (1 + ?)2?2n. (7)
+Hence, there are at most half of the points in P? with distance to S greater
+than
+?
+2(1 + ?)?. The set M captures at least a half fraction of points. The
+algorithm then proceeds on the remaining set. After O(logn) iterations all
+points of P? must be captured.
+Lemma 4. The approximated subspace S that captures p?? returns this as the
+(1 + ?/5)-approximate nearest neighbor of q? (in U?).
+Proof of Lemma 4. Fix p 6= p? that is captured by the same S, and use the
+triangle inequality to write
+?p? p?S?2 ? ?p? p??2 + ?p?? p?S?2
+? ? +
+?
+2(1 + ?)? ? 4?.
+(8)
+Similarly for p?, ?p? ? p??S?2 ? 4?, and by our assumption ?q ? q??2 ? ?.
+By the triangle inequality, we get
+?q? ? p??S?2 ? ?q? ? p?2 + ?p? p??S?2
+? ?q? ? q?2 + ?q ? p?2 + ?p? p??S?2
+? ?q ? p?2 + 5?,
+(9)
+7
+?q? ? p??S?2 ? ?q? ? p?2 ? ?p??S ? p?2
+? ?q ? p?2 ? ?q ? q??2 ? ?p??S ? p?2
+? ?q ? p?2 ? 5?,
+(10)
+Similarly, we bound ?q? ? p??S?2
+?q? ? p?S?2
+?q? ? p??S?2
+=
+?q ? p?2 ± 5?
+?q ? p??2 ± 5?
+=
+?q ? p?2 ± 15?
+?q ? p??2 ± 15?
+? ?q ? p?2 ?
+1
+5
+?
+?q ? p??2 + 15?
+? ?q ? p
+??2 + 45?
+?q ? p??2 + 15?
+> 1 + 1
+5
+?.
+By using Pythagoras’ Theorem (recall both p?S, p?
+?
+S ? S),
+?q?S ? p?S?22
+?q?S ? p??S?22
+=
+?q? ? p?S?22 ? ?q? ? q?S?22
+?q? ? p??S?22 ? ?q? ? q?S?
+2
+2
+> (1 + 1
+5
+?)2.
+Hence, p?? is reported by the k-dimensional subspace it is assigned to.
+5 Experiment
+In this experiment, we compare our algorithm with existing hashing algo-
+rithms.
+5.1 Baseline algorithms
+Our comparative algorithms include state-of-the-art learning to hashing al-
+gorithm such as
+• Anchor Graph Hashing (AGH) [Liu et al., 2011a]
+• Circulant Binary Embedding (CBE) [Yu et al., 2014]
+• Multidimensional Spectral Hashing (MDSH) [Weiss et al., 2012]
+• Iterative quantization (ITQ) [Gong and Lazebnik, 2011]
+• Spectral Hashing [Weiss et al., 2009]
+• Sparse Projection (SP) [Xia et al., 2015]
+We refer our algorithm as Random Subspace based Spectral Hashing (RSSH).
+8
+Table 1: Summary of Datasets
+Dataset #training #query #feature # class
+MNIST 69,000 1,000 784 10
+CIFAR-10 59,000 1,000 512 10
+COIL-20 20,019 2,000 1,024 20
+VOC2007 5,011 4,096 3,720 20
+5.2 Datasets.
+Our experiment datasets include MNIST 1, CIFAR-102, COIL-20 3 and the
+2007 PASCAL VOC challenge dataset.
+MNIST. It is a well-known handwritten digits dataset from “0” to “9”. The
+dataset consists of 70,000 samples in feature space of dimension 784. We split
+the samples to a training and a query set which containing 69,000 and 1,000
+samples respectively.
+CIFAR-10. There are 60,000 image in 10 classes, such as “horse” and
+“truck”. We use the default 59,000 training set and 1,000 testing as query
+set. The image is with 512 GIST feature.
+COIL-20. It is from the Columbia University Image Library which contains
+20 objects. Each image is represented by a feature space 1024 dimension. For
+each object, we choose 60% images for training and the others are querying.
+VOC2007. The VOC2007 dataset consists of three subsets as training, vali-
+dation and testing. We use the first two subsets as training containing 5,011
+samples and the other as query containing 4,096 samples. We set each image
+to the size of [80, 100] and extract the HOG feature with cell size 10 as their
+feature space 4. All the images in VOC2007 are defined into 20 subjects,
+such as “aeroplane” and “dining tale”. For the classification task on each
+subject, there are 200 to 500 positive samples and the following 4,000 are
+negative. Thus, the label distribution of the query set is unbalanced. A brief
+description of the datasets are presented in Table 1.
+1http://yann.lecun.com/exdb/mnist/
+2https://www.cs.toronto.edu/ kriz/cifar.html/
+3http://www.cs.columbia.edu/CAVE/software/softlib/coil-20.php
+4http://www.vlfeat.org/
+9
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHVOC-2007
+Figure 1: The average precision on VOC2007.
+5.3 Evaluation Metrics
+All the experiment datasets are fully annotated. We report the classification
+result based on the groundtruth label information. That is, the label of the
+query is assigned by its nearest neighbor. For the first three datasets in Table
+1, we report the classification accuracy. For the VOC2007 dataset, we report
+the precision as the label distribution is highly unbalanced. The criteria are
+defined in terms of true positive (TP), true negative (TN), false positive (FP)
+and false negative (FN) as,
+Precision =
+TP
+TP + FP
+,
+Accuracy =
+TP + TN
+TP + TN+ FP + FN
+.
+(11)
+For the retrieval task, we report the recall with top [1, 10, 25] retrieved
+samples. The true neighbors are defined by the Euclidean distance.
+We report the aforementioned evaluation criteria with varying hash bits
+(r) in the range of [2, 128].
+5.4 Classification Results
+The classification accuracy on CIFAR-10, MNIST and COIL-20 are reported
+in Figure 3a, 3b and 3c. We can see that our algorithm achieves the best
+accuracy in terms of the number of hash bits in the three datasets. For
+example, on CIFAR-10 with r = 48, the accuracy of our algorithm RSSN
+reaches 53.20% while the comparative algorithms are all less than 40.00%.
+10
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH VOC-2007
+(a) Recall of Top 1 retrieval
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+VOC-2007
+(b) Recall of Top 10 re-
+trieval
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+VOC-2007
+(c) Recall of Top 25 re-
+trieval
+Figure 2: The average recall in terms of the number of hash bits with different
+retrievals on the VOC2007.
+The increase of hash bit promotes the accuracy of all algorithms, our algo-
+rithm remains the leading place. For example, on MNIST with r = 96, ITH
+and SH reach the accuracy of 93.00%, but our algorithm still enjoys 4.00%
+advantage with 97.30%. Moreover, our algorithm obtains significant good
+performance even with limited information, that is, the r is small. For in-
+stance, in terms of r = 8, RSSN reaches the accuracy of 87.70%, much better
+than the comparative algorithms.
+For the classification results on VOC2007, we report the accuracy on 12
+of 20 classes as representation in Figure 4. We can see that it is a tough task
+for all the methods, but our algorithm still obtains satisfying performance.
+For example, on the classification task of “horse”, our algorithm obtains
+around 10% advantage over the all the comparative algorithms. The average
+precision on all the 20 classes are presented on Figure 1. We can see that
+our algorithm obtains the overall best result.
+5.5 Retrieval Results
+The retrieval results on MNIST, CIFAR-10 and COIL-20 are presented in
+Figure 3d to Figure 3l. Our algorithm obtains the best recall with vary-
+ing number of retrieved samples. For example, on CIFAR-10 with Top 10
+retrieval and r = 96, our algorithm reaches the recall over 70%, while the
+others are less than 20%. On MNIST with Top 25 retrieved samples and
+r = 128, the recall of RSSN reaches 90%, while the comparatives algorithms
+are around 40%.
+11
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+CIFAR-10
+(a) Classification accuracy
+on CIFAR-10
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+MNIST
+(b) Classification accuracy
+on MNIST
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+COIL-20
+(c) Classification accuracy
+on COIL-20
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+CIFAR-10
+(d) Recall of Top 1 retrieval
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+CIFAR-10
+(e) Recall of Top 10 retrieval
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH CIFAR-10
+(f) Recall of Top 25 retrieval
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH MNIST
+(g) Recall of Top 1 retrieval
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH MNIST
+(h) Recall of Top 10 re-
+trieval
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH MNIST
+(i) Recall of Top 25 retrieval
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.2
+0.4
+0.6
+0.8
+1
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHCOIL-20
+(j) Recall of Top 1 retrieval
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.2
+0.4
+0.6
+0.8
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+COIL-20
+(k) Recall of Top 10 re-
+trieval
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.2
+0.4
+0.6
+0.8
+R
+ec
+al
+l
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+COIL-20
+(l) Recall of Top 25 retrieval
+Figure 3: Classification accuracy and recall in terms of the number of hash
+bits on three datasets.
+12
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+VOC-2007
+(a) Precision on the class:
+Aeroplane
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHVOC-2007
+(b) Precision on the class:
+Bicycle
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHVOC-2007
+(c) Precision on the class:
+Bird
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHVOC-2007
+(d) Precision on the class:
+Bus
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHVOC-2007
+(e) Precision on the class:
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHVOC-2007
+(f) Precision on the class:
+Cow
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.2
+0.4
+0.6
+0.8
+1
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHVOC-2007
+(g) Precision on the class:
+Dining table
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+VOC-2007
+(h) Precision on the class:
+Horse
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHVOC-2007
+(i) Precision on the class:
+Motorbike
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHVOC-2007
+(j) Precision on the class:
+Potted plant
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSH
+VOC-2007
+(k) Precision on the class:
+Train
+248 16 32 48 64 72 80 96 128
+# bits
+0
+0.1
+0.2
+0.3
+0.4
+A
+cc
+ur
+ac
+y
+AGH
+CBE
+MDSH
+ITQ
+SH
+SP
+LSH
+RSSHVOC-2007
+(l) Precision on the class:
+Tv monitor
+Figure 4: Precision and recall in terms of the number of hash bits on various
+classes of VOC2007.
+13
+References
+[Abdullah et al., 2014] Abdullah, A., Andoni, A., Kannan, R., and
+Krauthgamer, R. (2014). Spectral approaches to nearest neighbor search.
+In IEEE 55th Annual Symposium on Foundations of Computer Science,
+pages 581–590. IEEE.
+[Andreas et al., 2016] Andreas, J., Rohrbach, M., Darrell, T., and Klein, D.
+(2016). Learning to compose neural networks for question answering. arXiv
+preprint arXiv:1601.01705.
+[Gong and Lazebnik, 2011] Gong, Y. and Lazebnik, S. (2011). Iterative
+quantization: A procrustean approach to learning binary codes. In Pro-
+ceedings of the 24th IEEE Conference on Computer Vision and Pattern
+Recognition, pages 817–824.
+[Kumar et al., 2016] Kumar, A., Irsoy, O., Ondruska, P., Iyyer, M., Brad-
+bury, J., Gulrajani, I., Zhong, V., Paulus, R., and Socher, R. (2016). Ask
+me anything: Dynamic memory networks for natural language processing.
+In International Conference on Machine Learning, pages 1378–1387.
+[Liu et al., 2011a] Liu, W., Wang, J., Kumar, S., and Chang, S.-F. (2011a).
+Hashing with graphs. In Proceedings of the 28th International Conference
+on Machine Learning, pages 1–8.
+[Liu et al., 2011b] Liu, X., Zhang, S., Wei, F., and Zhou, M. (2011b). Recog-
+nizing named entities in tweets. In Proceedings of the 49th Annual Meeting
+of the Association for Computational Linguistics, pages 359–367. Associ-
+ation for Computational Linguistics.
+[Mikolov et al., 2013] Mikolov, T., Yih, W.-t., and Zweig, G. (2013). Lin-
+guistic regularities in continuous space word representations. In hlt-Naacl,
+volume 13, pages 746–751.
+[Musco and Musco, 2015] Musco, C. and Musco, C. (2015). Randomized
+block krylov methods for stronger and faster approximate singular value
+decomposition. In Advances in Neural Information Processing Systems,
+pages 1396–1404.
+[Passos et al., 2014] Passos, A., Kumar, V., and McCallum, A. (2014). Lexi-
+con infused phrase embeddings for named entity resolution. In Proceedings
+14
+of the Eighteenth Conference on Computational Language Learning, pages
+78–86.
+[Ramanathan et al., 2014] Ramanathan, V., Joulin, A., Liang, P., and Fei-
+Fei, L. (2014). Linking people in videos with their names using coreference
+resolution. In European Conference on Computer Vision, pages 95–110.
+[Socher et al., 2013] Socher, R., Perelygin, A., Wu, J. Y., Chuang, J., Man-
+ning, C. D., Ng, A. Y., Potts, C., et al. (2013). Recursive deep models
+for semantic compositionality over a sentiment treebank. In Proceedings
+of the Conference on Empirical Methods in Natural Language Processing,
+volume 1631, page 1642.
+[Weiss et al., 2012] Weiss, Y., Fergus, R., and Torralba, A. (2012). Multidi-
+mensional spectral hashing. In Proceedings of the 12th European Confer-
+ence on Computer Vision, pages 340–353.
+[Weiss et al., 2009] Weiss, Y., Torralba, A., and Fergus, R. (2009). Spec-
+tral hashing. In Proceedings of the 23rd Annual Conference on Neural
+Information Processing Systems, pages 1753–1760.
+[Wu et al., 2016] Wu, Y., Schuster, M., Chen, Z., Le, Q. V., Norouzi, M.,
+Macherey, W., Krikun, M., Cao, Y., Gao, Q., Macherey, K., et al. (2016).
+Google’s neural machine translation system: Bridging the gap between
+human and machine translation. arXiv preprint arXiv:1609.08144.
+[Xia et al., 2015] Xia, Y., He, K., Kohli, P., and Sun, J. (2015). Sparse pro-
+jections for high-dimensional binary codes. In Proceedings of the 28th
+IEEE Conference on Computer Vision and Pattern Recognition, pages
+3332–3339.
+[Yates et al., 2007] Yates, A., Cafarella, M., Banko, M., Etzioni, O., Broad-
+head, M., and Soderland, S. (2007). Textrunner: open information extrac-
+tion on the web. In Proceedings of Human Language Technologies: The
+Annual Conference of the North American Chapter of the Association for
+Computational Linguistics: Demonstrations, pages 25–26.
+[Yu et al., 2014] Yu, F. X., Kumar, S., Gong, Y., and Chang, S. (2014). Cir-
+culant binary embedding. In Proceedings of the 31th International Con-
+ference on Machine Learning, pages 946–954.
+15

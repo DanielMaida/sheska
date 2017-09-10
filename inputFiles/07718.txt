@@ -1,0 +1,1000 @@
+Linear Differential Constraints for Photo-polarimetric Height Estimation
+Silvia Tozza
+Sapienza - Universita? di Roma
+tozza@mat.uniroma1.it
+William A. P. Smith
+University of York
+william.smith@york.ac.uk
+Dizhong Zhu
+University of York
+dz761@york.ac.uk
+Ravi Ramamoorthi
+UC San Diego
+ravir@cs.ucsd.edu
+Edwin R. Hancock
+University of York
+edwin.hancock@york.ac.uk
+Abstract
+In this paper we present a differential approach to photo-
+polarimetric shape estimation. We propose several alterna-
+tive differential constraints based on polarisation and pho-
+tometric shading information and show how to express them
+in a unified partial differential system. Our method uses the
+image ratios technique to combine shading and polarisation
+information in order to directly reconstruct surface height,
+without first computing surface normal vectors. Moreover,
+we are able to remove the non-linearities so that the prob-
+lem reduces to solving a linear differential problem. We also
+introduce a new method for estimating a polarisation image
+from multichannel data and, finally, we show it is possible
+to estimate the illumination directions in a two source setup,
+extending the method into an uncalibrated scenario. From
+a numerical point of view, we use a least-squares formula-
+tion of the discrete version of the problem. To the best of
+our knowledge, this is the first work to consider a unified
+differential approach to solve photo-polarimetric shape es-
+timation directly for height. Numerical results on synthetic
+and real-world data confirm the effectiveness of our pro-
+posed method.
+1. Introduction
+A recent trend in photometric [7, 13, 12, 26, 23, 20]
+and physics-based [24] shape recovery has been to develop
+methods that solve directly for surface height, rather than
+first estimating surface normals and then integrating them
+into a height map. Such methods are attractive since: 1.
+they only need solve for a single height value at each pixel
+(as opposed to the two components of surface orientation),
+2. integrability is guaranteed, 3. errors do not accumulate
+through a two step pipeline of shape estimation and integra-
+tion and 4. it enables combination with cues that provide
+depth information directly [10]. In both photometric stereo
+[13, 12, 23] and recently in shape-from-polarisation (SfP)
+[24], such a direct solution was made possible by deriving
+equations that are linear in the unknown surface gradient.
+In this paper, we explore the combination of SfP
+constraints with photometric constraints (i.e. photo-
+polarimetric shape estimation) provided by one or two light
+sources. Photometric stereo with three or more light sources
+is a very well studied problem with robust solutions avail-
+able under a range of different assumptions. Two source
+photometric stereo is still considered a difficult problem
+[21] even when the illumination is calibrated and albedo is
+known. We show that various formulations of one and two
+source photo-polarimetric stereo lead to the same general
+problem (in terms of surface height), that illumination can
+be estimated and that certain combinations of constraints
+lead to an albedo invariant formulation. Hence, with only
+modest additional data capture requirements (a polarisation
+image rather than an intensity image), we arrive at an ap-
+proach for uncalibrated two source photometric stereo. We
+make the following novel contributions:
+• We show how to estimate a polarisation image from
+multichannel data such as from colour images, multi-
+ple light source data or both (Sec. 2.2).
+• We show how polarisation and photometric constraints
+(Sec. 3) can be expressed in a unified formulation (of
+which previous work [24] is a special case) and that
+various combinations of these constraints provide dif-
+ferent practical advantages (Sec. 4).
+• We show how to estimate the illumination directions in
+two source photo-polarimetric data leading to an un-
+calibrated solution (Sec. 6).
+1.1. Related Work
+The polarisation state of light reflected by a surface pro-
+vides a cue to the material properties of the surface and,
+via a relationship with surface orientation, the shape. Po-
+larisation has been used for a number of applications, in-
+ar
+X
+iv
+:1
+70
+8.
+07
+71
+8v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+5 
+A
+ug
+ 2
+01
+7
+cluding early work on material segmentation [28] and dif-
+fuse/specular reflectance separation [18]. However, there
+has been a resurgent interest [24, 10, 25, 19] in using polar-
+isation information for shape estimation.
+Shape-from-polarisation The degree to which light is lin-
+early polarised and the orientation associated with maxi-
+mum reflection are related to the two degrees of freedom
+of surface orientation. In theory, this polarisation informa-
+tion alone restricts the surface normal at each pixel to two
+possible directions. Both Atkinson and Hancock [1] and
+Miyazaki et al. [15] solve the problem of disambiguating
+these polarisation normals via propagation from the bound-
+ary under an assumption of global convexity. Huynh et al.
+[8] also disambiguate polarisation normals with a global
+convexity assumption but estimate refractive index in ad-
+dition. These works all used a diffuse polarisation model
+while Morel et al. [16] use a specular polarisation model
+for metals. Recently, Taamazyan et al. [25] introduced a
+mixed specular/diffuse polarisation model. All of these
+methods estimate surface normals that must be integrated
+into a height map. Moreover, since they rely entirely on the
+weak shape cue provided by polarisation and do not enforce
+integrability, the results are extremely sensitive to noise.
+Photo-polarimetric methods There have been a number
+of attempts to combine photometric constraints with po-
+larisation cues. Mahmoud et al. [11] used a shape-from-
+shading cue with assumptions of known light source direc-
+tion, known albedo and Lambertian reflectance to disam-
+biguate the polarisation normals. Atkinson and Hancock [3]
+used calibrated, three source Lambertian photometric stereo
+for disambiguation but avoiding an assumption of known
+albedo. Smith et al. [24] showed how to express polari-
+sation and shading constraints directly in terms of surface
+height, leading to a robust and efficient linear least squares
+solution. They also show how to estimate the illumination,
+up to a binary ambiguity, making the method uncalibrated.
+However, they require known or uniform albedo. We ex-
+plore variants of this method by introducing additional con-
+straints that arise when a second light source is introduced,
+allowing us to relax the uniform albedo assumption. We
+also give an explanation for why the matrix they consider is
+full-rank except in a unique case. Recently, Ngo et al. [19]
+derived constraints that allowed surface normals, light di-
+rections and refractive index to be estimated from polarisa-
+tion images under varying lighting. However, this approach
+requires at least 4 lights. All of the above methods operate
+on single channel images and do not exploit the information
+available in colour images.
+Polarisation with additional cues Rahmann and Can-
+terakis [22] combined a specular polarisation model with
+stereo cues. Similarly, Atkinson and Hancock [2] used po-
+larisation normals to segment an object into patches, sim-
+plifying stereo matching. Stereo polarisation cues have also
+been used for transparent surface modelling [14]. Huynh
+et al. [9] extended their earlier work to use multispectral
+measurements to estimate both shape and refractive index.
+Drbohlav and Sara [6] showed how the Bas-relief ambigu-
+ity [4] in uncalibrated photometric stereo could be resolved
+using polarisation. However, this approach requires a po-
+larised light source. Recently, Kadambi et al. [10] proposed
+an interesting approach in which a single polarisation image
+is combined with a depth map obtained by an RGBD cam-
+era. The depth map is used to disambiguate the normals and
+provide a base surface for integration.
+2. Representing Polarisation Information
+We place a camera at the origin of a three-dimensional
+coordinate system (Oxyz) in such a way that Oxy coincides
+with the image plane and Oz with the optical axis. In Sec. 4
+we propose a unified formulation for a variety of methods,
+all of which assume a) orthographic projection, b) known
+refractive index of the surface. Other assumptions will be
+given later on, depending on the specific problem at hand.
+We denote by v the viewer direction, by s a general light
+source direction with v 6= s. We only require the third com-
+ponents of these unit vectors to be greater than zero (i.e. all
+the vectors belong to the upper hemisphere). We will denote
+by t a second light source where required. We parametrise
+the unknown surface height by the function z(x), where
+x = (x, y) is an image location, and the unit normal to
+the surface at the point x is given by:
+n(x) =
+n?(x)
+|n?(x)|
+=
+[?zx,?zy, 1]T?
+1 + |?z(x)|2
+, (1)
+where n?(x) is the outgoing normal vector and zx, zy de-
+notes the partial derivative of z(x) w.r.t. x and y, respec-
+tively, so that ?z(x) = (zx, zy). We now introduce rele-
+vant polarization theory, describing how we can estimate a
+polarisation image from multichannel data.
+2.1. Polarisation image
+When unpolarised light is reflected by a surface it be-
+comes partially polarised [27]. A polarisation image can
+be estimated by capturing a sequence of images in which
+a linear polarising filter in front of the camera lens is ro-
+tated through a sequence of P ? 3 different angles ?j ,
+j ? {1, . . . , P}. The measured intensity at a pixel varies
+sinusoidally with the polariser angle:
+i?j (x) = iun(x)
+(
+1 + ?(x) cos(2?j ? 2?(x))
+)
+. (2)
+The polarisation image is thus obtained by decomposing the
+sinusoid at every pixel location into three quantities [27]:
+the phase angle, ?(x), the degree of polarisation, ?(x), and
+the unpolarised intensity, iun(x). The parameters of the si-
+nusoid can be estimated from the captured image sequence
+using non-linear least squares [1], linear methods [8] or via
+a closed form solution [27] for the specific case of P = 3,
+? ? {0?, 45?, 90?}.
+2.2. Multichannel polarisation image estimation
+A polarisation image is usually computed by fitting the
+sinusoid in (2) to observed data in a least squares sense.
+Hence, from P ? 3 measurements we estimate iun, ? and
+?. In practice, we may have access to multichannel mea-
+surements. For example, we may capture colour images
+(3 channels), polarisation images with two different light
+source directions (2 channels) or both (6 channels). Since
+? and ? depend only on surface geometry (assuming that,
+in the case of colour images, the refractive index does not
+vary with wavelength), then we expect these quantities to
+be constant over the channels. On the other hand, iun will
+vary between channels either because of a shading change
+caused by the different lighting or because the albedo or
+light source intensity is different in the different colour
+channels. Hence, in a multichannel setting withC channels,
+we have C + 2 unknowns and CP observations. If we use
+information across all channels simultaneously, the system
+is more constrained and the solution will be more robust
+to noise. Moreover, we do not need to make an arbitrary
+choice about the channel from which we estimate the polar-
+isation image. This idea shares something in common with
+that of Narasimhan et al. [17], though their material/shape
+separation was not in the context of polarisation.
+Specifically, we can express the multichannel observa-
+tions in channel c with polariser angle ?j as
+ic?j (x) = i
+c
+un(x)(1 + ?(x) cos(2?j ? 2?(x))). (3)
+The system of equations is linear in the unpolarised inten-
+sities and, by a change of variables, can be made linear in
+? and ? [8]. Hence, we wish to solve a bilinear system and
+do so in a least squares sense using interleaved alternating
+minimisation. Specifically, we a) fix ? and ? and then solve
+linearly for the unpolarised intensity in each channel and
+b) then fix the unpolarised intensities and solve linearly for
+? and ? using all channels simultaneously. Concretely, for
+a single pixel, we obtain the unpolarised intensities across
+channels by solving:
+min
+i1un(x),...,i
+C
+un(x)
+???CI [i1un(x), . . . , iCun(x)]T ? dI???2 , (4)
+where CI ? RCP×C is given by
+CI =
+???(1 + ?(x) cos(2?1 ? 2?(x)))IC...
+(1 + ?(x) cos(2?P ? 2?(x)))IC
+??? , (5)
+with IC denoting theC×C identity matrix, and dI ? RCP
+is given by
+dI =
+[
+i1?1(x), . . . , i
+C
+?1(x), i
+1
+?2(x), . . . , i
+C
+?P (x)
+]T
+.
+Then, with the unpolarised intensities fixed, we solve for ?
+and ? using the following linearisation:
+min
+a,b
+????C?? [ab
+]
+? d??
+????2 , (6)
+where [a b]T = [?(x) cos(2?(x)), ?(x) sin(2?(x))]T , and
+C?? ? RCP×2 is given by
+C?? =
+???????????
+i1un(x) cos(2?1) i
+1
+un(x) sin(2?1)
+...
+...
+i1un(x) cos(2?P ) i
+1
+un(x) sin(2?P )
+i2un(x) cos(2?1) i
+2
+un(x) sin(2?1)
+...
+...
+iCun(x) cos(2?P ) i
+C
+un(x) sin(2?P )
+???????????
+, (7)
+and d?? ? RCP is given by:
+d?? =
+???????????
+i1?1(x)? i
+1
+un(x)
+...
+i1?P (x)? i
+1
+un(x)
+i2?1(x)? i
+2
+un(x)
+...
+iC?P (x)? i
+C
+un(x)
+???????????
+. (8)
+We estimate ? and ? from the linear parameters using
+?(x) = 12atan2(b, a) and ?(x) =
+?
+a2 + b2.
+We initialise by computing a polarisation image from
+one channel using linear least squares, as in [8], and
+then use the estimated ? and ? to begin alternating inter-
+leaved optimisation by solving for the unpolarised intensi-
+ties across channels. We interleave and alternate the two
+steps until convergence. In practice, we find that this ap-
+proach not only dramatically reduces noise in the polarisa-
+tion images but also removes the ad hoc step of choosing
+an arbitrary channel to process. We show an example of
+the results obtained in Figure 1. The multichannel result is
+visibly less noisy than the single channel performance.
+3. Photo-polarimetric height constraints
+In this section we describe the different constraints pro-
+vided by photo-polarimetric information and then show
+how to combine them to arrive at linear equations in the
+unknown surface height.
+3.1. Degree of polarisation constraint
+A polarisation image provides a constraint on the sur-
+face normal direction at each pixel. The exact nature of the
+constraint depends on the polarisation model used. In this
+paper we will consider diffuse polarisation, due to subsur-
+face scattering (see [1] for more details). The degree of dif-
+fuse polarisation ?d(x) at each point x can be expressed in
+Input Single channel estimation Multichannel estimation
+0
+0.5
+1
+1.5
+2
+2.5
+3
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0
+0.5
+1
+1.5
+2
+2.5
+3
+0
+0.1
+0.2
+0.3
+0.4
+Figure 1. Multichannel polarisation image estimation. Left to right: an image from the input sequence; phase angle (?) and degree of
+polarisation (?) estimated from a single channel; phase angle (?) and degree of polarisation (?) estimated from three colour channels and
+two light source directions.
+terms of the refractive index ? and the surface zenith angle
+? ? [0, ?2 ] as follows (Cf. [1]):
+?d(x) = (9)
+(? ? 1/?)2 sin2(?)
+2+2?2?(?+1/?)2 sin2(?)+4 cos(?)
+?
+?2? sin2(?)
+.
+Recall that the zenith angle is the angle between the unit
+surface normal vector n(x) and the viewing direction v. If
+we know the degree of polarisation ?d(x) and the refractive
+index ? (or have good estimates of them at hand), equation
+(9) can be rewritten with respect to the cosine of the zenith
+angle, and expressed in terms of the function, f(?d(x), ?),
+that depends on the measured degree of polarisation and the
+refractive index:
+cos(?) = n(x) · v = f(?d(x), ?) = (10)?
+?4(1??2d)+2?2(2?2d+?d?1)+?2d+2?d?4?3?d
+?
+1??2d+1
+(?d + 1)2 (?4 + 1) + 2?2(3?2d + 2?d ? 1)
+where we drop the dependency of ?d on (x) for brevity.
+3.2. Shading constraint
+The unpolarised intensity provides an additional con-
+straint on the surface normal direction via an appropriate re-
+flectance model. We assume that pixels have been labelled
+as diffuse or specular dominant and restrict consideration to
+diffuse shading. In practice, we deal with specular pixels
+in the same way as [24] and simply assume that they point
+in the direction of the halfway vector between s and v. For
+the diffuse pixels, we therefore assume that light is reflected
+according to the Lambert’s law. Hence, the unpolarised in-
+tensity is related to the surface normal by:
+iun(x) = ?(x) cos(?i) = ?(x)n(x) · s, (11)
+where ?(x) is the albedo. Writing n(x) in terms of the
+gradient of z as reported in (1), (11) can be rewritten as
+follows:
+iun(x) = ?(x)
+??z(x) · s? + s3?
+1 + |?z(x)|2
+, (12)
+with s? = (s1, s2). This is a non-linear equation, but we
+will see in Sec. 3.4 and 3.5 how it is possible to remove the
+non-linearity by using the ratios technique.
+3.3. Phase angle constraint
+An additional constraint comes from the phase angle,
+which determines the azimuth angle of the surface normal
+?(x) ? [0, 2?] up to a 180? ambiguity. This constraint can
+be rewritten as a collinearity condition [24], that is satisfied
+by either of the two possible azimuth angles implied by the
+phase angle measurement. Specifically, for diffuse pixels
+we require the projection of the surface normal into the x-y
+plane, [nx ny], and a vector in the image plane pointing in
+the phase angle direction, [sin(?) cos(?)], to be collinear.
+This corresponds to requiring
+n(x) · [cos(?(x)) ? sin(?(x)) 0]T = 0. (13)
+In terms of the surface gradient, using (1), it is equivalent to
+(? cos?, sin?) · ?z = 0. (14)
+A similar expression can be obtained for specular pixels,
+substituting in the ?2 -shifted phase angles. The advantage
+of doing this will become clear in Sec. 4.2.
+3.4. Degree of polarisation ratio constraint
+Combining the two constraints illustrated in Sec. 3.1 and
+3.2, we can arrive at a linear equation, that we refer to as
+the DOP ratio constraint. Recall that cos(?) = n(x) ·v and
+that we can express n in terms of the gradient of z by using
+(1), then isolating the non-linear term in (10) we obtain?
+1 + |?z(x)|2 = ??z(x) · v? + v3
+f(?d(x), ?)
+, (15)
+where v? = (v1, v2). On the other hand, considering the
+shading information contained in (12), and again isolating
+the non-linearity we arrive at the following?
+1 + |?z(x)|2 = ?(x)??z(x) · s? + s3
+iun(x)
+. (16)
+Note that we are supposing s 6= v, and iun(x) 6= 0,
+f(?d(x), ?) 6= 0. Inspecting Eqs. (15) and (16) we obtain
+??z(x) · v? + v3
+f(?d(x), ?)
+= ?(x)
+??z(x) · s? + s3
+iun(x)
+. (17)
+We thus arrive at the following partial differential equation
+(PDE):
+b(x) · ?z(x) = h(x), (18)
+where
+b(x) := b(f,iun) = iun(x)v? ? ?(x)f(?d(x), ?) s?, (19)
+and
+h(x) := h(f,iun) = iun(x)v3 ? ?(x)f(?d(x), ?) s3. (20)
+3.5. Intensity ratio constraint
+Finally, we construct an intensity ratio constraint by con-
+sidering two unpolarised images, iun,1, iun,2, taken from two
+different light source directions, s, t. We construct our con-
+straint equation by applying (11) twice, once for each light
+source. We can remove the non-linearity as before and take
+a ratio, arriving at the following equation:
+iun,2(??z(x) · s? + s3) = iun,1(??z(x) · t? + t3). (21)
+The above equation is independent of albedo, light source
+intensity and non-linear normalisation term. Again as be-
+fore, we can rewrite (21) as a PDE in the form of (18) with
+b(x) := b(iun,1,iun,2) = iun,2(x)s?? iun,1(x) t?, (22)
+where t? = (t1, t2), and
+h(x) := h(iun,1,iun,2) = iun,2(x)s3 ? iun,1(x) t3. (23)
+4. A unified PDE formulation
+Commencing from the constraints introduced in Sec. 3,
+in this section we show how to solve several different prob-
+lems in photo-polarimetric shape estimation. The common
+feature is that these are all linear in the unknown height, and
+are expressed in a unified formulation in terms of a system
+of PDEs in the same general form:
+B(x)?z(x) = h(x), (24)
+where B : ?? ? RJ×2, h : ?? ? RJ×1, denoting by ?
+the reconstruction domain and being J = 2, 3 or 4 depend-
+ing on the cases. (24) is a compact and general equation,
+suitable for describing several cases in a unified differential
+formulation that solves directly for surface height.
+Different combinations of the three constraints described
+in Sec. 3 that are linear in the surface gradient can be com-
+bined in the formulation of (24). Each corresponds to dif-
+ferent assumptions and have different pros and cons. We
+explore three variants and show that [24] is a special case
+of our formulation. We summarise the alternative formula-
+tions in Tab. 1.
+Phase DOP Intensity
+Method angle ratio ratio
+[24] X X
+Proposed 1 X X
+Proposed 2 X X
+Proposed 3 X X X
+Table 1. Summary of the different formulations
+4.1. Single light and polarisation formulation
+This case has been studied in [24]. It uses a single po-
+larisation image, requires known illumination (though [24]
+show how this can be estimated if unknown) and assumes
+that albedo is known or uniform. This last assumption is
+quite restrictive, since it can only be applied to objects with
+homogeneous surfaces. With just a single illumination con-
+dition, only the phase angle and DOP ratio constraints are
+available. This thus becomes a special case of our general
+unified formulation (24), where B and h are defined as
+B =
+[
+b
+(f,iun)
+1 b
+(f,iun)
+2
+? cos? sin?
+]
+, h = [h(f,iun), 0]T , (25)
+with b(f,iun) and h(f,iun) defined by (19) and (20), with uni-
+form ?(x) and v = [0, 0, 1]T .
+4.2. Proposed 1: Albedo invariant formulation
+Our first proposed method uses the phase angle con-
+straint (14) and two unpolarised images, taken from two
+different light source directions, obtained through (12) and
+combined as in (21). In this case the problem studied is
+described by the system of PDEs (24) with
+B(x) =
+[
+b
+(iun,1,iun,2)
+1 b
+(iun,1,iun,2)
+2
+? cos? sin?
+]
+,h(x) =
+[
+h(iun,1,iun,2)
+0
+]
+,
+(26)
+where b(iun,1,iun,2) and h(iun,1,iun,2) defined as in (22) and
+(23). The phase angle does not depend on albedo and the
+intensity ratio constraint is invariant to albedo. As a re-
+sult, this formulation is particularly powerful because it al-
+lows albedo invariant height estimation. Moreover, the light
+source directions in the two images can be estimated (again,
+in an albedo invariant manner) using the method in Sec. 6.
+Once surface height has been estimated, we can compute
+the surface normal at each pixel and it is then straightfor-
+ward to estimate an albedo map using (11). Where we have
+two diffuse observations, we can compute albedo from two
+equations of the form of (11) in a least squares sense. In
+real data, where we have specular pixel labels, we use only
+the diffuse observations at each pixel. To avoid artifacts at
+the boundary of specular regions, we introduce a gradient
+consistency term into the albedo estimation. We encourage
+the gradient of the albedo map to match the gradients of the
+intensity image for diffuse pixels.
+4.3. Proposed 2: Phase invariant formulation
+Our second proposed method uses only the DOP ratio
+and the intensity ratio constraints. This means that phase
+angle estimates are not used. The advantage of this is
+that phase angles are subject to a shift of ?2 at specular
+reflections when compared to diffuse reflections. So, the
+phase angle constraint relies upon having accurate per-pixel
+specularity labels, which classify reflections as either dom-
+inantly specular or diffuse (or alternatively use a mixed po-
+larisation model [25] with a four way ambiguity). In this
+case we need a) two unpolarised intensity images, taken
+with two different light source directions, s and t, obtained
+through (12), b) polarisation information from the function
+f(?, ?) and c) knowledge of the albedo map. We need
+s, t,v non-coplanar in order to have the matrix field B not
+singular. Note that the function f , obtained from polariza-
+tion information (as in (10)), is the same for the two re-
+quired images. The reason for this is that it does not depend
+on the light source directions but only on the viewer direc-
+tion v which does not change. This formulation can be de-
+duced starting from (21) and (17), arriving at a PDE system
+as in (24) with
+B = [b(f,iun,1),b(f,iun,2),b(iun,1,iun,2)]T , (27)
+and h = [h(f,iun,1), h(f,iun,2), h(iun,1,iun,2)]T , using (19), (20),
+(22), (23) to define the vector fields b and the scalar fields
+h that appear in B and h.
+4.4. Proposed 3: Most constrained formulation
+Our final proposed method combines all of the previous
+constraints, leading to a problem of the form (24) with
+B=
+?????
+b
+(f,iun,1)
+1 b
+(f,iun,1)
+2
+b
+(f,iun,2)
+1 b
+(f,iun,2)
+2
+b
+(iun,1,iun,2)
+1 b
+(iun,1,iun,2)
+2
+? cos? sin?
+????? , h =
+????
+h(f,iun,1)
+h(f,iun,2)
+h(iun,1,iun,2)
+0
+???? .
+(28)
+This formulation uses the most information and so is poten-
+tially the most robust method. However, it requires known
+albedo in order to use the DOP ratio constraint. Neverthe-
+less, it is possible to first apply proposed method 1, esti-
+mate the albedo and then re-estimate surface height using
+the maximally constrained formulation and the estimated
+albedo map. In fact, the best performance is obtained by it-
+erating these two steps, alternately using the surface height
+estimate to compute albedo and then using the updated
+albedo to re-compute surface height.
+4.5. Extension to colour images
+We now consider how to extend the above systems of
+equations when colour information is available. If a sur-
+face is lit by a coloured point source, then each pixel pro-
+vides three equations of the form in (11). In principle, this
+provides no more information than a grayscale observation
+since the surface normal and light source direction are fixed
+across colour channels. However, in the presence of noise
+using all three observations improves robustness. In partic-
+ular, if the albedo value at a pixel is lower in one colour
+channel, the signal to noise ratio will be worse in that chan-
+nel than the others. For a multicoloured object, it is impos-
+sible to choose a single colour channel that provides the best
+signal to noise ratio across the whole object. For this rea-
+son, we propose to use information from all colour channels
+where available.
+We already exploit colour information in the estimation
+of the polarisation image in Sec. 2.2. Hence, the phase angle
+estimates have already benefited from the improved robust-
+ness. Both the DOP ratio and intensity ratio constraints can
+also exploit colour information by repeating each constraint
+three times, once for each colour channel. In the case of the
+intensity ratio, the colour albedo once again cancels if ratios
+are taken between the same colour channels under different
+light source directions.
+5. Height estimation via linear least squares
+We have seen that each of the variants illustrated in the
+previous section, each with different advantages, can be
+written as a PDE system (24). Denoting by M the num-
+ber of pixels, we discretise the gradient in (24) via finite
+differences, arriving at the following linear system in z
+Az = h?, (29)
+where A = B?G, with G ? R2M×M the matrix of finite dif-
+ference gradients. B? ? RJM×2M is the discrete per-pixel
+version of the matrix B(x), hence A ? RJM×M , where J
+depends on the various proposed cases reported in Sec. 4
+(J = 2 for (25) and (26), J = 3 for (27) and J = 4 for
+(28)). h? is the discrete per-pixel version of the function
+h(x), h? ? RJM×1, and z ? RM×1 the vector of the un-
+known height values. The resulting discrete system is large,
+since we have JM linear equations in M unknowns, but
+sparse, since A has few non-zero values for each row, and
+has as unknowns the height values. The per-pixel matrix A
+is a full-rank matrix, for each choice of B? that comes from
+the proposed formulations in Sec. 4, under the different as-
+sumptions specified for each case. The per-pixel matrix A
+related to [24] is full-rank except in one case: when the
+first two components of the light vector s are non-zero and
+s1 = ?s2 and it happens that the phase angle is ? = ?/4
+at least in one pixel. In that case, the matrix has a rank-
+deficiency (though in practice ? assuming a value of exactly
+?/4, up to numerical tolerance, is unlikely).
+We want to find a solution of (29) in the least-squares
+sense, i.e. find a vector z ? RM such that
+||Az? h?||22 ? ||Ay ? h?||22, ?y ? RM . (30)
+Considering the associated system of normal equations
+AT (Az? h?) = 0, (31)
+it is well-known that if there exists z ? RM that satisfies
+(31), then z is also solution of the least-squares problem,
+i.e. z satisfies (30). Since A is a full-rank matrix, then the
+matrix ATA is not singular, hence there exists a unique so-
+lution z of (31) for each data term h?. Since neither B nor
+h depend on z in (24), the solution can be computed only
+up to an additive constant (which is consistent with the or-
+thographic projection assumption). To resolve the unknown
+constant, knowledge of z at just one pixel is sufficient. In
+our implementation, we remove the height of one pixel from
+the variables and substitute its zero value elsewhere.
+6. Two source lighting estimation
+Our three proposed shape estimation methods require
+knowledge of the two light source directions. Previously,
+Smith et al. [24] showed that a single polarisation image
+can be used to estimate illumination conditions up to a bi-
+nary ambiguity. However, to do so, they assumed that the
+albedo was known or uniform, and they also worked only
+with a single colour channel. In a two source setting, we
+show that it is possible to estimate both light source direc-
+tions simultaneously, and do so in an albedo invariant man-
+ner. Moreover, we can exploit information across different
+colour channels to improve robustness to noise. Hence, our
+three methods can be used in an uncalibrated setting.
+The intensity ratio (21) provides one equation per pixel
+relating unpolarised intensities, surface gradient and light
+source directions. Given two polarisation images with dif-
+ferent light directions, we have one such equation per pixel
+and six unknowns in total. We assume that ambiguous sur-
+face gradient estimates are known from ? and ?, and then
+use (21) to estimate the light source directions.
+The intensity ratio (21) is homogeneous in s and t and
+so has a trivial solution s = t = [0 0 0]T . If we assume that
+the intensity of the light source remains constant in each
+colour channel across the two images, then this intensity di-
+vides out when taking an intensity ratio and so the length of
+the light source vectors is arbitrary. We therefore constrain
+them to unit length (avoiding the trivial solution), and rep-
+resent them by spherical coordinates (?s, ?s) and (?t, ?t),
+such that [s1, s2, s3] = [cos?s sin ?s, sin?s sin ?s, cos ?s]
+and [t1, t2, t3] = [cos?t sin ?t, sin?t sin ?t, cos ?t]. This
+reduces the number of unknowns to four. We can now
+write the residual at each pixel given an estimate of the light
+source directions. There are two possible residuals, depend-
+ing on which of the two ambiguous polarisation normals we
+use. From the phase angle and the zenith angle estimated
+from the degree of polarisation using (10), we have two
+possible surface normal directions at each pixel and there-
+fore two possible gradients: zx(x) ? ± cos?(x) tan ?(x),
+zy(x) ? ± sin?(x) tan ?(x). Hence, the residuals at pixel
+xj in channel c are given by either:
+rj,c(?s, ?s, ?t, ?t) =i
+c
+un,1(xj)(?zx(xj)t1 ? zy(xj)t2 + t3)?
+icun,2(xj)(?zx(xj)s1 ? zy(xj)s2 + s3),
+or
+qj,c(?s, ?s, ?t, ?t) =i
+c
+un,1(xj)(zx(xj)t1 + zy(xj)t2 + t3)?
+icun,2(xj)(zx(xj)s1 + zy(xj)s2 + s3).
+We can now write a minimisation problem for light source
+direction estimation by summing the minimum of the two
+residuals over all pixels and colour channels:
+min
+?s,?s,?t,?t
+?
+j,c
+min[r2j,c(?s, ?s, ?t, ?t), q
+2
+j,c(?s, ?s, ?t, ?t)].
+The minimum of two convex functions is not itself con-
+vex and so this optimisation is non-convex. However, we
+find that, even with a random initialisation, it almost always
+converges to the global minimum. As in [24], the solu-
+tion is still subject to a binary ambiguity, in that if (s, t)
+is a solution then (Ts,Tt) is also a solution (with T =
+diag([?1,?1, 1])), corresponding to the convex/concave
+ambiguity. We resolve this simply by choosing the maxi-
+mal solution when surface height is later recovered.
+7. Experiments
+We begin by using synthetic data generated from the
+Mozart height map (Fig. 3). We differentiate to obtain sur-
+face normals and compute unpolarised intensities by ren-
+dering the surface using light sources s = [1, 0, 5]T and
+t = [?1,?2, 7]T according to (11). We experiment with
+both uniform albedo and varying albedo for which we use
+a checkerboard pattern. We simulate the effect of polarisa-
+tion according to (2), varying the polariser angle between
+0? and 180? in 10? increments. Next, we corrupt this data
+by adding Gaussian noise with zero mean and standard de-
+viation ?, saturate and quantise to 8 bits. This noisy data
+provides the input to our reconstruction. First, we estimate a
+polarisation image using the method in Sec. 2.2, then apply
+each of the proposed methods or the state-of-the-art com-
+parison method [24] to recover the height map.
+In Tab. 2 we report Root-Mean-Square (RMS) error in
+the surface height (in pixels) and mean angular error (in de-
+grees) in the surface normals obtained by differentiating the
+estimated surface height. In Fig. 3 we show a sample of
+qualitative results from this experiment. In all cases, more
+than one of our proposed methods outperform [24]. When
+albedo is uniform, our phase invariant (Prop. 2) or maxi-
+mally constrained solution (Prop. 3) provides the best re-
+sults. When albedo is non-uniform, the albedo invariant
+method (Prop. 1) provides much better performance. Al-
+though the combination of the albedo invariant method fol-
+lowed by the maximally constrained method (Prop. 1+3)
+Input	 Es)mated	Normals	 Es)mated	Albedo	 Reillumina)on	 Es)mated	surface	 [24]	
+Figure 2. Qualitative results on real objects with varying albedo obtained by using Prop. 1+3 and comparison to [24] (zoom for detail).
+Input Input Ground
+(uniform albedo) (varying albedo) truth height
+[24] Prop. 1 Prop. 2 Prop. 3 Prop. 1+3
+U
+ni
+fo
+rm
+al
+be
+do
+Va
+ry
+in
+g
+al
+be
+do
+Figure 3. Qualitative results on synthetic data.
+does not give quantitatively the best performance, we find
+that on real world data containing more complex noise and
+specular reflections, this approach is most robust.
+In Fig. 2 we show qualitative results on two real objects
+with spatially varying albedo. From left to right we show:
+an image from the input sequence; the surface normals of
+the estimated height map (inset sphere shows how orienta-
+tion is visualised as colour); the estimated albedo map; a
+re-rendering of the estimated surface and albedo map under
+novel lighting with Blinn-Phong reflectance [5]; a rotated
+view of the estimated surface; and, for comparison, recon-
+structions of the same surfaces using [24]. The results of
+[24] are highly distorted in the presence of varying albedo.
+Our approach avoids transfer of albedo details into the re-
+covered shape, leading to convincing relighting results.
+8. Conclusions
+In this paper we have introduced a unifying formulation
+for recovering height from photo-polarimetric data and pro-
+posed a variety of methods that use different combinations
+of linear constraints. We proposed a more robust way to
+estimate a polarisation image from multichannel data and
+? = 0% ? = 0.5% ? = 2%
+Setting Method Height Normal Height Normal Height Normal(pix) (deg) (pix) (deg) (pix) (deg)
+Uniform
+albedo,
+known
+lighting
+[24] 1.12 2.85 1.68 4.48 5.06 11.28
+Prop. 1 1.78 2.52 1.94 3.30 3.49 7.22
+Prop. 2 0.23 1.45 0.70 1.70 6.50 5.33
+Prop. 3 0.42 1.03 0.52 1.74 1.53 4.73
+Prop. 1+3 3.37 3.22 3.62 4.03 5.82 9.15
+Uniform
+albedo,
+estimated
+lighting
+[24] 1.10 2.84 1.55 4.36 4.94 11.16
+Prop. 1 1.77 2.51 1.88 3.23 3.04 6.86
+Prop. 2 0.23 1.45 0.71 1.71 5.87 5.68
+Prop. 3 0.41 1.02 0.49 1.74 1.47 4.88
+Prop. 1+3 3.36 3.21 3.57 3.97 5.73 8.93
+Unknown
+albedo,
+known
+lighting
+[24] 22.50 28.03 21.63 27.76 20.76 26.74
+Prop. 1 2.74 4.18 3.28 5.76 6.65 13.11
+Prop. 2 141.19 59.69 140.04 59.49 131.16 57.69
+Prop. 3 18.62 16.76 18.58 16.85 17.33 16.82
+Prop. 1+3 5.22 9.59 5.80 11.26 7.56 16.50
+Unknown
+albedo,
+estimated
+lighting
+[24] 7.78 18.10 8.20 18.82 9.93 22.68
+Prop. 1 2.73 4.17 3.19 5.62 6.53 12.98
+Prop. 2 140.56 59.58 133.76 58.31 91.24 47.88
+Prop. 3 18.66 16.79 19.02 17.15 20.34 18.76
+Prop. 1+3 5.21 9.57 5.75 11.09 8.84 19.56
+Table 2. Height and surface normal errors on synthetic data.
+showed how to estimate lighting from two source photo-
+polarimetric images. Together, our methods provide un-
+calibrated, albedo invariant shape estimation with only two
+light sources. Since our unified differential formulation
+does not depend on a specific camera setup or a chosen re-
+flectance model, the most obvious target for future work is
+to move to a perspective projection, considering more com-
+plex reflectance models, exploiting better the information
+available in specular reflection and polarisation. In addition,
+since our methods directly estimate surface height, it would
+be straightforward to incorporate positional constraints, for
+example provided by binocular stereo.
+Acknowledgements
+This work was supported mainly by the “GNCS - INdAM”,
+in part by ONR grant N000141512013 and the UC San
+Diego Center for Visual Computing. W. Smith was sup-
+ported by EPSRC grant EP/N028481/1.
+References
+[1] G. A. Atkinson and E. R. Hancock. Recovery of surface
+orientation from diffuse polarization. IEEE Transactions on
+Image processing, 15(6):1653–1664, 2006. 2, 3, 4
+[2] G. A. Atkinson and E. R. Hancock. Shape estimation us-
+ing polarization and shading from two views. IEEE Trans.
+Pattern Anal. Mach. Intell., 29(11):2001–2017, 2007. 2
+[3] G. A. Atkinson and E. R. Hancock. Surface reconstruction
+using polarization and photometric stereo. In Proc. CAIP,
+pages 466–473, 2007. 2
+[4] P. N. Belhumeur, D. J. Kriegman, and A. Yuille. The Bas-
+relief ambiguity. Int. J. Comput. Vision, 35(1):33–44, 1999.
+2
+[5] J. F. Blinn. Models of light reflection for computer synthe-
+sized pictures. Computer Graphics, 11(2):192–198, 1977.
+8
+[6] O. Drbohlav and R. S?a?ra. Unambiguous determination of
+shape from photometric stereo with unknown light sources.
+In Proc. ICCV, pages 581–586, 2001. 2
+[7] A. Ecker and A. D. Jepson. Polynomial shape from shading.
+In Proc. CVPR, pages 145–152. IEEE, 2010. 1
+[8] C. P. Huynh, A. Robles-Kelly, and E. Hancock. Shape and
+refractive index recovery from single-view polarisation im-
+ages. In Proc. CVPR, pages 1229–1236, 2010. 2, 3
+[9] C. P. Huynh, A. Robles-Kelly, and E. R. Hancock. Shape
+and refractive index from single-view spectro-polarimetric
+images. Int. J. Comput. Vision, 101(1):64–94, 2013. 2
+[10] A. Kadambi, V. Taamazyan, B. Shi, and R. Raskar. Polarized
+3D: High-quality depth sensing with polarization cues. In
+Proc. ICCV, 2015. 1, 2
+[11] A. H. Mahmoud, M. T. El-Melegy, and A. A. Farag. Direct
+method for shape recovery from polarization and shading. In
+Proc. ICIP, pages 1769–1772, 2012. 2
+[12] R. Mecca and M. Falcone. Uniqueness and approximation
+of a photometric shape-from-shading model. SIAM Journal
+on Imaging Sciences, 6(1):616–659, 2013. 1
+[13] R. Mecca and Y. Que?au. Unifying diffuse and specular
+reflections for the photometric stereo problem. In IEEE
+Workshop on Applications of Computer Vision (WACV), Lake
+Placid, USA, 2016, 2016. 1
+[14] D. Miyazaki, M. Kagesawa, and K. Ikeuchi. Transparent
+surface modeling from a pair of polarization images. IEEE
+Trans. Pattern Anal. Mach. Intell., 26(1):73–82, 2004. 2
+[15] D. Miyazaki, R. T. Tan, K. Hara, and K. Ikeuchi.
+Polarization-based inverse rendering from a single view. In
+Proc. ICCV, pages 982–987, 2003. 2
+[16] O. Morel, F. Meriaudeau, C. Stolz, and P. Gorria. Polariza-
+tion imaging applied to 3D reconstruction of specular metal-
+lic surfaces. In Proc. EI 2005, pages 178–186, 2005. 2
+[17] S. G. Narasimhan, V. Ramesh, and S. Nayar. A class of pho-
+tometric invariants: Separating material from shape and il-
+lumination. In Proc. ICCV, volume 2, pages 1387 – 1394,
+2003. 3
+[18] S. Nayar, X. Fang, , and T. Boult. Separation of reflection
+components using color and polarization. Int. J. Comput.
+Vision, 21(3):163–186, 1997. 2
+[19] T. T. Ngo, H. Nagahara, and R. Taniguchi. Shape and light
+directions from shading and polarization. In Proc. CVPR,
+pages 2310–2318, 2015. 2
+[20] Y. Que?au, R. Mecca, and J. D. Durou. Unbiased photometric
+stereo for colored surfaces: A variational approach. In 2016
+IEEE Conference on Computer Vision and Pattern Recogni-
+tion (CVPR), pages 4359–4368, June 2016. 1
+[21] Y. Que?au, R. Mecca, J.-D. Durou, and X. Descombes. Photo-
+metric stereo with only two images: A theoretical study and
+numerical resolution. Image and Vision Computing, 57:175–
+191, 2017. 1
+[22] S. Rahmann and N. Canterakis. Reconstruction of specular
+surfaces using polarization imaging. In Proc. CVPR, 2001.
+2
+[23] W. Smith and F. Fang. Height from photometric ratio with
+model-based light source selection. Computer Vision and
+Image Understanding, 145:128 – 138, 2016. 1
+[24] W. A. P. Smith, R. Ramamoorthi, and S. Tozza. Linear depth
+estimation from an uncalibrated, monocular polarisation im-
+age. In Computer Vision - ECCV 2016, volume 9912 of Lec-
+ture Notes in Computer Science, pages 109–125, 2016. 1, 2,
+4, 5, 6, 7, 8
+[25] V. Taamazyan, A. Kadambi, and R. Raskar. Shape from
+mixed polarization. arXiv preprint arXiv:1605.02066, 2016.
+2, 6
+[26] S. Tozza, R. Mecca, M. Duocastella, and A. Del Bue. Di-
+rect differential photometric stereo shape recovery of diffuse
+and specular surfaces. Journal of Mathematical Imaging and
+Vision, 56(1):57–76, 2016. 1
+[27] L. B. Wolff. Polarization vision: a new sensory approach to
+image understanding. Image Vision Comput., 15(2):81–93,
+1997. 2, 3
+[28] L. B. Wolff and T. E. Boult. Constraining object features
+using a polarization reflectance model. IEEE Trans. Pattern
+Anal. Mach. Intell., 13(7):635—657, 1991. 2

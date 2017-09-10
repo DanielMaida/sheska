@@ -1,0 +1,1363 @@
+SUM-PRODUCT GRAPHICAL MODELS?
+Mattia Desana1† and Christoph Schno?rr1,2.
+1Heidelberg Collaboratory for Image Processing (HCI)
+2Image and Pattern Analysis Group (IPA)
+Heidelberg University, Germany
+Abstract
+This paper introduces a new probabilistic architecture called Sum-Product Graphical Model (SPGM). SPGMs
+combine traits from Sum-Product Networks (SPNs) and Graphical Models (GMs): Like SPNs, SPGMs always enable
+tractable inference using a class of models that incorporate context specific independence. Like GMs, SPGMs provide
+a high-level model interpretation in terms of conditional independence assumptions and corresponding factorizations.
+Thus, the new architecture represents a class of probability distributions that combines, for the first time, the semantics
+of graphical models with the evaluation efficiency of SPNs. We also propose a novel algorithm for learning both the
+structure and the parameters of SPGMs. A comparative empirical evaluation demonstrates competitive performances
+of our approach in density estimation.
+1 Introduction
+The compromise between model expressiveness and tractability of model evaluation (inference) is a key issue of sci-
+entific computing. Regarding probabilistic Graphical Models (GMs), tractable inference is guaranteed for acyclic
+graphical models and GMs on cyclic graphs with small treewidth (Wainwright and Jordan, 2008), i.e. on graphs that
+after triangultradeation admit a tree-decomposition which induces only maximal cliques of small size (Diestel, 2006).
+On the other hand, except for a subset of discrete graphical models (see, e.g., Kolmogorov and Zabih (2004)) where
+inference can be reformulated as a maximum flow problem, inference with cyclic graphical models generally suffers
+from a complexity that exponentially grows with the treewidth of the underlying graph, so that approximate inference
+is the only viable choice.
+trade Recently, Sum-Product Networks (SPNs) (Poon and Domingos, 2011) and closely related architectures includ-
+ing Arithmetic Circuits and And-Or Graphs (Darwiche, 2002; Dechter and Mateescu, 2007) have received attention in
+the probabilistic machine learning community, mainly due to two attractive properties:
+1. These architectures allow to cope with probability distributions that are more complex than tractable graphical
+models as characterized above. A major reason is that SPNs enable an efficient representation of contextual
+independency: independency between variables that only holds in connection with some assignment of a subset
+of variables in the model, called “context”. Exploiting contextual independency allows to drastically reduce
+the cost of inference, whenever the modelled distribution justfies this assumption. By contrast, as discussed by
+Boutilier et al. (1996), GMs cannot represent contextual independence compactly, since the connection between
+nodes in a GM represent conditional independences rather than contextual ones. As a result, a significant subset
+of distributions that would be represented by graphical models with high treewidth (due to the inability to exploit
+contextual independency) can be represented by SPNs in a tractable way. A detailed example illustrating this
+key point is provided in Section 1.1.
+?Support of the German Science Foundation, grant GRK 1653, is gratefully acknowledged.
+†Corresponding author. Email: mattia.desana@iwr.uni-heidelberg.de.
+1
+ar
+X
+iv
+:1
+70
+8.
+06
+43
+8v
+1 
+ [
+st
+at
+.M
+L
+] 
+ 2
+1 
+A
+ug
+ 2
+01
+7
+(a) (b)
+Figure 1.1: Representation properties of Graphical Models (GMs) and Sum-Product Networks (SPNs). The same
+distribution specified by Eq. (1.1) is represented by a GM in panel (a) and by a SPN in panel (b). This illustrates that
+GMs represent conditional independence more compactly than SPNs.
+2. Secondly, SPNs ensure that the cost of inference is always linear in the model size and, therefore, inference
+is always tractable. This aspect greatly simplifies approaches to learning the structure of such models, the
+complexity of which essentially depends on the complexity of inference as a subroutine. In recent work, it has
+been shown empirically that structure learning approaches for SPNs produce state of the art results in density
+estimation (see e.g. Gens and Domingos (2013), Rooshenas and Lowd (2014), Rahman and Gogate (2016a),
+Rahman and Gogate (2016b)), suggesting that performing exact inference with tractable models might be a
+better approach than approximate inference using more complex but intractable models.
+On the other hand, the ability of SPNs to represent efficiently contextual independency is due to a low-level rep-
+resentation of the underlying distribution. This representation comprises a Directed Acyclic Graph with sums and
+products as internal nodes, and with indicator variables associated to each state of each variable in the model, that
+become active when a variable is in a certain state (Fig. 1.1(b)).
+Thus, SPN graphs directly represent the flow of operations performed during the inference procedure, which is
+much harder to read and interpret than a factorized graphical model due to conditional independence. In particular, the
+factorization associated to the graphical model is lost after translating the model into a SPN, and can only be retrieved
+(when possible) through a complex hidden variable restoration procedure (Peharz et al., 2016). As a consequence of
+these incompatibilities, research on SPNs has largely evolved without much overlap with work on GMs.
+The focus of this paper is to exploit jointly the favourable properties of GMs and SPNs. This has also been the
+objective of several related papers, which aimed at either endowing GMs with contextual independency or at extracting
+probabilistic semantics from SPNs. These prior works are discussed in detail in Section 1.4 along with Table 1.1.
+Rather than extending an existing model, however, we introduce a new archiifundefinedtecture which directly inherits
+the complementary favourable properties of both representations: conditional and contextual independency, together
+with tractable inference. We call this new architecture Sum-Product Graphical Model (SPGM).
+In addition, we devise a novel algorithm for learning both the structure and the model parameters of SPGMs
+which exploits the connection between GMs and SPNs. A comparative empirical evaluation demonstrates competitive
+performance of our approach in density estimation: we obtain results close to state of the art models, despite using a
+radically different approach from the established body of work and comparing against methods that rely on years of
+intensive research. These results demonstrate that SPGMs cover an attractive subclass of probabilistic models that can
+be efficiently evaluated and that are amenable to model parameter learning.
+1.1 Tradeoff Between High-Level Representation and Efficient Inference: An Example
+We consider a distribution of discrete random variables A,B,C,D in the following form (shown in Fig. 1.1a as a
+directed Graphical Model (GM)):
+P (A,B,C,D) = P (A)P (B|A)P (C|B)P (D|A) (1.1)
+2
+(a) (b) (c) (d)
+Figure 1.2: The distribution in Eq. 1.4 represented (from left to right) as Graphical Model (GM), as mixture of GMs,
+as Sum-Product Network (SPN) and as Sum-Product Graphical Model (SPGM).
+Uppercase letters A,B,C,D denote random variables and corresponding lowercase letters a, b, c, d values in their do-
+mains ?(A),?(B),?(C),?(D). We write
+?
+a,b,c,d for the sum over the joint domain ?(A)×?(B)×?(C)×?(D).
+Using this notation, the distribution P (A,B,C,D) can be written in the form of a network polynomial (Darwiche
+(2003)) as:
+P (A,B,C,D) =
+?
+a,b,c,d
+P (a, b, c, d)[A]a[B]b[C]c[D]d (1.2)
+Here P (a, b, c, d) denotes the value of P for assignment A = a,B = b, C = c,D = d, and [A]a, [B]b, [C]c, [D]d ?
+{0, 1} denote indicator variables. For instance, to compute the partition function all indicator variables of (1.2) are set
+to 1, and to compute the marginal probability P (A = 1) one sets [A]1 = 1, [A]0 = 0 and all the remaining indicators
+to 1.
+The next step is to exploit the factorization of P on the right-hand side of (1.1) in order to rearrange the sum of (1.2)
+more economically in terms of messages µ, which results in the sum-product message passing formulation equivalent
+to (1.2),
+P (A,B,C,D) =
+?
+a??(A)
+P (a)[A]aµb,a(a)µd,a(a), µb,a(A) =
+?
+b??(B)
+P (b|A)[B]bµc,b(b), (1.3a)
+µc,b(B) =
+?
+c??(C)
+P (c|B)[C]c, µd,a(A) =
+?
+d??(D)
+P (d|A)[D]d. (1.3b)
+As discussed above, the distribution can be represented in two forms: The first one is a directed graphical model
+conforming to Eq. (1.1), shown in Fig. 1.1a. The second one is a sum-product network (SPN) shown by Fig. 1.1b,
+which directly represents the computations expressed by Eqns. (1.3), with the coefficients P (·|·) omitted in Fig. 1.1b
+for better visibility. It is evident that the SPN does not clearly display the high level semantics due to conditional
+independence of the graphical model. On the other hand, the SPN makes explicit the computational structure for
+efficient inference and encodes more compactly than GMs a class of relevant situations described next.
+Introducing Contextual Independency. We consider a distribution in the form
+P (A,B,C,D,E,Z) = P (Z)P (A)P (B,C,D|A,Z)P (E|D) (1.4a)
+3
+with
+P (B,C,D|A,Z) =
+{
+P (Z = 0)P (B|A)P (C|A)P (D|A) if Z = 0,
+P (Z = 1)P (B|A)P (C|B)P (D|C) if Z = 1.
+(1.4b)
+Notice that different independency relations hold depending on the value taken by Z: if Z = 0, then B,C and D are
+conditionally independent given A, whereas if Z = 1, then they form a chain. We therefore say that this distribution
+exhibits context specific independence with context variable Z.
+As in the example before, this distribution can be represented in different ways. Firstly, choosing a graphical model
+(Fig. 1.2a) requires to model P (B,C,D|A,Z) as a single factor over 5 variables, since GMs cannot directly represent
+the if condition of (1.4b).1
+Secondly, we may represent the distribution as a mixture of two tree-structured GMs (Fig. 1.2b),
+P (B,C,D|A,Z) = P (Z = 0)P (A)P (B|A)P (C|A)P (D|A)P (E|D) (1.5a)
++P (Z = 1)P (A)P (B|A)P (C|B)P (D|C)P (E|D). (1.5b)
+However, since some factors, here P (A) and P (E|B), appear in both mixture components, this representation gener-
+ally looses compactness, and computations for inference are unneccessarily replicated.
+Finally, we may also represent the distribution as SPN (Fig. 1.2c) following the procedure outlined in the previous
+example. This represention allows to make explicit the if condition due to contextual independence and to share
+common parts in the two models components. On the other hand, as in the example above, the probabilistic relations
+which are easily readable in the other models, are hidden. Furthermore, the SPN representation is considerably more
+convoluted than the alternatives, and every state of every variable is explicitly represented.
+1.2 Sum-Product Graphical Models
+The previous section showed that SPNs conveniently represent context specific independence and algorithm structures
+for inference, whereas GMs directly display conditional independency through factorization. Several attempts were
+made in the literature to close this gap. We discuss related work in Section 1.4.
+Our approach to this problem is to introduce a new representation, called Sum-Product Graphical Model (SPGM),
+that directly inherits the favourable traits from both GMs and SPNs. SPGMs can be seen as an extension of SPN
+that, along with product and sum nodes as internal nodes, also comprises variable nodes which have the same role as
+usual nodes in graphical models. Alternatively, SPGMs can be seen as an extension of directed GMs by adding sum
+and product nodes as internal nodes. The SPGM representing the distribution (1.4) is shown by Fig. 1.2d. It clearly
+reveals both the mixture of the two tree-structured subgraphs and the shared components. Thus, SPGMs exhibit both
+the expressiveness of SPNs and the high level semantics of GMs.
+More generally, every SPGM implements a mixture of trees with shared subparts, as in the above example:2 Context
+variables attached to sum nodes implement context specific independence (likeZ in Fig. 1.2d) and select trees as model
+components to be combined. Conditional independence between variables, on the other hand, can be read off from the
+graph due to D-separation (Cowell et al., 2003). SPGMs enable to represent in this way very large mixtures, whose size
+grows exponentially with the model size and are thus intractable if represented as a standard mixture model. On the
+other hand, inference in SPGM has a worst case complexity that merely is quadratic in the SPGM size and effectively
+is quasi-linear in most practical cases.3
+In addition, SPGMs generally provide an equivalent but more compact and high level representation of SPNs, with
+the additional property that the role of variables with respect to both contextual and conditional independency remains
+explicit. A compilation procedure through message passing allows to convert the SPGM (Fig. 1.2d) into the equivalent
+SPN (Fig. 1.2c) which directly supports computational inference.
+1 A workaround involves factors with a complex structure, similar to SPNs, as done for instance in (Mcallester et al., 2004). Although this
+approach would be simple enough in the present example, it generally leads to a representation with the disadvantages of SPNs. See Section 1.4 for
+further discussion.
+2An extension to mixtures of junction trees (Cowell et al., 2003) is straightforward but does not essentially contribute to the present discussion
+and hence is omitted.
+3More precisely, the complexity is O(NM), where N is the number of nodes and M is the maximal number of parent nodes, of any node in the
+model.
+4
+(a) (b) (c)
+Figure 1.3: Sketch of the structure learning algorithm proposed in this paper. (a) A weighted subgraph on which
+we compute the maximal spanning trees. (b) Two maximal spanning trees of equal weight to included as mixture
+components into the SPGM. They differ only in a single edge. (c) The mixture of the two trees represented by sharing
+all common parts.
+1.3 Structure Learning
+Learning the structure of probabilistic models obviously is easier for models with tractable inference than for intractable
+ones, because any model parameter learning algorithm requires inference as a subroutine. For this reason, tractable
+probabilistic models and especially SPNs have been widely applied for density estimation (Gens and Domingos, 2013;
+Rooshenas and Lowd, 2014; Rahman and Gogate, 2016b,a). It it therefore highly relevant to provide and evaluate a
+structure learning algorithm for SPGMs, that enable tractable inference as well.
+We introduce an algorithm that starts with fitting a single tree in the classical way (Chow and Liu, 1968) and itera-
+tively insert sub-optimal trees that have large weights (in terms of the mutual information of adjacent random variables)
+and share as many edges as possible with existing tree components. Each insertion is guaranteed not to decrease the
+global log-likelihood. As a result, all informative edges can be included into the model without compromising compu-
+tational efficiency, because all shared components are evaluated only once. The former property is not true if a single
+tree is only fitted (Chow and Liu, 1968) whereas working directly with large tree mixtures (Meila and Jordan, 2000)
+may easily lead to a substantial fraction of redundant computations.
+Our approach is different from previous methods for learning the structure of SPNs, which mostly implement
+recursive partitioning of the variables into (approximately) independent clusters, to be represented by sum and product
+nodes (Gens and Domingos, 2013). Clearly, our greedy method for learning the model structure and parameters based
+on (Meila and Jordan, 2000) is only locally optimal as well, and focuses on the aforementioned statistical aspects that
+can be conveniently encoded by SPGMs. The results of a comprehensive experimental evaluation will be reported in
+Section 5.
+1.4 Related Work
+Table 1.1 lists and classifies prior work with a similar scope: introducing representations of probability distributions
+that fill to some extent the gap between GMs and SPNs. The caption of table 1.1 lists the properties used to classify
+related work.
+A major aspect of a SPGM is that it encodes a SPN through message passing. This will be made precise formally
+in Section 3.4. As a consequence, SPGMs relate to Arithmetic Circuits (Darwiche, 2002), which differ from SPNs
+only in the way connection weights are represented, and to And/Or Graphs (Dechter and Mateescu, 2007), which are
+structurally equivalent to Arithmetic Circuits and thus also to SPNs. We refer to (Dechter and Mateescu, 2007, Section
+7.6.1) for a discussion of details. As discussed in Section 1.2, SPGMs encode the computational structure for efficient
+inference like SPNs and related representations, but also preserve explicitly factorization properties of the underlying
+5
+Table 1.1: Comparison of architectural properties discussed in Section 1.4 for SPGMs and related architectures. We
+consider the following properties: guaranteed tractable inference (TractInf); same inference efficiency as SPNs (As-
+SPN); using exponential family factors with no limitation on generality (ExpFam); high level representation of condi-
+tional independence (CondInd); representation as a product of factors as in graphical models (FactProd).
+Model TractInf AsSPN ExpFam CondInd FactProd
+SPGM
+Graphical Models
+Mixtures of Trees (Meila and Jordan, 2000)
+Hierarchical MT (Jordan, 1994)
+Mix.Markov Model (Fridman, 2003)
+Gates (Minka and Winn, 2009)
+(Boutilier et al., 1996)
+Case-Factor diagrams (Mcallester et al., 2004)
+BayesNets local Struct (Chickering et al., 2013)
+Learn.Efficient MarkovNets (Gogate et al., 2010)
+(Poole and Zhang, 2011)
+Value Elimination (Bacchus et al., 2012)
+SPN as Bayesian Nets (Zhao et al., 2015)
+And/Or Graphs (Dechter and Mateescu, 2007)
+SPN (Poon and Domingos, 2011)
+Arithmetic Circuits (Darwiche, 2002)
+CNets (Rahman et al., 2014)
+distribution due to conditional independence.
+SPGMs can represent very large mixtures of trees. In this sense, SPGMs generalize Hierarchical Mixture of Trees
+(Jordan, 1994) by substituting the OR-tree structure used to generate the trees in these models with a general directed
+acyclic graph.
+SPGMs closely relate to Gates (Minka and Winn, 2009) and Mixed Markov Models (Fridman, 2003). These models
+augment graphical models by a so-called gate unit that implements context specific independence by switching edges
+on and off depending on the state of some context variables. In this respect, SPGMs may be regarded as Gates -
+see remark in Section 3.3.4 for corresponding technical aspects. However, unlike Gates and Mixed Markov Models,
+SPGMs guarantee tractable exact inference by construction.
+SPGMs related to several further methods that augment GMs by factors with complex structure in order to represent
+context specific independence (Boutilier et al., 1996; Mcallester et al., 2004; Chickering et al., 2013; Gogate et al.,
+2010; Bacchus et al., 2012). These approaches enable to represent product of factors like graphical models. However,
+the additional model complexity due to contextual independence is simply encapsulated inside the factors, based on
+models that are equivalent to SPNs and thus exhibit corresponding limitations (Section 1.1). In particular, in connection
+with distributions that combine both conditional and contextual independence, the approaches have to resort to a low-
+level SPN-like representation. On the other hand, if simpler factors (such as with distributions from the exponential
+family) were used instead, the model would loose its expressivenes.
+1.5 Contribution and Organization
+The contributions of this paper are twofold. First, we introduce SPGMs, which connect SPNs to Graphical Models
+in that they possess high level conditional independence semantics akin to Graphical Models. Moreover, they enable
+tractable inference and to represent context specific dependences and determinism as SPNs.
+The second contribution is a new structure learning approach that exploits this connection by learning very large
+mixtures of quasi optimal Chow-Liu trees with shared subparts. A comparative empirical analysis show that this
+algorithm is competitive against state of the art methods in density estimation.
+To empirically validate structure learning for SPGMs we tested the learning performances in a density estimation
+task using 20 real-life datasets (Section 5). We obtain the best results in 6 datasets over 20 comparing against 7
+state of the art methods, and close performances in the other cases. The results are particularly interesting given
+that our approach is novel, but we compare to methods based on years of layered research and stemming from a
+6
+common approach. This novel approach thus opens up several directions of improvement, inspired by techniques used
+in compared algorithms.
+Structure of the Paper This paper is organized as follows. Section 2 contains notation and background on graphical
+models and SPNs. Section 3 describes SPGMs and discusses their properties, analyzing the dual interpretation as
+mixture of tree graphical models and as SPN. Section 4 describes the proposed structure learning algorithm for SPGMs.
+Section 5 reports an extensive empirical evaluation of SPGMs in density estimation.
+2 Background
+2.1 Directed Graphical Models
+Let G = (V, E) be a Directed Acyclic Graph (DAG) with vertex set V = {1, 2, . . . , N} and edge set E . We associate to
+each vertex s ? V a discrete random variableXs taking values in the finite domain ? (Xs), andX = {Xs}s?V denotes
+the set of all variables of the model, taking values in the Cartesian product ?(X) := ? (X1)×? (X2)×· · ·×? (XN ).
+We formally define the indicator variables already introduced in Section 1.1, Eqs. (1.2), (1.3).
+Definition 2.1 (Indicator Variables). Let Y ? X be a subset of variables to which the values y ? ?(Y ) are assigned:
+Xv = yv, ?Xv ? Y . Based on the assignment y, we associated with every variable Xs ? X and every value
+i ? ?(Xs) the indicator variable [Xs]i ? {0, 1} defined by
+[Xs]i =
+{
+1 if (Xs ? Y and ys = i) or (Xs 6? Y ),
+0 otherwise.
+(2.1)
+We denote by pa(s) the parents of s in G: pa(s) = {r ? V : (r, s) ? E}.
+A Directed Graphical Model (Directed GM) on a graph G comprises conditional probabilities Ps,t (Xt|Xs) for
+every directed edge (s, t) ? E and unary probabilities Pr (Xr) for each vertex r ? V with no parent, and encodes the
+distribution
+P (X) =
+?
+r?V : pa(r)=?
+Pr (Xr)
+?
+(s,t)?E
+Ps,t (Xt|Xs) . (2.2)
+A Directed Tree Graphical Model (Tree GM) is a directed GM where the underlying graph G = T is a rooted tree T
+with root r. Since each vertex s has at most one parent pa(s), the distribution (2.2) reads
+T (X) = Pr (Xr)
+?
+s?V : pa(s) 6=?
+Ppa(s),s
+(
+Xs|Xpa(s)
+)
+. (2.3)
+Marginalization and Maximum a Posteriori (MAP) inference in general directed GMs has a cost that is exponential
+in the treewidth of the triangulated graph obtained by moralization of the original graph, and thus is intractable for
+graphs with cycles of non trivial size (Cowell et al., 2003; Diestel, 2006). However, in tree GMs inference can be
+computed efficiently with message passing. Let Y ? X be a set of observed variables with assignment y ? ?(Y ).
+Let [Xs]j , s ? V, j ? ?(Xs) denote indicator variables due to Definition 2.1. Node t sends a message µt?s;j to its
+parent s for each state j ? ?(Xs) given by
+µt?s;j =
+?
+k??(Xt)
+Ps,t (k|j) [Xt]k
+?
+(t,q)?E
+µq?t;k. (2.4)
+Setting C = X \ Y and x = (y, c), marginal probabilities T (Y = y) =
+?
+c??(C) T (Y = y, C = c) can be
+computed using the distribution (2.3) by first setting the indicator variables according to the assignment y (Definition
+2.1), then passing messages for every node in reverse topological order (from leaves to the root), and finally returning
+the value of the root message. MAP queries are computed in the very same way after substituting summmation with
+the max operation in Eq. (2.4). Since message passing in trees only requires computing one message per each node,
+7
+the procedure has complexity O(|V|?2max), where ?max = max{|?(Xs)| : s ? V} is the maximum domain size. As
+a consequence, tree GMs enable tractable inference.
+Graphical models conveniently encode conditional independence properties of a distribution. Conditional inde-
+pendence between variables in GMs are induced from the graph by D-separation (see, e.g., Cowell et al. (2003)). In
+the case of tree graphical models, D-separation becomes particularly simple: if the path between variables A and B
+contains C, then A is conditionally independent from B given C.
+It is well-known, however, that another form of independence are not covered well by the GMs: independence
+that only holds in certain contexts, i.e. depending on the assignment of values to a specific subset of so-called context
+variables.
+Definition 2.2 (Contextual Independence). Variables A and B are said to be contextually independent given Z and
+context z ? ?(Z) if P (A,B|Z = c) = P (A|Z = z)P (B|Z = z).
+Remark 2.1. Notice that conditional independence is a special case of contextual independence in which P (A,B|Z =
+c) = P (A|Z = z)P (B|Z = z) would hold for all z ? ?(Z). By contrast, contextual independence assures that this
+property only holds for a subset of value assignments that constitute the so-called context. In particular, different
+independences can hold for different values z – see Eq. (1.4b) for an illustration. We refer to Boutilier et al. (1996) for
+an in-depth discussion of contextual independence.
+Encoding contextual independence mainly motivates the model class of sum-product networks formally introduced in
+Section 2.2.
+Mixtures of Trees. A mixture of trees is a distribution in the form P (X) =
+?K
+k=1 ?kTk (X) where {Tk (X)}Kk=1 are
+directed tree GMs and {?k}Kk=1 are real non-negative weights satisfying
+?K
+k=1 ?k = 1. Inference in mixture models
+involves taking the weighted sum of the results of inference in each tree. Hence it has K times the cost of inference in
+a single tree in the mixture.
+A mixture model can also be expressed through a hidden variable Z with ?(Z) = {1, 2, . . . ,K} by writing:
+P (X,Z) =
+?K
+k=1 (?kTk (X))
+?(Z=k). Then, it holds that P (X) =
+?
+z??(Z) P (X,Z), P (Z = k) = ?k and
+P (X|Z = k) = ?kTk (X). Note that different values of Z entail different independences due to different tree
+structures. It follows that mixtures of trees represent context-specific independence with context variable Z.
+However, the family of conditional independences entailed by mixture models is limited to using a single context
+variable Z, and to the selection of different models defined on the entire set X for each value of Z. In contrast, the
+model class of sum-product networks to be introduced in the next section, allows to model contextual independences
+depending on multiple context variables that only affect a subset of X – see, e.g., the example in Section 1.1.
+2.2 Sum-Product Networks
+Sum-Product Networks (SPN) were introduced in (Poon and Domingos, 2011). They are closely related to Arith-
+metic Circuits (Darwiche, 2003). We adopt the definition of decomposable SPNs advocated by (Gens and Domingos,
+2013). The expressiveness of these models was shown by (Peharz, 2015) to be equivalent to the expressiveness of
+non-decomposable SPNs.
+Definition 2.3 (Sum-Product Network (SPN)). Let X = {X1, . . . , XN} be a collection of random variables, and let
+X = X1 ? X2 ? · · · ? XK be a partition of X . A Sum-Product Network (SPN) S(X) is recursively defined and
+constructed by the following rule and operations:
+1. An indicator variable [Xs]j is a SPN S({Xs}).
+2. The product
+?K
+k=1 Sk(Xk) is a SPN, with the SPNs {Sk(Xk)}Kk=1 as factors.
+3. The weighted sum
+?K
+k=1 wkSk(X) is a SPN, with the SPNs {Sk(X)}Kk=1 as summands and non-negative
+weights {wk}Kk=1.
+8
+Remark 2.2. Due to Definition 2.1, indicator variables that form SPNs require the specification of an assignment y
+of a subset of variables Y ? X , in order to be well-defined. Such assignments are specified in connection with the
+evaluation of a SPN, denoted by
+S(y) := S(X \ Y, Y = y). (2.5)
+Example 2.1. The SPN shown by Fig. 1.1b displays the operations due to Definition 2.3. Overall, it represents the
+operations of the sum-product message passing procedure (2.4)) with respect to the graphical model of Fig. 1.1a, where
+the indicator variables introduce evidence values (measurements, observations). Notice that indicator variables are the
+only variables in this SPN, and that the probabilities Ps, Ps,t define weights attached to the sum nodes.
+SPNs are evaluated in a way similar to message passing in tree graphical models (Eq. (2.4)). An evaluation S(y)
+due to (2.5) is computed by first assigning indicator variables in S according to y by Definition 2.1, then evaluating
+nodes in inverse topological order (leaves to root) and taking the value of the root node of S. MAP queries are computed
+in the very same way after substituting sum nodes with max nodes.
+Poon and Domingos (2011) shows that evaluating S(y) corresponds to computing marginals in some valid prob-
+ability distribution P (X), namely: S(y) = P (Y = y) =
+?
+x\y??(X\Y ) P (x), where x\y denotes assignments to
+variables in the set X \ Y . In addition, evaluating S(y) involves evaluating each node in the DAG, i.e. inference at
+O(E) time and memory cost is always tractable.
+The recursive Definition 2.3 enables to build up SPNs by iteratively composing SPNs using the operations 2 and
+3, starting from trivial SPNs as leaves in the form of indicator variables (rule 1). Clearly, it is not always intuitive to
+design a SPN by hand, which involves thinking of the product nodes as factorizations and of the sum nodes as mixtures
+of the underlying sub-models. For some particular applications, the SPN structure was designed and fitted in this way
+to the particular distribution at hand, cf. (Poon and Domingos, 2011; Cheng et al., 2014; Amer and Todorovic., 2015)).
+Yet, more generally, SPN approaches involve some form of automatic learning the structure of the SPN from given
+data (Gens and Domingos, 2013). Our approach to learning the structure of a SPN is described in Section 4.
+Besides tractability, the main motivation to consider the model class of SPNs is their ability to represent contextual
+independences more expressively than mixture models. A detailed analysis of the role of contextual independence
+in SPNs is provided in Section 3. Intuitively, the expressiveness of SPNs descends from interpreting sum nodes as
+mixtures of the children SPNs, which allows to create a hierarchy of mixture models and thus a hierarchy of contextual
+independences, by using hidden mixture variables. In addition, sharing the same children SPNs in different sum nodes
+allows to limit the effect of contextual independences to a subsection of the model, as shown in the example in Section
+1.1.
+3 Sum-Product Graphical Models
+This section introduces Sum-Product Graphical Models (SPGMs) and discusses their properties. We provide an inter-
+pretation of the model as a mixture of tree GMs in Section 3.3, and as a high-level representation of SPNs in Section
+3.4.
+3.1 Definition
+The first step in describing SPGMs is to define the type of nodes that appear in the underlying graph.
+Definition 3.1 (Sum, Product and Variable Nodes). Let X and Z be disjoint sets of discrete variables, and let G =
+(V, E) be a DAG.
+• The basic nodes s ? V of a SPGM are called SPGM Variable Node (Vnode) and associated with a variable
+Xs ? X , They are graphically represented as a circle having Xs as label (Fig. 3.1, left).
+• s ? V is called Sum Node, if it represents the corresponding operation indicated by the symbol ?. A Sum Node
+can be Observed, in which case it is associated to a variable Zs ? Z and represented by the symbol ?Zs.
+• s ? V is called Product Node, if it represents the corresponding operation indicated by the symbol ?.
+9
+In what follows, variables Z take the role of context variables according to Definition 2.2.
+Definition 3.2 (Scope of a node). Let G = (V, E) be a rooted DAG with nodes as in Definition 3.1, and let s ? V .
+• The scope of s is the set of all variables associated to nodes in the sub-DAG rooted in s.
+• The X-scope of s is the set of all variable associated to Vnodes in the sub-DAG rooted in s.
+• The Z-scope of s is the set of variables associated to Observed Sum Nodes in the sub-DAG rooted in s.
+Example 3.1. The scope of the Sum Node associated to Z2 in Fig. 3.1a is {D,E, F, Z2}, its Z-scope is {Z2}, and its
+X-scope is {D,E, F}.
+Finally, we define the set of “V-parents” of a Vnode s, which intuitively are the closest Vnode ancestors of s.
+Definition 3.3 (Vparent). The Vparent set vpa (s) of a Vnode s is the set of all r ? V such that r is a Vnode, and there
+is a directed path from r to s that does not include any other Vnode.
+With the definitions above we can now define SPGMs.
+Definition 3.4 (SPGM). A Sum-Product Graphical Model (SPGM) S (X,Z|G, {Pst}, {Ws}, {Qs}) or more shortly,
+S (X,Z) or even S, is a rooted DAG G = (V, E) where nodes can be Sum, Product or Vnodes as in Definition 3.1. The
+SPGM is governed by the following parameters:
+1. Pairwise conditional probabilities Pst (Xt|Xs) associated to each Vnode t ? V and each Vparent s ? vpa (t).
+2. Unary probabilities Ps (Xs) associated to each Vnode s ? V : vpa(s) = ?.
+3. Unary probabilities Ws(k) for k = {1, 2, ..., |ch(s)|} associated to each non-Observed Sum Node s, with value
+Ws(i) associated to the edge between s and its i-th child (assuming any order has been fixed).
+4. Unary probability Qs(Zs) s.t. ?(Zs) = {1, 2, ..., |ch(s)|} and associated to each Observed Sum Node s, with
+value Qs(i) being associated to the edge between s and its i-th child.
+In addition, each node s ? V must satisfy the following conditions:
+5. If s is a Vnode (associated to variable Xs), then s has at most one child c, and Xs does not appear in the scope
+of c.
+6. If s is a Sum Node, then s has at least one child, and the scopes of all children are the same set. If the Sum Node
+is Observed (hence associated to variable Zs), then Zs is not in the scope of any child.
+7. If s is a Product Node, then s has at least one child, and the scopes of all children are disjoint sets.
+An example SPGM is shown in Fig. 3.1, left. Note that the closeness with both SPNs and GMs, to be further
+discussed later, can be already seen from the definition: the last three conditions in definition are closely related to SPN
+conditions (Definition 2.3), whereas the usage of pairwise and unary probabilities in 1.-4. above connects SPGMs to
+graphical models.
+3.2 Message Passing in SPGMs
+We now define a message passing protocol used to evaluate SPGMs, which conforms to the way how SPGMs represent
+conditional and contextual independence efficiently. The following definition refers to Definitions 3.3 and 3.4.
+10
+(a) (b) (c)
+Figure 3.1: Sum-Product Graphical Model Example. (a) A SPGM S (X,Z) with X = {A,B,C,D,E, F} , Z =
+{Z1, Z2}. (b) A subtree of S (in green). (c) All subtrees of S are represented as graphical models and corresponding
+context variables.
+Definition 3.5 (Message passing in SPGMs). Let s ? V, t ? V and let ch(s)k denote the k-th child of s in a given
+order. Node t sends a message µt?s;j to each Vparent s ? vpa (t) and for each parent state j ? ?(Xs) according to
+the following rules:
+µt?s;j =
+?|ch(t)|
+k=1 [Zt]kQt(k)µch(t)k?s;j t is a Sum Node, Observed (3.1a)
+µt?s;j =
+?|ch(t)|
+k=1 Wt(k)µch(t)k?s;j t is a Sum Node, not-Observed (3.1b)
+µt?s;j =
+?
+q?ch(t) µq?s;j t is a Product Node (3.1c)
+µt?s;j =
+?
+k??(Xt) Ps,t (k|j) [Xt]kµch(t)?t;k t is a Vnode (3.1d)
+If vpa (s) is empty, top level messages are computed as:
+µt?root =
+?|ch(t)|
+k=1 [Zt]kQt(k)µch(t)k?root t is a Sum Node, Observed (3.1e)
+µt?root =
+?|ch(t)|
+k=1 Wt(k)µch(t)k?root;j t is a Sum Node, not-Observed (3.1f)
+µt?root =
+?
+q?ch(t) µq?root;j t is a Product Node (3.1g)
+µt?root =
+?
+k??(Xt) Ps (k) [Xt]kµch(t)?t;k t is a Vnode (3.1h)
+Vnodes at the leaves send messages as in Eqns. (3.1d) and (3.1h) after substituting the incoming messages by the
+constant 1.
+Note that that messages are only sent to Vnodes (or to a fictitious “root” for top level nodes), and no message is sent
+to Sum and Product Nodes. Notice further that Vnode messages resemble message passing in tree GMs (Eq. (2.4)),
+which is the base for our subsequent interpretation of SPGMs as graphical model.
+Definition 3.6 (Evaluation of S (X,Z)). Let Y ? X ? Z denote evidence variables with assignment y ? ? (Y ).
+The evaluation of a SPGM S with assignment y, written as S (y) (cf. Remark 2.2 and (2.5)), is obtained by setting the
+indicator variables accordingly (Definition 2.1), followed by evaluating messages for each node from the leaves to the
+root due to Definition 3.5, and then taking the value of the message produced by the root of S.
+Proposition 3.1. The evaluation of a SPGM S has complexity O(|V|M |?max|2), where M is the maximum number
+of Vparents for any node in S, and |?max| = max{?(Xs) : s ? V} is the maximum domain size for any variable in
+X .
+Proof. Every message is evaluated exactly once. Each of the |V| nodes sends at most M messages (one for each
+Vparent), and each message has size |?max|2 (one value per every state of sending and receiving node).
+11
+3.3 Interpretation of SPGMs as Graphical Models
+In this section, we consider and discuss SPGMs as probabilistic models. We show that SPGMs encode large mixtures
+of trees with shared subparts and provide a high-level representation of both conditional and contextual independence
+through D-separation.
+3.3.1 Subtrees
+We start by introducing subtrees of SPGMs and their properties.
+Definition 3.7 (Subtrees of SPGMs). Let S be a SPGM. A subtree ?(X,Z) (or more shortly ? ) is a SPGM defined
+on a subtree of the DAG G underlying S (cf. Def. 3.4), that is recursively constructed based on the root of S and the
+following steps:
+• If s is a Vnode or a Product Node, then include in ? all children of s and edges formed by s and its children.
+Continues this process for all included nodes.
+• If s is a Sum Node, then include in ? only the ks-th child and the corresponding connecting edge, where the
+choice of ks is arbitrary. Continue this process for all included nodes.
+We denote by T (S) the set of all subtrees of S.
+Example 3.2. One of the subtrees of the SPGM depicted in Fig. 3.1a is shown by Fig. 3.1b.
+Definition 3.8 (Subtrees ? and indicator variable sets z? ). Let ? ? T (S) be a subtree of S. The symbol z? denotes the
+set of all indicator variables associated to Observed Sum Nodes and their corresponding state in the subtree. Specifi-
+cally, if the ks-th child of an Observed Sum Node s is included in the tree, then [Zs]ks ? z? .
+Example 3.3. The set z? for the subtree in Fig. 3.1b is {[Z1]1, [Z2]0}.
+Definition 3.9 (Context-compatible subtrees). Let Y ? Z be a subset of context variables with assignment y ? ?(Y ),
+and let [y] denote the set of indicator variables corresponding to Y = y. The set of subtrees compatible with context
+Y = y, written as T (S|y), is the set of all subtrees ? ? T (S) such that [y] ? z? .
+Example 3.4. The set of subtrees T (S|Z1 = 0, Z2 = 0) for the SPGM in in Fig. 3.1 is composed by subtree ? , shown
+in Fig. 3.1b, and the subtree obtained by modifying ? through choosing the alternate child of the lowest sum node.
+We now state properties of subtrees that are essential for the subsequent discussion.
+Proposition 3.2. Any subtree ? ? T (S) is a tree SPGM.
+Proof. Only Product Nodes in ? ? T (S) can have multiple children, since Vnodes have a single child by Definition
+3.4, case 5, and Sum Nodes have a single child in ? by Definition 3.7. Children of Product Nodes have disjoint graphs
+by Definition 3.4, case 7. Therefore ? contains no cycles. A rooted graph with no cycles is a tree.
+Proposition 3.3. The number |T (S)| of subtrees of S grows as O(exp(|E|)).
+Proof. See Appendix A.2.
+Proposition 3.4. The scope of any subtree ?(X,Z) ? T (S(X,Z)) is {X,Z}.
+Proof. A subtree is obtained with Definition 3.7 by iteratively choosing only one child of each sum node. However,
+each child of a sum node has the same scope, due to Definition 3.4, condition 6. Hence, taking only one child one
+obtains the same scope as taking all the children.
+12
+P (X,Z) =
+?
+??T (S|Z)
+??P? (X) (3.2)
+P (X) =
+?
+??T (S)
+??P? (X) (3.3)
+P? (X) =
+?
+r?V? : vpa(r)=?
+Pr(Xr)
+?
+s?V? ,t:?V? : s?vpa(t)
+Ps,t(Xt|Xs) (3.4)
+?? =
+?
+s?O?
+Qs(ks,? )
+?
+s?U?
+Ws(ks,? ) (3.5)
+Table 3.1: Probabilistic models related to a SPGM S(X,Z). Symbols V? , O? and U? denote respectively the set of
+Vnodes, Observed Sum Nodes and Unobserved Sum Nodes in a subtree ? ? T (S). ks,? denotes the index of the child
+of s that is included in ? (see Definition 3.7). Evaluation of S (Definition 3.6) is equivalent to inference using the
+distribution (3.2), which is a mixture distribution (3.3) of tree graphical models (3.4), whose structure depends on the
+context as specified by the context variables Z of (3.2).
+3.3.2 SPGMs as Mixtures of Subtrees
+In this section, we show that SPGMs can be interpreted as mixtures of trees. Table 3.1 lists the notation and probabilistic
+(sub-)models relevant in this context.
+As a first step, we show that inference in a subtree ? due to Definition 3.7 is equivalent to inference in a tree
+graphical model of the form (2.3), multiplied for a constant factor determined by the sum nodes in the subtree.
+Proposition 3.5. Let S = S(X,Z) be a given SPGM, and let ? ? T (S) be a subtree (Def. 3.7) with indicator variables
+z? (Def. 3.8). Then message passing in ? is equivalent to inference using the distribution
+??P? (X)
+?
+[Zs]j?z?
+[Zs]j , (3.6)
+where P? (X) is a tree graphical model of the form (3.4), ?? > 0 is a scalar term obtained by multiplying the weights
+of all sum nodes in ? given by (3.5), and
+?
+[Zs]j?z? [Zs]j is the product of all indicator variables in z? .
+Proof. See Appendix A.1.
+The second step consists in noting that S can be written equivalently as the mixture of all its subtrees.
+Proposition 3.6. Evaluating a SPGM S(X,Z) is equivalent to evaluating a SPGM S?(X,Z) =
+?
+??T (S) ?(X,Z).
+Proof. In Appendix A.3.
+We are now prepared to state the main result of this section.
+Proposition 3.7. Let Yx ? X,Yz ? Z denote evidence variables with assignment yx ? ?(Yx), yz ? ?(Yz), respec-
+tively, and denote by x\y ? ?(X \ Yx), z\y ? ?(Z \ Yz) assignments to the remaining variables. Evaluating a SPGM
+S = S(X,Z) with assignment (yx, yz) (Definitions 3.5 and 3.6) is equivalent to performing marginal inference with
+respect to the distribution (3.2) as follows:
+P (Yx = yx, Yz = yz) =
+?
+x\y??(X\Yx)
+z\y??(Y \Yz)
+P
+(
+(X \ Yx) = x\y, (Y \ Yz) = z\y, Yx = yx, Yz = yz
+)
+. (3.7)
+Proof. Due to Propositions 3.5 and 3.6, the evaluation of S corresponds to performing message passing (Eq. 2.4) with
+the mixture distribution ?
+??T (S)
+( ?
+[Zs]j?z?
+[Zs]j
+)
+??P? (X) .
+13
+We now note that the term
+(?
+[Zs]j?z? [Zs]j
+)
+attains the value 1 only for the subset of trees compatible with the
+assignment Yz = yz and 0 otherwise (since some indicator in the product is 0), that is for subtrees in the set T (S|Yz =
+yz) (Definition 3.9). Therefore, the sum can be rewritten as
+?
+??T (S|Z), and the indicator variables (with value 1) can
+be removed, which results in (3.2). The proof is concluded noting that computing message passing in a mixture of trees
+with assignment yx, yz corresponds to computing marginals P (Yx = yx, Yz = yz) in the corresponding distribution
+(Section 2.1), hence Eq. (3.7) follows.
+Example 3.5. All subtrees of the SPGM S(X,Z) shown by Fig. 3.1a are shown as tree graphical models by Fig. 3.1c.
+The probabilistic model encoded by the SPGM is a mixture of these subtrees whose structure depends on the context
+variables Z.
+The propositions above entail the crucial result that the probabilistic model of a SPGM is a mixture of trees where
+the mixture size grows exponentially with the SPGM size (Definition 3.7), but in which the inference cost grows only
+polynomially (Proposition 3.1). Hence, very large mixtures models can then be modelled tractably. This property is
+obtained by modelling trees ? ? T (S|Z) by combining sets of shared subtrees, selected through context variables Z,
+and by computing inference in shared parts only once (cf. the example in Fig. 3.1).
+3.3.3 Conditional and Contextual Independence
+In this section we discuss conditional and contextual independence semantics in SPGMs, based on their interpretation
+as mixture model.
+Definition 3.10 (Context-dependent paths). Consider variables A ? X,B ? X and a context z ? ?(Z) with Z ? Z.
+• The set ?(A,B) is the set of all directed paths in S going from a Vnode with label A to a Vnode with label B.
+• The set ?(A,B|Z = z) ? ?(A,B) is the subset of paths in ?(A,B) in which all the indicator variables over Z
+(Definition 3.8) are in state z.
+Proposition 3.8 (D-separation in SPGMs). Consider a SPGM S(X,Z), variables A,B,C ? X and a context z ?
+?(Z) with Z ? Z. The following properties hold for the probabilistic model S corresponding to Eq. (3.2):
+1. A and B are independent iff ?(A,B) = ? and ?(B,A) = ? (there is no directed path from A to B).
+2. A and B are conditionally independent given C if all directed paths ?(A,B) and ?(B,A) contain C.
+3. A and B are contextually independent given context Z = z iff ?(A,B|Z = z) = ? and ?(B,A|Z = z) = ?.
+4. A and B are contextually and conditionally independent given C and context Z = z iff all paths ?(A,B|Z = z)
+and ?(B,A|Z = z) contain C.
+Example 3.6. In Fig. 3.1, A and D are conditionally independent given C; A and C are conditionally independent
+given B and context Z1 = 1.
+Proof. In a mixture of trees, conditional independence of A,B given C holds iff for every tree in the mixture the path
+between A and B contains C (D-separation, see (Cowell et al., 2003)). If D-separation holds for all paths in ?(B,A|z)
+then it holds for all the subtrees compatible with Z = z. But P (X,Z) is the mixture of all subtrees compatible with
+assignment z (Eq. (3.2)). Hence the result follows.
+The proposition above provides SPGMs with a high level representation of both contextual and conditional inde-
+pendence. This is obtained by using different variables sets X and Z for the two different roles. The set X appears
+in Vnodes and entails conditional independences due to D-separation, with close similarity to tree graphical models
+(Proposition 3.8). The set Z enable contextual independence through the selection of tree branches via sum nodes.
+Note also that using the set of paths ? allows to infer conditional and contextual independences without need to
+check all the individual subtrees, whose number can be exponentially larger than the cardinality of ?.
+14
+(a) Observed sum node (Eq. (3.1a)). (b) Unobserved sum node (Eq. (3.1b)).
+(c) Product node (Eq. (3.1c)). (d) Vnode (Eq. (3.1d)).
+Figure 3.2: Representation of message passing equations as SPNs. For better visibility, sum and product nodes are
+assumed to have only two children p, q and with binary variables.
+3.3.4 Related Models
+SPGMs are closely related to hierarchical mixtures of trees (HMT) (Jordan, 1994) and generalize them. Like SPGMs,
+HMTs allow a compact representation of mixtures of trees by using a hierarchy of ”choice nodes” where different trees
+are selected at each branch (as sum nodes do in SPGMs). While in HMTs the choice nodes separate the graph into
+disjoint branches and thus an overall tree structure is induced, however, SPGMs enable to use a DAG structure where
+parts of the graph towards the leaves can appear in children of multiple sum nodes.
+The probabilistic model encoded by SPGMs also has a close connection to Gates (Minka and Winn, 2009) and
+the similarly structured Mixed Markov Models (MMM) (Fridman, 2003). Gates enable contextual independence in
+graphical models by including the possibility of activating/deactivating factors based on the state of some context
+variables. Regarding SPGMs, the inclusion/exclusion of factors in subtrees T (S|Z) depending on values of Z can
+be seen as a gating unit that enables a full set of tree factors to be active, which suggests to identify a SPGM as a
+Gates model. On the other hand, SPGMs restrict inference to a family of models in which inference is tractable by
+construction, while inference in Gates generally is intractable. In addition, SPGMs allow an interpretation as mixture
+models, which is not the case for Gates and MMMs.
+Finally, we remark that SPGM subtrees closely parallel the concept of SPN subnetworks, first described in Gens
+and Domingos (2012) and then formalized in Zhao et al. (2016). However, while subnetworks in SPNs represent
+simple factorizations of the leaf distributions (which can be represented as graphical models without edges), subtrees
+in SPGMs represent tree graphical models (which include edges).
+3.4 Interpretation as SPN
+In this section we discuss SPGMs as a high level, fully general representation of SPNs as defined by Definition 2.3.
+3.4.1 SPGMs encode SPNs
+Proposition 3.9. The message passing procedure in S (X,Z) encodes a SPN S(X,Z).
+Proof. In Appendix A.4.
+15
+Note that in the encoded SPN, each SPGM message is represented by a set of sum nodes, which can be seen
+immediately from Fig. 3.2. Each sum node in the set represents the value of the message corresponding to a certain
+state of the output variable (namely, µt?s;j for each j). This entails an increase in representation size (but not in
+inference cost) by a |?max|2 factor. Note also that the role of nodes for implementing conditional and contextual
+independence is lost during the conversion to SPN, since both SPGM Vnode and SPGM sum node messages translate
+into a set of SPN sum nodes.
+Proposition 3.10. SPGMs are as expressive as SPNs, in the sense that if a distribution P (X,Z) can be represented as
+a SPN with inference cost C, then it can also be represented as a SPGM with inference cost C and vice versa.
+Proof Sketch. Firstly, due to Proposition 3.9, SPNs are at least as expressive as SPGMs since they encode a SPN
+via message passing. Secondly, any SPN S can be transformed into an equivalent SPGM S by simply replacing the
+indicator variable [A]a in SPN leaves with Vnodes s associated to variable A and unary probability Ps(A) = [A]a
+(notice that pairwise probabilities do not appear). It is immediate to see that by doing so all the conditions of Definition
+3.4 are satisfied, and evaluating S with message passing yields S. As a consequence, SPGMs are at least as expressive
+as SPNs.
+3.4.2 Discussion
+Propositions 3.9 and 3.10, together with the connections to graphical models worked out above, enable an interpretation
+of a SPGM S as a high-level representation of the encoded SPN S. These generalizes what the introductory example
+demonstrated by comparing Fig. 1.2c with Fig. 1.2d.
+The SPGM representation is more compact than SPNs because employing variable nodes as in graphical models
+enables to represent conditional independences through message passing. Passing from an SPGM to the SPN represen-
+tation entails an increase in the model size due to the expansion of messages by a Npa|?max|2 factor (see Definition
+3.5 and Fig. 3.2).4
+The SPGM representation allows a high level representation of conditional independences through Vnodes and
+D-separation, and of contextual independences through the composition of subtrees due to context variables Z. In
+contrast, the roles of contextual and conditional independence in SPNs is hard to decipher (Fig. 1.2c) because there is no
+distinction between nodes created by messages sent from SPGM sum nodes (implementing contextual independence)
+and messages generated from SPGM Vnodes (implementing conditional independence), both of which are represented
+as a set of SPN sum and product nodes (see Fig. 3.2). In addition, there is no distinction between contextual variables
+Z and Vnode variables X .
+Note that SPGMs are not more compact than SPNs in situations in which there are no conditional independences
+that can be expressed by Vnodes. However, we postulate that the co-occurrence of conditional and contextual inde-
+pendences creates relevant application scenarios (as shown in Section 4) and enables connections between SPNs and
+graphical models that can be exploited in future work.
+Finally, the interpretation of SPGMs as SPN also allows to translate all methods and procedures available for SPNs
+to SPGMs. These include jointly computing the marginals of all variables by derivation (Darwiche, 2003), with time
+and memory linear cost in the number of edges in the SPN. In addition, Maximum a Posteriori queries can be computed
+simply by substituting the sums in Eqs. (3.1) by max operations. We leave the exploration of these aspects to future
+work, since they are not central for our present discussion.
+4 Learning SPGMs
+In this section, we exploit the relations between graphical models and SPNs embodied by SPGMs and present an
+algorithm for learning the structure of SPGMs.
+4Note, however, that inference cost remains identical in S and S.
+16
+4.1 Preliminaries
+Structure learning denotes the problem of learning both the parameters of a probability distribution P (X|G) and the
+structure of the underlying graph G. As both the GM and the SPN represented by a given SPGM due to Sections 3.3
+and 3.4 involve the same graph, the problem is well defined from both viewpoints.
+Let X = {Xj}Mj=1 be a set of M discrete variables. Consider a training set of N i.i.d samples D =
+{
+xi
+}N
+i=1
+?
+?(X), used for learning. Formally, we aim to find the graph G? governing the distribution P (X) which maximizes
+the log-likelihood
+G?(X) = arg max
+G
+LL(G) = arg max
+G
+N?
+i=1
+lnP (xi|G) (4.1)
+or the weighted log-likelihood
+G?(X) = arg max
+G
+WLL(G,w) = arg max
+G
+N?
+i=1
+wi lnP (x
+i|G), wi ? 0, i = 1, 2, . . . , N. (4.2)
+Learning Tree GMs. Learning the structure of GMs generally is NP-hard. For discrete tree GMs however the
+maximum likelihood solution T ? can be found with cost O(M2N) using the Chow-Liu algorithm (Chow and Liu
+(1968)).
+Let Xs, Xt ? X be discrete random variables ranging of assignments in the sets ?(Xs),?(Xt). Let Ns;j and
+Nst;jk respectively count the number of times Xs appears in state j and Xs, Xt appear jointly in state j, k in the
+training set D. Finally, define empirical probabilities P s(j) = Ns;j/N and P st(k|j) = Nst;jk/Ns;j . The Chow-Liu
+algorithm comprises the following steps:
+1. Compute the mutual information Ist between all variable pairs Xs, Xt,
+Ist =
+?
+j??(Xs)
+?
+k??(Xt)
+P s,t(j, k) ln
+P s,t(j, k)
+P s(j)P t(k)
+. (4.3)
+2. Create an undirected graph G = (V, E) with adjacency matrix I = {Ist}s,t?V and compute the corresponding
+Maximum Spanning Tree T .
+3. Obtain the directed tree T ? by choosing an arbitrary node of T as root and using empirical probabilities P s(Xs)
+and P st (Xt|Xs) in place of corresponding terms in Eq. (2.2).
+If the weighted log-likelihood (4.2) is used as objective function, the algorithm remains the same. The only dif-
+ference concerns the use of weighted relative frequencies for defining the empirical probabilities of (4.3): N?s,j =
+1
+N?w
+?N
+i=1 ?(x
+i
+s = j)wi and N?st,jk =
+1
+N?w
+?N
+i=1 ?(x
+i
+s = j, x
+i
+t = k)wi, where N?w =
+?N
+i=1 wi and x
+i
+s denotes the state
+of variable Xs in sample xi.
+Learning Mixtures of Trees. We consider mixture models of the form P (X) =
+?K
+k=1 ?kPk(X|?k) with tree GMs
+Pk (X| ?k), k = 1, . . . ,K, corresponding parameters {?k}Kk=1 and non-negative mixture coefficients {?k}Kk=1 sat-
+isfying
+?K
+k=1 ?k = 1. While inference with mixture models is tractable as long as it is tractable with its individual
+mixture components, maximum likelihood generally is NP hard. A local optimum can be found with Expectation-
+Maximization (EM) (Dempster et al., 1977), whose pseudocode is shown in Algorithm 1. The M-step (line 8) involves
+the weighted maximum likelihood problem and determines ?k using the Chow-Liu algorithm described above.
+It is well known that each EM iteration does not decrease the log-likelihood, hence it approaches a local optimum.
+17
+Algorithm 1 EM for Mixture Models(Pk, ?k, D)
+Input: Initial model P (X|?) =
+?
+k ?kPk(X), training set D
+Output: Pk(X), ?k locally maximizing
+?N
+i=1 lnP (x
+i|?)
+1: repeat
+2: for all k ? 1...K, i ? 1...N do // E-step
+3: ?k(i)? ?kPk(xi)?
+k? ?k?Pk? (xi)
+4: ?k ?
+?N
+i=1 ?k(i)
+5: wki ? ?k(i)/?k
+6: for all k ? 1...K do // M-step
+7: ?k ? ?k/N
+8: ?k ? arg max?k
+?N
+i=1 w
+k
+i lnPk(x
+i|?k)
+9: until convergence
+Learning SPNs. Let S(X) denote a SPN, G = (V, E) and graph with edge weights. Both structure learning (opti-
+mizing G and W ) and parameter learning (optimizing W only) are NP-hard in SPNs (Darwiche, 2002). Hence, only
+algorithms that seek a local optimum can be devised.
+Parameter learning can be performed by directly applying the EM iteration for mixture models, while efficiently
+exploiting the interpretation of SPNs as a large mixture model with shared parts (Desana and Schno?rr, 2016).
+To describe EM for SPNs, which will be used in a later section, we need some additional notation. Consider a
+node q ? V , and let Sq denote the sub-SPN having node q as root. If q is a Sum Node, then by Definition 2.3 a
+weight wqj is associated to each edge (q, j) ? E . Note that evaluating S(X = x) entails computing Sq(X = x)
+for each node q ? V due to the recursive structure of SPNs. Hence S(x) is function of Sq(x). The derivative
+?S (x)/?Sq(x) can be computed with a root-to-leaves pass requiring O(|E|) operations (Poon and Domingos,
+2011).
+With this notation, the EM algorithm for SPNs iterates the following steps:
+1. E step. Compute for each Sum Node q ? V and each j ? ch(q)
+?qj = w
+q
+j
+N?
+n=1
+S (xn)
+?1 ?S (x
+n)
+?Sq
+Sj (xn) . (4.4)
+2. M step. Update weights for each Sum Node q ? V and each j ? ch(q) by wqj ? ?
+q
+j /
+?
+(q,i)?E ?
+q
+i , where
+? denotes assignment of a variable.
+Since all the required quantities can be computed in O(|E|) operations, EM has a cost O(|E|) per iteration (the
+same as an SPN evaluation).
+In some SPN applications, weights are shared among different edges (see e.g. Gens and Domingos (2012),
+Cheng et al. (2014) and Amer and Todorovic (2015)). Then the procedure still maximizes the likelihood locally.
+Let V ? V be a subset of Sum Nodes with shared weights, in the sense that the set of weights {wqj}j?ch(q)
+associated to incident edges (q, j) ? E is the same for each node q ? V . The EM update of a shared weight wqj
+reads (cf. Desana and Schno?rr (2016))
+wqj ?
+?
+q?V ?
+q
+j?
+i
+?
+q?V ?
+q
+i
+, (q, j) ? E . (4.5)
+Structure learning can be more conveniently done with SPNs than with graphical models, because tractability of
+inference is always guaranteed and hence not a limiting factor for learning the model’s structure. Several greedy
+algorithms for structure learning were devised (see Section 5), which established SPNs as state of the art models
+18
+(a) (b) (c)
+Figure 4.1: Graphical representation of edge insertion. For simplicity, we start with a SPGM representing a single
+MST. Fig. 4.1a: Inserting (D,E) creates a cycle (blue). Fig. 4.1b: Removing the minimum edge in the cycle (except
+(D,E)) gives the MST containing (D,E). Fig. 4.1c: The red MST is inserted into S sharing the common parts.
+for the estimation of probability distributions. We point out that most approaches employ a recursive procedure
+in which children of sum and Product Nodes are generated on disjoint subsets of the dataset, thus obtaining a tree
+SPN, while SPNs can be more generally defined on DAGs. Recently, (Rahman and Gogate, 2016b) discussed
+the limitations of using tree structured SPNs as opposed to DAGs, and addressed the problem of post-processing
+SPNs obtained with previous methods, by merging similar branches so as to obtain a DAG.
+Our method proposed in Section 4.3 is the first one that directly estimates a DAG-structured SPN.
+4.2 Parameter Learning in SPGMs
+Parameters learning in a SPGM S can be done by interpreting S as a SPN encoded by message passing (Proposition
+3.10) and directly using any available SPN parameter learning method (these include EM seen in Section 4.1 and others
+(Gens and Domingos, 2012)). Hence, we do not discuss this aspect further.
+Note however that Sum Node messages (Definition 3.5) require weight sharing between the SPN Sum Nodes. EM
+for SPNs with weight tying is addressed in Section 4.1.
+4.3 Structure Learning in SPGMs
+Structure learning is an important aspect of tractable inference models, thus it is crucial to provide a structure learning
+for SPGMs. Furthermore, it is useful to provide a first example of how the new connections between GMs and SPNs
+can be exploited in practice.
+We propose a structure learning algorithm based on the Chow-Liu algorithm for trees (Section 2.1). We start
+observing that edges with large Mutual Information can be excluded from the Chow-Liu tree, thus losing relevant
+correlations between variables (Fig. 1.3b, left). An approach to address this problem, inspired by (Meila and Jordan,
+2000), is to use a mixture of spanning trees such that the k-best edges are included in at least one tree. We anticipate that
+the trees obtained in this way share a large part of their structure (Fig. 1.3c), hence the mixture can be implemented
+efficiently as a SPGM.
+Algorithm Description. We describe next LearnSPGM, a procedure to learn structure and parameters of a SPGMs
+which locally maximizes the weighted log-likelihood (4.2). We use the notation of Section 4.1.
+The algorithm learns a SPGM S in three main steps (pseudocode in Algorithm 2). First, S is initialized to encode
+the Chow-Liu tree T ? (Fig. 4.1a) – that is, T (S) includes a single subtree (Definition 3.7) ?? corresponding to T ?.
+Then, we order each edge (s, t) ? E which was not included in T ? by decreasing mutual information Ist, collecting
+19
+them in the ordered set Q. Finally, we insert each edge (s, t) ? Q in S with the sub-procedure InsertEdge described
+below, until log-likelihood convergence or a given maximum size of S is reached.
+InsertEdge(S, T ?, (s, t)) comprises three steps:
+1. Compute the maximum spanning tree over G which includes (s, t), denoted as Tst. Finding Tst can be done
+efficiently by first inserting edge (s, t) in T ?, which creates a cycle C (Fig. 4.1a), then removing the minimum
+edge in C except (s, t) (Fig. 4.1b). The potentials in Tst are set as empirical probabilities P st according to the
+Chow-Liu algorithm. Notice that trees T ? and Tst have identical structure up to C and can then be written as
+T ? = T 1 ? C? ? T 2 and Tst = T 1 ? C
+?? ? T 2, where C? = T ? ? C, C?? = Tst ? C.
+2. Add Tst to the set T (S) by sharing the structure in common with T ? (T 1 and T 2 above). To do this, first identify
+the edge (s, t) s.t. s ? T 1 and t ? C? (e.g. (B,C) in Fig. 4.1b). Then, create a non-Observed Sum Node q,
+placing it between s and t, unless such node is already present due to previous iterations (see q in Fig. 4.1c).
+At this point, one of the child branches of q contains C??T 2. We now add a new child branch containing C?? (Fig.
+4.1c). Finally, we connect nodes in C?? to their descendants in the shared section T 2. The insertion maintains S
+valid since the X and Z-scope of any node in S does not change. Furthermore, inserting C?? in this way we add
+a subtree representing Tst in T (S), selected by choosing the child of s corresponding to C
+??
+.
+3. Update the weights of incoming edges of the Sum Node q by using Eq. 4.5 on the set of SPN nodes generated
+by q with Eq.(3.1a) during the conversion to SPN (see Proposition 3.9).
+Convergence It is possible to prove that the log-likelihood does not decrease at each insertion, and thus the initial
+Chow-Liu tree provides a lower bound for the log-likelihood.
+Proposition 4.1. Each application of InsertEdge does not decrease the log-likelihood of the SPGM (Eq. (4.2)).
+Proof. InsertEdge adds the branch C? ? T 2 to Sum Node q, hence it adds a new incident edge and a corresponding
+weight to q. We now note that computing weight values using Eq. (4.5) (step 3 in InsertEdge above) allows to find
+the optimal weights of edges incoming to q considering the other edges fixed, as shown e.g. in Desana and Schno?rr
+(2016).5 Since the new locally optimal solution includes the weight configuration of the previous iteration, which is
+simply obtained by setting the new edge weight to 0 and keeping the remaining weights, the log-likelihood does not
+increase at each iteration.
+Proposition 4.2. The Chow Liu tree log-likelihood is a lower bound for the log-likelihood of a SPGM obtained with
+LearnSPGM.
+Proof. Follows immediately from Proposition 4.1, noting that the SPGM is initialized as the Chow Liu tree T ?.
+Complexity. Steps 1 and 2 of InsertEdge are inexpensive, only requiring a number of operations linear in the number
+of edges of the Chow Liu tree T ?. The per iteration complexity of InsertEdge is dominated by step 3, in which the
+computation of weights through Eq. 4.5 requires evaluating the SPGM for the whole dataset. Although evaluation
+of a SPGM is efficient (see Proposition 3.1), this can still be too costly for large datasets. We found empirically that
+assigning weights proportionally to the mutual information of the inserted edge provides a reliable empirical alternative,
+which we use in experiments.
+4.4 Learning Mixtures of SPGMs
+LearnSPGM is apt at representing data belonging to a single cluster, since (similarly to Chow-Liu trees) the edge
+weights are computed from a single mutual information matrix estimated on the whole dataset. To model densities
+with natural clusters one can use mixtures of SPGMs trained with EM. We write a mixture of SPGMs in the form?K
+k=1 ?kPk(X|?k), where each term Pk(X|?k) is the probability distribution encoded by a SPGM Sk (Eq. 3.3)
+governed by parameters ?k = {Gk, {P kst}, {W ks }, {Qks}} (Definition 3.4).
+5However, this is not the globally optimal solution when the other parameters are free.
+20
+Algorithm 2 LearnSPGM
+(
+D = {xi}, {wi}
+)
+Input: samples D, optional sample weights w
+Output: SPGM S approx. maximizing
+?N
+i=1 wi lnP (x
+i|?)
+1: I?Mutual Information of D with weights w
+2: T ? ? Chow-Liu tree with connection matrix I
+3: S?SPGM representing T ?
+4: Q? queue of edges (s, t) /? E ordered by decreasing Ist
+5: repeat
+6: InsertEdge (S, T ?, Q.pop())
+7: AssignWeights to the modified Sum Node
+8: until convergence or max size reached
+Algorithm 3 EM for Mixtures of SPGMs(Sk, ?k, D)
+Input: Initial model P (X) =
+?
+k ?kSk(X), samples D
+Output: Updated Sk(X), ?k locally maximizing
+?N
+i=1 wi lnP (x
+i|?)
+1: repeat
+2: for all k ? 1...K, i ? 1...N do // E-step
+3: ?k(i)? ?kSk(xi)?
+k? ?k?Sk? (xi)
+4: ?k ?
+?N
+i=1 ?k(i)
+5: wki ? ?k(i)/?k
+6: for all k ? 1...K do // M-step
+7: ?k ? ?k/N
+8: Sk ? LearnSPGM(D,wk)
+9: if WLL(Sk, wk) ?WLL(Sk, wk) then
+10: Sk ? Sk
+11: until convergence
+EM can be adopted for any mixture model as long as the weighted maximum log-likelihood in the M-step can be
+solved (alg. 1 line 8). In addition, Neal and Hinton (1998) show that EM converges as long as the M-step can be at
+least partially performed, namely if it possible to find parameters ?k such that (see Eq. 4.2)
+WLL(Pk(X|?k), wk) ?WLL(Pk(X|?k), wk). (4.6)
+These observation suggest to use LearnSPGM to approximately solve the weighted maximum likelihood problem.
+However, while LearnSPGM ensures that the Chow-Liu tree lower bound always increases, the actual weighted log-
+likelihood can decrease. To satisfy Eq. (4.6), we employ the simple shortcut of rejecting updates of component Sk
+when Eq. (4.6) is not satisfied for ?knew (Algorithm 3 line 9). Doing this, the following holds:
+Proposition 4.3. The log-likelihood of the training set does not decrease at each iteration of EM for Mixtures of
+SPGMs (Alg. 3).
+5 Empirical Evaluation
+We evaluate SPGMs on 20 real world datasets for density estimation described in Lowd and Domingos (2012). The
+number of variables ranges from 16 to 1556 and the number of training examples from 1.6K to 291K (Table 5.1).
+All variables are binary. We compare against several well cited state of the art methods, referred to with the following
+abbreviations: MCNets (Mixtures of CutsetNets, Rahman et al. (2014)); ECNet (Ensembles of CutsetNets, Rahman
+and Gogate (2016a)); MergeSPN Rahman and Gogate (2016b); ID-SPN Rooshenas and Lowd (2014); SPN Gens
+21
+Table 5.1: Dataset structure and test set log likelihood comparison.
+Dataset #vars #train SPGM ECNet MergeSPN MCNet ID-SPN ACMN SPN MT LTM
+NLTCS 16 16181 -5.99 -6.00 -6.00 -6.00 -6.02 -6.00 -6.11 -6.01 -6.49
+MSNBC 17 291326 -6.03 -6.05 -6.10 -6.04 -6.04 -6.04 -6.11 -6.07 -6.52
+KDDCup2K 64 180092 -2.13 -2.13 -2.12 -2.12 -2.13 -2.17 -2.18 -2.13 -2.18
+Plants 69 17412 -12.71 -12.19 -12.03 -12.74 -12.54 -12.80 -12.98 -12.95 -16.39
+Audio 100 15000 -39.90 -39.67 -39.49 -39.73 -39.79 -40.32 -40.50 -40.08 -41.90
+Jester 100 9000 -52.83 -52.44 -52.47 -52.57 -52.86 -53.31 -53.48 -53.08 -55.17
+Netflix 100 15000 -56.42 -56.13 -55.84 -56.32 -56.36 -57.22 -57.33 -56.74 -58.53
+Accidents 111 12758 -26.89 -29.25 -29.32 -29.96 -26.98 -27.11 -30.04 -29.63 -33.05
+Retail 135 22041 -10.83 -10.78 -10.82 -10.82 -10.85 -10.88 -11.04 -10.83 -10.92
+Pumsb-star 163 12262 -22.15 -23.34 -23.67 -24.18 -22.40 -23.55 -24.78 -23.71 -31.32
+DNA 180 1600 -79.88 -80.66 -80.89 -85.82 -81.21 -80.03 -82.52 -85.14 -87.60
+Kosarek 190 33375 -10.57 -10.54 -10.55 -10.58 -10.60 -10.84 -10.99 -10.62 -10.87
+MSWeb 294 29441 -9.81 -9.70 -9.76 -9.79 -9.73 -9.77 -10.25 -9.85 -10.21
+Book 500 8700 -34.18 -33.78 -34.25 -33.96 -34.14 -36.56 -35.89 -34.63 -34.22
+EachMovie 500 4524 -54.08 -51.14 -50.72 -51.39 -51.51 -55.80 -52.49 -54.60 †
+WebKB 839 2803 -154.55 -150.10 -150.04 -153.22 -151.84 -159.13 -158.20 -156.86 -156.84
+Reuters-52 889 6532 -85.24 -82.19 -80.66 -86.11 -83.35 -90.23 -85.07 -85.90 -91.23
+20Newsgrp. 910 11293 -153.69 -151.75 -150.80 -151.29 -151.47 -161.13 -155.93 -154.24 -156.77
+BBC 1058 1670 -255.22 -236.82 -233.26 -250.58 -248.93 -257.10 -250.69 -261.84 -255.76
+Ad 1556 2461 -14.30 -14.36 -14.34 -16.68 -19.00 -16.53 -19.73 -16.02 †
+and Domingos (2013); ACMN Lowd and Domingos (2012), MT (Mixtures of Trees Meila and Jordan (2000)); LTM
+(Latent Tree Models, Choi et al. (2011)).
+Methodology. We found empirically that the best results were obtained using a two phase procedure: first
+we run EM updates with LearnSPGM on both structure and parameters until validation log-likelihood convergence,
+then we fine-tune using EM for SPNs on parameters only until convergence. We fix the following hyperparame-
+ters by grid search on validation set: maximum number of edge insertions {10, 20, 60, 120, 400, 1000, 5000}, mix-
+ture size {5, 8, 10, 20, 100, 200, 400}, uniform prior {10?1, 10?2, 10?3, 10?9} (used for mutual information and sum
+weights). LearnSPGM was implemented in C++ and is available at the following URL: https://github.com/
+ocarinamat/SumProductGraphMod. The average learning time per dataset is 42 minutes on an Intel Core
+i5-4570 CPU with 16 GB RAM. Inference takes up to one minute on the largest dataset.
+Results. Test set log-likelihood results averaged over 5 random parameters initializations are shown in Table 5.1.
+Our methods performs best between all compared models in 6 datasets over 20 (for comparison, ECNets are best in
+5 cases, MergeSPN in 9, MCnets in 1). Interestingly, LearnSPGM compares well against a well established literature
+despite being a radically novel approach, since ECNet, MergeSPN, MCNet, ID-SPN, ACMN, SPN all create a search
+tree by finding independences in data recursively (see Gens and Domingos (2013)). LearnSPGM is simpler than
+methods with similar performances: for instance ECnets use boosting and bagging procedures for ensemble learning,
+evolving over CNets that use EM, and MergeSPN post-processes the SPN in Gens and Domingos (2013). Our model
+can be improved by including these techniques, such as using ensemble learning as in ECNets rather than EM as in
+MCnets. Finally, notice that SPGMs - that are large mixtures of trees - always outperform standard mixture of trees.
+This confirms that sharing tree structure helps preventing overfitting, which is critical in these models.
+6 Conclusions and Future Work
+We introduced Sum-Product Graphical Model (SPGM), a new architecture bridging Sum-Product Networks (SPNs)
+and Graphical Models (GMs) by inheriting the expressivity of SPNs and the high level probabilistic semantics of GMs.
+The new connections between the two fields were exploited in a structure learning algorithm extending the Chow-Liu
+tree approach. This algorithm is competitive with the state of the art methods in density estimation despite using a
+novel approach and being the first algorithm to directly obtain DAG structured SPNs.
+The major relevance of SPGMs consists in providing an interpretation of SPNs that has the semantics of graphical
+models, and thus allows to connect the two worlds without compromising their efficiency or compactness. These
+22
+connections have been exploited preliminarily in our structure learning algorithm, but – more interestingly – they open
+up several direction of future research that should be explored in future work.
+The most interesting of these directions seems to us to be the approximation of intractable GMs by using very
+large but tractable mixture models implemented by SPGMs. This approach is mainly motivated by the success of
+mixtures of chain graphs for approximate inference in the Tree-Reweighted Belief Propagation (TRW) framework (see
+Kolmogorov (2006)). In this field, mixtures of chain models with shared components are used to efficiently evaluate
+updates for the parameters of an intractable graphical model. SPGMs seem to be a very promising architecture to
+apply to this framework due to their ability to efficiently represent very large mixtures of trees due to shared parts,
+which might allow to replace the relatively small mixture of chains used in TRW with large mixtures of more complex
+models (trees). This aspect should be subject of follow-up work.
+A Appendix
+A.1 Proof of Proposition 3.2.
+Consider a subtree ? ? T (S) as in Definition 3.7.
+1. Let us first consider messages generated by sum nodes s. Considering that s has only one child ch(s) in ? (for
+Definition 3.7), corresponding to indicator variable [Zs]ks , and applying Eqs. 3.1, the messages for observed
+and unobserved sum nodes are as follows:
+µst;j = [Zs]ksQs(ks)µch(s),t;j , Observed Sum Node, (A.1)
+µst;j = Ws(ks)µch(s)k,t;j , Unobserved Sum Node. (A.2)
+Hence sum messages contribute only by introducing a multiplicative term [Zs]ksQs(ks) or Ws(ks). Now, all
+variables in the set Z appear in ? (Proposition 3.4). Hence, the sum nodes together contribute with the following
+multiplicative term: ?
+s?O(?)
+Qs(ks,? )
+?
+s?U(?)
+Ws(ks,? )
+?
+[Zs]ks?z?
+[Zs]ks = ??
+?
+[Zs]ks?z?
+[Zs]ks . (A.3)
+From this it follows that message passing in ? is equivalent to message passing in a SPGM ? obtained by
+discarding all the sum nodes from ? , followed by multiplying the resulting messages for Eq. A.3.
+2. Consecutive Product Nodes in ? can be merged by adding the respective children to the parent Product Node. In
+addition, between each sequence Vnode-Vnode in ? we can insert a product node with a single child. Thus, we
+can take ? as containing only Vnodes and Product Nodes, such that the children of Product Nodes are Vnodes.
+Putting together Eqs. 3.1c and 3.1d, the message passed by each Vnode t to s ? vpa(t) is:
+µt?s;j =
+?
+k??(Xt)
+Ps,t (k|j) [Xt]k
+?
+q?ch(ch(c))
+µq?t;j . (A.4)
+Notice that the input messages are generated from the grandchildren of t, that is the children of the Product
+Node child of t. This corresponds to the message passed by variables in a tree graphical model obtained by
+removing the Product Nodes from ? and attaching the children of Product Nodes (here, elements q ? ch (ch(c)))
+as children of their parent Vnode (here, t), which can be seen by noticing the equivalence to Eq. (2.4). This
+tree GM can be immediately identified as P? (X). Note also that if the root of ? is a Product Node, then P? (X)
+represents a forest of trees, one for each child of the root Product Node.
+3. The proof is concluded reintroducing the multiplicative factor in Eq. A.3 discarded when passing from ? to ? .
+23
+A.2 Proof of Proposition 3.3.
+The proposition can be proven by inspection, considering a SPGM S built by stacking units as follows: Sum Node s1
+(the root of S) is associated to observed variable Z1 and has as children the set of Vnodes V1 = {v1,1, v1,2, . . . , v1,M}.
+All the nodes in V1 have a common single child, which is the sum node s2. In turn, s2 has the same structure of s1,
+having Vnode children V1 = {v2,1, v2,2, . . . , v2,M} which are connected to a single child s3, and so forth for Sum
+Nodes s3, s4, . . . , sK . The number of edges in S is 2MK. On the other hand, a different subtree can be obtained for
+each choice of active child at each sum node. There is a combinatorial number of such choices, thus the number of
+different subtrees is KM .
+A.3 Proof of Proposition 3.5.
+First, consider a SPGM S(X,Z) defined over G = V, E . Let us take a node t ? V and let St(Xt, Zt) denote the
+sub-SPGM rooted in t. Suppose that St satisfies the proposition and hence it can be written as:
+St =
+?
+?t?T (St)
+?t. (A.5)
+Let us consider messages sent from node t to a Vparent s ? vpa(t) (Definition 3.3), and note that if form (A.5) is
+satisfied then messages take the form
+µt?s;j =
+?
+?t?T (St)
+µroot(?t)?s;j , (A.6)
+where root(?t)) denotes the message sent from the root of subtree ?t to s. Vice versa, if form (A.6) is satisfied then St
+can be written as Eq. (A.5). This extends also to the case vpa(t) = ?, in which messages are sent to a fictitious root
+node (Definition 3.5).
+The proposition can now be proved by induction. First, the base case: sub-SPGMs rooted at Vnodes leaves trivially
+assume form (A.5), and hence also the form (A.6). Then, the inductive step: Lemma (A.1) can be applied recursively
+for all nodes from the leaves to the root. Hence, S assumes the form of Eq. (A.6) and thus also of (A.5).
+Lemma A.1. Consider a node t ? V . Suppose that the messages sent from the children of node t ? V are in the form
+(A.6). Then, each message sent from s also assumes the form A.6.
+Let us suppose, for simplicity, that t has only two children p and q - the extension to the general case is straightfor-
+ward. We distinguish the three cases of t being a Sum Node, a Product Node or a Vnode.
+• Suppose t is an Observed Sum Node with weights [Qt(0), Qt(1)] and indicator variables [Zt]0 and [Zt]1 associ-
+ated to each child. By Eq. (A.2), the children send messages to their Vparent s, and since input message are in
+the form (A.6), t sends the following message:
+µt?s;j = Qt(0)[Zt]0
+?
+?p?T (Sp)
+µroot(?p)?s;j +Qt(1)[Zt]1
+?
+?q?T (Sq)
+µroot(?q)?s;j .
+This is again in the form A.6. This can be seen because each term in the sum is in the form Qt(0)[Zt]0T (Sp)
+which corresponds to message passed from the subtree ?t ? T (St) obtained choosing child p (in this case). It is
+easy to see that terms corresponding to each subtrees of t are present.
+• If t is an Unobserved Sum Node the discussion is identical to the point above.
+• If t is a Product Node, then the children send messages to their Vparent s, and since input message are in the
+form (A.6), t sends the following message:
+µt?s;j =
+( ?
+?p?T (Sp)
+µroot(?p)?s;j
+)( ?
+?q?T (Sq)
+µroot(?q)?s;j
+)
+=
+?
+(?p,?q)?T (Sp)×T (Sq)
+µroot(?p)?s;jµroot(?q)?s;j .
+Now, µroot(?p)?s;jµroot(?q)?s;j can be seen as the message generated by a particular subtrees of t, and thus
+node µt?s;j is in the form (A.6).
+24
+• If t is a Vnode, then it has a single child p by definition 3.4, sending messages to t. Thus, the input message is
+in the form (A.6), and t sends the following message:
+µt?s;j =
+?
+k??(Xt)
+Ps,t (k|j) [Xt]k
+?
+?p?T (Sp)
+µroot(?p)?t;k
+=
+?
+?p?T (Sp)
+?
+k??(Xt)
+Ps,t (k|j) [Xt]kµroot(?p)?t;k.
+Let us analyze a term of the sum for each fixed ?p. Such term corresponds to the root message of a SPGM S
+obtained taking ?p and adding the Vnode t as parent of p (due to Eq. (3.1d)). But S obtained in this form is
+a subtree of t by Definition 3.7. Therefore, taking the sum
+?
+?p?T (Sp) corresponds to summing over messages
+sent by all subtrees of t, in the form (A.6).
+A.4 Proof of Proposition 3.9
+The proposition can be proven by induction showing that if input messages represent valid SPNs, then also the output
+SPGM messages are SPNs (see Fig. 3.2). Formally, it is sufficient to notice that the hypothesis of Lemma A.2 below
+is trivially true for leaf messages (inductive hypothesis), hence the lemma can be inductively applied for all nodes up
+to the root.
+Lemma A.2. Consider nodes t ? V and s ? vpa(t), and let Xt and Zt respectively denote the X scope and Z scope
+of node t ? V . If the message µt?s;j encodes a SPN St;j(Xt, Zt), then the message µs?r;i sent from node s to any
+node r ? vpa(s) also implements a SPN Sr;i(Xs, Zs). This also holds when vpa(s) = ?, where r is simply replaced
+by the fictitious root node (Definition 3.5.
+Proof. Consider the message passing Eqs. 3.1, referring to Fig. 3.2 for visualization. We distinguish the case of
+node t being a Sum, Product and Vnode.
+• Sum Nodes (Observed and non-Observed). First, we note that every child of a Sum Node has the same scope
+Xs, Zs (for Definition 3.4 condition 6). Employing the hypothesis, the generated message is:
+µt?s;j =
+?|ch(t)|
+k=1 [Zt]kQt(k)St;j (X
+t, Zt) , t is a Sum Node, Observed, (A.7)
+µt?s;j =
+?|ch(t)|
+k=1 Wt(k)St;j (X
+t, Zt) , t is a Sum Node, not-Observed. (A.8)
+It is straightforward to see that both equations represent valid SPNs: the sum
+?|ch(t)|
+k=1 becomes the root SPN Sum
+Node with non-negative weightsQt(k) andWt(k) respectively, and its children are SPNs having the same scope
+(in the form [Zt]k ? Sj (Xt, Zt) for Eq. A.7 and in the form Sj (Xt, Zt) for Eq. A.8). Note that Zt ? Zt = ?
+for Definition 3.4 condition 6, therefore condition 3 in Definition 2.3 is satisfied.
+• Product Nodes. Applying the hypothesis to input messages, Eq. 3.1c becomes:
+µt?s;j =
+?
+q?ch(t)
+Sq;j (X
+q, Zq) .
+This represents a valid SPN with a Product Node as root since the children node’s scopes are disjoint (for
+Definition 3.4 condition 7), and thus condition 2 in Definition 2.3 is satisfied.
+• Vnodes. Applying the hypothesis to input messages, Eq. 3.1d becomes:
+µt?s;j =
+?
+k??(Xt)
+Ps,t (k|j) [Xt]kSch(t);k
+(
+Xch(t), Zch(t)
+)
+.
+This represents a valid SPN with a Sum Node
+?
+k??(Xt) as root. To see this, first note that terms Ps,t (k|j) can be
+interpreted as weights. The Sum Node is connected to children SPNs in the form [Xt]k?Sch(t);k
+(
+Xch(t), Zch(t)
+)
+,
+which are valid SPNs since Xi ?Xs = ? and thus condition 2 in Definition 2.3 is satisfied. In addition all child
+SPNs have the same scope for Definition 3.4 condition 6, hence condition 3 in Definition 2.3 is satisfied for the
+Sum Node.
+25
+References
+Amer, M. and Todorovic., S. (2015). Sum Product Networks for Activity Recognition. IEEE Transactions on Pattern
+Analysis and Machine Intelligence (TPAMI 2015).
+Amer, M. and Todorovic, S. (2015). Sum Product Networks for Activity Recognition. Pattern Analysis and Machine
+Intelligence, IEEE Transactions on.
+Bacchus, F., Dalmao, S., and Pitassi, T. (2012). Value Elimination: Bayesian Inference via Backtracking Search.
+CoRR, abs/1212.2452.
+Boutilier, C., Friedman, N., Goldszmidt, M., and Koller, D. (1996). Context-Specific Independence in Bayesian
+Networks. pages 115–123.
+Cheng, W.-C., Kok, S., Pham, H. V., Chieu, H. L., and Chai, K. M. (2014). Language Modeling with Sum-Product
+Networks. Annual Conference of the International Speech Communication Association 15 (INTERSPEECH 2014).
+Chickering, D. M., Heckerman, D., and Meek, C. (2013). A Bayesian Approach to Learning Bayesian Networks with
+Local Structure. CoRR, abs/1302.1528.
+Choi, M. J., Tan, V. Y. F., Anandkumar, A., and Willsky, A. S. (2011). Learning Latent Tree Graphical Models. J.
+Mach. Learn. Res., 12:1771–1812.
+Chow, C. I. and Liu, C. N. (1968). Approximating discrete probability distributions with dependence trees. IEEE
+Transactions on Information Theory, 14:462–467.
+Cowell, R., Dawid, A., Lauritzen, S., and Spiegelhalter, D. (2003). Probabilistic Networks and Expert Systems.
+Springer.
+Darwiche, A. (2002). A Logical Approach to Factoring Belief Networks. In Fensel, D., Giunchiglia, F., McGuinness,
+D. L., and Williams, M.-A., editors, KR, pages 409–420. Morgan Kaufmann.
+Darwiche, A. (2003). A Differential Approach to Inference in Bayesian Networks. J. ACM, 50(3):280–305.
+Dechter, R. and Mateescu, R. (2007). AND/OR search spaces for graphical models. Artificial Intelligence, 171(2 -
+3):73 – 106.
+Dempster, A. P., Laird, N. M., and Rubin, D. B. (1977). Maximum Likelihood from Incomplete Data via the EM
+Algorithm. Journal of the Royal Statistical Society. Series B (Methodological), 39(1):1–38.
+Desana, M. and Schno?rr, C. (2016). Expectation Maximization for Sum-Product Networks as Exponential Family
+Mixture Models. CoRR, abs/1604.07243.
+Diestel, R. (2006). Graph Theory. Springer, 3rd edition.
+Fridman, A. (2003). Mixed Markov models. PNAS, page 100.
+Gens, R. and Domingos, P. (2012). Discriminative Learning of Sum-Product Networks. In NIPS, pages 3248–3256.
+Gens, R. and Domingos, P. (2013). Learning the Structure of Sum-Product Networks. In ICML (3), pages 873–880.
+Gogate, V., Webb, W., and Domingos, P. (2010). Learning Efficient Markov Networks. In Lafferty, J., Williams, C.,
+Shawe-Taylor, J., Zemel, R., and Culotta, A., editors, Advances in Neural Information Processing Systems 23, pages
+748–756. Curran Associates, Inc.
+Jordan, M. I. (1994). Hierarchical mixtures of experts and the EM algorithm. Neural Computation, 6:181–214.
+26
+Kolmogorov, V. (2006). Convergent Tree-Reweighted Message Passing for Energy Minimization. IEEE Trans. Pattern
+Anal. Mach. Intell., 28(10):1568–1583.
+Kolmogorov, V. and Zabih, R. (2004). What Energy Functions Can Be Minimized via Graph Cuts? IEEE
+Trans. Patt. Anal. Mach. Intell., 26(2):147–159.
+Lowd, D. and Domingos, P. (2012). Learning Arithmetic Circuits. CoRR, abs/1206.3271.
+Mcallester, D., Collins, M., and Pereira, F. (2004). Case-factor diagrams for structured probabilistic modeling. In
+Proceedings of the Twentieth Conference on Uncertainty in Artificial Intelligence (UAI 04), pages 382–391.
+Meila, M. and Jordan, M. I. (2000). Learning with mixtures of trees. Journal of Machine Learning Research, 1:1–48.
+Minka, T. and Winn, J. (2009). Gates. In Advances in Neural Information Processing Systems 21.
+Neal, R. and Hinton, G. E. (1998). A View Of The Em Algorithm That Justifies Incremental, Sparse, And Other
+Variants. In Learning in Graphical Models, pages 355–368. Kluwer Academic Publishers.
+Peharz, R. (2015). Foundations of Sum-Product Networks for Probabilistic Modeling. (PhD thesis). Research-
+gate:273000973.
+Peharz, R., Gens, R., Pernkopf, F., and Domingos, P. M. (2016). On the Latent Variable Interpretation in Sum-Product
+Networks. CoRR, abs/1601.06180.
+Poole, D. L. and Zhang, N. L. (2011). Exploiting Contextual Independence In Probabilistic Inference. CoRR,
+abs/1106.4864.
+Poon, H. and Domingos, P. (2011). Sum-Product Networks: A New Deep Architecture. In UAI 2011, Proceedings of
+the Twenty-Seventh Conference on Uncertainty in Artificial Intelligence, Barcelona, Spain, July 14-17, 2011, pages
+337–346.
+Rahman, T. and Gogate, V. (2016a). Learning Ensembles of Cutset Networks. In Proceedings of the Thirtieth AAAI
+Conference on Artificial Intelligence, February 12-17, 2016, Phoenix, Arizona, USA., pages 3301–3307.
+Rahman, T. and Gogate, V. (2016b). Merging Strategies for Sum-Product Networks: From Trees to Graphs. In
+Proceedings of the Thirty-Second Conference on Uncertainty in Artificial Intelligence, UAI 2016, June 25-29, 2016,
+New York City, NY, USA.
+Rahman, T., Kothalkar, P., and Gogate, V. (2014). Cutset Networks: A Simple, Tractable, and Scalable Approach
+for Improving the Accuracy of Chow-Liu Trees. In Machine Learning and Knowledge Discovery in Databases
+- European Conference, ECML PKDD 2014, Nancy, France, September 15-19, 2014. Proceedings, Part II, pages
+630–645.
+Rooshenas, A. and Lowd, D. (2014). Learning Sum-Product Networks with Direct and Indirect Variable Interactions.
+In Jebara, T. and Xing, E. P., editors, Proceedings of the 31st International Conference on Machine Learning (ICML-
+14), pages 710–718. JMLR Workshop and Conference Proceedings.
+Wainwright, M. J. and Jordan, M. I. (2008). Graphical Models, Exponential Families, and Variational Inference.
+Found. Trends Mach. Learn., 1(1-2):1–305.
+Zhao, H., Melibari, M., and Poupart, P. (2015). On the Relationship between Sum-Product Networks and Bayesian
+Networks. CoRR, abs/1501.01239.
+Zhao, H., Poupart, P., and Gordon, G. (2016). A Unified Approach for Learning the Parameters of Sum-Product
+Networks. Proceedings of the 29th Advances in Neural Information Processing Systems (NIPS 2016).
+27

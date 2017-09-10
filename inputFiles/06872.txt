@@ -1,0 +1,841 @@
+ar
+X
+iv
+:1
+70
+8.
+06
+87
+2v
+2 
+ [
+st
+at
+.A
+P]
+  2
+5 
+A
+ug
+ 2
+01
+7
+Submitted to the Annals of Applied Statistics
+DISCOVERING POLITICAL TOPICS IN FACEBOOK DISCUSSION
+THREADS WITH SPECTRAL CONTEXTUALIZATION
+By Yilin Zhang?, Marie Poux-Berthe†, Chris Wells, Karolina
+Koc-Michalska†, and Karl Rohe?
+University of Wisconsin-Madison and Audencia Business School
+We propose a new technique, Spectral Contextualization, to study
+political engagement on Facebook during the 2012 French presidential
+election. In particular, we examine the Facebook posts of the eight
+leading candidates and the comments beneath these posts. We find
+evidence of both (i) candidate-centered structure, where citizens pri-
+marily comment on the wall of one candidate and (ii) issue-centered
+structure (i.e. on political topics), where citizens’ attention and ex-
+pression is primarily directed towards a specific set of issues (e.g.
+economics, immigration, etc). To discover issue-centered structure,
+we develop Spectral Contextualization, a novel approach to analyze a
+network with high-dimensional node covariates. This technique scales
+to hundreds of thousands of nodes and thousands of covariates. In the
+Facebook data, spectral clustering without any contextualizing infor-
+mation finds a mixture of (i) candidate and (ii) issue clusters. The
+contextualizing information with text data helps to separate these
+two structures. We conclude by showing that the novel methodology
+is consistent under a statistical model.
+1. Introduction. Social media such as Facebook and Twitter provide platforms for citizens
+to publicly communicate with each other and with politicians. In the 2012 French election, citizens
+commented on presidential candidate’s posts, creating a communication network between two types
+of units: (i) citizens and (ii) candidate-posts. Patterns of political discussion in public social media
+spaces are of great theoretical and empirical interests to scholars of communication and political
+science. Such spaces have long been heralded for their potential to foster a “public sphere” in which
+ordinary citizens can recognize one another and hear reasons both for and against their own points
+of view (Papacharissi (2002)). More recent analyses of online political discourse have been less
+optimistic, identifying instead vitriol, “trolling”, and larger patterns of partisan polarization. As a
+result, a great deal of research has investigated the extent to which online actors are connected to
+political opponents, typically by labeling individual actors and measuring the extent to which they
+interact (Adamic and Glance (2005)). Here we take a different approach, investigating the multiple
+dimensions of citizens’ interactions with political content coming from a variety of political actors.
+To understand the political activities of the citizens on Facebook, this paper studies the structure
+of the discussion threads, where one of the eight campaigns makes a post on Facebook and citizens
+(often hundreds) reply to this post. The activities of the citizens are characterized by (i) which of
+the candidate-posts they comment on and (ii) the text of their comments. We are interested in two
+broad types of patterns in these activities: (i) candidate-centered structure, where citizens primarily
+comment on the wall of one candidate; and (ii) issue-centered structure, in which citizens’ attention
+and expression is directed towards a specific set of issues (e.g. economics, immigration, etc). To
+?The authors gratefully acknowledge support from NSF grant DMS-1612456 and ARO grant W911NF-15-1-0423.
+†The authors gratefully acknowledge support from Audencia Foundation Research grant.
+Keywords and phrases: network; Facebook; topic; spectral clustering; node covariate; Stochastic co-Blockmodel
+1
+search for such patterns, we cluster the citizens based on their activities. In each cluster, we examine
+whether the activities of the citizens focus on particular candidates (i.e. candidate-centered)(Section
+2.2) or whether the activities focus on certain political issues (i.e. issue-centered)(Section 4). This
+distinction reflects the possibility that the Facebook conversation might be organized more along
+lines of partisanship (candidate-centered), as opposed to matters of concern to “issue publics”
+(issue-centered) (Kim (2009)).
+There has been significant progress in the statistics and machine learning literature on topic mod-
+eling for text (Blei (2012)) and in community detection for social networks (Airoldi et al. (2008)).
+Recently, there has been significant interest in clustering networks for which we have additional
+information on the citizens in networks (Chang and Blei (2010); Binkiewicz et al. (2017)). In this
+paper, we extend these ideas to the setting of discussion threads. Our network is bi-partite, in
+which the two types of units, citizens and candidate-posts, are linked by commenting in a discus-
+sion thread. Below, we refer to the network or the graph as only the links showing which citizens
+commented on which candidate-posts. By the text we refer to both the text in candidate-posts
+and the text in citizen-comments. The duality between citizens and candidate-posts also appears
+in the text; candidates say things differently from citizens.
+A key difficulty in analyzing this process, and the key methodological innovation of this paper, is
+to combine these disparate sources of data, the graph information and the two types of text informa-
+tion (citizen-words and thread-words), in a meaningful way. We develop Spectral Contextualization
+to leverage high dimensional node covariates into spectral clustering. We extend and specialize the
+techniques of Binkiewicz et al. (2017) to deal with both (i) the asymmetrical nature of the network
+between citizens and candidate-posts, and (ii) the high dimensional and sparse nature of the text.
+With noticeable themes, four sub-populations and four sub-groups of the candidate-posts are un-
+covered by our method. We interpret the clusters by a word-content strategy: For each cluster, we
+(i) identify keywords, and then (ii) read through central conversations containing the keywords.
+Spectral Contextualization is adaptable to symmetric or directed graphs, unipartite or bipartite,
+assortative or dis-assortative, weight or unweighted. Spectral Contextualization scales to hundreds
+of thousands of nodes and thousands of covariates (e.g. number of unique words in Facebook
+threads). It uses a sparsity penalty to select the key covariates that align with the graph. After
+combining the covariates with the graph, we use spectral clustering to compute a partition of the
+nodes. Finally, we provide diagnostics to identify key covariates to interpret the different clusters.
+Theorem 5.2 shows that our method is consistent under the Node-Contextualized Stochastic co-
+Blockmodel.
+This paper is organized as follows. In Section 2, we briefly describe the 2012 French presiden-
+tial election, the discussion threads on Facebook, and the result of regularized spectral clustering
+without any contextualizing information. In Section 3, we introduce the Spectral Contextualiza-
+tion technique which leverages node covariates in spectral clustering. In Section 4, we identify the
+issue-centered structure of the discussion threads using high-dimensional text in Spectral Con-
+textualization. Statistical consistency of our method is provided under the Node Contextualized
+Stochastic co-Blockmodel. Section 6 concludes this paper with a discussion of our method.
+2. Background and key summaries of the data. France’s presidential elections proceed
+in two stages. On April 22 2012, the first round of voting narrowed the field of candidates from
+ten to two; the second round, between Franc?ois Hollande and Nicolas Sarkozy, took place on May
+6. In these analyses, we focus on the eight candidates who received at least 1% of the votes in
+the 1st round of the election. These eight candidates–Franc?ois Hollande, Nicolas Sarkozy, Marine
+Le Pen, Jean-Luc Me?lenchon, Franc?ois Bayrou, Eva Joly, Nicolas Dupont-Aignan, and Philippe
+2
+Poutou–made a total of 3239 posts on Facebook. In response, 92,226 Facebook users, which we call
+citizens, made 594,685 comments on the candidate-posts.1
+92,226 many 3239 many
+Citizens Candidate-Posts
+Fig 1. The Communication Network is a bi-
+partite graph between citizens and candidate-posts.
+Each edge weight corresponds to the number of
+times that a citizen comments on a candidate-post.
+There are two main structures that we aim to detect
+and study in the conversation: (i) candidate-centered
+structure, where citizens primarily comment on the
+wall of one candidate; and (ii) issue-centered struc-
+ture, in which citizens’ attention and expression is di-
+rected towards a specific set of issues (e.g. economics,
+immigration, etc).
+2.1. The communication network. To study the
+structure of the conversations, we construct a
+weighted bi-partite network between citizens and
+candidate-posts (see Figure 1) from the discussion
+threads. A citizen is linked to a candidate-post if and
+only if the citizen comments on the candidate-post.
+The weight of this link is the number of times the citi-
+zen comments on the candidate-post. To represent this
+network, we construct the weighted adjacency matrix
+A ? R92,226×3239 with
+(2.1) Aij = # of times of citizen i comments on candidate-post j.
+Denote the degree of a citizen i, di =
+?
+j Aij , as the number of comments by citizen i. Denote the
+degree of a candidate-post j, dj =
+?
+iAij , as the number of comments underneath the candidate-
+post. Figure 2(a) shows the proportion of citizens who have at least d comments, as a function of
+d. Figure 2(b) gives the same result for the post-degrees.
+2.2. Citizens’ attention-ratio towards candidates. Let ?ij be the number of times that citizen
+i comments under candidate j’s wall. We say that citizen i focuses on candidate j if ?ij ? ?i? for
+any candidate ?. The citizens that have tied favorites are randomly assigned to one of their favorite
+candidates. Then, the citizens are naturally partitioned into eight clusters based on the candidates
+they focus on. For each citizen i, we denote their attention-ratio as
+AttentionRatio(i) =
+max
+?
+?i?
+di
+.
+When the attention-ratio is one, it indicates the citizen only comment on one candidate-wall, while
+smaller attention-ratio indicates the citizen comments across different candidate-walls. Figure 3
+shows the histogram of attention-ratio for all citizens with di ? 10. Most of the mass of this
+histogram is close to one, indicating that most citizens primarily comment on one candidate-wall.
+This gives the first impression of candidate-centered structure.
+1The data was gathered by sotrender.com.
+3
+(a) (b)
+Fig 2. Upper Tail of Degrees. Figure (a) shows the upper tail of citizen-degrees. 90% of the citizens write fewer than
+10 comments, a small number of citizens write thousands of comments. Figure (b) shows the upper tail of post-degrees
+by candidate. Hollande, Sarkozy, and Le Pen (on right) have the largest degrees.
+Fig 3. Distribution of Citizens’ Attention-Ratio. In this figure, we focus on citizens who have at least 10
+comments. The first plot displays the histogram of attention-ratio for all citizens. The rest eight plots are for the eight
+citizen-clusters based on the candidates they focus on. We don’t display the citizens who focus on Poutou, because he
+attracts very few comments.
+Categorizing the citizens based upon where they focus their attention produces a partition. For
+4
+any partition of citizens, P : {1, . . . , NC} ? {1, . . . ,KC} where NC = 92, 226 is the number of
+citizens and KC is the number of citizen-clusters, define matrix ?C ? RKC×8 such that for any
+a ? {1, . . . ,KC} and b ? {1, . . . , 8},
+(2.2) [?C ]a,b =
+# of comments from citizens in cluster a under posts on bth candidate-wall
+(# of citizens in cluster a)× (# of posts on bth candidate-wall) .
+Figure 4 gives a balloon plot of ?C for the partition created by where citizens focus their attention.
+It also shows a clear candidate-centered structure: Each candidate has a corresponding citizen-
+cluster that mainly comment on their posts. Combined with the size of each citizen-cluster, it
+shows leading candidates attract larger clusters of citizens. See supplementary material for more
+evidence for candidate-centered structure.
+(a) (b)
+Fig 4. Citizen-Clusters Figure (a) shows interactions between the citizen-clusters and candidate-walls. The sizes of
+the balloons are the elements of ?C (defined in (2.2)). Figure (b) shows the number of citizens in each cluster.
+However, such strong candidate-centered structure, where citizens primarily comment on the wall
+of one candidate, does not lead to the conclusion that citizens devote their attention to candidates
+rather than issues. It might be an “illusion” from the “magnifying” effect of Facebook (Webster
+(2014)). One possibility is many citizens may only follow one candidate on Facebook, so they can
+only see posts from one candidate. Even if they are interested in topics that are discussed by many
+candidates, they are likely to comment only on the candidate’s posts that they follow. In this case,
+even a slight more interest in one candidate can be magnified by Facebook to a strong candidate-
+centered structure. To understand whether the citizens’ attention is only directed by candidates,
+we dig more deeply into the discussion threads in the following sections.
+Importantly, the partition of citizens in Figure 4, which is created by where citizens focus their
+attention, uses the additional information of which of the eight candidates writes each post. In other
+words, this partition of the rows of A ? R92,226×3239 uses a partition of the 3239 columns of A which
+is defined by which candidate writes the post. The next sections will define two additional partitions
+of the citizens. Neither of these partitions will use the information of which candidate writes the
+post. The summary ?C will be computed with these new partitions to help interpret whether they
+are discovering candidate-centered structure.
+5
+Fig 5. The Citizen-Clusters by DI-SIM. Similar to
+Figure 4(a), this figure shows the balloon plot of ?C cor-
+responding to the citizen-clusters by di-sim.
+2.3. Studying the graph using di-sim. De-
+spite the overwhelming evidence for strong
+candidate-centered clusters in Figure 4, the spec-
+tral algorithm di-sim (Rohe et al. (2016)) finds a
+different partition of the citizens. Different from
+Section 2.2 where we partition citizens based on
+the candidates they focus on, di-sim partitions
+both citizens and candidate-posts by applying a
+spectral clustering algorithm. Figure 5 displays
+the matrix ?C (defined in (2.2)) for the par-
+tition of citizens created by di-sim. Only the
+top three candidates have clusters that focus on
+them: Hollande and Sarkozy each has two clus-
+ters and Le Pen has one cluster that focuses on
+her. Other citizen-clusters (6,7,8) spread across
+multiple candidates.
+One possible reason for the discrepancy be-
+tween the attention-based partition and the par-
+tition from di-sim is that there may be some additional structure and di-sim is finding a mixture of
+the candidate-centered structure with that additional structure. Spectral Contextualization, which
+we will introduce in the following sections, confirms that there is also an issue-centered structure
+in the network by incorporating text information.
+3. Spectral Contextualization. As shown in Section 2, there are at least two good cluster-
+ings of the nodes (by attention-ratio or by di-sim). Given the potentially large number of plausible
+clusterings of the nodes, the overarching aim of Spectral Contextualization is to find a co-clustering
+of A (i.e. cluster both its rows and columns) that aligns with the contextualizing information.
+To quantify and utilize the contextualizing information, Section 3.1 describes how we preprocess
+the text in the discussion threads. Section 3.2 defines the bag-of-word matrices to represent the
+text used by citizens and candidate-posts. Section 3.3 introduces the Spectral Contextualization
+algorithm.
+3.1. Preprocessing the text. To preprocess the text, we represent the text in bag-of-words, re-
+move numbers, symbols (e.g. %, @, etc), and stop words (e.g. le, la, en, au, etc.) and transfer words
+into their roots by stemming. For example, maintenaient, maintenait, maintenant, maintenir
+are transferred into their root mainten.
+3.2. Bag-of-word matrices (node covariate matrices). From the cleaned text, we retain two
+different sets of words: “citizen-words” which are contained by at least 0.1% of the comments,
+and “thread-words” which are contained in at least 0.1% of the contents in threads (i.e. posts and
+comments). In this data, over 99% of the words appear in both sets, such as franc, vot, plus, etc.
+There are also thread-words that are not in citizen-words, such as confrontaient, relancait, etc.
+To contextualize the citizens with the words that they write, define X ? RNC×MC , where NC is
+the number of citizens and MC = 2020 is the number of citizen-words. For citizen i and citizen-word
+j,
+Xij = # of comments from citizen i that contain citizen-word j.
+6
+Representing the candidate-posts is not as simple. Candidate-posts provide platforms for conversa-
+tions, but usually it is the comments underneath it that generate conversations. This phenomenon is
+colloquially referred to as “thread highjacking,” where the discussion thread (beneath a candidate-
+post) is used to discuss something other than what is discussed in the candidate-post. In particular,
+many of the candidate-posts direct their followers to interviews that happen in traditional media.
+Thus, to properly contextualize the thread, one must include the text that citizens are responding
+to, which is not necessarily the candidate-post. To represent the text that citizens are responding
+to when they post a comment in a thread, we use matrix Y ? RNP×MP , where NP = 3239 is the
+number of candidate-posts and MP = 2021 is the number of thread-words. For candidate-post i
+and thread-word j,
+Yij =1{candidate-post i contains thread-word j}+
+# of comments underneath candidate-post i that contain thread-word j.
+We refer to X and Y bag-of-word matrices and consider them as node covariate matrices that
+contain the text information about both types of nodes (citizens and candidate-posts). The rows
+index the nodes (citizens or candidate-posts) and columns index the dictionaries (citizen-words or
+thread-words). Our setting allows citizen-covariates and post-covariates to differ in both type and
+number. In general, there could be various types of covariates. Note that categorical covariates
+should be re-expressed with dummy variables. In practice, node covariate matrices X and Y should
+be centered and scaled by column before analysis.
+3.3. Spectral Contextualization. This algorithm is a refinement of Covariate Assisted Spectral
+Clustering (CASC) (Binkiewicz et al., 2017). In CASC, the graph is uni-partite. Denote X ? RN×M
+as the node covariate matrix and L ? RN×N as the regularized graph Laplacian
+(3.1) L = D
+?1/2
+C AD
+?1/2
+P ,
+where DC and DP are diagonal matrices with [DC ]ii =
+?
+j
+Aij + ?c and [DP ]jj =
+?
+i
+Aij + ?p, where
+?c(?p) is set to be the average row (column) degree. When the uni-partite graph is undirected,
+DC = DP . CASC adds XX
+T to the regularized graph Laplacian and performs spectral clustering
+on this following similarity matrix. Define
+Scasc(h) = L+ hC,
+where the covariate assisted part is
+C = XXT .
+For any matrix H, denote its ith row as Hi· and its jth column as H·j. Note that XX
+T =
+?
+j X·jX
+T
+·j
+is a summation of each covariate’s outer product.
+To generalize CASC, Spectral Contextualization refines the matrix C in several ways. This re-
+finement will first be expressed in terms of a uni-partite graph where X = Y . Replace C = XXT
+with
+CW = XWX
+T
+for some matrix W . Note that when W is identity matrix, CW = C. By imposing matrix W ,
+Spectral Contextualization addresses the following limitations of CASC.
+• Note that CW =
+?
+ij WijX·iX
+T
+·j . So, when Wij is nonzero for i 6= j, it creates an “interaction”
+between X·i and X·j , i.e. ith and jth covariates. Such interactions are not included in C.
+7
+• In C, there is not a natural way of excluding covariates, i.e. discarding columns of X. However,
+in many settings, several covariates could be unaligned with the graph and they should be
+excluded from the similarity matrix. CW can select covariates by setting some elements (or
+rows/columns) of W to zero.
+• C presumes that two nodes are more likely to be connected when they have similar covariates.
+But in some situations, this is not true. For example, in a dating network, relationships are
+more prevalent among men and women than two people of the same gender. In CW , if Wii is
+negative, then two nodes are closer in the similarity matrix CW if they have different values
+for the ith covariate.
+• The symmetric matrix C only allows for symmetric contributions of covariates, which may
+not be the case for directed graphs. This can be addressed by allowing W to be asymmetric.
+• Finally, CASC was not designed for bi-partite networks. In a bipartite graph, the rows of A
+might have different contextualizing measurements than the columns of A. In the Facebook
+data, these measurements correspond to the matrices X and Y . Because they have different
+measurements, the multiplication XY T is not defined for the Facebook data. However, the
+multiplication XWY T is well defined. Even if X and Y have a different number of features,
+there exists a rectangular W that allows for the multiplication XWY T . This removes the
+need for a one-to-one correspondence between the columns of X and Y ; they could contain
+entirely different types of measurements.
+We propose estimating a matrixW to address the issues above. Define the call-response matrix
+W = XTLY, which measures the correlation between thread-words and citizen-words along the
+graph. For example, if discussion threads containing the word franc have comments from citizens
+that are likely to say vot, then citizen-word vot is highly correlated with a thread-word franc
+along the graph.
+To illustrate W = XTLY , examine a single element xTLy, where x ? R92,226 is a column of X
+corresponding to word vot and y ? R3239 is a column of Y corresponding to word franc. So, xi is
+the number of times that citizen i uses vot and yj is the number of times that franc appears in the
+thread for candidate-post j. If x is centered and independent of L and y, then x is an uninformative
+covariate, and E[xTLy] = E(E(xT |L, y)Ly) = 0. Conversely, if for centered x and y,
+xTLy =
+?
+i,j:Aij=1
+xiyj
+?
+[DC ]ii[DP ]jj
+is large (positive or negative), it suggests that linked nodes in L have (positively or negatively)
+correlated values of x and y. Figure 6 gives a small part of the call-response matrix.
+There are thousands of words in the discussion threads. To select the highly correlated words
+along the graph, we define a hard-threshold function on W ,
+(3.2) [T?(W )]sr =
+{
+Wsr, if Wsr > ?
+0, o.w.
+In practice, we can set the threshold ? as the 1? ? quantile of |Wij |’s.
+8
+(a) (b)
+Fig 6. Part of the Call-Response Matrix before and after Thresholding Some pairs of words are relatively
+more highly correlated, like nicolassarkozy and francoishollande, jeanlucmelenchon and jeanlucmelenchon, vot
+and franc, etc. After thresholding, only the relatively highly correlated pairs of words are left, making the call-response
+matrix much more sparse.
+Thus, we finally define the matrix that replaces C from CASC. For Spectral Contextualization,
+define
+(3.3) CT = XT?(W )Y
+T .
+The following diagram reviews how Spectral Contextualization refines the matrix C from CASC.
+XXT XWXT XWY T XT?(W )Y
+T
+create
+interactions
+with W
+allow for different
+citizen- and post-
+covariates
+select interactions
+by thresholding
+elements of W
+Note that
+CT =
+?
+ij
+[T?(W )]ijX·iY
+T
+·j
+shows closeness of citizens and candidate-posts based on their usage of words in the network. [CT ]ij
+is large when citizen i and candidate-post j use many highly correlated pairs of words. The threshold
+function T?(· ) helps select pairs of words, and imposes sparsity when W is high-dimensional.
+Therefore, Spectral Contextualization applies di-sim to the similarity matrix:
+(3.4) S = L+ hXT?(W )Y
+T .
+This similarity matrix combines both the graph information, represented by L, and the text infor-
+mation, represented by CT = XT?(W )Y
+T , with a tunning parameter h to balance between these
+two parts.
+Algorithm.
+Input: adjacency matrix A ? RNP×NC , node covariate matrices X ? RNP×MP and Y ? RNC×MC ,
+number of citizen-clusters KC , number of post-clusters KP , weight h, and the significance level ?.
+9
+1. Compute the regularized graph Laplacian L from A as in (3.1). Center X and Y by column.2
+2. Compute W = XTLY . Choose ? to be the 1? ? quantile of |Wij |’s.
+3. Compute the similarity matrix for Spectral Contextualization as
+S = L+ hXT?(W )Y
+T .
+4. Compute the top K left and right singular vectors UC ? RNC×K , UP ? RNP×K corresponding
+to the K largest singular values of S, where K = min{KC ,KP }.
+5. Form matrices U?C ? RNC×K and U?P ? RNP×K such that for any i ? {1, . . . , NC(NP )},
+(3.5) [U?C ]i· =
+[UC ]i·
+?[UC ]i·?2
+and [U?P ]i· =
+[UP ]i·
+?[UP ]i·?2
+.
+6. Cluster the rows of U?C into KC clusters with k-means. If the ith row of U
+?
+C falls in the kth
+cluster, assign citizen i to citizen-cluster k.
+7. Cluster the candidate-posts by performing step 6 on the matrix U?P with KP clusters.
+4. Issue-centered structure. We identify topics that attract public’s attention in the Face-
+book discussion threads using Spectral Contextualization. From the scree plot of the singular values
+of S (see Figure 3 in supplementary material), we decide to find K = 4 clusters due to the large
+gap after the fourth singular value. To study how the text in discussion threads affects the partition
+of citizens and candidate-posts, we show the clustering results in three cases: (i) when we use no
+text, i.e. the tuning parameter h in Equation (3.4) is h = 0,3 (ii) when we incorporate text, i.e.
+h = 0.035,4 and (iii) when we only use the text assisted part (defined in (3.3)), i.e. h = ?.
+Section 4.1 shows that with more text incorporated (i.e. with larger h), the clusters become less
+candidate-centered. Section 4.2 introduces a word-content strategy to extract topics of clusters.
+Section 4.3 describes the cluster topics and supports Section 4.1 by showing that clusters with
+larger h are more heavily focused on the contextualizing information.
+4.1. The clusters from Spectral Contextualization with larger h are less candidate-centered. For
+each partition of candidate-posts, P : {1, ..., NP } ? {1, ..., 4}, we define the matrix ?P ? R4×8
+such that for any a ? {1, ..., 4} and b ? {1, ..., 8},
+(4.1) [?P ]ab =
+# of posts in cluster a from candidate b’s wall
+(# of posts in cluster a)× (# of posts from candidate b’s wall) .
+?P shows how post-clusters distribute on candidate-walls. This is similar to ?C defined in (2.2),
+which shows how citizen-clusters interact with candidate-walls. Figure 7 displays ?P and ?C in
+balloon plots in the three cases. When we use no text, i.e. h = 0, there appears some candidate-
+centered structure in both citizen-clusters and post-clusters. As we incorporate text, in the case
+when h = 0.035, each post-cluster spreads across multiple candidates. With even more text incor-
+porated, in the case h = ?, neither of the post-clusters nor citizen-clusters are candidate-centered.
+In the following subsections, we identify the cluster topics using key words, comments and posts.
+2Scaling X and Y might also be beneficial.
+3When h = 0, Spectral Contextualization is equivalent to di-sim.
+4In case (ii), h can be any real positive value. We choose h = 0.035 since it shows clusters with major differences
+from both cases when h = 0 and when h = ?. Recall the similarity matrix S = L+hCT (see (3.4)). For identification
+of h = 0.035, we scale the text-assisted part CT to have the same second singular value with L. Then, h means how
+much we weigh the text-assisted part in Spectral Contextualization. h = 0.035 means that we weigh the text-assisted
+part 0.035 times of the graph information.
+10
+(a)
+(b)
+Fig 7. Clusters and Candidate-Walls Figure (a) and (b) display ?P and ?C in ballloon plots for the three cases.
+4.2. A word-content strategy to identify cluster topics. To identify the cluster topics, we first
+identify keywords for each cluster, which we will define in Section 4.2.1. These keywords give the
+first impression of the cluster topics.
+However, it is insufficient to examine the words in isolation, because the same word is often
+used differently by different subsets of the population. For example, religion is often used by
+citizens talking about the religion of peace and it is also often used by atheists criticizing its
+appearance in the public sphere. Thus, to identify the cluster topics, besides identifying keywords,
+we also need to read through the conversations that contain these keywords. We focus on the
+central conversations in each cluster, which we will define in Section 4.2.2.
+We call this strategy word-content strategy, where for each cluster, we (i) identify the key-
+words and (ii) read through the central conversations that contain the keywords in the cluster.
+11
+4.2.1. Identify the keywords. We identify the keywords in each cluster by setting “scores”. For
+any k ? {1, . . . , 4} and j ? {1, . . . ,MC}, define the score of citizen-word j in citizen-cluster k as
+?kj =
+?
+i?k
+Xij
+?
+i?k
+X?ij
+, where X?ij =
+?
+j
+Xij
+?
+i
+Xij
+?
+Xij
+,
+and i ? k denotes the citizen i belongs to cluster k. We similarly define the scores of thread-words in
+post-clusters based on the bag-of-word matrix of candidate-posts Y . These scores are also discussed
+in Witten (2011), where they are derived by maximum likelihood on a Poisson model. We define
+the keywords in a cluster to be the words with the largest scores in the cluster. We show keywords
+of each cluster in Section 4.3.
+4.2.2. Identifying central conversations. We identify the central conversations by diagnostics
+from k-means clustering. Recall the Spectral Contextualization algorithm partitions citizens by
+applying k-means on the NC rows of matrix U
+?
+C ? RNC×4 (defined in (3.5)) which correspond to
+the NC citizens. For any citizen i, we denote their cluster-centrality as
+?i = [U
+?
+C ]
+T
+i· [µ
+?
+C ]i,
+where [µ?C ]i is the cluster centroid of citizen i from k-means on rows of U
+?
+C . There are four different
+cluster centroids. For each cluster, the central citizens are the citizens in the cluster with the
+largest cluster-centrality, i.e. those that align best with the cluster centroid. We similarly define the
+central posts for post-clusters. For a citizen-cluster, the central conversations are the com-
+ments from the central citizens; for a post-cluster, the central conversations are the discussion
+threads (including posts and comments) initiated by the central posts.
+We read through the central conversations that contain the keywords in each cluster. This word-
+content strategy helps us identify topics that attract citizens’ attention. We will show these topics
+in Section 4.3.
+4.3. Topics of clusters. We extract topics of the clusters by the word-content strategy in three
+cases, h = 0, h = 0.035, and h = ?. Figure 8, 9 and 10 show the cluster topics with the keywords
+and a brief description of the central conversations in each cluster. In these figures, the links indicate
+major interactions5 between citizen-clusters and post-clusters, with the link widths proportional to
+elements of matrix ? ? R4×4, where for any a, b ? {1, . . . , 4},
+?ab =
+# of comments from citizens in citizen-cluster a under candidate-posts from post-cluster b
+(# of citizens in citizen-cluster a)× (# of candidate-posts in post-cluster b) .
+This is similar to matrices ?C defined in (2.2) and ?P defined in (4.1), which show how clusters (for
+citizens or candidate-posts) distribute on the eight candidate-walls. ? shows how the citizen-clusters
+interact with the post-clusters.
+5We only display the links that correspond to the three or four largest elements of ? in each case.
+12
+Citizen-clusters Post-clusters
+Pro-Hollande. The central conversations are on Hol-
+lande’s wall, which criticize Sarkozy or praise Hollande.
+Keywords: UMP, dwarf, liar, aggravating, euros, quin-
+quennium.
+Anti-Sarkozy. The central conversations are on Hol-
+lande’s wall, which are negative towards Sarkozy.
+Keywords: UMP, liar, dwarf, budgetary, aggravating,
+euros, thief.
+Pro-Sarkozy. The central conversations are on
+Sarkozy’s wall, which criticize Hollande or praise
+Sarkozy.
+Keywords: socialist, concord, captain, assistantship,
+reelected, flamby, strong, gentleman, censored, lucid.
+About Sarkozy. The central conversations are mostly
+on Sarkozy’s wall, and are about Sarkozy.
+Keywords: concord, socialist, assistantship, reelected,
+captain, strong, flamby, censored, gentleman, lucid.
+Islam, religion, and immigration. The central con-
+versations are on Le Pen’s wall, and contain fights be-
+tween National Front supporters and opponents and
+discussions on Islam, religion, and immigration.
+Keywords: Koran, Allah, angel, religion, pig, Islam,
+pork, mosque, arab.
+Islam, religion, and immigration. The central con-
+versations are mostly on Le Pen’s wall, with Islam, reli-
+gion, and immigration as a key theme.
+Keywords: Koran, angel, religion, Allah, pig, Islam,
+mosque, pork.
+Pro-Me?lenchon. The central conversations are on
+Me?lenchon’s wall and are mostly positive towards him.
+Keywords: JLM, resistance, troll, FDG, forehead, bric,
+human, fought, dictatorship.
+Pro-Me?lenchon. The central conversations are on
+Me?lenchon’s wall and are mostly positive towards him.
+Keywords: JLM, resistance, troll, FDG, revolutionnair,
+bric, forehead.
+Fig 8. Cluster topics when h = 0
+Citizen-clusters Post-clusters
+Pro-Hollande. The central conversations are on Hol-
+lande’s wall, which criticize Sarkozy or praise Hollande.
+Keywords: dwarf, liar, aggravating, euros, quinquen-
+nium, modest.
+Hollande vs Sarkozy. The central conversations are
+on Hollande’s, Sarkozy’s and Bayrou’s walls, which fo-
+cus on on-going debate and fights between pro-Sarkozy
+and pro-Hollande.
+Keywords: residential, ancestry, chic, IRS, balance
+sheet, pent, loss making.
+Pro-Sarkozy. The central conversations are on
+Sarkozy’s wall, which criticize Hollande or praise
+Sarkozy.
+Keywords: socialist, concord, assistantship, captain,
+reelected, flamby, strong, gentleman, censored.
+Ecology. The central conversations are on Bayrou’s,
+Joly’s, and Dupont-Aignan’s walls. Ecology is discussed
+along with Joly and the Green party.
+Keywords: ecologic, green, sincerity, madam, anti-
+semitic, admired, supported, standing.
+Islam, religion, and immigration. The central con-
+versations are mostly on Le Pen’s wall, which contain
+discussions on Islam, religion, and immigration.
+Keywords: Koran, angel, pig, Allah, religion, Islam,
+pork, mosque, arab.
+Islam, religion, and immigration. The central con-
+versations are mostly on Le Pen’s wall, which contain
+discussions on Islam, religion, and immigration.
+Keywords: Koran, angel, Allah, religion, pig, Islam,
+pork, mosque, arab.
+Pro-Me?lenchon. The central conversations are on
+Me?lenchon’s wall and are mostly positive towards him.
+Keywords: JLM, troll, FDG, forehead, human, bric,
+fought, revolutionary, fraternity.
+Pro-Me?lenchon. The central conversations are on
+Me?lenchon’s wall and are mostly positive towards him.
+There is bigger focus on defending Me?lenchon than
+h = 0.
+Keywords: JLM, resistance, troll, FDG, bric, revolution-
+ary, forehead, fought, human, fraternity.
+Fig 9. Cluster patterns when h = 0.035
+13
+Citizen-clusters Post-clusters
+Hollande vs Sarkozy. The central conversations are
+on Hollande’s and Sarkozy’s walls, which contain fights
+between pro-Hollande and pro-Sarkozy and are more
+offensive than h = 0.035.
+Keywords: Franc?ois Hollande, Nicolas Sarkozy, almost,
+President, incompetent, May, charisma, dwarf, farewell,
+liar.
+Pro-Sarkozy. The central conversations are on Hol-
+lande’s and Sarkozy’s walls, which focus on criticizing
+Hollande or praising Sarkozy.
+Keywords: concord, flamby, socialist, gentleman, Presi-
+dent, captain, Bravo, charisma, assistantship, farewell.
+Hollande vs Sarkozy (economic, crises, mea-
+sures, and copy-paste stories). The central conver-
+sations are on Hollande’s and Sarkozy’s walls. There
+are many copy-paste comments, such as a derogatory
+riddle about Hollande and media questions denouncing
+Sarkozy’s corruption. Compare to cluster 1 (above),
+there are also more detailed themes like economic,
+crises, and measures taken by politicians.
+Keywords: residential, ancestry, primary, hire, bud-
+getary, industrial.
+Fights among multiple candidate’s supporters.
+The central conversations are on many candidates’
+walls (Hollande, Bayrou, Dupont-Aignan, Joly, and
+Lepen), where supporters praise their candidate or de-
+nounce others. The copy-paste derogatory riddle about
+Hollande also appears repeatedly in the central conver-
+sations.
+Keywords: euros, residential, Kadhafi, Le Monde, ag-
+gravating, centrist, budgetary, contract.
+Islam, religion, and immigration. The central
+conversations are mostly on Le Pen’s wall, and then
+Dupont-Aignan’s, Me?lenchon’s, Hollande’s, and
+Sarkozy’s walls, which are mainly about Islam, religion,
+and immigration.
+Keywords: Koran, Allah, religion, Islam, angel, pig,
+pork, lol, Muslim, arab.
+Islam, religion, and immigration. The central con-
+versations are on Le Pen’s wall, and are more coher-
+ent on Islam, religion, and immigration compared to
+h = 0.035.
+Keywords: Koran, religion, Allah, angel, Islam, pig,
+pork, Muslim, mosque, arab, Christian.
+Pro-Me?lenchon. The central conversations are on
+Me?lenchon’s wall and are mostly positive towards him.
+Keywords: JLM, resistance, FDG, troll, forehead, lib-
+eral, revolutionary, human.
+Pro-Me?lenchon. The central conversations are on
+Me?lenchon’s wall and are mostly positive towards him.
+Keywords: JLM, resistance, fdg, troll, revolutionary,
+forehead, human.
+Fig 10. Cluster patterns when h = ?
+When h = 0 (see Figure 8), clusters focus on candidates or the radical discussions. As we
+incorporate the text, in the case when h = 0.035 (see Figure 9), the citizen-clusters are similar to
+those when h = 0, but there appears a post-cluster about ecology. As we incorporate more text, in
+the case when h = ? (see Figure 10), we identify more topics, such as economic and crises. There
+also appear a cluster for both citizens and candidate-posts with many copy-paste comments. More
+data analysis results are in Shiny App https://yilinzhang.shinyapps.io/FrenchElection.
+Incorporating the text makes the central conversations more vivid representations of the clus-
+ters, allowing for a more precise interpretation of the topic. During the 2012 French election, the
+citizens devoted their attention and expression in (i) the debates and fights among different candi-
+dates, (ii) radical discussions on Islam, religion, and immigration, and (iii) other topics including
+ecology, economy, and crises. In the next section, we provide a theoretical guarantee for Spectral
+Contextualization under a statistical model.
+5. Statistical Consistency of Spectral Contextualization. This section shows that Spec-
+tral Contextualization is statistically consistent under the Node Contextualized Stochastic co-
+Blockmodel (NC-ScBM), which is a fusion of the NC-SBM (Binkiewicz et al. (2017)) and ScBM
+(Rohe et al. (2016)).
+14
+Definition 5.1. Let ZC ? {0, 1}NC×KC and ZP ? {0, 1}NP×KP , such that there is only one 1 in
+each row and at least one 1 in each column. Let B ? [0, 1]KC×KP be of rank K = min{KC ,KP }. Let
+EC ? RKC×MC and EP ? RKP×MP . Under the NC-ScBM, the adjacency matrix A ? {0, 1}NC×NP
+contains independent Bernoulli random variables with
+(1) A = E[A] = ZCBZP ,
+and the node covariate matrices X ? RNC×MC and Y ? RNP×MP contain independent sub-gaussian
+elements with
+(2) X = E[X] = ZCEC and Y = E[Y ] = ZPEP .
+Recall the similarity matrix for Spectral Contextualization defined in Equation (3.4), S = L +
+hXT?(W )Y
+T . We define the population similarity matrix as
+(5.1) S = L+ hXWYT ,
+where L = D?1/2C AD
+?1/2
+P and W = X TLY, where diagonal matrices [DC ]ii =
+?
+j Aij + ?c and
+[DP ]jj =
+?
+iAij + ?p. Let UC and UC ? RNC×K(UP and UP ? RNP×K) contain the top K
+left(right) singular vectors of S and S.
+The basic outline of the proof for statistical consistency is: Under some conditions,
+1. the element-wise difference between T?(W ) and W is bounded by ? in probability;
+2. the similarity matrix S converges to S in probability;
+3. the singular vectors UC and UP converge to UC and UP within some rotations in probability;
+4. the mis-clustering rates for citizens and candidate-posts goes to zero in probability.
+The definition of mis-clustered is the same as in Rohe et al. (2016) and is given in Section 3.2 in
+supplementary material. The complete proof is given in Section 3.3 in supplementary material.
+Denote ?· ? as the spectral norm and ?· ?F as the Frobenius norm. For any matrix H, we define
+sym(H) =
+(
+0 H
+HT 0
+)
+and ?H?2 = max(?max
+i
+?Hi·?2,max
+j
+?H·j?2). Denote ?· ??2 as the sub-
+gaussian norm, such that for any random variable ?, there is ????2 = sup
+t?1
+t?1/2(E|?|t)1/t. To simplify
+notation, we denote N as the number of nodes and M as the number of covariates, though NC and
+NP , MC and MP can be different.
+Theorem 5.2. Suppose A, X and Y , are the adjacency matrix and the node covariate matrices
+sampled from the NC-ScBM. Let ?1 ? ?2 ? · · · ?K > 0 be the K non-zero singular values of S. Let
+MC and MP be the mis-clustered citizens and the mis-clustered candidate-posts. Denote qc and
+qp as the largest sizes of citizen-clusters and post-clusters. Define ? = min(mini[DC ]ii,minj[DP ]jj)
+and ? = max(?X?2, ?Y ?2, ?X?2, ?Y?2). Define ? = max(?2?L?F
+?
+lnM,?2?L? lnM, ?2?
+?
+lnM),
+where L is the regularized graph Laplacian defined in Equation (3.1) and ? = max(maxij ?Xij ?
+Xij??2 ,maxij ?Yij ? Yij??2). For any ? ? (0, 1), assume
+(1) ? > 3 ln(2N) + 3 ln(8/?),
+(2) ? = o(?), and
+(3) h ? min( a
+?2?sym(W)? ,
+a
+?2?
+).
+15
+Then, with probability at least 1? ?, for large enough N , the mis-clustering rates
+|MC |
+N
+? c0qcK ln(16N/?)
+N?2K?
+and
+|MP |
+N
+? c0qpK ln(16N/?)
+N?2K?
+,
+for some constant c0.
+Remark. Assumption (1) indicates the sparsity of the graph. Assumption (2) and (3) are conditions
+on parameters ? and h for consistency. Note the largest sizes of clusters qc and qp are O(N). Suppose
+?K is lower bounded by some constant c1 > 0, which indicates the “signal” of each of the K blocks
+is strong enough to be detected. Then, when ? grows faster than lnN , we have mis-clustering rates
+goes to zero as N ? ?.
+6. Discussion. This paper searches for (i) candidate-centered structure and (ii) issue-centered
+structure in the political discussions on Facebook surrounding the 2012 French election. The
+candidate-centered structure is relatively easy to detect since we have the labels of each citizen
+focuses on which candidate. But the search for issue-centered structure is more challenging, because
+we have no such labels of citizens or any labels of issues. To identify topics in the discussions, we
+use both the graph and the text. Either of them in isolation ignores the other source of information.
+Spectral Contextualization synthesizes the graph and the text, and it adresses the noisy and high-
+dimensional problem for text by thresholding. Using Spectral Contextualization, we identify topics
+that attract people’s attention, including Islam, religion, immigration, ecology, economy, and crises.
+During the interpretation of clusters, we propose the word-content strategy to extract the cluster
+topics, and our Shiny App https://yilinzhang.shinyapps.io/FrenchElection plays a signicant
+role in the interdisciplinary collaboration between statisticians and social scientists. Our codes and
+data sets are available on Github https://github.com/yzhang672/Spectral-Contextualization.
+We also provide an R package SpeCon to implement Spectral Contextualization on Github
+https://github.com/yzhang672/SpeCon.
+Chang and Blei (2010) proposed the relational topic model (RTM), a hierarchical probabilistic
+model for networks with node covariates. They modeled topic assignments for documents using
+latent Dirichlet allocation (LDA) (Blei et al. (2003)). Instead of studying networks of documents
+or posts, we study the bi-partite network between candidate-posts and citizens. Also, our method
+is unsupervised and more computationally efficient compared with RTM.
+Spectral Contextualization is useful for applications outside of discussion threads. It is applica-
+ble to any network with node covariates. Spectral contextualization enhances the homogeneity of
+covariates within clusters. This boosts the signal of the clusters and helps with interpretation.
+SUPPLEMENTARY MATERIAL
+Supplementary Materials for Discovering Political Topics in Facebook Discussion
+threads with Spectral Contextualization
+(http://arxiv.org/src/1708.06872/anc/; .pdf). This supplementary consists of three parts. Part
+1 provides more evidence for the candidate-centered structure. Part 2 explains our choice of the
+number of clusters K when searching for the issue-centered structure. Part 3 provides theoretical
+justifications for Spectral Contextualization.
+References.
+Adamic, L. A. and Glance, N. (2005). The political blogosphere and the 2004 us election: divided they blog. In
+Proceedings of the 3rd international workshop on Link discovery, pages 36–43. ACM.
+16
+Airoldi, E. M., Blei, D. M., Fienberg, S. E., and Xing, E. P. (2008). Mixed membership stochastic blockmodels.
+Journal of Machine Learning Research, 9(Sep):1981–2014.
+Binkiewicz, N., Vogelstein, J., and Rohe, K. (2017). Covariate-assisted spectral clustering. Biometrika, 104(2):361–
+377.
+Blei, D. M. (2012). Probabilistic topic models. Communications of the ACM, 55(4):77–84.
+Blei, D. M., Ng, A. Y., and Jordan, M. I. (2003). Latent dirichlet allocation. Journal of machine Learning research,
+3(Jan):993–1022.
+Chang, J. and Blei, D. M. (2010). Hierarchical relational models for document networks. The Annals of Applied
+Statistics, pages 124–150.
+Kim, Y. M. (2009). Issue publics in the new information environment: Selectivity, domain specificity, and extremity.
+Communication Research, 36(2):254–284.
+Papacharissi, Z. (2002). The virtual sphere the internet as a public sphere. New media & society, 4(1):9–27.
+Rohe, K., Qin, T., and Yu, B. (2016). Co-clustering directed graphs to discover asymmetries and directional commu-
+nities. Proceedings of the National Academy of Sciences, 113(45):12679–12684.
+Webster, J. G. (2014). The marketplace of attention: How audiences take shape in a digital age. Mit Press.
+Witten, D. M. (2011). Classification and clustering of sequencing data using a poisson model. The Annals of Applied
+Statistics, pages 2493–2518.
+Yilin Zhang, Karl Rohe
+Department of Statistics
+University of Wisconsin Madison
+1300 University Ave
+Madison, WI 53706
+USA
+E-mail: yilin.zhang@wisc.edu
+karlrohe@stat.wisc.edu
+Karolina Koc-Michalska, Marie Poux-Berthe
+Audencia Business School
+Communication and Culture Department
+1 Rue Marivaux
+44003 Nantes
+France
+E-mail: m.poux-berthe@live.fr
+kkocmichalska@audencia.com
+Chris Wells
+School of Journalism and Mass Communication
+University of Wisconsin Madison
+5115 Vilas Hall
+821 University Avenue
+Madison, WI 53706
+USA
+E-mail: cfwells@wisc.edu
+17

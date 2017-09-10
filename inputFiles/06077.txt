@@ -1,0 +1,2699 @@
+ar
+X
+iv
+:1
+70
+8.
+06
+07
+7v
+1 
+ [
+m
+at
+h.
+ST
+] 
+ 2
+1 
+A
+ug
+ 2
+01
+7
+1
+ExSIS: Extended Sure Independence Screening for
+Ultrahigh-dimensional Linear Models
+Talal Ahmed and Waheed U. Bajwa
+Abstract
+Statistical inference can be computationally prohibitive in ultrahigh-dimensional linear models. Correlation-based variable
+screening, in which one leverages marginal correlations for removal of irrelevant variables from the model prior to statistical
+inference, can be used to overcome this challenge. Prior works on correlation-based variable screening either impose strong
+statistical priors on the linear model or assume specific post-screening inference methods. This paper first extends the analysis of
+correlation-based variable screening to arbitrary linear models and post-screening inference techniques. In particular, (i) it shows
+that a condition—termed the screening condition—is sufficient for successful correlation-based screening of linear models, and
+(ii) it provides insights into the dependence of marginal correlation-based screening on different problem parameters. Numerical
+experiments confirm that these insights are not mere artifacts of analysis; rather, they are reflective of the challenges associated
+with marginal correlation-based variable screening. Second, the paper explicitly derives the screening condition for two families
+of linear models, namely, sub-Gaussian linear models and arbitrary (random or deterministic) linear models. In the process, it
+establishes that—under appropriate conditions—it is possible to reduce the dimension of an ultrahigh-dimensional, arbitrary linear
+model to almost the sample size even when the number of active variables scales almost linearly with the sample size.
+I. INTRODUCTION
+The ordinary linear model y = X? + noise, despite its apparent simplicity, has been the bedrock of signal processing,
+statistics, and machine learning for decades. The last decade, however, has witnessed a marked transformation of this model:
+instead of the classical low-dimensional setting in which the dimension, n, of y (henceforth, referred to as the sample size)
+exceeds the dimension, p, of ? (henceforth, referred to as the number of features/predictors/variables), we are increasingly
+having to operate in the high-dimensional setting in which the number of variables far exceeds the sample size (i.e., p? n).
+While the high-dimensional setting should ordinarily lead to ill-posed problems, the principle of parsimony—which states that
+only a small number of variables typically affect the response y—helps obtain unique solutions to inference problems based
+on high-dimensional linear models.
+Our focus in this paper is on ultrahigh-dimensional linear models, in which the number of variables can scale exponentially
+with the sample size: log p = O(n?) for ? ? (0, 1).1 Such linear models are increasingly becoming common in application areas
+ranging from genomics [1]–[4] and proteomics [5]–[7] to sentiment analysis [8]–[10] and hyperspectral imaging [11]–[13].
+While there exist a number of techniques in the literature—such as forward selection/matching pursuit, backward elimina-
+tion [14], least absolute shrinkage and selection operator (LASSO) [15], elastic net [16], smoothly clipped absolute deviation
+(SCAD) [17], bridge regression [18], [19], adaptive LASSO [20], group LASSO [21], and Dantzig selector [22]—that can be
+employed for inference from high-dimensional linear models, all these techniques have super-linear (in the number of variables
+p) computational complexity. In the ultrahigh-dimensional setting, therefore, use of the aforementioned methods for statistical
+inference can easily become computationally prohibitive. Variable selection-based dimensionality reduction, commonly referred
+to as variable screening, has been put forth as a practical means of overcoming this curse of dimensionality [23]: since only a
+small number of (independent) variables actually contribute to the response (dependent variable) in the ultrahigh-dimensional
+setting, one can first—in principle—discard most of the variables (the screening step) and then carry out inference on a
+relatively low-dimensional linear model using any one of the sparsity-promoting techniques. There are two main challenges
+that arise in the context of variable screening in ultrahigh-dimensional linear models. First, the screening algorithm should have
+low computational complexity (ideally, O(np)). Second, the screening algorithm should be accompanied with mathematical
+guarantees that ensure the reduced linear model contains all relevant variables that affect the response. Our goal in this paper
+is to revisit one of the simplest screening algorithms, which uses marginal correlations between the variables {Xi}pi=1 and
+the response y for screening purposes [24], [25], and provide a comprehensive theoretical understanding of its screening
+performance for arbitrary (random or deterministic) ultrahigh-dimensional linear models.
+This work is supported in part by the National Science Foundation under awards CCF-1525276 and CCF-1453073, and by the Army Research Office under
+award W911NF-14-1-0295.
+The authors are with the Department of Electrical and Computer Engineering, Rutgers, The State University of New Jersey, 94 Brett Road, Piscataway, NJ
+08854, USA. (Emails: talal.ahmed@rutgers.edu and waheed.bajwa@rutgers.edu).
+1Recall Landau’s big-O notation: f(n) = O(g(n)) if ?C > 0 : f(n) ? Cg(n) and f(n) = ?(g(n)) if g(n) = O(f(n)).
+2
+A. Relationship to Prior Work
+Researchers have long intuited that the (absolute) marginal correlation |X?i y| is a strong indicator of whether the i-th
+variable contributes to the response variable. Indeed, methods such as stepwise forward regression are based on this very
+intuition. It is only recently, however, that we have obtained a rigorous understanding of the role of marginal correlations in
+variable screening. One of the earliest screening works in this regard that is agnostic to the choice of the subsequent inference
+techniques is termed sure independence screening (SIS) [26]. SIS is based on simple thresholding of marginal correlations and
+satisfies the so-called sure screening property—which guarantees that all important variables survive the screening stage with
+high probability—for the case of normally distributed variables. An iterative variant of SIS, termed ISIS, is also discussed
+in [26], while [27] presents variants of SIS and ISIS that can lead to reduced false selection rates of the screening stage.
+Extensions of SIS to generalized linear models are discussed in [27], [28], while its generalizations for semi-parametric (Cox)
+models and non-parametric models are presented in [29], [30] and [31], [32], respectively.
+The marginal correlation |X?i y| can be considered an empirical measure of the Pearson correlation coefficient, which is a
+natural choice for discovering linear relations between the independent variables and the response. In order to perform ultrahigh-
+dimensional variable screening in the presence of non-linear relations between Xi’s and y and/or heavy-tailed variables, [33]
+and [34] have put forth screening using generalized (empirical) correlation and Kendall ? rank correlation, respectively.
+The defining characteristics of the works referenced above is that they are agnostic to the inference technique that follows the
+screening stage. In recent years, screening methods have also been proposed for specific optimization-based inference techniques.
+To this end, [35] formulates a marginal correlations-based screening method, termed SAFE, for the LASSO problem and shows
+that SAFE results in zero false selection rate. In [36], the so-called strong rules for variable screening in LASSO-type problems
+are proposed that are still based on marginal correlations and that result in discarding of far more variables than the SAFE
+method. The screening tests of [35], [36] for the LASSO problem are further improved in [37]–[39] by analyzing the dual of
+the LASSO problem. We refer the reader to [40] for an excellent review of these different screening tests for LASSO-type
+problems.
+Notwithstanding these prior works, we have holes in our understanding of variable screening in ultrahigh-dimensional linear
+models. Works such as [35]–[39] necessitate the use of LASSO-type inference techniques after the screening stage. In addition,
+these works do not help us understand the relationship between the problem parameters and the dimensions of the reduced
+model. Stated differently, it is difficult to a priori quantify the computational savings associated with the screening tests
+proposed in [35]–[39]. Similar to [26], [27], [33], [34], and in contrast to [35]–[39], our focus in this paper is on screening that
+is agnostic to the post-screening inference technique. To this end, [33] lacks a rigorous theoretical understanding of variable
+screening using the generalized correlation. While [26], [27], [34] overcome this shortcoming of [33], these works have two
+major limitations. First, their results are derived under the assumption of restrictive statistical priors on the linear model (e.g.,
+normally distributed Xi’s). In many applications, however, it can be a challenge to ascertain the distribution of the independent
+variables. Second, the analyses in [26], [27], [34] assume the variance of the response variable to be bounded by a constant;
+this assumption, in turn, imposes the condition ???2 = O(1). In contrast, defining ?min := mini |?i|, we establish in the sequel
+that the ratio ?min???2 (and not ???2) directly influences the performance of marginal correlation-based screening procedures.
+B. Our Contributions
+Our focus in this paper is on marginal correlation-based screening of ultrahigh-dimensional linear models that is agnostic to
+the post-screening inference technique. To this end, we provide an extended analysis of the thresholding-based SIS procedure
+of [26]. The resulting screening procedure, which we term extended sure independence screening (ExSIS), provides new
+insights into marginal correlation-based screening of arbitrary (random or deterministic) ultrahigh-dimensional linear models.
+Specifically, we first provide a simple, distribution-agnostic sufficient condition—termed the screening condition—for (marginal
+correlation-based) screening of linear models. This sufficient condition, which succinctly captures joint interactions among both
+the active and the inactive variables, is then leveraged to explicitly characterize the performance of ExSIS as a function of
+various problem parameters, including noise variance, the ratio ?min???2 , and model sparsity. The numerical experiments reported
+at the end of this paper confirm that the dependencies highlighted in this screening result are reflective of the actual challenges
+associated with marginal correlation-based screening and are not mere artifacts of our analysis.
+Next, despite the theoretical usefulness of the screening condition, it cannot be explicitly verified in polynomial time for
+any given linear model. This is reminiscent of related conditions such as the incoherence condition [41], the irrepresentable
+condition [42], the restricted isometry property [43], and the restricted eigenvalue condition [44] studied in the literature on
+high-dimensional linear models. In order to overcome this limitation of the screening condition, we explicitly derive it for two
+families of linear models. The first family corresponds to sub-Gaussian linear models, in which the independent variables are
+independently drawn from (possibly different) sub-Gaussian distributions. We show that the ExSIS results for this family of
+linear models generalize the SIS results derived in [26] for normally distributed linear models. The second family corresponds
+to arbitrary (random or deterministic) linear models in which the (empirical) correlations between independent variables satisfy
+certain polynomial-time verifiable conditions. The ExSIS results for this family of linear models establish that, under appropriate
+conditions, it is possible to reduce the dimension of an ultrahigh-dimensional linear model to almost the sample size even
+3
+when the number of active variables scales almost linearly with the sample size. This, to the best of our knowledge, is the first
+screening result that provides such explicit and optimistic guarantees without imposing a statistical prior on the distribution of
+the independent variables.
+C. Notation and Organization
+The following notation is used throughout this paper. Lower-case letters are used to denote scalars and vectors, while upper-
+case letters are used to denote matrices. Given a ? R, ?a? denotes the smallest integer greater than or equal to a. Given q ? Z+,
+we use [[q]] as a shorthand for {1, . . . , q}. Given a vector v, ?v?p denotes its ?p norm. Given a matrix A, Aj denotes its j-th
+column and Ai,j denotes the entry in its i-th row and j-th column. Further, given a set I ? Z+, AI (resp., vI ) denotes a
+submatrix (resp., subvector) obtained by retaining columns of A (resp., entries of v) corresponding to the indices in I. Finally,
+the superscript (·)? denotes the transpose operation.
+The rest of this paper is organized as follows. We formulate the problem of marginal correlation-based screening in Sec. II.
+Next, in Sec. III, we define the screening condition and present one of our main results that establishes the screening condition
+as a sufficient condition for ExSIS. In Sec. IV, we derive the screening condition for sub-Gaussian linear models and discuss
+the resulting ExSIS guarantees in relation to prior work. In Sec. V, we derive the screening condition for arbitrary linear
+models based on the correlations between independent variables and discuss implications of the derived ExSIS results. Finally,
+results of extensive numerical experiments on both synthetic and real data are reported in Sec. VI, while concluding remarks
+are presented in Sec. VII.
+II. PROBLEM FORMULATION
+Our focus in this paper is on the ultrahigh-dimensional ordinary linear model y = X? + ?, where y ? Rn, X ? Rn×p, and
+log p = O(n?) for ? ? (0, 1). In the statistics literature, X is referred to as data/design/observation matrix with the rows of
+X corresponding to individual observations and the columns of X corresponding to individual features/predictors/variables,
+y is referred to as observation/response vector with individual responses given by {yi}ni=1, ? is referred to as the parameter
+vector, and ? is referred to as modeling error or observation noise. Throughout this paper, we assume X has unit ?2-norm
+columns, ? ? Rp is k-sparse with k < n (i.e.,
+??{i ? [[p]] : ?i 6= 0}
+?? = k < n), and ? ? Rp is a zero-mean Gaussian vector
+with (entry-wise) variance ?2 and covariance C? = ?
+2I . Here, ? is taken to be Gaussian with covariance ?2I for the sake of
+this exposition, but our analysis is trivially generalizable to other noise distributions and/or covariance matrices. Further, we
+make no a priori assumption on the distribution of X . Finally, we define S := {i ? [[p]] : ?i 6= 0} to be the set that indexes
+the non-zero components of ?. Using this notation, the linear model can equivalently be expressed as
+y = X? + ? = XS?S + ?. (1)
+Given (1), the goal of variable screening is to reduce the number of variables in the linear model from p (since p ? n) to
+a moderate scale d (with d ? p) using a fast and efficient method. Our focus here is in particular on screening methods that
+satisfy the so-called sure screening property [26]; specifically, a method is said to carry out sure screening if the d-dimensional
+model returned by it is guaranteed with high probability to retain all the columns of X that are indexed by S. The motivation
+here is that once one obtains a moderate-dimensional model through sure screening of (1), one can use computationally intensive
+model selection, regression and estimation techniques on the d-dimensional model for reliable model selection (identification
+of S), prediction (estimation of X?), and reconstruction (estimation of ?), respectively.
+In this paper, we study sure screening using marginal correlations between the response vector and the columns of X . The
+resulting screening procedure is outlined in Algorithm 1, which is based on the principle that the higher the correlation of a
+column of X with the response vector, the more likely it is that the said column contributes to the response vector (i.e., it is
+indexed by the set S).
+Algorithm 1: Marginal Correlation-based Independence Screening
+1: Input: Design matrix X ? Rn×p, response vector y ? Rn, and d ? Z+
+2: Output: S?d ? [[p]] such that |S?d| = d
+3: w ? X?y
+4: S?d ? {i ? [[p]] : |wi| is among the d largest of all marginal correlations}
+The computational complexity of Algorithm 1 is only O(np) and its ability to screen ultrahigh-dimensional linear models has
+been investigated in recent years by a number of researchers [24], [25]. The fundamental difference among these works stems
+from the manner in which the parameter d (the dimension of the screened model) is computed from (1). Our goal in this paper
+is to provide an extended understanding of the screening performance of Algorithm 1 for arbitrary (random or deterministic)
+design matrices. The term sure independence screening (SIS) was coined in [26] to refer to screening of ultrahigh-dimensional
+Gaussian linear models using Algorithm 1. In this vein, we refer to variable screening using Algorithm 1 and the analysis of
+4
+this paper as extended sure independence screening (ExSIS). The main research challenge for ExSIS is specification of d for
+arbitrary matrices such that S ? S?d with high probability. Note that there is an inherent trade-off in addressing this challenge:
+the higher the value of d, the more likely is S?d to satisfy the sure screening property; however, the smaller the value of d,
+the lower the computational cost of performing model selection, regression, estimation, etc., on the d-dimensional problem.
+This leads us to the following research questions for ExSIS: (i) What are the conditions on X under which S ? S?d? (ii) How
+small can d be for arbitrary matrices such that S ? S?d? (iii) What are the constraints on the sparsity parameter k under which
+S ? S?d? Note that there is also an interplay between the sparsity level k and the allowable value of d for sure screening: the
+lower the sparsity level, the easier it should be to screen a larger number of columns of X . Thus, an understanding of ExSIS
+also requires characterization of this relationship between k and d for marginal correlation-based screening. In the sequel, we
+not only address the aforementioned questions for ExSIS, but also characterize this relationship.
+III. SUFFICIENT CONDITIONS FOR SURE SCREENING
+In this section, we derive the most general sufficient conditions for ExSIS of ultrahigh-dimensional linear models. The results
+reported in this section provide important insights into the workings of ExSIS without imposing any statistical priors on X
+and ?. We begin with a definition of the screening condition for the design matrix X .
+Definition 1 ((k, b)-Screening Condition). Fix an arbitrary ? ? Rp that is k-sparse. The (normalized) matrix X satisfies the
+(k, b)-screening condition if there exists 0 < b(n, p) < 1?
+k
+such that the following hold:
+max
+i?S
+|
+?
+j?S
+j 6=i
+X?i Xj?j | ? b(n, p)???2, (SC-1)
+max
+i?Sc
+|
+?
+j?S
+X?i Xj?j | ? b(n, p)???2. (SC-2)
+The screening condition is a statement about the collinearity of the independent variables in the design matrix. The parameter
+b(n, p) in the screening condition captures the similarity between (i) the columns of XS , and (ii) the columns of XS and XSc ;
+the smaller the parameter b(n, p) is, the less similar the columns are. Furthermore, since k < (b(n, p))?2 in the screening
+condition, the parameter b(n, p) reflects constraints on the sparsity parameter k.
+We now present one of our main screening results for arbitrary design matrices, which highlights the significance of the
+screening condition and the role of the parameter b(n, p) within ExSIS.
+Theorem 1 (Sufficient Conditions for ExSIS). Let y = X? + ? with ? a k-sparse vector and the entries of ? independently
+distributed as N (0, ?2). Define ?min := min
+i?S
+|?i| and ?? := X??, and let G? be the event {????? ? 2
+?
+?2 log p}. Suppose
+X satisfies the screening condition and assume ?min???2 > 2b(n, p) + 4
+?
+?2 log p
+???2 . Then, conditioned on G? , Algorithm 1 satisfies
+S ? S?d as long as d ?
+?
+?
+k
+?min
+???2
+?2b(n,p)? 4
+?
+?2 log p
+???2
+?
+.
+We refer the reader to Sec. III-B for a proof of this theorem.
+A. Discussion
+Theorem 1 highlights the dependence of ExSIS on the observation noise, the ratio ?min???2 , the parameter b(n, p), and model
+sparsity. We first comment on the relationship between ExSIS and observation noise ?. Notice that the statement of Theorem
+1 is dependent upon the event G? . However, for any ? > 0, we have (see, e.g., [45, Lemma 6])
+Pr(????? ? ??) <
+4p
+?
+?
+2?
+exp
+(
+? ?
+2
+2
+)
+. (2)
+Therefore, substituting ? = 2
+?
+log p in (2), we obtain
+Pr(G?) ? 1? 2(p
+?
+2? log p)?1. (3)
+Thus, Algorithm 1 possesses the sure screening property in the case of the observation noise ? distributed as N (0, ?2I). We
+further note from the statement of Theorem 1 that the higher the signal-to-noise ratio (SNR), defined here as SNR := ???2? ,
+the more Algorithm 1 can screen irrelevant/inactive variables. It is also worth noting here trivial generalizations of Theorem 1
+for other noise distributions. In the case of ? distributed as N (0, C?), Theorem 1 has ?2 replaced by the largest eigenvalue
+of the covariance matrix C? . In the case of ? following a non-Gaussian distribution, Theorem 1 has 2
+?
+?2 log p replaced by
+distribution-specific upper bound on ?X???? that holds with high probability.
+5
+In addition to the noise distribution, the performance of ExSIS also seems to be impacted by the minimum-to-signal ratio
+(MSR), defined here as MSR := ?min???2 ?
+(
+0, 1?
+k
+]
+. Specifically, the higher the MSR, the more Algorithm 1 can screen inactive
+variables. Stated differently, the independent variable with the weakest contribution to the response determines the size of the
+screened model. Finally, the parameter b(n, p) in the screening condition also plays a central role in characterization of the
+performance of ExSIS. First, the smaller the parameter b(n, p), the more Algorithm 1 can screen inactive variables. Second,
+the smaller the parameter b(n, p), the more independent variables can be active in the original model; indeed, we have from
+the screening condition that k < (b(n, p))?2. Third, the smaller the parameter b(n, p), the lower the smallest allowable value
+of MSR; indeed, we have from the theorem statement that MSR > 2b(n, p) + 4
+?
+?2 log p
+???2 .
+It is evident from the preceding discussion that the screening condition (equivalently, the parameter b(n, p)) is one of the
+most important factors that helps understand the workings of ExSIS and helps quantify its performance. Unfortunately, the
+usefulness of this knowledge is limited in the sense that the screening condition cannot be utilized in practice. Specifically, the
+screening condition is defined in terms of the set S, which is of course unknown. We overcome this limitation of Theorem 1
+by implicitly deriving the screening condition for sub-Gaussian design matrices in Sec. IV and for a class of arbitrary (random
+or deterministic) design matrices in Sec. V.
+B. Proof of Theorem 1
+We first provide an outline of the proof of Theorem 1, which is followed by its formal proof. Define p0 := p, S?p0 := [[p]],
+and t1 := |{j ? S?p0 : |wj | ? min
+i?S
+|wi|}|. Next, fix a positive integer p1 < p0 and define
+S?p1 := {i ? S?p0 : |wi| is among the p1 largest of all marginal correlations}.
+The idea is to first derive an initial upper bound on t1, denoted by t?1, and then choose p1 = ?t?1?; trivially, we have
+S ? S?p1 ? S?p0 . As a result, we get
+y = X? + ? = XS?p0
+?S?p0
++ ? = XS?p1
+?S?p1
++ ?. (4)
+Note that while deriving t?1, we need to ensure t?1 < p0; this in turn imposes some conditions on X that also need to be
+specified. Next, we can repeat the aforementioned steps to obtain S?p2 from S?p1 for a fixed positive integer p2 < p1 < p0.
+Specifically, define
+S?p2 := {i ? S?p1 : |wi| is among the p2 largest of all marginal correlations}
+and t2 := |{j ? S?p1 : |wj | ? min
+i?S
+|wi|}|. We can then derive an upper bound on t2, denoted by t?2, and then choose p2 = ?t?2?;
+once again, we have S ? S?p2 ? S?p1 ? S?p0 . Notice further that we do require t?2 < p1, which again will impose conditions on
+X .
+In similar vein, we can keep on repeating this procedure to obtain a decreasing sequence of numbers {t?j}ij=1 and sets
+S?p0 ? S?p1 ? S?p2 ? . . . ? S?pi ? S as long as t?i < pi?1, where
+{
+pj := ?t?j?
+}i
+j=1
+and i ? Z+. The complete proof of
+Theorem 1 follows from a careful combination of these (analytical) steps. In order for us to be able to do that, however, we
+need two lemmas. The first lemma provides an upper bound on ti = |{j ? S?pi?1 : |wj | ? min
+i?S
+|wi|}| for i ? Z+, denoted by
+t?i. The second lemma provides conditions on the design matrix X such that t?i < pi?1. The proof of the theorem follows from
+repeated application of the two lemmas.
+Lemma 1. Fix i ? Z+ and suppose S ? S?pi?1 , where |S?pi?1 | =: pi?1 and pi?1 ? p. Further, suppose the design matrix
+X satisfies the (k, b)-screening condition for the k-sparse vector ? and the event G? holds true. Finally, define ti := |{j ?
+S?pi?1 : |wj | ? min
+i?S
+|wi|}|. Under these conditions, we have
+ti ?
+pi?1b(n, p)???2 + ???1 + 2pi?1
+?
+?2 log p
+?min ? b(n, p)???2 ? 2
+?
+?2 log p
+=: t?i. (5)
+The proof of this lemma is provided in Appendix A. The second lemma, whose proof is given in Appendix B, provides
+conditions on X under which the upper bound derived on ti for i ? Z+, denoted by t?i, is non-trivial.
+Lemma 2. Fix i ? Z+. Suppose pi?1 >
+?
+k
+?min
+???2
+?2b(n,p)? 4
+?
+?2 log p
+???2
+and ?min???2 > 2b(n, p)+
+4
+?
+?2 log p
+???2 . Then, we have 0 < t?i < pi?1.
+We are now ready to present a complete technical proof of Theorem 1.
+6
+Proof. The idea is to use Lemma 1 and Lemma 2 repeatedly to screen columns of X . Note, however, that this is simply an
+analytical technique and we do not actually need to perform such an iterative procedure to specify d in Algorithm 1. To begin,
+recall that we have p0 := p, S?p0 := [[p]],
+S?p1 := {i ? S?p0 : |wi| is among the p1 largest of all marginal correlations},
+and p1 = ?t?1?, where t?1 is defined in (5). By Lemma 1 and Lemma 2, we have S ? S?p1 and p1 < p0, respectively. Next, given
+p1 >
+?
+?
+k
+?min
+???2
+?2b(n,p)? 4
+?
+?2 log p
+???2
+?
+, we can use Lemma 1 and Lemma 2 to obtain S?p2 from S?p1 in a similar fashion. Specifically,
+let
+S?p2 := {i ? S?p1 : |wi| is among the p2 largest of all marginal correlations}
+and p2 = ?t?2?, where t?2 is defined in (5). Then, by Lemma 1 and Lemma 2, we have S ? S?p2 and p2 < p1, respectively.
+Notice that we can keep on repeating this procedure to obtain sub-models S?p1 , S?p2 , . . . , S?pl such that pl ?
+?
+k
+?min
+???2
+?2b(n,p)? 4
+?
+?2 log p
+???2
+and pl?1 >
+?
+k
+?min
+???2
+?2b(n,p)? 4
+?
+?2 log p
+???2
+. By repeated applications of Lemma 1 and Lemma 2, we have S ? S?pl . Further, we are
+also guaranteed that pl ?
+?
+k
+?min
+???2
+?2b(n,p)? 4
+?
+?2 log p
+???2
+. Thus, we can choose d ?
+?
+?
+k
+?min
+???2
+?2b(n,p)? 4
+?
+?2 log p
+???2
+?
+in Algorithm 1 in one
+shot and have S ? S?d. 
+IV. SCREENING OF SUB-GAUSSIAN DESIGN MATRICES
+In this section, we characterize the implications of Theorem 1 for ExSIS of the family of sub-Gaussian design matrices. As
+noted in Sec. III, this effort primarily involves establishing the screening condition for sub-Gaussian matrices and specifying
+the parameter b(n, p) for such matrices. We begin by first recalling the definition of a sub-Gaussian random variable.
+Definition 2. A zero-mean random variable X is said to follow a sub-Gaussian distribution subG(B) if there exists a sub-
+Gaussian parameter B > 0 such that E[exp(?X )] ? exp
+(
+B2?2
+2
+)
+for all ? ? R.
+In words, a subG(B) random variable is one whose moment generating function is dominated by that of a N (0, B2) random
+variable. Some common examples of sub-Gaussian random variables include:
+• X ? N (0, B2) ? X ? subG(B).
+• X ? unif(?B,B) ? X ? subG(B).
+• |X | ? B,E[X ] = 0 ? X ? subG(B).
+• X ?
+{
+B, with prob. 12 ,
+?B, with prob. 12 ,
+? X ? subG(B).
+Our focus in this paper is on design matrices in which entries are first independently drawn from sub-Gaussian distributions
+and then the columns are normalized. In contrast to prior works, however, we do not require the (pre-normalized) entries to be
+identically distributed. Rather, we allow each independent variable to be distributed as a sub-Gaussian random variable with a
+different sub-Gaussian parameter. Thus, the ExSIS analysis of this section is applicable to design matrices in which different
+columns might have different sub-Gaussian distributions. It is also straightforward to extend our analysis to the case where all
+(and not just across column) entries of the design matrix are non-identically distributed; we do not focus on this extension in
+here for the sake of notational clarity.
+A. Main Result
+The ExSIS of linear models involving sub-Gaussian design matrices mainly requires establishing the screening condition
+and characterization of the parameter b(n, p) for sub-Gaussian matrices. We accomplish this by individually deriving (SC-1)
+and (SC-2) in Definition 1 for sub-Gaussian design matrices in the following two lemmas.
+Lemma 3. Let V = [Vi,j ] be an n×p matrix with the entries {Vi,j}n,pi,j=1 independently distributed as subG(bj) with variances
+E[V 2i,j ] = ?
+2
+j . Suppose the design matrix X is obtained by normalizing the columns of V , i.e., X = V diag(1/?V1?2, . . . , 1/?Vp?2).
+Finally, fix an arbitrary ? ? Rp that is k-sparse, define ??b? := minj?S
+?j
+bj
+, and let log p ? n16 ( ??4b? )
+4. Then, with probability
+exceeding 1? 2k2p2 , we have
+max
+i?S
+|
+?
+j?S
+j 6=i
+X?i Xj?j | ?
+?
+8 log p
+n
+( b?
+??
+)
+???2.
+7
+Lemma 4. Let V = [Vi,j ] be an n×p matrix with the entries {Vi,j}n,pi,j=1 independently distributed as subG(bj) with variances
+E[V 2i,j ] = ?
+2
+j . Suppose the design matrix X is obtained by normalizing the columns of V , i.e., X = V diag(1/?V1?2, . . . , 1/?Vp?2).
+Finally, fix an arbitrary ? ? Rp that is k-sparse, define ??b? := minj?S
+?j
+bj
+, and let log p ? n16 ( ??4b? )
+4. Then, with probability
+exceeding 1? 2(k+1)(p?k)p2 , we have
+max
+i?Sc
+|
+?
+j?S
+X?i Xj?j | ?
+?
+8 log p
+n
+( b?
+??
+)
+???2.
+The proofs of Lemma 3 and Lemma 4 are provided in Appendix C and Appendix D, respectively. It now follows from a
+simple union bound argument that the screening condition holds for sub-Gaussian design matrices with probability exceeding
+1? 2(k+ 1)p?1. In particular, we have from Lemma 3 and Lemma 4 that b(n, p) =
+?
+8 log p
+n (
+b?
+??
+) for sub-Gaussian matrices.
+We can now use this knowledge and Theorem 1 to provide the main result for ExSIS of ultrahigh-dimensional linear models
+involving sub-Gaussian design matrices.
+Theorem 2 (ExSIS and Sub-Gaussian Matrices). Let V = [Vi,j ] be an n× p matrix with the entries {Vi,j}n,pi,j=1 independently
+distributed as subG(bj) with variances E[V
+2
+i,j ] = ?
+2
+j . Suppose the design matrix X is obtained by normalizing the columns
+of V , i.e., X = V diag(1/?V1?2, . . . , 1/?Vp?2). Next, let y = X? + ? with ? a k-sparse vector and the entries of ?
+independently distributed as N (0, ?2). Finally, define ??b? := minj?S
+?j
+bj
+and ?min := min
+i?S
+|?i|, and let log p ? n16 ( ??4b? )
+4 and
+?min
+???2 > 2
+?
+8 log p
+n (
+b?
+??
+) + 4
+?
+?2 log p
+???2 . Then Algorithm 1 guarantees S ? S?d with probability exceeding 1? 2(k+2)p
+?1 as long
+as
+d ?
+?
+????
+?
+k
+?min
+???2 ? 2
+?
+8 log p
+n
+(
+b?
+??
+)
+? 4
+?
+?2 log p
+???2
+?
+????
+.
+Proof. Let Gp be the event that the design matrix X satisfies the screening condition with parameter b(n, p) =
+?
+8 log p
+n (
+b?
+??
+).
+Further, let G? be the event as defined in Theorem 1. It then follows from Lemma 3, Lemma 4, (3), and the union bound
+that the event Gp ? G? holds with probability exceeding 1 ? 2(k + 2)p?1. The advertised claim now follows directly from
+Theorem 1. 
+B. Discussion
+Since Theorem 2 follows from Theorem 1, it shares many of the insights discussed in Sec. III-A. In particular, Theorem 2
+allows for exponential scaling of the number of independent variables, log p ? n16 ( ??4b? )
+4, and dictates that the number of
+independent variables, d, retained after the screening stage be increased with an increase in the sparsity level and/or the
+number of independent variables, while it can be decreased with an increase in the SNR, MSR, and/or the number of samples.
+Notice that the lower bound on d in Theorem 2 does require knowledge of the sparsity level. However, this limitation can be
+overcome in a straightforward manner, as shown below.
+Corollary 2.1. Let V = [Vi,j ] be an n × p matrix with the entries {Vi,j}n,pi,j=1 independently distributed as subG(b2j)
+with variances E[V 2i,j ] = ?
+2
+j . Suppose the design matrix X is obtained by normalizing the columns of V , i.e., X =
+V diag(1/?V1?2, . . . , 1/?Vp?2). Next, let y = X? + ? with ? a k-sparse vector and the entries of ? independently dis-
+tributed as N (0, ?2). Further, define ??b? := minj?S
+?j
+bj
+and ?min := min
+i?S
+|?i|. Finally, let k ? nlog p , log p ? n16 ( ??4b? )
+4, and
+?min
+???2 > 2c1
+?
+8 log p
+n (
+b?
+??
+) + 4c2
+?
+?2 log p
+???2 for some constants c1, c2 > 2. Then Algorithm 1 guarantees S ? S?d with probability
+exceeding 1? 2(k + 2)p?1 as long as d ?
+?
+n
+log p
+?
+.
+Proof. Theorem 2 and the condition ?min???2 > 2c1
+?
+8 log p
+n
+(
+b?
+??
+)
++
+4c2
+?
+?2 log p
+???2 dictates
+d ?
+?
+????
+?
+k
+2(c1 ? 1)
+?
+8 log p
+n
+(
+b?
+??
+)
++
+4(c2?1)
+?
+?2 log p
+???2
+?
+????
+(6)
+for sure screening of sub-Gaussian design matrices. The claim now follows by noting that d ?
+?
+n
+log p
+?
+is a sufficient condition
+for (6) since k ? nlog p and ?? ? b? for sub-Gaussian random variables. 
+8
+A few remarks are in order now concerning our analysis of ExSIS for sub-Gaussian design matrices and that of SIS for
+random matrices in the existing literature. To this end, we focus on the results reported in [26], which is one of the most
+influential SIS works. In contrast to the screening condition presented in this paper, the analysis in [26] is carried out for
+design matrices that satisfy a certain concentration property. Since the said concentration property has only been shown in [26]
+to hold for Gaussian matrices, our discussion in the following is limited to Gaussian design matrices with independent entries.
+The SIS results reported in [26] hold under four specific conditions. In particular, Condition 3 in [26] requires that: (i) the
+variance of the response variable is O(1), (ii) ?min ? c?n? for some c? > 0, ? ? 0, and (iii) mini?S |cov(??1i Y,Xi)| ? c3 for
+some c3 > 0. Notice, however, that the O(1) variance condition is equivalent to having ???2 = O(1). Our analysis, in contrast,
+imposes no such restriction. Rather, Theorem 2 shows that marginal correlation-based sure screening is fundamentally affected
+by the MSR ?min???2 . While Theorem 2 is only concerned with sufficient conditions, numerical experiments reported in Sec. VI
+confirm this dependence. Next, notice that max
+i?S
+|?
+j?S
+j 6=i
+cov(Xi, Xj)?j | ? 1?c3 implies mini?S |cov(??1i Y,Xi)| ? c3. It therefore
+follows that (SC-1) in the screening condition is a non-statistical variant of the condition mini?S |cov(??1i Y,Xi)| ? c3 in
+[26].
+We next assume ? = 0 for the sake of simplicity of argument and explicitly compare Theorem 2 and [26, Theorem 1] for
+the case of Gaussian design matrices with independent entries. Similar to [26], we also impose the condition ???2 = O(1) for
+comparison purposes. In this setting, both the theorems guarantee sure screening with high probability. In [26, Theorem 1],
+this requires ?min = ?(n
+??) for ? < 1/2 and log p = O(n?) for some ? ? (0, 1 ? 2?). It is, however, easy to verify that
+substituting ?min = ?(n
+??) and log p = O(n?) in Theorem 2 results in identical constraints of ? < 1/2 and ? < 1 ? 2?
+for our analysis. Next, [26, Theorem 1] also imposes the sparsity constraint k = O(n2?) for the sure screening result to hold.
+However, the condition log p = O(n?) with ? ? (0, 1 ? 2?) reduces this constraint to k = O(n1??) = O
+(
+n
+log p
+)
+, which
+matches the sparsity constraint imposed by Theorem 2 (cf. Corollary 2.1). To summarize, the ExSIS results derived in this
+paper coincide with the ones in [26] for the case of Gaussian design matrices. However, our results are more general in the
+sense that they explicitly bring out the dependence of Algorithm 1 on the SNR and the MSR, which is something missing in
+[26], and they are applicable to sub-Gaussian design matrices.
+V. SCREENING OF ARBITRARY DESIGN MATRICES
+The ExSIS analysis in Sec. IV specializes Theorem 1 for sub-Gaussian design matrices. But what about the design matrices
+in which either the entries do not follow sub-Gaussian distributions or the statistical distributions of entries are unknown? We
+address this particular question in this section by deriving verifiable sufficient conditions that guarantee the screening condition
+for any arbitrary (random or deterministic) design matrix. These sufficient conditions are presented in terms of two measures
+of similarity among the columns of a design matrix. These measures, termed worst-case coherence and average coherence,
+are defined as follows.
+Definition 3 (Worst-case and Average Coherences). Let X be an n × p matrix with unit ?2-norm columns. The worst-case
+coherence of X is denoted by µ and is defined as [46]:
+µ := max
+i,j:i6=j
+??X?i Xj
+??.
+On the other hand, the average coherence of X is denoted by ? and is defined as [45]:
+? :=
+1
+p? 1maxi
+????
+?
+j:j 6=i
+X?i Xj
+????.
+Notice that both the worst-case and the average coherences are readily computable in polynomial time. Heuristically, the
+worst-case coherence is an indirect measure of pairwise similarity among the columns of X : µ ? [0, 1] with µ ? 0 as the
+columns of X become less similar and µ? 1 as at least two columns of X become more similar. The average coherence, on
+the other hand, is an indirect measure of both the collective similarity among the columns of X and the spread of the columns
+of X within the unit sphere: ? ? [0, µ] with ? ? 0 as the columns of X become more spread out in Rn and ? ? µ as the
+columns of X become less spread out. We refer the reader to [47] for further discussion of these two measures as well as
+their values for commonly encountered matrices.
+We are now ready to describe the main results of this section. The first result connects the screening condition to the
+worst-case coherence. We will see, however, that this result suffers from the so-called square-root bottleneck: ExSIS analysis
+based solely on the worst-case coherence can, at best, handle k = O(?n) scaling of the sparsity parameter. The second result
+overcomes this bottleneck by connecting the screening condition to both worst-case and average coherences. The caveat here
+is that this result imposes a mild statistical prior on the set S.
+9
+A. ExSIS and the Worst-case Coherence
+We begin by relating the worst-case coherence of an arbitrary design matrix X with unit-norm columns to the screening
+condition.
+Lemma 5 (Worst-case Coherence and the Screening Condition). Let X be an n × p design matrix with unit-norm columns.
+Then, we have
+max
+i?S
+|
+?
+j?S
+j 6=i
+X?i Xj?j | ? µ
+?
+k???2, and
+max
+i?Sc
+|
+?
+j?S
+X?i Xj?j | ? µ
+?
+k???2.
+The proof of this lemma is provided in Appendix E. It follows from Lemma 5 that a design matrix satisfies the screening
+condition with parameter b(n, p) = µ
+?
+k as long as µ < k?1 ? k < µ?1. We now combine this implication of Lemma 5 with
+Theorem 1 to provide a result for ExSIS of arbitrary linear models.
+Theorem 3. Let y = X? + ? with ? a k-sparse vector and the entries of ? independently distributed as N (0, ?2). Suppose
+k < µ?1 and ?min???2 > 2µ
+?
+k+4
+?
+?2 log p
+???2 . Then, Algorithm 1 satisfies S ? S?d with probability exceeding 1? 2(p
+?
+2? log p)?1
+as long as d ?
+?
+?
+k
+?min
+???2
+?2µ
+?
+k? 4
+?
+?2 log p
+???2
+?
+.
+The proof of this theorem follows directly from Lemma 5 and Theorem 1. Next, a straightforward corollary of Theorem 3
+shows that ExSIS of arbitrary linear models can in fact be carried out without explicit knowledge of the sparsity parameter k.
+Corollary 3.1. Let y = X?+ ? with ? a k-sparse vector and the entries of ? independently distributed as N (0, ?2). Suppose
+p ? 2n, k < µ?1, and ?min???2 > 2c1µ
+?
+k+4c2
+?
+?2 log p
+???2 for some c1, c2 > 2. Then, Algorithm 1 satisfies S ? S?d with probability
+exceeding 1? 2(p?2? log p)?1 as long as d ? ??n?.
+Proof. Under the assumption of ?min???2 > 2c1µ
+?
+k +
+4c2
+?
+?2 log p
+???2 , notice that
+d ?
+?
+????
+?
+k
+2(c1 ? 1)µ
+?
+k +
+4(c2?1)
+?
+?2 log p
+???2
+?
+????
+(7)
+is a sufficient condition for d ?
+?
+?
+k
+?min
+???2
+?2µ
+?
+k? 4
+?
+?2 log p
+???2
+?
+. Further, note that d ?
+?
+(2µ)?1
+?
+is a sufficient condition for (7).
+Next, since p ? 2n, we also have µ?1 ?
+?
+2n from the Welch bound on the worst-case coherence of design matrices [48].
+Thus, d ? ??n? is a sufficient condition for d ?
+?
+?
+k
+?min
+???2
+?2µ
+?
+k? 4
+?
+?2 log p
+???2
+?
+. 
+It is interesting to compare this result for arbitrary linear models with Corollary 2.1 for sub-Gaussian linear models.
+Corollary 2.1 requires the size of the screened model to scale as O(n/ log p), whereas this result requires d to scale only
+as O(?n). While this may seem to suggest that Corollary 3.1 is better than Corollary 2.1, such an observation ignores
+the respective constraints on the sparsity parameter k in the two results. Specifically, Corollary 2.1 allows for almost linear
+scaling of the sparsity parameter, k = O(n/ log p), whereas Corollary 3.1 suffers from the so-called square-root bottleneck:
+k = O(µ?1)? k = O(?n) because of the Welch bound. Stated differently, Corollary 3.1 fails to specialize to Corollary 2.1
+for the case of X being a sub-Gaussian design matrix. We overcome this limitation of the results of this section by adding the
+average coherence into the mix and imposing a statistical prior on the true model S in the next section.
+B. ExSIS and the Coherence Property
+In order to break the square-root bottleneck for ExSIS of arbitrary linear models, we first define the notion of the coherence
+property.
+Definition 4 (The Coherence Property). An n × p design matrix X with unit-norm columns is said to obey the coherence
+property if there exists a constant cµ > 0 such that µ <
+1
+cµ
+?
+log p
+and ? < µ?
+n
+.
+Heuristically, the coherence property, which was first introduced in [45], requires the independent variables to be sufficiently
+(marginally and jointly) uncorrelated. Notice that, unlike many conditions in high-dimensional statistics (see, e.g., [41]–[44]),
+10
+the coherence property is explicitly certifiable in polynomial time for any given design matrix. We now establish that the
+coherence property implies the design matrix satisfies the screening condition with high probability, where the probability is
+with respect to uniform prior on the true model S.
+Lemma 6 (Coherence Property and the Screening Condition). Let X be an n× p design matrix that satisfies the coherence
+property with cµ > 10
+?
+2, and suppose p ? max{2n, exp(5)} and k ? nlog p . Further, assume S is drawn uniformly at random
+from k-subsets of [[p]]. Then, with probability exceeding 1? 4p?1, we have
+max
+i?S
+|
+?
+j?S
+j 6=i
+X?i Xj?j | ? cµµ
+?
+log p???2, and
+max
+i?Sc
+|
+?
+j?S
+X?i Xj?j | ? cµµ
+?
+log p???2.
+The proof of this lemma is provided in Appendix F. Lemma 6 implies that a design matrix that obeys the coherence property
+also satisfies the screening condition for most models with b(n, p) = cµµ
+?
+log p as long as µ < c?1µ (k log p)
+?1/2 ? k < µ?2c2µ log p .
+Comparing this with Lemma 5 and the resulting constraint k < µ?1 for the screening condition to hold in the case of arbitrary
+design matrices, we see that—at the expense of uniform prior on the true model—the coherence property results in a better
+bound on the screening parameter as long as log p = O(µ?1). We can now utilize Lemma 6 along with Theorem 1 to provide
+an improved result for ExSIS of arbitrary linear models.
+Theorem 4. Let y = X? + ? with ? a k-sparse vector and the entries of ? independently distributed as N (0, ?2). Further,
+assume X satisfies the coherence property with cµ > 10
+?
+2 and S is drawn uniformly at random from k-subsets of [[p]].
+Finally, suppose p ? max{2n, exp(5)}, k < µ?2c2µ log p , and
+?min
+???2 > 2cµµ
+?
+log p+
+4
+?
+?2 log p
+???2 . Then, Algorithm 1 satisfies S ? S?d
+with probability exceeding 1? 6p?1 as long as d ?
+?
+?
+k
+?min
+???2
+?2cµµ
+?
+log p? 4
+?
+?2 log p
+???2
+?
+.
+The proof of this theorem is omitted here since it follows in a straightforward manner from Lemma 6, Theorem 1, and a
+union bound argument. Nonetheless, it is worth mentioning here that the k ? nlog p bound in Lemma 6 is omitted in Theorem 4
+since k < µ
+?2
+c2µ log p
+? k ? nlog p because of the Welch bound. The final result of this section is a corollary of Theorem 4 that
+removes the dependence of d on knowledge of the problem parameters.
+Corollary 4.1. Let y = X?+ ? with ? a k-sparse vector and the entries of ? independently distributed as N (0, ?2). Further,
+assume X satisfies the coherence property with cµ > 10
+?
+2 and S is drawn uniformly at random from k-subsets of [[p]].
+Finally, suppose p ? max{2n, exp(5)}, k < µ?2c2µ log p , and
+?min
+???2 > 2cµc1µ
+?
+log p + 4c2
+?
+?2 log p
+???2 for some c1, c2 > 2. Then,
+Algorithm 1 satisfies S ? S?d with probability exceeding 1? 6p?1 as long as d ?
+?
+n
+log p
+?
+.
+Proof. Since ?min???2 > 2c1cµµ
+?
+log p+
+4c2
+?
+?2 log p
+???2 , we have that
+d ?
+?
+????
+?
+k
+2(c1 ? 1)cµµ
+?
+log p+
+4(c2?1)
+?
+?2 log p
+???2
+?
+????
+(8)
+is a sufficient condition for d ?
+?
+?
+k
+?min
+???2
+?2cµµ
+?
+log p? 4
+?
+?2 log p
+???2
+?
+. The claim now follows because d ?
+?
+n
+log p
+?
+is a sufficient
+condition for (8), owing to the facts that p ? 2n and the Welch bound imply µ?1 ?
+?
+2n and k < µ
+?2
+c2µ log p
+? k ? nlog p . 
+C. Discussion
+Both Theorem 3 and Theorem 4 shed light on the feasibility of marginal correlation-based screening of linear models without
+imposing a statistical prior on the design matrix. While Theorem 3 in this regard provides the least restrictive results, it does
+suffer from the square-root bottleneck: k = O(µ?1)? k = O(?n). Theorem 4, on the other hand, overcomes this bottleneck
+at the expense of uniform prior on the true model as long as log p = O(µ?1); in this case, the condition on the sparsity
+parameter becomes k = O
+(
+µ?2/ log p
+)
+. Therefore, Theorem 4 allows for sparsity scaling as high as k = O(n/ log p) for
+design matrices with µ = O(n?1/2); see [47] for existence of such matrices. In addition, Theorem 3 and Theorem 4 also
+differ from each other in terms of their respective constraints on ?min???2 for feasibility of marginal correlation-based screening;
+the constraint in Theorem 4 is less restrictive than in Theorem 3 for log p = O(µ?1).
+11
+A natural question to ask at this point is whether Theorem 4 specializes to Theorem 2. The answer to this question is in
+the affirmative, except for some small penalties that one has to pay because of the fact that Theorem 4 does not exploit any
+sub-Gaussianity of the entries of X in its analysis. In order to illustrate this further, we consider the case of Gaussian design
+matrices and reproduce bounds on their worst-case and average coherences from [47].
+Lemma 7 ([47, Theorem 8]). Let V = [Vi,j ] be an n × p matrix with the entries {Vi,j}n,pi,j=1 independently distributed
+as N (0, 1) and 60 log p ? n ? p?14 log p . Suppose the design matrix X is obtained by normalizing the columns of V , i.e.,
+X = V diag(1/?V1?2, . . . , 1/?Vp?2). Then, with probability exceeding 1? 11p?1, we have
+µ ?
+?
+15 log p?
+n??12 log p , and
+? ?
+?
+15 logp
+n??12n log p .
+It can be seen from this lemma that Gaussian design matrices satisfy the coherence property for log p = O(n1/2). We
+can therefore specialize Corollary 4.1 for Gaussian matrices and conclude that screening of Gaussian linear models using
+Algorithm 1 can be carried out with d ?
+?
+n
+log p
+?
+as long as: (i) log p = O(n1/2), (ii) k = O(n/(log p)2), and (iii) ?min???2 =
+?
+(
+log p?
+n
++
+?
+?2 log p
+???2
+)
+. Comparing this with Corollary 2.1 in general and the discussion in Sec. IV-B in particular, we see that
+the general theory of Sec. V-B almost matches with the specialized theory of Sec. IV. Specifically, compared to the constraints
+of log p = O(n1/2), k = O(n/(log p)2), and ?min???2 = ?
+(
+log p?
+n
++
+?
+?2 log p
+???2
+)
+arising in Sec. V-B for Gaussian design matrices,
+Sec. IV results in slightly less restrictive constraints of log p = O(n), k = O(n/ log p), and ?min???2 = ?
+(?
+log p
+n +
+?
+?2 log p
+???2
+)
+.
+These small gaps are the price one has to pay for the generality of Theorem 4.
+VI. EXPERIMENTAL RESULTS
+In this section, we present results from two synthetic-data experiments and one real-data experiment. In Section VI-A, we
+demonstrate that our insights on the ExSIS procedure are not mere artifacts of our analysis. In Section VI-B, we analyze the
+performance of various regularization-based screening procedures in comparison to the ExSIS procedure. Finally, in Section
+VI-C, we analyze the computational savings achieved from the use of ExSIS for screening of the feature space as part of
+sentiment analysis of IMDb movie reviews [49].
+A. Oracle-based Screening
+In order to ensure the insights offered by Theorem 1 are not mere artifacts of our analysis, we carry out numerical experiments
+to study the impact of relevant parameters on the screening performance of an oracle that has perfect knowledge of the minimum
+value of d required in Algorithm 1 to ensure S ? S?d. In particular, we use these oracle-based experiments to verify the role
+of b(n, p) and MSR in screening using Algorithm 1, as specified by Theorem 1. Since worst-case coherence is an indirect
+measure of pairwise similarity among the columns of X , and since b(n, p) cannot be explicitly computed, we use µ as a
+surrogate for the value of b(n, p) in our experiments.
+The design matrix X ? Rn×p in our experiments is generated such that it consists of independent and identically distributed
+Gaussian entries, followed by normalization of the columns of X . Among other parameters, n = 500, p = 2000, k = 5, and
+? = 0 in the experiments. The entries of S are chosen uniformly at random from [[p]]. Furthermore, the non-zero entries in
+the parameter vector ? are sampled from a uniform distribution U [a, e]; the value of a is set at 1 whereas e ? [2, 10]. Finally,
+the experiments comprise the use of an oracle to find the minimum possible value of d that can be used in Algorithm 1 while
+ensuring S ? S?d. We refer to this minimum value of d as the minimum model size (MMS), and we use median of MMS over
+400 runs of the experiment as a metric of difficulty of screening.
+To analyze the impact of increasing µ (equivalently, b(n, p)) and MSR on screening using Algorithm 1, the numerical
+experiments are repeated for various values of µ and MSR. In particular, the worst-case coherence of X is varied by scaling
+its largest singular value, followed by normalization of the columns of X , while the MSR is increased by decreasing the
+value of e. In Fig. 1(a), we plot the median MMS against µ for different MSR values. The experimental results of the oracle
+performance offer two interesting insights. First, the median MMS increases with µ; this shows that any analysis for screening
+using Algorithm 1 needs to account for the similarity between the columns of X . This relationship is captured by the parameter
+b(n, p) in Theorem 1. Second, the difficulty of screening for an oracle increases with decreasing MSR values. This relationship
+is also reflected in Theorem 1: as ???2 increases for a fixed e, MSR decreases and the median MMS increases.
+More interestingly, if we focus on the plot in Fig. 1(a) for e = 10, and we plot the relationship between µ and median
+MMS along with the interquartile range of MMS for each value of µ, it can be seen that there are instances when the oracle
+12
+0.2 0.3 0.4 0.5 0.6 0.7 0.8
+0
+100
+200
+300
+400
+500
+600
+700
+Worst?case Coherence
+M
+ed
+ia
+n 
+M
+in
+im
+um
+ M
+od
+el
+ S
+iz
+e
+ 
+ 
+e=2
+e=4
+e=6
+e=8
+e=10
+(a)
+0
+200
+400
+600
+800
+1000
+1200
+1400
+1600
+1800
+2000
+0.25 0.35 0.45 0.55 0.65 0.75
+Worst?case Coherence
+M
+ed
+ia
+n 
+M
+in
+im
+um
+ M
+od
+el
+ S
+iz
+e
+(b)
+Fig. 1: (a) For various values of worst-case coherence of the design matrix, the output of the oracle is computed. The relation
+between worst-case coherence and minimum model size is analyzed for various MSR values. (b) Boxplot of minimum model
+size for various values of worst-case coherence. The boxplot corresponds to the plot in Fig. 1(a) for e = 10. As the worst-case
+coherence becomes large, there are instances when oracle has to select all 2000 predictors to ensure S ? S?d (see boxplot for
+µ = 0.65 and 0.75).
+has to select all 2000 predictors to ensure S ? S?d (see boxplot for µ = 0.65 and 0.75). In other words, no screening can be
+performed at all in these cases. This phenomenon is also reflected in Theorem 1: when b(n, p) becomes too large, the condition
+imposed on MSR is no longer true and our analysis cannot be used for screening using Algorithm 1. Thus, this experiment
+shows that the condition imposed on MSR in Theorem 1 is not a mere artifact of our analysis: as µ (equivalently, b(n, p))
+becomes large, one may not be able to perform screening at all while ensuring S ? S?d.
+B. Comparison with Screening Procedures for LASSO-type Methods
+In this section, we use Gaussian data to compare the performance of ExSIS to that of screening procedures for LASSO-type
+methods. The design matrix X ? Rn×p contains entries from a standard Gaussian distribution such that the pairwise correlation
+between the variables is ?. In this experiment, we fix n at 200 while we consider two models with p = 2000 and p = 5000.
+For each value of p, we further consider two models with ? = 0.0 and ? = 0.3. Thus, in our experiments, we consider four
+setups with (p, ?) = (2000, 0.0), (2000, 0.3), (5000, 0.0) and (5000, 0.3) to analyze the impact of dimensionality and pairwise
+correlation on performance of the screening procedures for LASSO-type methods in relation to ExSIS. For each of these four
+different setups, the model size is set at |S| = 5, and the locations of the non-zero coefficients in the parameter vector ? are
+chosen such that S is a uniformly at random subset of [[p]]. The values of the non-zero coefficients in the parameter vector ?
+are generated from |z|+ 2 where z is distributed as a standard Gaussian random variable. Furthermore, the noise samples are
+generated from a standard Gaussian distribution, and the response vector y is generated using (1). Finally, the response vector
+y and the columns of the design matrix X are normalized to have unit norm.
+To analyze the performance of screening procedures for the LASSO method [15], the columns of X are screened using
+SAFE method [35] and strong rules [36] for LASSO. Recall that the LASSO problem can be expressed as
+?? = arg min
+??Rp
+1
+2
+?y ?X??22 + ????1.
+For each of these screening methods, we perform screening of X over a set of 200 values of the regularization parameter ?
+that are chosen uniformly from a linear scale. We compare the screening performance of SAFE method and strong rules for
+LASSO with the ExSIS method where d = 2n. Note that our selection of the value of d has some slack over the suggested
+value of d from Corollary 2.1 because the conditions on log p and ?min???2 in Corollary 2.1 don’t hold true in this experiment.
+2 To
+compare the performance of these various screening methods, we use two metrics: (i) the model size (number of variables) after
+screening, which is defined as |S?d|, and (ii) the detection rate, which is defined as |S?S?d||S| . Using these metrics of performance,
+Fig. 2 shows the results of our simulations as median over 100 draws of the random design matrix X /parameter vector ?/noise
+vector ? in (1) for each of the four setups that we consider in this section.
+2In order for stated conditions to hold, we need significantly larger n (and p); however, running LASSO on such large problems has high computational
+needs.
+13
+0 0.2 0.4 0.6 0.8 1 1.2 1.4
+0
+200
+400
+600
+800
+1000
+1200
+1400
+1600
+1800
+2000
+?
+N
+um
+be
+r 
+of
+ v
+ar
+ia
+bl
+es
+ le
+ft 
+af
+te
+r 
+sc
+re
+en
+in
+g
+ 
+ 
+SAFE ?=0
+SAFE ?=0.3
+Strong ?=0
+Strong ?=0.3  
+SIS
+(a)
+0 0.2 0.4 0.6 0.8 1 1.2 1.4
+0
+500
+1000
+1500
+2000
+2500
+3000
+3500
+4000
+4500
+5000
+?
+N
+um
+be
+r 
+of
+ v
+ar
+ia
+bl
+es
+ le
+ft 
+af
+te
+r 
+sc
+re
+en
+in
+g
+ 
+ 
+SAFE ?=0
+SAFE ?=0.3
+Strong ?=0
+Strong ?=0.3  
+SIS
+(b)
+0 0.2 0.4 0.6 0.8 1 1.2 1.4
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+?
+D
+et
+ec
+tio
+n 
+ra
+te
+ 
+ 
+SAFE ?=0
+SAFE ?=0.3
+Strong ?=0
+Strong ?=0.3  
+SIS
+(c)
+0 0.2 0.4 0.6 0.8 1 1.2 1.4
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+?
+D
+et
+ec
+tio
+n 
+ra
+te
+ 
+ 
+SAFE ?=0
+SAFE ?=0.3
+Strong ?=0
+Strong ?=0.3  
+SIS
+(d)
+Fig. 2: Gaussian data matrices are screened using LASSO-based screening procedures for various model parameters. In (a)
+and (c), p = 2000; whereas, in (b) and (d), p = 5000. For each value of p, the screening experiment is repeated for ? = 0.0
+and ? = 0.3. In each experiment, the model size after screening and the corresponding detection rate is evaluated for different
+values of the regularization parameter ?. The shown results are median over 100 random draws of the data matrix X /parameter
+vector ?/noise vector ? in (1).
+Next, the design matrix X is also generated and screened using SAFE method [35] and strong rules [36] for elastic net [16]
+as explained before. Recall that the elastic net problem can be expressed as
+?? = arg min
+??Rp
+1
+2
+?y ?X??22 + ?1???1 +
+1
+2
+?2???2.
+In our simulations, we use the parametrization (?1, ?2) = (??, (1 ? ?)?) and we let ? = 0.5. Fig. 3 shows the screening
+performance of SAFE method for elastic net, strong rules for elastic net and ExSIS over 100 draws of the random design matrix
+X for each of the four setups, as described before. In both Figs. 2 and 3, the largest value of ? for which median detection
+rate is 1.0 is labeled with an asterisk for each optimization-based screening procedure. In other words, for each screening
+procedure, only if ? is smaller than the value of ? labeled by an asterisk, the screening procedure maintains a median detection
+rate of 1.0. Notice also that if the chosen value of ? is too small, no variable is deleted by the screening procedure. Thus,
+as can be seen in both the figures, there is only a narrow range of values of ? over which the optimization-based screening
+procedures are able to get rid of variables while maintaining a detection rate of 1.0. Thus, from a practical point of view, it
+is not trivial to use SAFE method or strong rules for screening because there is no way of ensuring that the chosen value of
+? is within the narrow range of values of ? for which significant screening can be performed while maintaining a detection
+rate of 1.0. In comparison, the ExSIS method does not depend on the parameter ?, and in our experiments, it could always
+be used for screening while maintaining a median detection rate of 1.0 (as shown in both Figs. 2 and 3). Before we end this
+discussion, note that, even within the narrow range of values of ? for which SAFE method or strong rules can be used for
+screening while maintaining a detection rate of 1.0, there is an even narrower range of values of ? for which SAFE method
+or strong rules delete more variables than ExSIS.
+C. Sentiment Analysis of IMDb Movie Reviews and ExSIS
+In high-dimensional classification, it has been shown that the presence of irrelevant variables increases the difficulty of
+classification, and the classification error tends to increase with dimensionality of the data model [50], [51]. Variable selection
+becomes important in high-dimensional classification as it can be used to discard the subset of irrelevant variables and reduce
+the dimensionality of the data model. Once the variable selection step is performed, classification can be performed based on
+the subset of relevant variables. In this section, we consider the problem of classifying IMDb movie reviews with positive or
+14
+0 0.2 0.4 0.6 0.8 1 1.2 1.4 1.6
+0
+200
+400
+600
+800
+1000
+1200
+1400
+1600
+1800
+2000
+?
+N
+um
+be
+r 
+of
+ v
+ar
+ia
+bl
+es
+ le
+ft 
+af
+te
+r 
+sc
+re
+en
+in
+g
+ 
+ 
+SAFE ?=0
+SAFE ?=0.3
+Strong ?=0
+Strong ?=0.3  
+SIS
+(a)
+0 0.2 0.4 0.6 0.8 1 1.2 1.4 1.6
+0
+500
+1000
+1500
+2000
+2500
+3000
+3500
+4000
+4500
+5000
+?
+N
+um
+be
+r 
+of
+ v
+ar
+ia
+bl
+es
+ le
+ft 
+af
+te
+r 
+sc
+re
+en
+in
+g
+ 
+ 
+SAFE ?=0
+SAFE ?=0.3
+Strong ?=0
+Strong ?=0.3  
+SIS
+(b)
+0 0.2 0.4 0.6 0.8 1 1.2 1.4 1.6
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+?
+D
+et
+ec
+tio
+n 
+ra
+te
+ 
+ 
+SAFE ?=0
+SAFE ?=0.3
+Strong ?=0
+Strong ?=0.3  
+SIS
+(c)
+0 0.2 0.4 0.6 0.8 1 1.2 1.4 1.6
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1
+?
+D
+et
+ec
+tio
+n 
+ra
+te
+ 
+ 
+SAFE ?=0
+SAFE ?=0.3
+Strong ?=0
+Strong ?=0.3  
+SIS
+(d)
+Fig. 3: Gaussian data matrices are screened using elastic net-based screening procedures for various model parameters. In (a)
+and (c), p = 2000; whereas, in (b) and (d), p = 5000. For each value of p, the screening experiment is repeated for ? = 0.0
+and ? = 0.3. In each experiment, the model size after screening and the corresponding detection rate is evaluated for different
+values of the regularization parameter ?. The shown results are median over 100 random draws of the data matrix X /parameter
+vector ?/noise vector ? in (1).
+negative sentiments. In particular, we use variable selection to (i) reduce dimensionality of the data model, and (ii) learn a
+linear data model for classification (as explained later). To build and test our classification model, we make use of the IMDb
+movie reviews dataset [49], with the response being either a 1 (positive review) or a 0 (negative review), and we extract features
+using the term frequency-inverse document frequency method [52].
+To increase the reliability of our results, the original dataset of 25K reviews is first randomly divided into five bins for five
+independent trials, with each bin further divided into 3K train and 2K test reviews. In each bin, before we use the 3K reviews
+for fitting a linear model on the feature space, we perform a preprocessing step to get rid of the features (words) that are highly
+correlated. Note that, when we refer to learning/fitting a linear model, we mean to estimate the vector ? in (1). For learning
+the linear data model, we use LASSO as well as elastic net. For tuning the regularization parameter in LASSO as well as
+elastic net for each bin, we perform a five-fold cross validation experiment and choose the value of the regularization parameter
+that minimizes the mean square error on the training dataset. To evaluate the predictive power of the linear model, we use
+the notion of test true positive (TP) rate, which is the percentage of the remaining 2K test movie reviews that are correctly
+classified by the model. For classification of the test reviews, we use the trained linear model to estimate the response for each
+test review. If the estimated response is less than 0.5 for a test review, the test review is assigned a negative sentiment and
+vice versa. The above procedure is repeated for each of the five bins of data and the average prediction accuracy is reported
+in Table I. The average model size before variable selection in the five runs of the experiment is 21, 345.
+We also repeat the aforementioned experiment procedure but with a slight variation. For each of the five bins of data, we
+use Algorithm 1 to decrease dimensionality of the data model before performing the variable selection step. The objective of
+this variation in the experiment is to analyze the decrease in computational time and any change in the prediction accuracy
+when the variable selection step is preceded with a screening step using Algorithm 1. To choose the value of d in Algorithm 1,
+we verify that the training data matrix for each fold of data satisfies the coherence property, and then we choose d = 2n
+where n = 3000. Note that the chosen value of d has some slack over the suggested value of d in Corollary 4.1 because the
+condition on ?min???2 in Corollary 4.1 does not hold true in this experiment. After the screening step, we use LASSO and elastic
+net to learn and test a classification model as explained before. The results are reported in Table I.
+Thus, we use LASSO and elastic net, both with and without screening, to train and test a linear model for classification
+of movie reviews. For each of these four cases, Table I summarizes the train and test TP rates, which are the percentages of
+15
+TABLE I: True positive (TP) rates and computational times for experiments on the IMDb dataset, averaged over the five folds
+of the IMDb dataset. The standard deviation is also reported in parenthesis.
+Training method Train TP rate Test TP rate Training time
+LASSO 91.35 (0.94) 83.01 (0.77) 388.35 (26.66)
+ExSIS-LASSO 98.39 (0.71) 82.23 (0.83) 177.43 (16.85)
+Elastic net 96.69 (0.33) 84.35 (0.89) 272.46 (15.76)
+ExSIS-Elastic net 99.71 (0.11) 82.06 (0.94) 111.20 (4.65)
+correctly classified reviews in train and test reviews, respectively. The computational time needed for learning the linear model
+is also reported as an average over the five folds of data. It can be seen from the table that Algorithm 1 reduces the training
+time by a factor of more than two, while there is only a small decrease in predictive power of the trained model.
+VII. CONCLUSION
+In this paper, we studied marginal correlation-based screening for ultrahigh-dimensional linear models. In our analysis, we
+provided sufficient conditions for sure screening of arbitrary linear models, which gave us novel insights on the screening
+procedure, while our simulation results verified that these insights are reflective of the challenges associated with marginal
+correlation-based screening. Furthermore, we evaluated our sufficient conditions for the family of sub-Gaussian matrices as
+well as arbitrary (random or deterministic) matrices, and we provided verifiable conditions under which the dimension of the
+model can be reduced to almost the sample size. In our experiments with real-world data, we demonstrated the computational
+savings that can be achieved through ExSIS in high dimensional variable selection.
+APPENDIX A
+PROOF OF LEMMA 1
+We begin by defining
+w(i) := X?S?pi?1
+y = X?S?pi?1
+XS?S +X
+?
+S?pi?1
+? =: ?(i) + ??(i) (9)
+where w(i) ? R|S?pi?1 | measures the correlation of the observation vector y with each column of XS?pi?1 . To derive an upper
+bound on ti, we derive upper and lower bounds on
+pi?1?
+j1=1
+|w(i)j1 |. A simple upper bound on
+pi?1?
+j1=1
+|w(i)j1 | is:
+pi?1?
+j1=1
+|w(i)j1 | =
+pi?1?
+j1=1
+|?(i)j1 + ??
+(i)
+j1
+| ?
+pi?1?
+j1=1
+(|?(i)j1 |+ |??
+(i)
+j1
+|) = ??(i)?1 + ???(i)?1. (10)
+Next, we recall that w = X?y and we further define ? and ?? such that
+w = X?y = X?XS?S +X
+?? =: ? + ??. (11)
+Now define Ti := {j1 ? S?pi?1 : |wj1 | ? min
+j2?S
+|wj2 |}. Then, a simple lower bound on
+pi?1?
+j1=1
+|w(i)j1 | is:
+pi?1?
+j1=1
+|w(i)j1 | =
+?
+j1?S?pi?1
+|wj1 | ?
+?
+j1?Ti
+|wj1 |
+?
+?
+j1?Ti
+min
+j2?Ti
+|wj2 |
+(a)
+?
+?
+j1?Ti
+min
+j2?S
+|wj2 |
+= ti(min
+j2?S
+|wj2 |) = ti(min
+j2?S
+|?j2 + ??j2 |)
+? ti(min
+j2?S
+|?j2 | ?max
+j2?S
+|??j2 |), (12)
+where (a) follows from definition of Ti. Combining (10) with (12), we get
+ti ?
+??(i)?1 + ???(i)?1
+min
+j2?S
+|?j2 | ?max
+j2?S
+|??j2 |
+. (13)
+16
+We next bound ??(i)?1, max
+j2?S
+|??j2 |, ???(i)?1 and min
+j2?S
+|?j2 | separately. First, we derive an upper bound on ??(i)?1:
+??(i)?1 =
+?
+j1?S?pi?1
+?? ?
+j2?S
+X?j1Xj2?j2
+??
+(b)
+=
+?
+j1?S
+?? ?
+j2?S
+X?j1Xj2?j2
+??+
+?
+j1?S?pi?1\S
+?? ?
+j2?S
+X?j1Xj2?j2
+??
+(c)
+?
+?
+j1?S
+???
+j2?S
+j2 6=j1
+X?j1Xj2?j2
+??+
+?
+j1?S
+|?j1 |+
+?
+j1?S?pi?1\S
+?? ?
+j2?S
+X?j1Xj2?j2
+??
+? kmax
+j1?S
+???
+j2?S
+j2 6=j1
+X?j1Xj2?j2
+??+ (pi?1 ? k) max
+j1?S?pi?1\S
+?? ?
+j2?S
+X?j1Xj2?j2
+??+ ???1
+? kmax
+j1?S
+???
+j2?S
+j2 6=j1
+X?j1Xj2?j2
+??+ (pi?1 ? k) max
+j1?Sc
+?? ?
+j2?S
+X?j1Xj2?j2
+??+ ???1, (14)
+where (b) follows since S ? S?pi?1 and (c) follows from the triangle inequality and the fact that the columns of X are unit
+norm. Next, we have
+max
+j2?S
+|??j2 | ? ????? ? 2
+?
+?2 log p, (15)
+where the last inequality follows from conditioning on G? . Similarly, we have
+???(i)?1 =
+?
+j1?S?pi?1
+|X?j1?| ?
+?
+j1?S?pi?1
+max
+j2?S?pi?1
+|X?j2?|
+= pi?1( max
+j2?S?pi?1
+|X?j2?|) ? 2pi?1
+?
+?2 log p (16)
+where the last inequality, again, follows from G? . Last, we lower bound min
+j1?S
+|?j1 | as follows:
+min
+j1?S
+|?j1 | = min
+j1?S
+|
+?
+j2?S
+X?j1Xj2?j2 |
+(d)
+= min
+j1?S
+|
+?
+j2?S
+j2 6=j1
+X?j1Xj2?j2 + ?j1 |
+? min
+j1?S
+|?j1 | ?max
+j1?S
+|
+?
+j2?S
+j2 6=j1
+X?j1Xj2?j2 | = ?min ?maxj1?S |
+?
+j2?S
+j2 6=j1
+X?j1Xj2?j2 | (17)
+where (d) follows because the columns of X are unit norm. Combining (14), (15), (16), (17) with (13), we obtain
+ti ?
+kmax
+j1?S
+|?
+j2?S
+j2 6=j1
+X?j1Xj2?j2 |+ (pi?1 ? k) maxj1?Sc |
+?
+j2?S
+X?j1Xj2?j2 |+ ???1 + 2pi?1
+?
+?2 log p
+?min ?max
+j1?S
+|?
+j1?S
+j2 6=j1
+X?j1Xj2?j2 | ? 2
+?
+?2 log p
+. (18)
+Assuming the (k, b)-screening condition for the matrix X holds, we finally obtain
+ti ?
+kb(n, p) + (pi?1 ? k)b(n, p) + ???1 + 2pi?1
+?
+?2 log p
+?min ? b(n, p)? 2
+?
+?2 log p
+=
+pi?1b(n, p) + ???1 + 2pi?1
+?
+?2 log p
+?min ? b(n, p)? 2
+?
+?2 log p
+. (19)
+This completes the proof of the lemma. 
+17
+APPENDIX B
+PROOF OF LEMMA 2
+For t?i < pi?1, we need
+pi?1b(n, p)???2 + ???1 + 2pi?1
+?
+?2 log p
+?min ? b(n, p)???2 ? 2
+?
+?2 log p
+< pi?1
+? pi?1 >
+???1
+???2
+?min
+???2 ? 2b(n, p)?
+4
+?
+?2 log p
+???2
+. (20)
+Since ???1 ?
+?
+k???2, we have
+pi?1 >
+?
+k
+?min
+???2 ? 2b(n, p)?
+4
+?
+?2 log p
+???2
+(21)
+as a sufficient condition for (20). Thus, (21) is a sufficient condition for t?i < pi?1. 
+APPENDIX C
+PROOF OF LEMMA 3
+Since Xi :=
+Vi
+?Vi?2 , we can write
+max
+i?S
+???
+j?S
+j 6=i
+X?i Xj?j
+?? = max
+i?S
+???
+j?S
+j 6=i
+V ?i
+?Vi?2
+Vj
+?Vj?2
+?j
+??.
+We next fix an i? ? S and derive a probabilistic bound on |?
+j?S
+j 6=i?
+X?i? Xj?j |. This involves deriving both upper and lower
+probabilistic bounds on
+?
+j?S
+j 6=i?
+X?i? Xj?j below in Step 1 and Step 2, respectively.
+Step 1 (Upper Bound): To provide an upper probabilistic bound on
+?
+j?S
+j 6=i?
+X?i? Xj?j , we first establish that ?Vj?2 ?
+?
+n?2j
+2 for
+each j ? S with high probability in Step 1a and then we derive an upper probabilistic bound on ?
+j?S
+j 6=i?
+V ?
+i?
+?Vi??2
+?
+2Vj?
+n?2j
+?j in Step 1b.
+We then combine these two steps in Step 1c for the final upper probabilistic bound on
+?
+j?S
+j 6=i?
+X?i? Xj?j .
+Step 1a: Note that
+Pr
+[
+?Vj?2 <
+?
+n?2j
+2
+]
+? exp
+(
+? n
+8
+( ?j
+4bj
+)4)
+(22)
+for any j ? S [53, eq. (2.20)]. Next, let Gu,a be the event that ?Vj?2 ?
+?
+n?2j
+2 for all j ? S \ {i?}. Then
+Pr[Gcu,a] = Pr
+[?
+j?S
+j 6=i?
+{
+?Vj?2 <
+?
+n?2j
+2
+}]
+?
+?
+j?S
+j 6=i?
+Pr
+[
+?Vj?2 <
+?
+n?2j
+2
+]
+?
+?
+j?S
+j 6=i?
+exp
+(
+? n
+8
+( ?j
+4bj
+)4)
+?
+?
+j?S
+j 6=i?
+exp
+(
+? n
+8
+( ??
+4b?
+)4)
+= (k ? 1) exp
+(
+? n
+8
+( ??
+4b?
+)4)
+. (23)
+18
+Step 1b: Define
+Yi? :=
+?
+j?S
+j 6=i?
+?
+2
+n?2j
+V ?i?
+?Vi??2
+Vj?j ,
+and let Gu,b be the event that Yi? ?
+?
+8 log p
+n
+(
+b?
+??
+)
+???2. Then, the claim is that Pr(Gu,b) ? 1? 1p2 . In order to prove this claim,
+let us define another event G?v := {V ?i = vi?}. Then, defining ui? := vi??vi??2 , we have
+MYi? (?| G
+?
+v) := E[exp(?Yi? )| G
+?
+v]
+= E
+[
+exp
+(
+?
+?
+j?S
+j 6=i?
+?
+2
+n?2j
+V ?i?
+?Vi??2
+Vj?j
+)??G?v
+]
+= E
+[
+exp
+(
+?
+?
+j?S
+j 6=i?
+?
+2
+n?2j
+u?i?Vj?j
+)]
+= E
+[?
+j?S
+j 6=i?
+exp
+(
+?
+?
+2
+n?2j
+u?i? Vj?j
+)]
+= E
+[?
+j?S
+j 6=i?
+exp
+(
+?
+?
+2
+n?2j
+n?
+l=1
+ui?,lVj,l?j
+)]
+= E
+[?
+j?S
+j 6=i?
+n?
+l=1
+exp
+(
+?
+?
+2
+n?2j
+ui?,lVj,l?j
+)]
+=
+?
+j?S
+j 6=i?
+n?
+l=1
+E
+[
+exp
+(
+?
+?
+2
+n?2j
+ui?,lVj,l?j
+)]
+?
+?
+j?S
+j 6=i?
+n?
+l=1
+exp
+( ?2
+n?2j
+u2i?,lb
+2
+j?
+2
+j
+)
+=
+?
+j?S
+j 6=i?
+exp
+( ?2
+n?2j
+b2j?
+2
+j
+n?
+l=1
+u2i?,l
+)
+=
+?
+j?S
+j 6=i?
+exp
+( ?2
+n?2j
+b2j?
+2
+j
+)
+= exp
+(?2
+n
+?
+j?S
+j 6=i?
+b2j?
+2
+j
+?2j
+)
+? exp
+(?2
+n
+( b?
+??
+)2?
+j?S
+j 6=i?
+?2j
+)
+? exp
+(?2
+n
+( b?
+??
+)2
+???22
+)
+. (24)
+By the Chernoff bound on Yi? , we next obtain
+Pr(Yi? > a| G
+?
+v) ? min
+?>0
+exp(??a)MYi? (?| G
+?
+v)
+? min
+?>0
+exp(??a) exp
+(?2
+n
+( b?
+??
+)2
+???22
+)
+= exp
+(
+? 1
+4
+(??
+b?
+)2 a2 n
+???22
+)
+. (25)
+19
+Substituting a =
+?
+8 log p
+n
+(
+b?
+??
+)
+???2 in (25), we obtain
+Pr
+(
+Yi? >
+?
+8 log p
+n
+( b?
+??
+)
+???2
+???G?v
+)
+? 1
+p2
+. (26)
+Finally, by the law of total probability, we obtain
+Pr
+(
+Yi? >
+?
+8 log p
+n
+( b?
+??
+)
+???2
+)
+= EV ?
+i
+[
+Pr
+(
+Yi? >
+?
+8 log p
+n
+( b?
+??
+)
+???2
+???G?v
+)]
+? EV ?
+i
+[
+1
+p2
+]
+=
+1
+p2
+. (27)
+Thus, the event Gu,b holds with probability exceeding 1? 1p2 .
+Step 1c: Conditioning on Gu,a ? Gu,b, we have from (23) and (27) that
+?
+j?S
+j 6=i?
+X?i? Xj?j ?
+?
+8 log p
+n
+( b?
+??
+)
+???2. (28)
+Further, note that
+Pr(Gu,a ? Gu,b) ? 1? Pr(Gcu,a)? Pr(Gcu,b)
+? 1? (k ? 1) exp
+(
+? n
+8
+( ??
+4b?
+)4)
+? 1
+p2
+(a)
+? 1? (k ? 1)
+p2
+? 1
+p2
+= 1? k
+p2
+,
+where (a) follows since log p ? n16
+(
+??
+4b?
+)4
+. Thus, (28) holds with probability exceeding 1? kp2 .
+Step 2 (Lower Bound): Our claim in this step is that
+?
+j?S
+j 6=i?
+X?i? Xj?j ? ?
+?
+8 log p
+n
+(
+b?
+??
+)
+???2 with probability exceeding 1? kp2 .
+To establish this claim, notice that
+?
+j?S
+j 6=i?
+X?i? Xj?j ? ?
+?
+8 log p
+n
+( b?
+??
+)
+???2 ?? ?
+?
+j?S
+j 6=i?
+X?i? Xj?j ?
+?
+8 log p
+n
+( b?
+??
+)
+???2. (29)
+Further, we have ??
+j?S
+j 6=i?
+X?i? Xj?j ? ?
+?
+j?S
+j 6=i?
+V ?
+i?
+?Vi??2
+Vj
+?Vj?2?j =
+?
+j?S
+j 6=i?
+V ?
+i?
+?Vi??2
+V?j
+?Vj?2?j , where V?j := ?Vj is still distributed as Vj because
+of the symmetry of sub-Gaussian distributions. The claim now follows from a repetition of the analysis carried out in Step 1.
+Final Step: Step 1 and Step 2, along with the union bound, imply that
+???
+j?S
+j 6=i
+X?i? Xj?j
+?? ?
+?
+8 log p
+n
+( b?
+??
+)
+???2
+with probability exceeding 1? 2kp2 . Next, notice that
+Pr
+[
+max
+i?S
+???
+j?S
+j 6=i
+X?i Xj?j
+?? ?
+?
+8 log p
+n
+( b?
+??
+)
+???2
+]
+= 1? Pr
+[ ?
+i?S
+{???
+j?S
+j 6=i
+X?i Xj?j
+?? >
+?
+8 log p
+n
+( b?
+??
+)
+???2
+}]
+? 1?
+?
+i?S
+Pr
+[???
+j?S
+j 6=i
+X?i Xj?j
+?? >
+?
+8 log p
+n
+( b?
+??
+)
+???2
+]
+? 1?
+?
+i?S
+2k
+p2
+= 1? 2k
+2
+p2
+. (30)
+This complete the proof of the lemma. 
+20
+APPENDIX D
+PROOF OF LEMMA 4
+Once again, notice that
+max
+i?Sc
+|
+?
+j?S
+X?i Xj?j | = max
+i?Sc
+???
+?
+j?S
+V ?i
+?Vi?2
+Vj
+?Vj?2
+?j
+???.
+We next fix an i? ? Sc. Similar to the proof of Lemma 3, the plan is to first derive a probabilistic bound on |?
+j?S
+X?i? Xj?j |
+and then use the union bound to provide a probabilistic bound on max
+i?Sc
+|?
+j?S
+X?i Xj?j |. Using steps similar to the ones in the
+proof of Lemma 3, it is straightforward to establish that
+???
+j?S
+X?i? Xj?j
+?? ?
+?
+8 log p
+n
+( b?
+??
+)
+???2
+with probability exceeding 1? 2(k+1)p2 . The union bound finally gives us
+Pr
+[
+max
+i?Sc
+???
+j?S
+X?i Xj?j
+?? ?
+?
+8 log p
+n
+( b?
+??
+)
+???2
+]
+= 1? Pr
+[ ?
+i?Sc
+{???
+j?S
+X?i Xj?j
+?? >
+?
+8 log p
+n
+( b?
+??
+)
+???2
+}]
+? 1?
+?
+i?Sc
+Pr
+[???
+j?S
+X?i Xj?j
+?? >
+?
+8 log p
+n
+( b?
+??
+)
+???2
+]
+? 1?
+?
+i?Sc
+2(k + 1)
+p2
+= 1? 2(k + 1)(p? k)
+p2
+. (31)
+This completes the proof of the lemma. 
+APPENDIX E
+PROOF OF LEMMA 5
+Notice that max
+i?S
+|?
+j?S
+j 6=i
+X?i Xj?j | ? max
+i?S
+?
+j?S
+j 6=i
+|X?i Xj?j| ? max
+i?S
+?
+j?S
+j 6=i
+|X?i Xj ||?j |. Further, we have
+max
+i?S
+?
+j?S
+j 6=i
+|X?i Xj ||?j | ? max
+i?S
+?
+j?S
+j 6=i
+µ|?j | ? µ???1 ? µ
+?
+k???2. (32)
+An identical argument also establishes that max
+i?Sc
+| ?
+j?S
+X?i Xj?j | ? µ???1 ? µ
+?
+k???2. 
+APPENDIX F
+PROOF OF LEMMA 6
+The proof of Lemma 6 relies on the following two lemmas, which are formally proved in [45].
+Lemma 8 ([45, Lemma 3]). Assume S is drawn uniformly at random from k-subsets of [[p]] and choose a parameter a ? 1.
+Let ? ? [0, 1) and k ? min{?2??2, (1 + a)?1p}. Then, with probability exceeding 1? 4k exp(? (??
+?
+k?)2
+16(2+a?1)2µ2 ), we have
+max
+i?S
+|
+?
+j?S
+j 6=i
+X?i Xj?j | ? ? ???2.
+Lemma 9 ([45, Lemma 4]). Assume S is drawn uniformly at random from k-subsets of [[p]] and choose a parameter a ? 1.
+Let ? ? [0, 1) and k ? min{?2??2, (1 + a)?1p}. Then, with probability exceeding 1? 4(p? k) exp(? (??
+?
+k?)2
+8(2+a?1)2µ2 ), we have
+max
+i?Sc
+|
+?
+j?S
+X?i Xj?j | ? ? ???2.
+21
+Using a simple union bound with Lemma 8 and Lemma 9, we have
+max
+i?S
+|
+?
+j?S
+j 6=i
+X?i Xj?j | ? ? ???2, and
+max
+i?Sc
+|
+?
+j?S
+X?i Xj?j | ? ? ???2
+with probability exceeding 1 ? ? where ? = 4p exp(? (??
+?
+k?)2
+16(2+a?1)2µ2 ). Fix ? = cµµ
+?
+log p and a = 9. Then, the claim is that
+? ? 4p?1. Next, we will prove our claim. Before we can fix ? = cµµ
+?
+log p and a = 9, we need to ensure that the chosen
+values of a, ? and the allowed values of k satisfy the assumptions in Lemma 8 and Lemma 9. First, note that ? < 1 because of
+µ < 1
+cµ
+?
+log p
+. Second, k ? p1+a because of a = 9, p ? max{2n, exp(5)} and k ? nlog p . Third, and last, k ? ?
+2
+(9?)2 because of
+? < µ?
+n
+, k ? nlog p , p ? 2n and cµ > 10
+?
+2. Finally, we use
+?
+k? ? ?9 with a = 9, cµ > 10
+?
+2 and ? = cµµ
+?
+log p to obtain
+exp(? (??
+?
+k?)2
+16(2 + a?1)2µ2
+) ? p?2
+and thus ? ? 4p?1. 
+REFERENCES
+[1] T. R. Golub et al., “Molecular classification of cancer: Class discovery and class prediction by gene expression monitoring,” Science, vol. 286, no. 5439,
+pp. 531–537, 1999.
+[2] X. Huang and W. Pan, “Linear regression and two-class classification with gene expression data,” Bioinformatics, vol. 19, no. 16, pp. 2072–2078, 2003.
+[3] T. Helleputte and P. Dupont, “Partially supervised feature selection with regularized linear models,” in Proc. 26th Intl Conf. Machine Learning, 2009,
+pp. 409–416.
+[4] F. C. Stingo, Y. A. Chen, M. G. Tadesse, and M. Vannucci, “Incorporating biological information into linear models: A Bayesian approach to the
+selection of pathways and genes,” Ann. Appl. Stat., vol. 5, no. 3, 2011.
+[5] Y. Yasui et al., “A data-analytic strategy for protein biomarker discovery: Profiling of high-dimensional proteomic data for cancer detection,” Biostatistics,
+vol. 4, no. 3, pp. 449–463, 2003.
+[6] R. Clarke et al., “The properties of high-dimensional data spaces: Implications for exploring gene and protein expression data,” Nature Rev. Cancer,
+vol. 8, no. 1, pp. 37–49, 2008.
+[7] A. I. Nesvizhskii, “A survey of computational methods and error rate estimation procedures for peptide and protein identification in shotgun proteomics,”
+J. Proteomics, vol. 73, no. 11, pp. 2092–2123, 2010.
+[8] B. Pang and L. Lee, “Opinion mining and sentiment analysis,” Foundations and Trends in Information Retrieval, vol. 2, no. 1–2, pp. 1–135, 2008.
+[9] B. Liu, “Sentiment analysis and opinion mining,” Synthesis Lectures on Human Language Technologies, vol. 5, no. 1, pp. 1–167, 2012.
+[10] R. Feldman, “Techniques and applications for sentiment analysis,” Commun. ACM., vol. 56, no. 4, pp. 82–89, 2013.
+[11] D. Landgrebe, “Hyperspectral image data analysis,” IEEE Signal Processing Mag., vol. 19, no. 1, pp. 17–28, 2002.
+[12] A. Plaza et al., “Recent advances in techniques for hyperspectral image processing,” Remote Sens. Environ., vol. 113, pp. S110–S122, 2009.
+[13] J. Bioucas-Dias et al., “Hyperspectral unmixing overview: Geometrical, statistical, and sparse regression-based approaches,” IEEE J. Select. Topics Appl.
+Earth Observ. Remote Sensing, vol. 5, no. 2, pp. 354–379, 2012.
+[14] G. James, D. Witten, T. Hastie, and R. Tibshirani, An Introduction to Statistical Learning. Springer Texts in Statistics, 2013.
+[15] R. Tibshirani, “Regression shrinkage and selection via the lasso,” J. Roy. Statist. Soc. B., vol. 58, no. 1, pp. 267–288, 1996.
+[16] H. Zou and T. Hastie, “Regularization and variable selection via the elastic net,” J. Roy. Statist. Soc., vol. 67, no. 2, pp. 301–320, 2005.
+[17] J. Fan and R. Li, “Variable selection via nonconcave penalized likelihood and its oracle properties,” J. Am. Statist. Ass., vol. 96, no. 456, pp. 1348–1360,
+2001.
+[18] W. J. Fu, “Penalized regressions: The bridge versus the lasso,” J. Computnl Graph. Statist., vol. 7, no. 3, pp. 397–416, 1998.
+[19] J. Huang, J. L. Horowitz, and S. Ma, “Asymptotic properties of bridge estimators in sparse high-dimensional regression models,” Ann. Stat., vol. 36,
+no. 2, pp. 587–613, 2008.
+[20] H. Zou, “The adaptive lasso and its oracle properties,” J. Am. Statist. Ass., vol. 101, no. 476, pp. 1418–1429, 2006.
+[21] M. Yuan and Y. Lin, “Model selection and estimation in regression with grouped variables,” J. Royal Statistical Soc. B, vol. 68, no. 1, pp. 49–67, 2006.
+[22] E. Candes and T. Tao, “The Dantzig selector: Statistical estimation when p is much larger than n,” Ann. Stat., vol. 35, no. 6, pp. 2313–2351, 2007.
+[23] D. L. Donoho, “High-dimensional data analysis: The curses and blessings of dimensionality,” AMS Math Challenges Lecture, vol. 1, p. 32, 2000.
+[24] ——, “For most large underdetermined systems of linear equations the minimal ?1-norm solution is also the sparsest solution,” Commun. Pure Appl.
+Math., vol. 59, no. 6, pp. 797–829, 2006.
+[25] C. R. Genovese, J. Jin, L. Wasserman, and Z. Yao, “A comparison of the lasso and marginal regression,” J. Machine Learning Res., vol. 13, pp.
+2107–2143, 2012.
+[26] J. Fan and J. Lv, “Sure independence screening for ultrahigh dimensional feature space,” J. Roy. Statist. Soc. B., vol. 70, no. 5, pp. 849–911, 2008.
+[27] J. Fan, R. Samworth, and Y. Wu, “Ultrahigh dimensional feature selection: Beyond the linear model,” J. Machine Learning Res., vol. 10, pp. 2013–2038,
+2009.
+[28] J. Fan and R. Song, “Sure independence screening in generalized linear models with NP-dimensionality,” Ann. Stat., vol. 38, no. 6, pp. 3567–3604,
+2010.
+[29] J. Fan, Y. Feng, and R. Song, “Nonparametric independence screening in sparse ultra-high dimensional additive models,” J. Am. Statist. Ass., vol. 106,
+no. 494, pp. 544–557, 2011.
+[30] J. Fan, Y. Ma, and W. Dai, “Nonparametric independence screening in sparse ultra-high dimensional varying coefficient models,” J. Am. Statist. Ass.,
+vol. 109, no. 507, pp. 1270–1284, 2014.
+[31] J. Fan, Y. Feng, and Y. Wu, “High-dimensional variable selection for Coxs proportional hazards model,” in Borrowing Strength: Theory Powering
+Applications–A Festschrift for Lawrence D. Brown. Institute of Mathematical Statistics, 2010, pp. 70–86.
+[32] S. D. Zhao and Y. Li, “Principled sure independence screening for Cox models with ultra-high-dimensional covariates,” J. Multivariate Anal., vol. 105,
+no. 1, pp. 397–411, 2012.
+[33] P. Hall and H. Miller, “Using generalized correlation to effect variable selection in very high dimensional problems,” J. Computnl Graph. Statist., vol. 18,
+no. 3, pp. 533–550, 2009.
+22
+[34] G. Li, H. Peng, J. Zhang, and L. Zhu, “Robust rank correlation based screening,” Ann. Stat., vol. 40, no. 3, pp. 1846–1877, 2012.
+[35] L. E. Ghaoui, V. Viallon, and T. Rabbani, “Safe feature elimination for the lasso and sparse supervised learning problems,” arXiv preprint arXiv:1009.4219,
+2010.
+[36] R. Tibshirani et al., “Strong rules for discarding predictors in lasso-type problems,” J. Roy. Statist. Soc. B., vol. 74, no. 2, pp. 245–266, 2012.
+[37] Z. J. Xiang and P. J. Ramadge, “Fast lasso screening tests based on correlations,” in Proc. IEEE Int. Conf. on Acoustics Speech and Sig. Proc. (ICASSP),
+2012, pp. 2137–2140.
+[38] L. Dai and K. Pelckmans, “An ellipsoid based, two-stage screening test for BPDN,” in Proc. 20th Eur. Sig. Proc. Conf., 2012, pp. 654–658.
+[39] J. Wang, P. Wonka, and J. Ye, “Lasso screening rules via dual polytope projection,” J. Mach. Learn. Res., vol. 16, pp. 1063–1101, 2015.
+[40] Z. J. Xiang, Y. Wang, and P. J. Ramadge, “Screening tests for lasso problems,” IEEE Trans. Pattern Anal. Mach. Intell., vol. 39, no. 5, pp. 1008–1027,
+2017.
+[41] M. J. Wainwright, “Sharp thresholds for high-dimensional and noisy sparsity recovery using-constrained quadratic programming (lasso),” IEEE Trans.
+Inf. Theory, vol. 55, no. 5, pp. 2183–2202, 2009.
+[42] P. Zhao and B. Yu, “On model selection consistency of lasso,” J. Machine Learning Res., vol. 7, pp. 2541–2563, 2006.
+[43] E. J. Candes, “The restricted isometry property and its implications for compressed sensing,” Comptes Rendus Mathematique, vol. 346, no. 9-10, pp.
+589–592, 2008.
+[44] G. Raskutti, M. J. Wainwright, and B. Yu, “Restricted eigenvalue properties for correlated Gaussian designs,” J. Machine Learning Res., vol. 11, pp.
+2241–2259, 2010.
+[45] W. U. Bajwa, R. Calderbank, and S. Jafarpour, “Why Gabor frames? Two fundamental measures of coherence and their role in model selection,” J.
+Commun. Netw., vol. 12, no. 4, pp. 289–307, 2010.
+[46] G. Davis, S. Mallat, and M. Avellaneda, “Adaptive greedy approximations,” J. Construct. Approx., vol. 13, no. 1, pp. 57–98, 1997.
+[47] W. U. Bajwa, A. Calderbank, and D. G. Mixon, “Two are better than one: Fundamental parameters of frame coherence,” Appl. Comput. Harmon. Anal.,
+vol. 33, pp. 58–78, 2012.
+[48] L. Welch, “Lower bounds on the maximum cross correlation of signals,” IEEE Trans. Inform. Theory, vol. 20, no. 3, pp. 397–399, 1974.
+[49] A. L. Maas et al., “Learning word vectors for sentiment analysis,” in Proc. 49th Ann. Meeting of the Assoc. for Computational Linguistics: Human
+Language Technologies, June 2011, pp. 142–150.
+[50] J. Fan and Y. Fan, “High dimensional classification using features annealed independence rules,” Ann. Stat., vol. 36, no. 6, p. 2605, 2008.
+[51] J. Fan, F. Han, and H. Liu, “Challenges of big data analysis,” Nat. Sci. Rev., vol. 1, no. 2, pp. 293–314, 2014.
+[52] C. D. Manning, P. Raghavan, and H. Schtze, Introduction to Information Retrieval. Cambridge University Press, 2008.
+[53] J. Wainwright, “High-dimensional statistics: A non-asymptotic viewpoint,” In preparation. University of California, Berkeley, 2015. [Online]. Available:
+https://www.stat.berkeley.edu/?mjwain/stat210b/Chap2 TailBounds Jan22 2015.pdf

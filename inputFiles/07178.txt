@@ -1,0 +1,2294 @@
+ar
+X
+iv
+:1
+70
+8.
+07
+17
+8v
+1 
+ [
+cs
+.L
+G
+] 
+ 2
+3 
+A
+ug
+ 2
+01
+7
+Noname manuscript No.
+(will be inserted by the editor)
+Massively-Parallel Feature Selection for Big Data
+Ioannis Tsamardinos? · Giorgos
+Borboudakis? · Pavlos Katsogridakis ·
+Polyvios Pratikakis · Vassilis Christophides
+Received: date / Accepted: date
+Keywords feature selection | variable selection | forward selection | Big Data |
+data analytics
+Abstract We present the Parallel, Forward-Backward with Pruning (PFBP) al-
+gorithm for feature selection (FS) in Big Data settings (high dimensionality and/or
+sample size). To tackle the challenges of Big Data FS PFBP partitions the data
+matrix both in terms of rows (samples, training examples) as well as columns (fea-
+tures). By employing the concepts of p-values of conditional independence tests
+and meta-analysis techniques PFBP manages to rely only on computations local to
+a partition while minimizing communication costs. Then, it employs powerful and
+safe (asymptotically sound) heuristics to make early, approximate decisions, such
+as Early Dropping of features from consideration in subsequent iterations, Early
+Stopping of consideration of features within the same iteration, or Early Return
+of the winner in each iteration. PFBP provides asymptotic guarantees of optimal-
+ity for data distributions faithfully representable by a causal network (Bayesian
+network or maximal ancestral graph). Our empirical analysis confirms a super-
+linear speedup of the algorithm with increasing sample size, linear scalability with
+respect to the number of features and processing cores, while dominating other
+competitive algorithms in its class.
+? Equal contribution.
+Ioannis Tsamardinos
+E-mail: tsamard.it@gmail.com
+Giorgos Borboudakis
+E-mail: borbudak@gmail.com
+Pavlos Katsogridakis
+E-mail: pkatsogr@gmail.com
+Polyvios Pratikakis
+E-mail: polyvios@ics.forth.gr
+Vassilis Christophides
+E-mail: christop@csd.uoc.gr
+2 Tsamardinos, I., Borboudakis, G. et al.
+1 Introduction
+Creating predictive models from data requires sophisticated machine learning, pat-
+tern recognition, and statistical modeling techniques. When applied to Big Data
+settings these algorithms need to scale not only to millions of training instances
+(samples) but also millions of predictive quantities (interchangeably called fea-
+tures, variables, or attributes) [8, 75, 77]. A common way to reduce data dimen-
+sionality consists of selecting only a subset of the original features that retains
+all of the predictive information regarding an outcome of interest T . Specifically,
+the objective of the Feature Selection (FS) problem can be defined as identifying
+a feature subset that is of minimal-size and collectively (multivariately) optimally
+predictive1 w.r.t. T 2. By removing irrelevant as well as redundant (related to the
+concept of weakly relevant) features, FS essentially facilitates the learning task. It
+results in predictive models with fewer features that are easier to inspect, visual-
+ize, understand, and faster to apply. Thus, FS provides valuable intuition on the
+data generating mechanism and is a primary tool for knowledge discovery; deep
+connections of the solutions to the FS with the causal mechanisms that generate
+the data have been found [62]. Indeed, FS is often the primary task of an analysis,
+while predictive modeling is only a by-product.
+Designing a FS algorithm is challenging because by definition it is a com-
+binatorial problem; the FS is NP-hard even for linear regression problems [70].
+An exhaustive search of all feature subsets is impractical except for quite small
+sized feature spaces. Heuristic search strategies and approximating assumptions
+are required to scale up FS, ranging from convex relaxations and parametric as-
+sumptions such as linearity (e.g., the Lasso algorithm [61]) to causally-inspired,
+non-parametric assumptions, such as faithfulness of the data distribution to a
+causal model [49, 59].
+Specifically, in the context of Big Data featuring both high dimensionality
+and/or high sample volume, computations become CPU- and data-intensive that
+cannot be handled by a single machine3. The main challenges arising in this con-
+text are (a) how can data be partitioned both horizontally (over samples) and
+vertically (over features), called hybrid-partitioning, so that computations can be
+performed locally in each block and combined globally with a minimal commu-
+nication overhead ; (b) what heuristics can quickly (e.g., without the need to go
+through all samples) and safely (providing theoretical guarantees of correctness)
+eliminate irrelevant and redundant features. Hybrid partitioning over both data
+samples and learned models [36, 73] is an open research issue in Big ML algorithms
+while safe FS heuristics has been proposed only for sparse Big Data [53, 58], i.e.,
+for data where a large percentage of values are the same (typically zeros).
+To address these challenges we introduce the Parallel, Forward-Backward
+with Pruning (PFBP) algorithm for Big Volume Data. PFBP does not relies
+on data sparsity and is generally applicable to both dense and sparse datasets;
+in the future, it could be extended to include optimizations specifically designed
+for sparse datasets. PFBP is based on statistical tests of conditional independence
+1 Optimally predictive with respect to an ideal predictor; see [62] for a discussion.
+2 This definition covers what we call single FS; the problem of multiple FS can be defined
+as the problem of identifying all minimal and optimally-predictive subsets but it has received
+much less study in the literature [33, 60].
+3 See [8, 75, 77] for the evolution of Big Data dimensionality in various ML datasets.
+Massively-Parallel Feature Selection for Big Data 3
+and it is inspired by statistical causal modeling that represents join probability
+distribution as a causal model and specifically the theory of Bayesian networks
+and maximal ancestral graphs [48, 54, 59].
+To tackle parallelization with hybrid partitioning (challenge (a) above), PFBP
+decisions rely on p-values and log-likelihoods returned by the independence tests
+computed locally on each data partition; these values are then combined together
+using statistical meta-analysis techniques to produce global approximate p-values4
+and log-likelihoods. This technique essentially minimizes PFBP’s communication
+cost, as only local p-values and log-likelihoods need to be communicated from
+workers to the master node in a cluster of machines at each iteration of the algo-
+rithm.
+To reduce the number and workload of iterations required to compute a FS
+solution (challenge (b) above), PFBP relies on several heuristics. First, it adapts
+for Big Data a heuristic called Early Dropping recently introduced in [9]. Early
+Dropping removes features from subsequent iterations thus significantly speeding
+up the algorithm. Then, PFBP is equipped with two new heuristics for Early
+Stopping of consideration of features within the same iteration, and Early Re-
+turning the current best feature for addition or removal. The three heuristics are
+implemented using Bootstrap-based statistical tests. They are applied on the set
+of currently available local p-values and log-likelihoods to determine whether the
+algorithm has seen enough samples to make safely (i.e., with high probability)
+early decisions.
+PFBP is proven to compute the optimal feature set for distributions faithful [59]
+(also called stable distributions [49]) to a causal network represented as a Bayesian
+Network or a maximal ancestral graph [54, 59]. These are data distributions whose
+set of conditional independencies coincides with the set of independencies entailed
+by a causal graph and the Markov Condition [49, 59]. Assuming faithfulness of
+the data distribution has led to algorithms that have been proven competitive
+in practice [3, 4, 9, 33, 34, 35, 41, 51, 63, 64]. We should also notice that all
+PFBP computations are not bound to specific data-types; by supplying different
+conditional independence tests PFBP becomes applicable to a wide variety of data
+types and target variables [33] (continuous, ordinal, nominal, time-to-event).
+The paper is organized as follows. In Section 2 we provide a brief introduction
+to the basic concepts required to introduce our FS algorithm. The PFBP algorithm
+is introduced in Section 3. In Section 4 we explain the heuristics used by PFBP in
+detail, and show to how to implement them using bootstrap-based tests. Guidelines
+for setting the hyper-parameter values for the data partitioning used by PFBP
+are presented in Section 5. In Section 6 we list some implementation details of
+PFBP, which are required for a fast and robust implementation. The theoretical
+properties of PFBP are presented in Section 7. A high-level theoretical comparison
+of PFBP to alternative feature selection algorithms, as well as an overview of
+feature selection methods for Big Data is given in Section 8. Finally, in Section 9 we
+evaluate PFBP on synthetic data, and compare it to alternative forward-selection
+algorithms on 11 binary classification datasets.
+4 Alternatively, one can combine the test statistics that produce the p-values. This is con-
+ceptually equivalent, although there may be differences in practice.
+4 Tsamardinos, I., Borboudakis, G. et al.
+Table 1: Table containing common acronyms, terms and mathematical notation
+(left) used throughout the paper with a short description (right).
+FBS Forward-Backward Selection
+PFBP Parallel Forward-Backward with Pruning
+UFS Univariate Feature Selection
+SFO Single Feature Optimization
+ED Early Dropping
+ES Early Stopping
+ER Early Return
+Iteration forward (backward) iteration of PFBP
+Phase forward (backward) loop of PFBP
+Run execution of a forward and a backward Phase by PFBP
+Feature Subset subset of features
+Sample Subset subset of samples
+Data Block contains samples of one Sample Subset and one Feature Subset
+Group Sample set of Sample Subsets
+Group set of Data Blocks corresponding to Sample Subsets in a Group Sample
+X Random variable
+X set of random variables
+|X| number of elements in X
+T outcome (or target) variable
+Test(Xk, T |S) conditional independence test of Xk with T given S
+pk p-value of Test(Xk , T |S) (for some S)
+df Degrees of Freedom
+? significance level threshold
+D Dataset - 2-D matrix
+F Features in D
+Fj j-th Feature Subset
+nf number of Feature Subsets
+f number of features in each Feature Subset
+Si i-th Sample Subset
+ns number of Sample Subsets
+s number of samples in each Sample Subset
+Gq q-th Group Sample
+Q number of Group Samples
+C number of Sample Subsets per Group Sample
+Di,j Data Block with rows Si and columns Fj
+? 2-D matrix with local log p-values
+?i,j local p-value of j-th alive variable in ? computed on rows in Si
+? Vector with combined log p-values
+?i combined log p-value for the i-th alive variable
+S set of Selected features
+R set of Remaining features
+A set of Alive features
+B number of bootstrap iterations used by bootstrap tests
+b value corresponding to b-th bootstrap sample
+Pdrop threshold used by bootstrap test for Early Dropping
+Pstop threshold used by bootstrap test for Early Stopping
+Preturn threshold used by bootstrap test for Early Return
+lt tolerance level used by bootstrap test for Early Return
+2 Background and Preliminaries
+In this section, we provide the basic notation used throughout the paper, and
+present the core algorithmic and statistical reasoning techniques exploited by the
+Massively-Parallel Feature Selection for Big Data 5
+Algorithm 1 Forward-Backward Selection
+Input: Dataset D, Target T , Significance Level ?
+Output: Selected Features S
+S? ? //Selected features, initially empty
+//Forward Phase: Iterate until no more features can be selected
+while S changes do
+//Identify V ? with minimum p-value conditional on S
+V ? ? argmin
+V ?VD\S
+Pvalue(T, V |S)
+//Select V ? if conditionally dependent with T given S
+if Pvalue(T, V ?|S) ? ? then
+S ? S ? V ?
+end if
+end while
+//Backward Phase: Iterate until no more features can be removed from S
+while S changes do
+//Identify V ? with maximum p-value conditional on S \ V ?
+V ? ? argmax
+V ?S
+Pvalue(T, V |S \ V )
+//Remove V ? if conditionally independent with T given S \ V ?
+if Pvalue(T, V ?|S \ V ?) > ? then
+S ? S \ V ?
+end if
+end while
+return S
+proposed FS algorithm. Random variables are denoted using upper-case letters
+(e.g. X), while sets of random variables are denoted using bold upper-case letters
+(e.g. Z). We use |Z| to refer to the number of variables in Z. The terms variable
+and feature will be used interchangeably, and the outcome (or target) variable will
+be denoted as T . A summary of acronyms, terms and notation is given in Table 1.
+2.1 Forward-Backward Feature Selection
+The Forward-Backward Selection algorithm (FBS) is an instance of the stepwise
+feature selection algorithm family [32, 69]. It is also one of the first and most
+popular algorithms for causal feature selection [41, 64]. In each forward Iteration,
+FBS selects the feature that provides the largest increase in terms of predictive
+performance for T , and adds it to the set of selected variables, denoted with S
+hereon, starting from the empty set. The forward Phase ends when no feature
+further improves performance or a maximum number of selected features has been
+reached. In each Iteration of the backward Phase, the feature that most confidently
+does not reduce performance is removed from S. The backward Phase stops when
+no feature can be removed without reducing performance. We use the termsPhase
+to refer to the forward and backward loops of the algorithm and Iteration to the
+part that decides which feature to add or remove next.
+To determine whether predictive performance is increased or decreased when
+a single feature is added or removed in a greedy fashion, FBS uses conditional
+independence tests5. An important advantage of methods relying on conditional
+5 Alternatively, one can use information criteria such as AIC [2] and BIC [56], or out-of-
+sample methods such as cross-validation to evaluate the performance of the current set of
+selected features; see [32, 69] for more details.
+6 Tsamardinos, I., Borboudakis, G. et al.
+independence tests is that it allows one to adapt and apply the algorithm to any
+type of outcome (e.g. nominal, ordinal, continuous, time-to-event, time-course,
+time series) for which an appropriate statistical test of conditional independence
+exists. This way, the same feature selection algorithm can deal with different data
+types6.
+Conditional independence of X with T given S implies that P (T |S, X) =
+P (T |S), whenever P (S) > 0 (S is allowed to be the empty set). Thus, when
+conditional independence holds, X is not predictive of T when S (and only S) is
+known. A conditional independence test assumes the null hypothesis that feature
+X is probabilistically independent of T (i.e., redundant) given a set of variables S
+and is denoted by Test(X,T |S). The test returns a p-value, which corresponds to
+the probability that one obtains deviations from what is expected under the null
+hypothesis as extreme or more extreme than the deviation actually observed with
+the given data. When pk ? Test(Xk, T |S) is low, the null hypothesis can be safely
+rejected: the value of Xk does provide predictive information for T when the values
+of S are known. In practice, decisions are made using a threshold ? (significance
+level) on the p-values; the null hypothesis is rejected if the p-value is below ?.
+In the context of feature selection, the p-values pk returned by statistical hy-
+potheses tests of conditional independence are employed not only to reject or
+accept hypotheses, but also to rank the features according to the predictive infor-
+mation they provide for T given S. Intuitively, this can be justified by the fact that
+everything else being equal (i.e., sample size, type of test) the p-values of such tests
+in case of dependence have (on average) the reverse ordering with the conditional
+association of the variables with T given S. So, the basic variant of the algo-
+rithm selects to add (remove) the feature with the lower (higher) p-value in each
+Forward (Backward) Iteration. The Forward-Backward Selection algorithm using
+conditional independence tests is summarized in Algorithm 1. We use VD to denote
+the set of variables contained in dataset D (excluding T ). The Pvalue(T,X|S)
+function performs a conditional independence test of T and X given S and returns
+a p-value.
+2.2 Implementing Independence Tests using the Likelihood Ratio Technique
+There are several methods for assessing conditional independence, such as likelihood-
+ratio based tests (or asymptotically equivalent approximations thereof like score
+tests and Wald tests [18]) or kernel-based tests [76]. We focus on likelihood-ratio
+based tests hereafter, mostly because they are general and can be applied for dif-
+ferent data types (e.g. continuous, ordinal, nominal, time-to-event, to name a few),
+although the main algorithm is not limited to such tests but can be applied with
+any type of test.
+To construct a likelihood-ratio test for conditional independence of T with X
+given S one needs a statistical model that maximizes the log-likelihood of the data
+LL(D; ?) ? logP (D|?) over a set of parameters ?. Without loss of generality, we
+assume hereafter T is binary and consider the binary logistic regression model. For
+the logistic regression, the parameters ? are weight coefficients for each feature
+6 For example, the R-package MXM [33] includes asymptotic, permutation-based, and robust
+tests for nominal, ordinal, continuous, time-course, and censored time-to-event targets
+Massively-Parallel Feature Selection for Big Data 7
+in the model and an intercept term. Subsequently, two statistical models have
+to be created for T : (i) model M0 using only variables S, and (ii) model M1
+using S and X resulting in corresponding log-likelihoods LL0 and LL1. The null
+hypothesis of independence now becomes equivalent to the hypothesis that both
+log-likelihoods are equal asymptotically. The test statistic function of the test is
+called the deviance and is defined as
+D ? 2× (LL0 ? LL1)
+Notice that, the difference in the logs of the likelihoods corresponds to the
+ratio of the likelihoods, hence the name likelihood-ratio test. The test statistic is
+known to follow asymptotically a ?2 distribution with P1 ?P0 degrees of freedom
+[72], where P1 and P0 are degrees of freedom of models M1 and M0 respectively
+7.
+When X is a continuous feature, only one more parameter is added to ? so the
+difference in degrees of freedom is 1 for this case. Categorical predictors can be
+used by simply encoding them as K ? 1 dummy binary features, where K is the
+number of possible values of the original feature. In this case, the difference in
+degrees of freedom is K ? 1. Knowing the theoretical distribution of the statistic
+allows one to compute the p-value of the test: p = 1? cdf (D,df), where cdf is the
+cumulative probability distribution function of the ?2 distribution with degrees of
+freedom df and D the observed deviance. Likelihood-ratio tests can be constructed
+for any type of data for which an algorithm for maximizing the data likelihood
+exists, such as binary, multinomial or ordinal logistic regression, linear regression
+and Cox regression to name a few.
+Likelihood-ratio tests are approximate in the sense that the test statistic has
+a ?2 distribution only asymptotically. When sample size is low, the asymptotic
+approximation may return inaccurate p-values. Thus, to apply approximate tests
+it is important to ensure a sufficient number of samples is available. This issue
+is treated in detail in the context of PBFP and the logistic test in Section A.
+Note that, the aforementioned models and the corresponding independence tests
+are only suited for identifying linear dependencies; certain types of non-linear
+dependencies may also be identifiable if one also includes interaction terms and
+feature transformations in the models.
+2.3 Combining p-values Using Meta-Analysis Techniques
+A set of p-values stemming from testing the same null hypothesis (e.g. testing the
+conditional independence of X and Y given Z) can be combined using statistical
+meta-analysis techniques into a single p-value. Multiple such methods exist in the
+literature [39]. Fisher’s combined probability test [20] is one such method that has
+been shown to work well across many cases [39]. It assumes that the p-values are
+independent and combines them into a single statistic using the formula
+Statistic ? ?2
+K
+?
+i=1
+log(pi)
+7 An implicit assumption made here is that the models are correctly specified. If this does
+not hold, the statistic follows a different distribution [21]. There exist methods that handle the
+more general case [68, 71], but this is clearly out of this paper’s scope.
+8 Tsamardinos, I., Borboudakis, G. et al.
+where K is the number of p-values, pi is the i-th p-value, and log is the natural
+logarithm. The statistic is then distributed as a ?2 random variable with 2 · K
+degrees of freedom, from which a combined p-value is computed.
+2.4 Bootstrap-based Hypothesis Testing
+The bootstrap procedure [17] can be used to compute the distribution of a statis-
+tic of interest. Bootstrapping is employed in the PFBP algorithm for making
+early, probabilistic decisions. Bootstrapping is a general-purpose non-parametric
+resampling-based procedure which works as follows: (a) resample with replacement
+from the input values a sample of equal size, (b) compute the statistic of interest on
+the bootstrap sample, (c) repeat steps (a) and (b) many times to get an estimate
+of the bootstrap distribution of the statistic. The bootstrap distribution can then
+be used to compute properties of the distribution such as confidence intervals, or
+to compute some condition of the statistic; a simple example application on the
+latter follows.
+Let µX denote the mean of random variable X and let µ?X denote the estimate
+of the mean of X given a sample of X. Assume we are given a sample of size n of
+random variable X and we want to compute the probability that the mean of X
+is larger than 10, P (µX > 10). That probability is a Bernoulli random variable,
+and the statistic in this case is a binary valued variable (i.e., taking a value of
+0 or 1 with probability P (µX > 10)). Using bootstrapping, P (µX > 10) can be
+estimated as follows: (a) sample with replacement n values ofX and create the b-th
+bootstrap sample Xb, (b) estimate the mean of Xb, denoted as µ?bX , and compute
+I(µ?bX > 10), where I is the indicator function returning 1 if the inequality holds
+and 0 otherwise, and (c) repeat (a) and (b) B times (e.g. B = 1000). P (µX > 10)
+is then computed as
+P (µX > 10) =
+I(µ?X > 10) +
+?B
+i=1 I(µ?
+b
+X > 10)
+B + 1
+Note that, we also compute the statistic on the original sample, and thus divide
+by B + 1.
+2.5 Probabilistic Graphical Models and Markov Blankets
+In this section, we give a brief overview of Bayesian networks and maximal ances-
+tral graphs, which will be used later on to present the theoretical properties of the
+proposed algorithm. A more extensive exposition and rigorous treatment can be
+found in [3, 54, 59].
+2.5.1 Bayesian Networks
+A Bayesian network B = ?G,P ? consists of a directed acyclic graph G over a set
+of vertices V and a joint distribution P , over random variables that correspond
+one-to-one to vertices in V (thus, no distinction is made between variables and ver-
+tices). The Markov condition has to hold between G and P : every variable X is
+conditionally independent of its non-descendants in G, given its parents, denoted
+Massively-Parallel Feature Selection for Big Data 9
+by Pa(X). The Markov condition leads to a factorization of the joint probabil-
+ity P (V ) =
+?
+i P (Xi|Pa(Xi)). Thus, the graph G determines a factorization of
+the probability distribution, directly implying that some independencies have to
+hold, and further entailing (along with the other probability axioms) some addi-
+tional conditional independencies. A Bayesian network is called faithful if all and
+only the conditional independencies in P are entailed by the Markov condition.
+Conceptually, this faithfulness condition means that all independencies in the dis-
+tribution of the data are determined by the structure of the graph G and not the
+actual parameterization of the distribution. A distribution P is called faithful
+(to a Bayesian Network) if there is a graph G such that B = ?G,P ? is faith-
+ful. Under the Markov and faithfulness assumptions, a graphical criterion called
+d-separation [47, 66] can be used to read off dependencies and independencies
+encoded in a Bayesian network. To define d-separation the notion of colliders is
+used, which are triplets of variables ?X,Y, Z? with X and Z having directed edges
+into Y . Two variables X and Y are d-connected by a set of variables Z if and
+only if there exists a (not necessarily directed) path p between X and Y such
+that (i) for each collider V on p, V is either in Z or some descendant of V is in
+Z, and (ii) no non-collider on p is in Z. In case no such path exists, X and Y
+are d-separated given Z. Thus, the Markov and faithfulness conditions imply that
+if two variables X and Y are d-separated (d-connected) given Z, then they are
+conditional independent (dependent) given Z.
+2.5.2 Maximal Ancestral Graphs
+A distribution class strictly larger than the set of faithful distributions to Bayesian
+Networks, is the set of distributions that are marginals of faithful distributi0ons.
+Unfortunately, marginals of faithful distributions are not always faithful to some
+Bayesian network! Thus, marginalization over some variables loses the faithfulness
+property: the marginal distribution cannot always be faithfully represented by
+a Bayesian network. However, faithful marginal distributions can be represented
+by another type of graph called directed maximal ancestral graph [54] or
+DMAG. DMAGs include not only directional edges, but also bi-directional edges.
+DMAGs are extensions of Bayesian networks for marginal distributions and are
+closed under marginalization. The representation of a marginal of a faithful (to
+a Bayesian network) distribution by a DMAG is again faithful, in the sense that
+all and only the conditional independencies in the distribution are implied by the
+Markov condition. The set of conditional independencies entailed by a DMAG is
+provided by a criterion similar to d-separation, now called m-separation.
+2.5.3 Markov Blankets in Probabilistic Graphical Models
+A Markov blanket of T with respect to a set of variables V is defined as a
+minimal set S such that (V \S?T | S), where (X?T | S) denotes the conditional
+independence of X with T given S. Thus, a Markov blanket of T is any minimal set
+that renders all other variables conditionally independent. An important theorem
+connects the Markov blanket of T with the feature selection problem for T : under
+broad conditions [41, 62] a Markov blanket of T is a solution to the feature selection
+problem for T . When the distribution is faithful to a Bayesian network or DMAG,
+10 Tsamardinos, I., Borboudakis, G. et al.
+the Markov blanket of T is unique 8. In other words, for faithful distributions, the
+Markov Blanket of T has a direct graphical interpretation. The Markov blanket
+consists of all vertices adjacent to T , and all vertices that are reachable from T
+through a collider path, which is a path where all vertices except the start and
+end vertices are colliders [9]. For Bayesian networks, this corresponds to the set of
+parents (vertices with an edge to T ), children (vertices with an edge from T ), and
+spouses (parents of children) of T in G.
+3 Massively Parallel Forward-Backward Algorithm
+We provide an overview of our algorithm, called Parallel, Forward-Backward with
+Pruning (PFBP), an extension of the basic Forward-Backward Selection (FBS)
+algorithm (see Section 2.1 for a description). We will use the terminology intro-
+duced for FBS: a forward (backward) Phase refers to the forward (backward)
+loops of FBS, and an Iteration refers to each loop iteration that decides which
+variable to select (remove) next. PFBP is presented in “evolutionary” steps where
+successive enhancements are introduced in order to make computations local or re-
+duce computations and communication costs; the complete algorithm is presented
+in Section 3.4. To evaluate predictive performance of candidate features we use
+p-values of conditional independence tests, as described in Section 2.1. We assume
+the data are provided in the form of a 2-dimensional matrix D where rows cor-
+respond to training instances (samples) and columns to features (variables), and
+one of the variables is the target variable T . Physically, the data matrix is par-
+titioned in sub-matrices Di,j and stored in a distributed fashion in workers in a
+cluster running Spark [74] or similar platform. Workers perform in parallel local
+computations on each Di,j and a master node performs the centralized, global
+computations.
+3.1 Data Partitions in Blocks and Groups and Parallelization Strategy
+We now describe the way D is partitioned in sub-matrices to enable parallel com-
+putations. First, the set of available features (columns) F is partitioned to about
+equal-sized Feature Subsets {F1, . . . , Fnf }. Similarly, the samples (rows) are ran-
+domly partitioned to about equal-sized Sample Subsets {S1, . . . , Sns}. The row
+and column partitioning defines sub-matrices called Data Blocks Di,j with rows
+Si and features Fj . Sample Subsets are assigned to Q Group Samples {Gq}C1
+of size C each, where each group sample Gq is a set {Sq1 , . . . , Sqn} (i.e., the set
+of Sample Subsets is partitioned). The Data Blocks Di,j with samples within a
+group sample Si ? Gq belong in the same Group. This second, higher level of
+grouping is required by the bootstrap tests explained in Section 4. Data Blocks
+in the same Group are processed in parallel in different workers (provided enough
+are available). However, Groups are processed sequentially, i.e., computation in all
+Blocks within a Group has to complete to begin computations in the Blocks of
+the next Group. Obviously, if workers are more than the Data Blocks, there is no
+need for defining Groups. The data partitioning scheme is shown in Figure 1:Left.
+8 Some recent algorithms [33, 60] deal with the problem of solution multiplicity in feature
+selection.
+Massively-Parallel Feature Selection for Big Data 11
+Fig. 1: Left: Data partitioning of the algorithm. In the top the initial data matrix
+D is shown with 6 features and instances I1, . . . , Im. In the bottom, the 6 features
+are partitioned to Feature Subsets F1 = {1, 2, 3} and F2 = {4, 5, 6}. The rows
+are randomly partitioned to Sample Subsets S1, . . . , Sns , and the Sample Subsets
+are assigned to Group Samples. Each Block Di,j is physically stored as a unit.
+Right: Example of trace of a Forward Iteration of PFBP. (a) The Remaining
+features, Alive features, and Selected features are initialized. (b) All Data Blocks
+D1,1, D1,2, D4,1, D4,2 in the first Group are processed in parallel (by workers).
+(c) The resulting local p-values are collected (reduced) in a master node for each
+Alive feature and Sample Set in the first Group (as well as the likelihoods, not
+shown in the Figure). (d) Bootstrap-based tests determine which features to Early
+Drop or Stop based on ?, or whether to Early Return (based on ?, not shown
+in the Figure). The sets R and A are updated accordingly. In this example, X2,
+X5 and X6 are Dropped, and only X1 and X4 remain Alive. Notice that always
+A ? R. (e) The second Group is processed in parallel (by workers) containing
+Blocks D3,1, D3,2, D2,1, D2,2. (f) New local p-values for all features still Alive are
+appended to ?. If G2 was the last Group, global p-values for the Alive features
+would be computed and the one with the minimum value (in this example X1)
+would be selected for inclusion in S. (g) In case, X1 and X4 are deemed almost
+equally predictive (based on their log-likelihoods) the current best is Early Re-
+turned.
+Details of how the number of Sample Sets ns, the number of Feature Subsets nf ,
+and the number C of Group Samples are determined are provided in Section 5.
+12 Tsamardinos, I., Borboudakis, G. et al.
+3.2 Approximating Global p-values by Combining Local p-values Using
+Meta-Analysis
+Recall that Forward-Backward Selection uses p-values stemming from conditional
+independence tests to rank the variables and to select the best on for inclusion
+(forward Phase) or exclusion (backward Phase). Extending the conditional inde-
+pendence tests to be computed over multiple Data Blocks is not straightforward,
+and may be computationally inefficient. For conditional independence tests based
+on regression models (e.g. logistic or Cox regression), a maximum-likelihood es-
+timation over all samples has to be performed, which typically does not have a
+closed-form solution and thus requires the use of an iterative procedure (e.g. New-
+ton descent). Due to its iterative nature, it results in a high communication cost
+rendering it computationally inefficient, especially for feature selection purposes
+on Big Data, as many models have to be fit at each Iteration.
+Instead of fitting full (global) regression models, we propose to perform the
+conditional independence tests locally on each data block, and to combine the
+resulting p-values using statistical meta-analysis techniques. Specifically, the algo-
+rithm computes local p-values denoted by ?i,k for candidate feature Xk from only
+the rows in Si of a data block Di,j , where Fj contains the feature Xk. This enables
+massive parallelization of the algorithm, as each data block can be processed in-
+dependently and in parallel by a different worker. The local p-values ?i,k are then
+communicated to the master node of the cluster, and are stored in a matrix ?;
+we will use ?i,k to refer to the elements of matrix ?, corresponding to the local
+p-value of Xk computed on a data block containing samples in sample set Si. Using
+the p-values in matrix ?, the master node combines the p-values to global p-values
+for each feature Xk using Fisher’s combined probability test [20] (Fig. 1:Right(b))
+9. Finally, we note that this approach is not limited to regression-based tests, but
+can be used with any type of conditional independence test, and is most appro-
+priate for tests which are hard to parallelize, or computationally expensive (e.g.
+kernel-based tests [76]).
+Using Fisher’s combined probability test to combine local p-values does not
+necessarily lead to the same p-value as the one computed over all samples. There
+are no guarantees how close those p-values will be in case the null hypothesis of
+conditional independence holds, except that they are uniformly distributed be-
+tween 0 and 1. In case the null hypothesis does not hold however, one expects to
+reject the null hypothesis using either method in the sample limit. What matters
+in practice is the fact that PFBP makes often the same decision at each Iteration,
+that is, the top ranked variable is often the same. Note that, even if the top ranked
+variable is not the same one, PFBP may still perform well, as long as some other
+informative variable is ranked first. The accuracy of Fisher’s combined probability
+test is further investigated in experiments on synthetic data, presented in Sec-
+tion A, where we show that, if the sample size per data block is sufficiently high,
+choosing a value by combining p-values leads to the same decision.
+For the computation of the local p-values on Di,j , samples Si of the selected
+features S are required, and thus the data need to be broadcast to every worker
+processingDi,j whenever S is augmented, i.e., in the end of each Forward Iteration.
+9 Naturally, any method for combining p-values can be used instead of Fisher’s method, but
+we did not further investigate this in this work.
+Massively-Parallel Feature Selection for Big Data 13
+In total, the communication cost of the algorithm is due to the assembly of all
+local p-values ?i,k to determine the next feature to include (exclude), as well as
+the broadcast of the data for the newly added feature in S at the end of each
+forward Iteration. We would like to emphasize that the bulk of computation of
+the algorithm is the calculation of local p-values that require expensive statistical
+tests and it takes place in the workers in parallel. The central computations in the
+master are minimal.
+3.3 Speeding-up PFBP using Pruning Heuristics
+In this section, we present 3 pruning heuristics used by PFBP to speed-up com-
+putation. Implementation details of the heuristics using locally computed p-values
+are presented in Section 4.
+3.3.1 Early Dropping of Features from Subsequent Iterations
+The first addition to PFBP is the Early Dropping (ED) heuristic, first intro-
+duced in [9] for a non-parallel version of Forward-Backward Selection. LetR denote
+the set of remaining features, that is, the set of features still under consideration
+for selection. Initially, R = F \S, where F is the set of all available features and S
+is the set of selected features, which is initially empty. At each forward Iteration,
+ED removes from R all features that are conditionally independent of the target
+T given the set of currently selected features S. Typically, just after the first few
+Iterations of PFBP, only a very small proportion of the features will still remain
+in R, leading to orders of magnitude of efficiency improvements even in the non-
+parallel version of the algorithm [9]. When the set of variables R becomes empty,
+we say that PFBP finished one Run. Unfortunately, the Early Dropping heuristic
+without further adjustments may miss important features which seem uninforma-
+tive at first, but provide information for T when considered with features selected
+in subsequent Iterations. Variables should be given additional opportunities to be
+selected by performing more Runs. Each additional Run calls the forward phase
+again but starts with the previously selected variables S and re-initializes the re-
+maining variables toR = F\S. By default, PFBP uses 2 Runs, although a different
+number of Runs may be used. Typically a value of 1 or 2 is sufficient in practice,
+with larger values requiring more computational time while also giving stronger
+theoretical guarantees; the theoretical properties of PFBP with ED are described
+in Section 7 in detail; in short, PFBP with 2 Runs and assume no statistical errors
+in the conditional independence tests returns the Markov Blanket of T is distri-
+butions faithful to a Bayesian Network. Overall, by discarding variables at each
+Iteration, the Early Dropping heuristic allows the algorithm to scale with feature
+size.
+3.3.2 Early Stopping of Features within the Same Iteration
+The next addition to the algorithm regards Early Stopping (ES) of consideration
+of features within the same Iteration, i.e., in order to select the next best feature to
+select in a forward Iteration or to remove in a backward Iteration. To implement
+ES we introduce the set A of features still Alive (i.e., under consideration) in the
+14 Tsamardinos, I., Borboudakis, G. et al.
+current Iteration, initialized to A = R at the beginning of each Iteration (see
+Figure 1:Right(b)). As the master node gathers local p-values for a feature Xk
+from several Data Blocks, it may be able to determine that no more local p-values
+need to be computed for Xk. This is the case if these p-values are enough to safely
+decide that with high probability Xk is not going to be selected for inclusion
+(Forward Phase) or exclusion (Backward Phase) in this Iteration. In this case, Xk
+is removed from the set of alive features A, and is not further considered in the
+current Iteration. This allows PFBP to quickly filter out variables which will not
+be selected at the current Iteration. Thus, ES leads to a super-linear speed-up of
+the feature selection algorithm with respect to the sample size: even if samples are
+doubled, the same features will be Early Stopped; p-values will not be computed for
+these features on the extra samples.
+3.3.3 Early Return of the Winning Feature
+The final heuristic of the algorithm is called Early Return (ER). Recall that
+Early Dropping will remove features conditionally independent of T given S from
+this and subsequent Iterations while Early Stopping will remove non-winners from
+the current Iteration. However, even using both heuristics, the algorithm will keep
+producing local p-values for features Xj and Xk that are candidates for selection
+and at the same time are informationally indistinguishable (equally predictive
+given S) with regards to T (this is the case when the residuals of Xj and Xk
+given S are almost collinear). When two or more features are both candidates
+for selection and almost indistinguishable, it does not make sense to go through
+the remaining data: all choices are almost equally good. Hence, Early Return
+terminates the computation in the current Iteration and returns the current best
+feature Xj , if with high probability it is not going to be much worse than the
+best feature in the end of the Iteration (see Fig. 1: Right(c)). Again, the result
+is that computation in the current Iteration may not process all Groups. The
+motivation behind Early Return is similar to Early Stopping, in that it tries to
+quickly determine the next variable to select. The difference is that, Early Return
+tries to quickly determine whether a variable is “good enough” to be selected, in
+contrast to Early Stopping which discards unpromising variables.
+A technical detail is that judging whether two features Xi and Xj are “equally
+predictive” is implemented using the log-likelihoods ?i and ?j of the models with
+predictors S ? {Xi} and S ? {Xj} instead of the corresponding p-values. The
+likelihoods are part of the computation of the p-values, thus incur no additional
+computational overhead.
+3.4 The Parallel Forward-Backward with Pruning Algorithm
+We present the proposed Parallel Forward-Backward with Pruning (PFBP) al-
+gorithm, shown in Algorithm 2. To improve readability, several arguments are
+omitted from function calls. PFBP takes as input a dataset D and the target
+variable of interest T . Initially the number of Sample Sets ns and number of
+Feature Sets nf are determined as described in Section 5. Then, (a) the samples
+are randomly assigned to Sample Sets S1, . . . , Sns , to avoid any systematic biases
+Massively-Parallel Feature Selection for Big Data 15
+Algorithm 2 Parallel Forward-Backward With Pruning (PFBP)
+Input: Dataset D, Target T , Maximum Number of Runs maxRuns
+Output: Selected Variables S
+1: //Data Partitioning
+2: Randomly assign samples to sample sets S1, . . . , Sns
+3: Assign sample sets S1, . . . , Sns to equally-sized Groups G1, . . . , GK
+4: Assign features to feature sets F1, . . . , Fnf
+5: Partition D to data blocks Di,j containing samples from Si and Fj, ?i, j
+6:
+7: S? ? //No selected variables
+8: run? 1 //First run
+9:
+10: //Iterate until (a) maximum number of runs reached, or (b) selected features S did not
+change
+11: while run ? maxRuns ? S changes do
+12: S? OneRun(D, T , S)
+13: run? run+ 1
+14: end while
+15: return S
+16: function OneRun(Data Blocks D, Target T , Selected Variables S, Maximum Number of
+Variables To Select maxVars)
+17: R? F \ S //All variables remaining
+18: //Forward phase: iterate until (a) maximum number of variables selected or (b) no new
+variable has been selected
+19: while |S| < maxVars ? S changes do
+20: ?S,R? ? ForwardIteration(D, T , S, R)
+21: end while
+22:
+23: //Backward phase: iterate until no variable can be removed
+24: while S changes do
+25: S? BackwardIteration(D, T , S)
+26: end while
+27: return S
+(see also Section 6.1), (b) the Sample Sets S1, . . . , Sns are assigned to Q approx-
+imately equal-sized Groups, G1, . . . , GQ, (c) the features are assigned to feature
+sets F1, . . . , Fnf , in order of occurrence in the dataset, and (d) the dataset D is
+partitioned into data blocks Di,j , with each such block containing samples and
+features corresponding to sample set Si and feature set Fj respectively. The se-
+lected variables S are initialized to the empty set. The main loop of the algorithm
+performs up to maxRuns Runs, as long as the selected variables S change. Each
+such Run executes a forward and a backward Phase.
+The OneRun function takes as input a set of data blocks D, the target variable
+T , a set of selected variables S, and a limit on the number of variables to select
+maxVars . It initializes the set of remaining variablesR to all non-selected variables
+F\S. Then, it executes the forward and backward Phases. The forward (backward)
+Phase executes forward (backward) Iterations until some stopping criteria are met.
+Specifically, the forward Phase terminates if the maximum number of variables
+maxVars has been selected, or until no more variable can be selected, while the
+backward Phase terminates if no more variables can be removed from S.
+The forward and backward Iteration procedures are shown in Algorithms 3 and
+4. ForwardIteration takes as input the data blocks D, the target variable T as
+well as the current sets of remaining and selected variables, performs a forward
+16 Tsamardinos, I., Borboudakis, G. et al.
+Algorithm 3 ForwardIteration
+Input: Data Blocks D, Target T , Selected Variables S, Remaining Variables R
+Output: Selected Variables S, Remaining Variables R
+1: A ? R //Initialize Alive Variables
+2: ? //Array of log-pvalues, initially empty
+3: ? //Array of log-likelihoods, initially empty
+4: q ? 1 //Initialize current Group counter
+5: Q? #Groups //Set Q to the total number of Groups
+6:
+7: while q ? Q do
+8: //Process the alive features A for all data blocks containing sample sets in Gq (denoted
+as Dq) in parallel in workers for the given T , S and A, compute sub-matrices ?q and ?q
+from each block, and append results to ? and ?
+9: ??q , ?q? ? TestParallel(Dq , T,S,A)
+10: ?R,A? ? EarlyDropping(?,R,A)
+11: A ? EarlyStopping(?,A)
+12: A ? EarlyReturn(?,A)
+13: Update ? and ? (Retain only columns of alive variables)
+14: //Stop if single variable alive
+15: if |A| ? 1 then
+16: break
+17: end if
+18: q ? q + 1
+19: end while
+20:
+21: if |A| > 0 then
+22: ? ? Combine(?) //Compute final combined p-value for all alive variables
+23: Xbest ? argmin
+Xi?A
+?i //Identify the best variable Xbest
+24: //Select Xbest if dependent with T given S
+25: if ?best ? ? then
+26: S ? S ? {Xbest}
+27: R ? R \ {Xbest}
+28: end if
+29: end if
+30: return ?S,R?
+Iteration and outputs the updated sets of selected and remaining variables. It
+uses the variable set A to keep track of all alive variables, i.e. variables that are
+candidates for selection. The arrays ? and ? contain the local log p-values and
+log-likelihoods, containing ns rows (one for each sample set) and |A| columns (one
+for each alive variable). The values of ? and ? are initially empty, and are filled
+gradually after processing Groups. We use Dq to denote all data blocks which
+corresponds to Sample Sets contained in Group Gq. Similarly, accessing the values
+of ? and ? corresponding to Group q and variables X is denoted as ?q and ?q.
+In the main loop, the algorithm iteratively processes Groups in a synchronous
+fashion, until all Groups have been processed or no alive variable remains. The
+TestParallel function takes as input the data blocks Dq corresponding to the
+current Group Gq, and performs all necessary independence tests in parallel in
+workers. The results, denoted as ?q and ?q are then appended to the ? and ?
+matrices respectively. After processing a Group, the tests for Early Dropping, Early
+Stopping and Early Return are performed, using all local p-values computed up to
+Group q; details about the implementation of the EarlyDropping, EarlyStop-
+ping and EarlyReturn algorithms when data have only been partially processed
+Massively-Parallel Feature Selection for Big Data 17
+Algorithm 4 BackwardIteration
+Input: Data Blocks D, Target T , Selected Variables S
+Output: Selected Variables S, Remaining Variables R
+1: A ? S //Initialize Alive Variables
+2: ? //Array of log-pvalues, initially empty
+3: q ? 1 //Initialize current Group counter
+4: Q? #Groups //Set Q to the total number of Groups
+5:
+6: while q ? Q do
+7: //Process the alive features A for all data blocks containing sample sets in Gq (denoted
+as Dq) in parallel in workers for the given T , S and A, compute sub-matrix ?q from each
+block, and append it to ?
+8: ?q ? TestParallel(Dq , T,S,A)
+9: A ? EarlyStoppingBackward(?,A)
+10: Update ? (Retain only columns of alive variables)
+11: //Stop if single variable alive
+12: if |A| ? 1 then
+13: break
+14: end if
+15: q ? q + 1
+16: end while
+17:
+18: if |A| > 0 then
+19: ? ? Combine(?q) //Compute final combined p-value for all alive variables
+20: Xworst ? argmax
+Xi?A
+?i //Identify the worst variable Xworst
+21: //Remove Xworst if independent with T given S \Xworst
+22: if ?worst > ? then
+23: S ? S \ {Xworst}
+24: end if
+25: end if
+26: return S
+are given in Section 4. The values of non-alive features are then removed from ?
+and ? (see also Figure 1(f) for an example). If only a single alive variable remains,
+processing stops. Note that, this is not checked in the while loop condition, in
+order to ensure that at least one Group has been processed if the input set of
+remaining variables contains a single variable. Finally, the best alive variable (if
+such a variable exists) is selected if it is conditionally dependent with T given the
+selected variables S. Conditional dependence is determined by using the p-value
+resulting from combining all local p-values available in ?. BackwardIteration
+is similar to ForwardIteration with the exception that (a) the remaining vari-
+ables are not needed, and thus no dropping is performed, (b) no early return is
+performed, and (c) the tests are reversed, i.e. the worst variable is removed.
+3.5 Massively-Parallel Predictive Modeling
+The technique of combining locally computed p-values to global ones to massively
+parallelize computations, can be applied not only for feature selection, but also for
+predictive modeling. This way, at the end of the feature selection process one could
+obtain an approximate predictive model with no additional overhead! We exploit
+this opportunity in the context of independence tests implemented by logistic
+regression. During the computation of local p-values ?i,k a (logistic) model for T
+18 Tsamardinos, I., Borboudakis, G. et al.
+using all selected features S is produced from the samples in Si. Such a model
+computes a set of coefficients ?i that weighs each feature in the model to produce
+the probability that T = 1. Methods for combining multiple models, such as the
+ones considered here, are described in [6]. We used the weighted univariate least
+squares (WLS) approach [26], with equal weights for each model; multivariate
+approaches may be more accurate and can also be applied in our case without
+any significant computational overhead, but were not further considered in this
+work. The WLS method with equal weights combines the local models to a global
+one ?? by just taking the average of the coefficient vectors of the model , i.e.,
+?? = 1
+N
+?N
+i=1 ?i. Thus, the only change to the algorithm is to cache each ?i and
+average them in the master node. By default, PFBP uses the WLS method to
+construct a predictive model at each forward Iteration.
+Using the previous technique, one could obtain a model at the end of each
+Iteration and assess its predictive performance (e.g., accuracy) on a hold-out vali-
+dation set. Constructing for instance the graph of the number of selected features
+versus achieved predictive performance on the hold-out set could visually assist
+data analysts [31] in determining how many features to include in the final selec-
+tions; an example application on SNP data is given in the experimental section.
+An automated criterion for selecting the best trade-off between the number of
+selected features and the achieved predictive performance could also be devised,
+although this is out of the scope of this paper, as multiple testing has to be taken
+into consideration.
+4 Implementation of the Early Dropping, Stopping and Return
+Heuristics using Bootstrap Tests on Local p-values
+Recall that the algorithm processes Group Samples sequentially. After processing
+each Group and collecting the results, PFBP applies the Early Dropping, Early
+Stopping and Early Return heuristics, computed on the master node, to filter out
+variables and reduce subsequent computation. Thus, all three heuristics involve
+making early probabilistic decisions based on a subset of the samples examined so
+far. Naturally, if all samples have been processed, Early Dropping can be applied
+on the combined p-values without making probabilistic decisions.
+Before proceeding with the details, we provide the notation used hereafter.
+Let ? and ? be 2-dimensional arrays containing K local log p-values and log-
+likelihoods for all alive variables in A and for all Groups already processed. The
+matrices reside on the master node, and are updated each time a Group is pro-
+cessed. Let ?i,j and ?i,j denote the i-th value of the j-th alive variable, denoted
+as Xj . Recall that those values have been computed locally on the Data Block
+containing samples from Sample Set Si. For the sake of simplicity, we will use ?j
+and ?j (lj) to denote the combined p-value and sum of log-likelihoods (likelihood)
+respectively of variable Xj . The vectors ? and ? will be used to refer to the com-
+bined p-values and sum of log-likelihoods for all alive variables respectively. Also,
+let Xbest be the variable that would have been selected if no more data blocks were
+evaluated, that is, the one with the currently lowest combined p-value, denoted as
+?best.
+Massively-Parallel Feature Selection for Big Data 19
+4.1 Bootstrap Tests for Early Probabilistic Decisions
+In order to make early probabilistic decisions, we test: (a) P (?j ? ?) > Pdrop for
+Early Dropping of Xj (? is the significance level), (b) P (?j > ?best) > Pstop for
+Early Stopping of Xj , and (c) ?Xj , (P (lbest/lj ? t) > Preturn) for Early Return
+of Xbest (i.e., the probability is larger than the threshold for all variables), where
+t is a tolerance parameter that determines how close the model with Xbest is to
+the rest in terms of how well it fits the data, and takes values between 0 and 1;
+the closer it is to 1, the closer it is in terms of performance to all other models.
+By taking the logarithm, (c) can be rewritten as ?Xj , P (?best ? ?j ? lt), where
+lt = log(t).
+We employed bootstrapping to test the above. A bootstrap-sample b of ? (?),
+denoted as ?b (?b), is created by sampling with replacement K rows from ? (?).
+Then, for each such sample, the Fisher’s combined p-values (sum of log-likelihoods)
+are computed, by summing over all respective values for each alive variable; we
+refer to the vector of combined p-values (log-likelihoods) on bootstrap sample b
+as ?b (?b), and the i-th element is referred to as ?bi (?
+b
+i ). By performing the above
+B times, probabilities (a), (b) and (c) can be estimated as:
+P (?j ? ?) =
+I(?j ? ?) +
+?B
+b=1 I(?
+b
+j ? ?)
+B + 1
+(Early Dropping)
+P (?j > ?best) =
+I(?j > ?best) +
+?B
+b=1 I(?
+b
+j > ?
+b
+best)
+B + 1
+(Early Stopping)
+P (?best ? ?j ? lt) =
+I(?best ? ?j ? lt) +
+?B
+b=1 I(?
+b
+best ? ?bj ? lt)
+B + 1
+(Early Return)
+where I is the indicator function, which evaluates to 1 if the inequality holds
+and to 0 otherwise. For all of the above, the condition is also computed on the
+original sample, and the result is divided by the number of bootstrap iterations B
+plus 1. Note that, for Early Return the above value is computed for all variables
+Xj .
+Algorithms 5,6 and 7 show the procedures in more detail. For all heuristics, a
+vector named cnts is used to keep track of how often the inequality is satisfied for
+each variable. To avoid cluttering, the indicator function I performs the check for
+multiple variables and returns a vector of values in each case, containing one value
+for each variable. The function BootstrapSample creates a bootstrap sample
+as described above, function Combine uses Fisher’s combined probability test
+to compute a combined p-value, and SumRows sums over all rows of the log-
+likelihoods contained in ?, returning a single value for each alive variable.
+4.2 Implementation Details of Bootstrap Testing
+We recommend using the same sequence of bootstrap indices for each variable,
+and for each bootstrap test. The main reasons are to (a) simplify implementation,
+(b) avoid mistakes and (c) ensure results do not change across different executions
+20 Tsamardinos, I., Borboudakis, G. et al.
+Algorithm 5 EarlyDropping
+Input: Log p-values ?, Remaining Variables R, Alive Variables A, Number of Bootstrap
+Samples B, Significance Level Threshold ?, ED Threshold Pdrop
+Output: Remaining variables R, Alive Variables A
+1: ? ? Combine(?) //Combine log p-values ? using Fisher’s c.p.t.
+2: cnts ? 0|A| //Count vector of size equal to the number of alive variables
+3: cnts ? cnts + I(? ? ?)
+4: for b = 1 to B do
+5: ?b ? BootstrapSample(?)
+6: ?b ? Combine(?b) //Combine log p-values ?busing Fisher’s c.p.t.
+7: cnts ? cnts + I(?b ? ?)
+8: end for
+9: //Drop variables if p-value larger than ? with probability at least Pdrop
+10: R? R \ {Xi ? A : cntsi/(B + 1) ? Pdrop}
+11: A? A \ {Xi ? A : cntsi/(B + 1) ? Pdrop}
+12: return ?R,A?
+Algorithm 6 EarlyStopping
+Input: Log p-values ?, Alive Variables A, Number of Bootstrap Samples B, ES Threshold
+Pstop
+Output: Alive Variables A
+1: ? ? Combine(?) //Combine log p-values ? using Fisher’s c.p.t.
+2: Xbest ? argmin
+Xi?A
+?i //Identify variable with minimum Fisher’s combined p-value
+3: cnts ? 0|A| //Count vector of size equal to the number of alive variables
+4: cnts ? cnts + I(?best < ?)
+5: for b = 1 to B do
+6: ?b ? BootstrapSample(?)
+7: ?b ? Combine(?b) //Combine log p-values ?busing Fisher’s c.p.t.
+8: cnts ? cnts + I(?b
+best
+< ?b)
+9: end for
+10: //Exclude variables from A that are worse than Vbest with probability at least Pstop
+11: A? A \ {Xi ? A : cntsi/(B + 1) ? Pstop}
+12: return A
+Algorithm 7 EarlyReturn
+Input: Log-likelihoods ?, Alive Variables A, Number of Bootstrap Samples B, ER Threshold
+Preturn, ER Tolerance lt
+Output: Alive Variables A
+1: ? ? Combine(?) //Combine log p-values ? using Fisher’s c.p.t.
+2: ? ? SumRows(?) //Sum rows of log-likelihoods ?
+3: Xbest ? argmin
+Xi?A
+?i //Identify variable with minimum Fisher’s combined p-value
+4: cnts ? 0|A| //Count vector of size equal to the number of alive variables
+5: cnt ? cnts + I(?best ? ? > lt)
+6: for b = 1 to B do
+7: ?b ? BootstrapSample(?)
+8: ?b ? SumRows(?) //Sum rows of log-likelihoods ?b
+9: cnts ? cnts + I(?b
+best
+? ?b > lt)
+10: end for
+11: //Select Xbest early if better than all other variables with probability at least Preturn
+12: if ?i, cntsi/(B + 1) ? Preturn then
+13: A ? {Xbest}
+14: end if
+15: return A
+Massively-Parallel Feature Selection for Big Data 21
+of the algorithms. This can be done by initializing the random number generator
+with the same seed. Next, note that ED, ES and ER do not necessarily have to be
+performed separately, but can be performed simultaneously (i.e,. using the same
+bootstrap samplings). This allows the re-usage of the sampled indices for all tests
+and variables, saving some computational time. Another important observation
+for ED and ES is that the actual combined p-values are not required. It suffices to
+compare statistics instead, which are inversely related to p-values: larger statistics
+correspond to lower p-values. For the ED test, the statistic has to be compared to
+the statistic corresponding to the significance level ?, which can be computed using
+the inverse ?2 cumulative distribution. This is crucial to speed-up the procedure,
+as computing log p-values is computationally expensive. Finally, note that the
+exact probabilities for the tests are not required, and one can often decide earlier
+if a probability is smaller than the threshold. For example, let Pdrop = 0.99 and
+B = 999. Then, in order to drop a variableXi, the number of times cntsi where the
+p-value of Xi exceeds ? has to be at least 990. If after K iterations (B?K)+cntsi
+is less than 990, one can determine that Xi will not be dropped; even if in all
+remaining bootstrap iterations its p-value is larger than ?, cntsi + B ? K will
+always be less than 990, and thus the probability P (?i ? ?) will be less than the
+threshold Pdrop = 0.99.
+Finally, we note that, in order to minimize the probability of wrong decisions,
+large values for the ED, ES and ER thresholds should be used. We found that
+values of 0.99 for Pdrop and Pstop, and values of Preturn = 0.95 and tol = 0.9 work
+well in practice. Furthermore, the number of bootstraps B should be as large as
+possible, with a minimum recommended value of 500. By default, PFBP uses the
+above values.
+5 Tuning the Data Partitioning Parameters of the Algorithm
+The main parameters for the data partitioning to determine are (a) the sample size
+s of each Data Block, (b) the number of features f in each Data Block, and (c) the
+number of Sample Subsets C in each Group; the latter determines how many new
+p-values per feature are computed in each Group. Notice that s determines the
+horizontal partitioning of the data matrix and f the vertical partitioning of data
+matrix. In general, the parameters are set so that Blocks are as small as possible to
+achieve high parallelization, without sacrificing feature selection accuracy: if the
+number of samples is too low, the local tests will have low power. In this section,
+we provide detailed guidelines to determine those parameters, and show how those
+values were set for the special case of PFBP using conditional independence tests
+based on binary logistic regression.
+5.1 Determining the Required Sample Size for Conditional Independence Tests
+For optimal computational performance, the number of Sample Sets should be as
+large as possible to increase parallelism, and each Sample Set should contain as
+few samples as possible to reduce the computational cost for performing the local
+conditional independence tests. Of course, this should be done without sacrificing
+22 Tsamardinos, I., Borboudakis, G. et al.
+the accuracy of feature selection: if the number of samples is too low, the local
+tests will have low power.
+Various rules of thumb have appeared in the literature to choose a sufficient
+number of samples for linear, logistic and Cox regression [25, 50, 67]. We focus on
+the case of binary logistic regression hereafter. For binary logistic regression, it is
+recommended to use at least s = c/min(p0, p1)·df samples, where p0 and p1 are the
+proportion of negative and positive classes in T respectively, df is the number of
+degrees of freedom in the model (that is, the total number of parameters, including
+the intercept term) and c is usually recommended to be between 5 and 20, with
+larger values leading to more accurate results. This rule is based on the events per
+variable (EPV) [50], and will referred to as the EPV rule hereafter.
+Rules like the above can be used to determine the number of samples s in each
+Sample Set, by setting the minimum number of samples in each Data Block in a
+way that the locally computed p-values are valid for the type of test employed in
+the worst case. The worst case scenario occurs if the maximum number of features
+maxVars have been selected. If all features are continuous df equals maxVars +1.
+This can easily be adapted for the case of categorical features, by considering
+the maxVars variables with the most categories, and setting df appropriately.
+By considering the worst case scenario, the required number of samples can be
+computed by plugging the values of df , c, p0 and p1 into the EPV rule. We found
+out that, although the EPV rule works reasonably well, it tends to overestimate
+the number of samples required for skewed class distributions. As a result, it may
+unnecessarily slow down PFBP in such cases. Ideally for a given value of c the
+results should be equally accurate irrespective of the class distribution and the
+number of model parameters.
+To overcome the drawbacks of the EPV rule, we propose another rule, called the
+STD rule, which is computed as s = df ·c/?p0 · p1. For balanced class distributions
+the result is identical to the EPV rule, while for skewed distributions the value
+is always smaller. We found that a value of c = 10 works sufficiently well, and
+recommend to always set c to a minimum of 10; higher values could lead to more
+accurate results, but will also increase computation time. Again, the number of
+samples per Sample Set is determined as described above. A comparison of both
+rules is given in Appendix A. We show that the STD rule behaves better across
+different values of df and class distributions of the outcome than the EPV rule.
+5.2 Determining the Number of Features per Data Block
+Given the sample size s of each data blockDi,j , the next hyper-parameter to decide
+is the number of features f in each block. The physical partitioning to Feature Sets
+is performed so that each Block fits within the memory of a cluster node. Some
+physical partitioning is required only for ultra-high dimensional datasets and it was
+never launched in our implementation for the Sample Sets sizes of the datasets
+employed in our experiments. In practice, features need to be partitioned only
+virtually, which is computationally cheaper. Specifically, enough (virtual) feature
+sets nf are created so that the number of Data Blocks in a Group (i.e., C × nf ) is
+as close as possible to a desired oversubscription-of-machines parameter o. The o
+parameter dictates the average number of Blocks (tasks) assigned to a machine per
+Group. By default, the value of o is set to 1. In other words, we set nf = ?o ·M/C?,
+Massively-Parallel Feature Selection for Big Data 23
+where M is the number of available machines, so that each machine processes at
+least o blocks per Group.
+5.3 Setting the Number of Groups C
+We now discuss the determination of the C value, the number of Sample Sets in
+each Group. Recall that, the value of C determines how many Sample Sets are
+processed in parallel, (and thus, how many additional local p-values are added
+to the p-value matrix ?), before invoking bootstrap tests that decide on Early
+Dropping, Stopping or Return. We set C = 15, as it allows enough local p-values
+for a bootstrap test to be performed in the first Group. Smaller values would
+invoke the bootstrap test more often and present more opportunities for Early
+Drop, Stop and Return, but would also reduce the parallelization of the algorithm
+(since computations await for the results of the bootstrap). The value 15 was
+chosen (without extensive experimentation) as a good trade-off between the two
+resources.
+6 Practical Considerations and Implementation Details
+In this section, we discuss several important details for an efficient and accurate
+implementation of PFBP. The main focus is on PFBP using conditional inde-
+pendence tests based on binary logistic regression, which is the test used in the
+experiments, although most details regard the general case or can be adapted to
+other conditional independence tests.
+6.1 Accurate Combination of Local p-values Using Fisher’s method
+In order to apply Fisher’s combined probability test, the data distributions of
+each data block should be the same for the test to be valid. There should be no
+systematic bias on the data or the combining process may exacerbate this bias
+(see [65]). Such bias may occur if blocks contain data from the same departments,
+stores, or branches, or in consecutive time moments and there is time-drift on
+the data distribution. This problem is easily avoided if before the analysis the
+partitioning of samples to blocks is done randomly, as done by PFBP.
+Another important detail to observe in practice, is to directly compute the
+logarithm of the p-values for each conditional independence test instead of first
+computing the p-value and then taking the logarithm. As p-values tend to get
+smaller with larger sample sizes (in case the null hypothesis does not hold), they
+quickly reach the machine epsilon, and will be rounded to zero. If this happens,
+then sorting and selecting features according to p-values breaks down and PFBP
+will select an arbitrary feature. This behavior is further magnified in case of com-
+bined p-values, as a single zero local p-value leads to a zero combined p-value no
+matter the values of the remaining p-values.
+24 Tsamardinos, I., Borboudakis, G. et al.
+6.2 Adapting the Number of Processed Groups to Improve Computational
+Efficiency
+In practice, we found that processing a single Group in each iteration of the
+ForwardIteration algorithmmay be slow in cases where no variables are dropped
+or stopped for multiple consecutive iterations. In such cases, the algorithm will
+spend a large amount of time performing the bootstrap tests, even though in
+most cases no variables are removed from R or A. This can become especially
+problematic if the number of sample sets ns is very large. For this reason, we al-
+low the algorithm to increase the Group size, if after processing two consecutive
+Groups the alive and remaining variables remain the same. Specifically, we found
+that doubling the Group size works well in practice. This is identical to doubling
+the number of Groups processed, and thus minimal changes are required in the
+algorithm. One needs to keep track of the number of Groups to process in each
+iteration, and double that value if the alive and remaining variables do not change
+after the bootstrap tests. Finally, we note that the value of C is reset to the default
+value (15 in our case, see Section 5) after each forward Iteration.
+6.3 Implementation of the Conditional Independence Test using Logistic
+Regression for Binary Targets
+The conditional independence test is the basic building block of PFBP, and thus
+using a fast and robust implementation is essential. Next, we briefly review opti-
+mization algorithms used for maximum likelihood estimation, mainly focusing on
+binary logistic regression, and in the context of feature selection using likelihood-
+ratio tests.
+A comprehensive introduction and comparison of algorithms for fitting (i.e.,
+finding the ? that maximizes the likelihood) binary logistic regression models is
+provided in [46]. Three important classes of optimization algorithms are Newton’s
+method, conjugate gradient descent and quasi-Newton methods. Out of those,
+Newton’s method is the most accurate and typically converges to the optimal so-
+lution in a few tens of iterations. The main drawback is that each such iteration
+is slow, requiring O(n · d2) computations, where n is the sample size and d the
+number of features. Conjugate gradient descent and quasi-Newton methods on the
+other hand require O(n · d) and O(n · d + d2) time per iteration, but may take
+much longer to converge. Unfortunately, there are cases were those methods fail
+to converge to an optimal solution even after hundreds of iterations. This not only
+affects the accuracy of feature selection, but also leads to unpredictable running
+times. Most statistical packages include one or multiple implementations of lo-
+gistic regression. Such implementations typically use algorithms that can handle
+thousands of predictors, with quasi-Newton methods being a popular choice. For
+feature selection however, one is typically interested to select a few tens or hun-
+dreds of variables. In anecdotal experiments, we found that for this case Newton’s
+method is usually faster and more accurate, especially with fewer than 100-200
+variables. Because of that, and because of the issues mentioned above, we used a
+fine-tuned, custom implementation of Newton’s method.
+Massively-Parallel Feature Selection for Big Data 25
+There are some additional, important details. First of all, there are cases where
+the Hessian is not invertible 10. If this the case, we switch to conjugate gradient
+descent using the fixed Hessian as a search direction for that iteration, as described
+in [46]. Finally, as a last resort, in case the fixed Hessian is not invertible we switch
+to simple gradient descent. Next, for all optimization methods there are cases in
+which the computed step-size has to be adjusted to avoid divergence, whether it is
+due to violations of assumptions or numerical issues. One way to do this is to use
+inexact line-search methods, such as backtracking-Armijo line search [5], which
+was used in our implementation.
+6.4 Score Tests for the Univariate Case
+In the first step of forward selection where no variable has been selected, one can
+use a score test (also known as Lagrange multiplier test) instead of a likelihood-
+ratio test to quickly compute the p-value without having to actually fit logistic
+regression models. The statistic of the Score test equals [27]
+Statistic ?
+?n
+j=1 Xj(Tj ? T? )
+?
+T? (1? T? )?nj=1(Xj ? X?)2
+where n is the number of samples, T is the binary outcome variable (using a 0/1
+encoding), and X is the variable tested for independence. Note that, such tests can
+also be derived for models other than binary logistic regression, but it is out of the
+scope of the paper. The score test is asymptotically equivalent to the likelihood
+ratio test, and in anecdotal experiments we found that a few hundred samples are
+sufficient to get basically identical results, justifying its use in Big Data settings.
+Using this in place of the likelihood ratio test reduces the time of the univariate
+step significantly and is important for an efficient implementation, as the first step
+is usually the most computationally demanding one in the PFBP algorithm, as a
+large portion of the variables will be dropped by the Early Dropping heuristic.
+7 Optimality of PFBP on Distributions Faithful to Bayesian Networks
+and Maximal Ancestral Graphs
+Assuming an oracle of conditional independence, it can be shown that the standard
+Forward-Backward Selection algorithm is able to identify the optimal set of fea-
+tures for distributions faithful to Bayesian networks or maximal ancestral graphs
+[9, 41, 64]. Unfortunately, the Early Dropping (ED) heuristic may compromise the
+optimality of the method. ED may remove features that are necessary for optimal
+prediction of T . Intuitively, these features provide no predictive information for
+T given S (are conditionally independent) but become conditionally dependent
+given a superset of S, i.e., after more features are selected. This problem can be
+10 One case where this happens is if the covariance matrix of the input data is singular, or
+close to singular. Note that, due to the nature of the feature selection method which considers
+one variable at a time, this can happen only if the newly added variable is (almost) collinear
+with some of the previously selected variables. If this is the case, the variable would not be
+selected anyway.
+26 Tsamardinos, I., Borboudakis, G. et al.
+overcome by using multiple Runs of the Forward-Backward Phases. Recall that,
+each Run reinitializes the remaining variables with R = F \ S. Thus, each subse-
+quent Run provides each feature with another opportunity to be selected, even if
+it was Dropped in a previous one. The heuristic has a graphical interpretation in
+the context of probabilistic graphical models such as Bayesian networks and maxi-
+mal ancestral graphs [48, 54, 59] inspired by modeling causal relations. A rigorous
+treatment of the Early Dropping heuristic and theorems regarding its optimality
+for distributions faithful to Bayesian networks and maximal ancestral graphs is
+provided in [9]; for the paper to be self-sustained, we provide the main theorems
+along with proofs next.
+We assume that PFBP has access to an independence oracle that determines
+whether a given conditional dependence or independence holds. Furthermore, we
+assume that the Markov and faithfulness conditions hold, which allow us to use
+the terms d-separated/m-separated and independent (dependent) interchangeably.
+We will use the the weak union axiom, one of the semi-graphoid axioms [48]
+about conditional independence statements, which are general axioms holding in
+all probability distributions. The weak union axiom states that (X?Y?W | Z) ?
+(X?Y | Z ?W) holds for any such sets of variables.
+Theorem 1 If the distribution can be faithfully represented by a Bayesian net-
+work, then PFBP with two runs identifies the Markov blanket of the target T .
+Proof In the first run of PFBP, all variables that are adjacent to T (that is, its
+parents and children) will be selected, as none of them can be d-separated from T
+by any set of variables. In the next run, all variables connected through a collider
+path of length 2 (that is, the spouses of T ) will become d-connected with T , since
+the algorithm conditions on all selected variables (including its children), and thus
+spouses will be selected as at least a d-connecting path is open: the path that
+goes through the selected child. The resulting set of variables includes the Markov
+blanket of T , but may also include additional variables. Next we show that all
+additional variables will be removed by the backward selection phase. Let MB(T )
+be the Markov blanket of T and Sind = S\MB(T ) be all selected variables not
+in the Markov blanket of T . By definition, (T?X | MB(T )) holds for any set
+of variables X not in MB(T ), and thus also for variables Sind. By applying the
+weak union graphoid axiom, one can infer that ?Si ? Sind, (T?Si | MB(T ) ?
+Sind \ Si) holds, and thus some variable Sj will be removed in the first iteration.
+Using the same reasoning and the definition of a Markov blanket, it can be shown
+that all variables in Sind will be removed from MB(T ) at some iteration. To
+conclude, it suffices to use the fact that variables in MB(T ) will not be removed
+by the backward selection, as they are not conditionally independent of T given
+the remaining variables in MB(T ). ??
+Theorem 2 If the distribution can be faithfully represented by a directed maximal
+ancestral graph, then PFBP with no limit on the number of runs identifies the
+Markov blanket of the target T .
+Proof In the first run of PFBP, all variables that are adjacent to T (that is, its
+parents, children and variables connected with T by a bi-directed edge) will be
+selected, as none of them can be m-separated from T by any set of variables. After
+each run additional variables may become admissible for selection. Specifically,
+Massively-Parallel Feature Selection for Big Data 27
+after k runs all variables that are connected with T by a collider path of length
+k will become m-connected with T , and thus will be selected; we prove this next.
+Assume that after k runs all variables connected with T by a collider path of
+length at most k? 1 have been selected. By conditioning on all selected variables,
+all variables with edges into some selected variable connected with T by a collider
+path will become m-connected with T . This is true because conditioning on a
+variable Y in a collider ?X,Y, Z? m-connects X and Z. By applying this on each
+variable on some collider path, it is easy to see that its end-points become m-
+connected. Finally, after applying the backward selection phase, all variables that
+are not in the Markov blanket of T will be removed; the proof is identical to the
+one used in the proof of Theorem 1. ??
+8 Related Work
+In this section we provide an overview of alternative parallel feature selection
+methods, focusing on methods for MapReduce-based systems (such as Spark), as
+well as causal-based methods, and compare them to PFBP. An overview of feature
+selection methods can be found in [24] and [37].
+8.1 Parallel Univariate Feature Selection and Parallel Forward-Backward
+Selection
+Univariate feature selection (UFS) applies only the first step of forward selec-
+tion, ranks all features based on some ranking criterion, and selects either the
+top maxVars variables or all features that satisfy some selection criterion. An im-
+plementation for discrete data based on the chi-squared test of independence is
+provided in the Spark machine learning library MLlib [44]. In this case, all features
+are ranked based on the p-value of the test of unconditional independence with the
+outcome T , and features are selected by either choosing the top maxVars ones, or
+all features with a p-value below a fixed significance level ?. Although not explic-
+itly mentioned as feature selection methods, MLlib also contains implementations
+of the Pearson and Spearman correlation coefficients, which can be used similarly
+to perform univariate feature selection with continuous features and outcome vari-
+ables. Furthermore, MLlib also contains implementations of binomial, multinomial
+and linear regression, which can be used both for univariate feature selection as
+well as for forward-backward selection (FBS), by performing likelihood-ratio tests.
+The main advantages of PFBP over UFS and FBS are that (a) PFBP does not
+require specialized distributed implementations of independence tests, as it only
+relies on local computations and thus can use existing implementations, which is
+also much faster than fitting full models over all samples, and (b) it employs the
+Early Dropping, Early Stopping and Early Return heuristics, allowing it to scale
+both with number of features and samples. Perhaps, most importantly (c) UFS
+will not necessarily identify the Markov Blanket of T even in faithful distributions;
+the solution by UFS will have false positives (e.g., redundant features) as well as
+false negatives (missed Markov Blanket features).
+28 Tsamardinos, I., Borboudakis, G. et al.
+8.2 Single Feature Optimization
+The Single Feature Optimization algorithm (SFO) [58] is a Mapreduce-based ex-
+tension of the standard forward selection algorithm using binary logistic regression.
+SFO (a) employs a heuristic that ranks the features at each step without the need
+to fit a full logistic regression model (that is, one over all samples) for all variables,
+and (b) uses a parallelization scheme to perform parallel computation over sam-
+ples and features. We note that, in contrast to PFBP, SFO does not require any
+specific data partitioning strategy. We proceed by describing the ranking heuristic
+used by SFO.
+Let S be the selected features up to some point and R = F\S be all candidate
+variables for selection, and assume that a full logistic regression model M for T
+using S is available. SFO creates an approximate model for each variable Ri ? R
+by fixing the coefficients of S using their coefficients in M , and only optimizing the
+coefficient of Ri. This problem is much simpler than fitting full models for each
+remaining variable, significantly reducing running time. Then, the best variable R?
+is chosen based on those approximate models (using some performance measure
+such as the log-likelihood), and a full logistic regression model M? with S?R? is
+created. Thus, at each iteration only a single, full logistic regression model needs
+to be created. By default, SFO uses a maximum number of variables to select
+as a stopping criterion. Alternatively, to decide whether R? should be selected a
+likelihood-ratio test could be used, in which case the test is performed on M and
+M?, and R? is selected if the p-value is below a threshold ?; we used this in our
+implementation of SFO in the experiments. The parallelization over samples is
+performed in the map phase, in which one value pj is computed for each sample
+j, which equals
+pj =
+e?·Sj
+1 + e?·Sj
+where ? are the coefficients of S in M and Sj are the values of S in the j-th sample.
+The values of pj , the values of the outcome T and all of candidate variables R are
+then sent to workers to be processed in the reduce phase. Note that, this incurs a
+high communication cost, as essentially the whole dataset has to be sent over the
+network. Finally, in the reduce phase, all workers fit in parallel over all variables
+R the approximate logistic regression models.
+Although SFO significantly improves over the standard forward selection al-
+gorithm in running time, it has three main drawbacks compared to PFBP: (a) it
+has a high communication cost, in contrast to PFBP which only requires minimal
+information to be communicated, (b) to select a variable all non-selected variables
+have to be considered, while PFBP employs the Early Dropping heuristic that
+significantly reduces the number of remaining variables, and (c) SFO always uses
+all samples, while PFBP uses Early Stopping and Early Return allowing it to
+scale sub-linearly with number of samples. Finally, (d) SFO does not provide any
+theoretical guarantees.
+Massively-Parallel Feature Selection for Big Data 29
+8.3 Information Theoretic Feature Selection for Big Data
+Information theoretic feature selection (ITFS) methods have been extended to
+Big Data settings [53] and implemented for Spark11. They are applicable only
+for discrete variables, although discretization methods can be used to also handle
+continuous variables. ITFS relies on computations of the mutual information and
+the conditional mutual information, and many variations have appeared in the
+literature [11]; we provide a brief description next. The criterion J of many ITFS
+methods12 for evaluating feature Xk can be expressed as
+J(Xk) = I(T ;Xk)? ?
+?
+Xj?S
+I(Xj ;Xk) + ?
+?
+Xj?S
+I(Xj ;Xk|T )
+where ? and ? are parameters taking values in [0, 1]. The next best feature is
+chosen as the one maximizing J with respect to the current set of selected variables
+S. All of those criteria approximate the conditional mutual information (CMI)
+I(T ;Xk|S) using different assumptions on the data distributions. Observe that,
+both ITFS and forward selection are essentially identical, but use different criteria
+for selecting the next best feature. Forward selection using regression models (e.g.
+logistic regression) assumes a specific probabilistic model to approximate the CMI.
+Thus, both approaches use different types of approximations to the CMI. We note
+that forward selection can also be used for discrete data to with the CMI criterion
+using the G-test of conditional independence [1].
+The main advantage of ITFS over PFBP is that computing (conditional) mu-
+tual informations does not require fitting any model, and thus can be performed
+efficiently even on a Big Data setting. They can additionally trivially take advan-
+tage of sparse data, further speeding up computation. However, ITFS methods do
+not have the theoretical properties of PFBP, which can be shown to be optimal for
+distributions that can be faithfully represented by Bayesian networks and maximal
+ancestral graphs. This stems from the fact that PFBP solves an inherently harder
+problem, as it considers all selected variables at each iteration in order to select the
+next feature, while ITFS only conditions on one variable at a time. Furthermore,
+ITFS methods are not as general as PFBP, which can be applied to various data
+types as long as an appropriate conditional independence test is available. For
+example, it is not clear if and how ITFS can be applied to time-to-event outcome
+variables, whereas PFBP can be directly applied if a likelihood-ratio test based on
+Cox regression is used. Last but not least they are only applicable to discrete data.
+Thus, in case of continuous variables, a discretization method has to be applied
+before feature selection, possibly losing information [16, 30]. This also increases
+computational time and may require extra tuning to find a good discretization of
+features.
+8.4 Feature Selection with Lasso
+Feature selection based on Lasso [61] implicitly performs feature selection while
+fitting a model. The feature selection problem is expressed as a global optimization
+11 https://spark-packages.org/package/sramirez/spark-infotheoretic-feature-selection
+12 There are methods that do not fall into this framework, but we will not go into more
+detail; see [11] for more details.
+30 Tsamardinos, I., Borboudakis, G. et al.
+problem using an L1 penalty on the feature coefficients. We describe it in more
+detail next, focusing on likelihood-based models such as logistic regression. Let
+D(?) be the deviance of a model using n parameters ?. The optimization problem
+Lasso solves can be expressed as
+min
+??Rn
+D(?) + ? ???1
+where ???1 is the L1 norm and ? ? 0 is a regularization parameter. The solutions
+Lasso returns are sparse, meaning that most coefficients are set to zero, thus
+implicitly performing feature selection. The regularization parameter ? controls
+the number of non-zero coefficients in the solution, with larger values leading to
+sparser solutions. This problem formulation is a convex approximation of the more
+general best subset selection (BSS) problem [45], defined as follows to match the
+Lasso optimization formulation
+min
+??Rn
+D(?) + ? ???0
+where ???0 equals the total number of variables with non-zero coefficients. The
+BSS problem has been shown to be NP-hard [70], and thus most approaches, such
+as Lasso and forward selection, rely on some type of approximation to solve it 13. In
+contrast to Lasso, which uses a different constraint on the values of the coefficients
+(L1 instead of L0 penalty), forward selection type algorithms perform a greedy
+optimization of the BSS problem, by including the next best variable at each step;
+see [22, 45] for a more thorough treatment of the topic. A sufficient condition for
+optimality of PFBP and FBS is that distributions can be faithfully represented
+by Bayesian networks or maximal ancestral graphs (see Section 7. Conditions for
+optimal feature selection with Lasso are given in [43].
+In extensive simulations it has been shown that causal-based feature selection
+methods are competitive with Lasso on classification and survival analysis tasks
+on many real datasets [3, 33, 34, 35]. Furthermore, the non-parallel version of
+PFBP (called Forward-Backward Selection with Early Dropping) as well as the
+standard Forward-Backward Selection algorithm have been shown to perform as
+well as Lasso if restricted to select the same number of variables [9].
+Lasso has been parallelized for single machines and shared-memory clusters
+[10, 38, 78]. These approaches only parallelize over features and not samples (i.e.
+consider vertical partitioning). Naturally, ideas and techniques presented in those
+works could be adapted or extended for Spark or related systems. An implemen-
+tation of Lasso linear regression is provided in the Spark MLlib library [44]. A
+disadvantage of that implementation is that it requires extensive tuning of its
+hyper-parameters (like the regularization parameter ? and several parameters of
+the optimization procedure), rendering it impractical as typically many different
+hyper-parameter combinations have to be used. Unfortunately, we were not able to
+find any Spark implementation of Lasso for logistic regression, or any work dealing
+with the problem of efficient parallelization of Lasso on Spark. Finally, we note
+that in contrast to forward selection using conditional independence tests, Lasso
+is not easily extensible for different problems, and requires specialized algorithms
+for different data types [23, 28, 42], whose objective function may be non-convex
+[23] or computationally demanding [19].
+13 Recently, there have been efforts for exact algorithms solving the BSS problem using
+mixed-integer optimization formulations for linear regression [7] and logistic regression [55].
+Massively-Parallel Feature Selection for Big Data 31
+8.5 Connections to Markov-Blanket Based Feature Selection
+Several algorithms have appeared in the literature that apply tests of conditional
+independence to select features. The theoretical properties of these algorithms
+often rely on the theory of Bayesian networks and the Markov blanket. The GS
+[40, 41] and the IAMB [64] algorithms, were some of the first to present the forward-
+backward selection algorithm in the context of Bayesian networks and the Markov
+blanket and prove correctness for faithful distributions. These algorithms perform
+tests of independence conditioning each time on the full set S of selected features
+and can guarantee to identify the Markov blanket for faithful distributions asymp-
+totically. However, the larger the conditioning set, the more samples are required
+to obtain valid results. Thus, these algorithms are not well-suited for problems
+with large Markov blankets relative to the available sample size.
+Another class of such algorithms includes HITON-PC [4], MMPC [63], and
+more recently SES [33] for multiple solutions. The main difference in this class
+of algorithms is that they condition on subsets of the selected features S, not the
+full set. They do not guarantee to identify the full Markov blanket, but only
+a superset of the parents and children of T . Recent extensive experiments have
+concluded that they perform well in practice [3]. These algorithms remove from
+consideration any features that become independent of T conditioned on some
+subset of the selected features S. This is similar to the Early Dropping heuristic
+and renders the algorithms quite computationally efficient and scalable to high-
+dimensional settings.
+PFBP combines the advantages of these two classes of algorithms: those that
+condition on subsets, drop features from consideration and achieve scalability, and
+those that condition on the full set of selected features and guarantee identification
+of the full Markov blanket.
+9 Experimental Evaluation
+We performed three sets of experiments to evaluate PFBP. First, we investigate
+the scalability of PFBP in terms of variable size, sample size and number of work-
+ers on synthetic datasets, simulated from Bayesian networks. Then, we compare
+PFBP to four competing forward-selection based feature selection algorithms. We
+made every reasonable effort to include all candidate competitors. These alter-
+natives constitute algorithms specifically designed for MapReduce architectures
+(i.e., SFO), standard FS algorithms using parallel implementations of the condi-
+tional independence tests (i.e., UFS and FBS) and ITFS. The latter comparison
+is indirect using the published results in [53]. The only Lasso implementation for
+Spark available in the Spark MLlib library [44] (a) is for continuous targets, and
+thus is not suitable for binary classification tasks, and (b) required tuning of 5
+hyper-parameters; as no procedure has been suggested by the authors for their
+tuning, it was excluded from the comparative evaluation. Finally, we performed a
+proof-of-concept experiment of PFBP on dense synthetic SNP data.
+32 Tsamardinos, I., Borboudakis, G. et al.
+9.1 Experimental Setup
+For all experiments we used a cluster with 5 machines, 1 acting as a master and 4
+as workers, connected to a 1 Gigabit network. Each machine has 2 Intel Xeon E5-
+2630 v3 CPUs with 8 physical cores each, and 256 GB of RAM. Thus, a total of 64
+cores and 1 TB of memory were available on all 4 workers. The cluster is running
+Spark 2.1.0 and using the HDFS file system. All algorithms were implemented in
+Java 1.8 and Scala 2.11.
+The significance level ? was set to 0.01 for all algorithms, and PFBP was ex-
+ecuted with 2 Runs. For the bootstrap tests used by PFBP, we used the default
+parameter values as described in Section 4.2. To produce a predictive model for
+PFBP we followed the approach described in Section 3.5. Parameter values related
+to the number of Group Samples, Sample Sets and Feature Sets were determined
+using the STD rule, and by setting the maximum number of variables to select
+to maxVars (the exact value is given for each specific experiment later); see Sec-
+tion 5 for more details. We note that, none of the experiments required a physical
+partitioning to Feature Sets, and thus Feature Sets were only partitioned virtually.
+9.2 Scalability of PFBP with Sample Size, Feature Size and Number of Workers
+We investigated the scalability of PFBP on dense synthetic datasets in terms of
+sample size, variable size and number of workers used. The data were sampled from
+randomly generated Bayesian networks, which are probabilistic models that can
+encode complicated dependency structures among features. Such simulated data
+contain not only features necessary for optimal prediction (strongly relevant in the
+terminology of [29]) and irrelevant, but also redundant features (weakly relevant
+[29]). This is a novelty in the Big Data FS literature as far as we know, making
+the synthetic tasks more realistic. A detailed description of the data and network
+generating procedures is given in Appendix B.
+For each experimental setting, we generated 5 Bayesian networks, and sam-
+pled one dataset from each. The connectivity parameter C was set to 10 (i.e., the
+average degree of each node), the class distribution of T was 50/50, and the vari-
+ance of the error term was set to 1. To investigate scalability in terms of sample
+size, we fixed the number of features to 1000 and varied the sample size from 2M
+to 10M. Scalability in terms of feature size was evaluated on datasets with 100K
+samples and varying the feature size from 20K to 100K, all of which also included
+the optimal feature set (i.e. the Markov blanket of T ). Finally, scalability in terms
+of number of workers was investigated on datasets with 10K variables and 1M
+samples. The maximum number of variables maxVars to select was set to 50.
+The results are summarized in Figure 2. On the top row we show the relative
+runtime of PFBP with varying sample size (left) and number of variables (right),
+respectively. The bottom figure shows the speed-up achieved with varying the
+number of workers. Relative time and speed up are computed with respect to the
+lowest point on the x-axis. We can clearly see that: (Top Left) PFBP improves
+super-linearly with sample size; in other words, feeding twice the number of rows
+to the algorithm requires less than double the time. This characteristic can be
+attributed to the Early Stopping and Early Return heuristics. (Top Right) PFBP
+scales linearly with number of features due to the Early Dropping heuristic and
+Massively-Parallel Feature Selection for Big Data 33
+Fig. 2: Scalability of PFBP with increasing sample size (top left), feature size
+(top right) and number of machines (bottom). Time and speed-up were computed
+relatively to the first point on the x-axis, for the same number of Runs. PFBP
+improves super-linearly with sample size, linearly with feature size and running
+time is reduced linearly with increasing number of machines. The results are similar
+for PFBP with 1 run and 2 runs.
+(Bottom) PFBP is able to utilize the allocated machines, although the speed-up
+factor does not reach the theoretical optimum. The reason for this is that the
+Early Stopping heuristic quickly prunes many features from consideration after
+processing the first Group sample, reducing parallelization in subsequent Groups
+as only few features remain Alive.
+9.3 Comparative Evaluation of PFBP on Real Datasets
+We evaluated the PFBP algorithm on 11 binary classification datasets, collected
+from the LIBSVM dataset repository14, with the constraint that each dataset
+contains at least 500K samples or variables. A summary of the datasets, shown in
+order of increasing variable size, can be found in Table 2. The first two columns
+show the total number of samples and variables of each dataset, while the last
+column shows the average number of non-zero elements of each sample. The max-
+imum number of non-zero elements equals the total number of variables. Except
+for the first four datasets, all other datasets are extremely sparse.
+14 http://www.csie.ntu.edu.tw/ cjlin/libsvmtools/datasets/
+34 Tsamardinos, I., Borboudakis, G. et al.
+Table 2: Binary classification datasets used in the comparative evaluation
+Name #Samples #Variables Non-zeros per Row
+SUSY 5000000 18 17.78
+HIGGS 11000000 28 25.78
+covtype.binary 581012 54 12.94
+epsilon 500000 2000 2000.00
+rcv1.binary 697641 47236 73.15
+avazu 40428967 1000000 14.99
+news20.binary 19996 1355191 454.98
+url 2396130 3231961 115.62
+webspam 350000 16609143 3727.70
+kdd2010a 8407752 20216830 36.34
+kdd2010b 19264097 29890095 29.39
+9.3.1 Algorithms and Setup
+We compared PFBP to 3 forward selection based algorithms: (i) Single Feature Op-
+timization (SFO) [58], (ii) Forward-Backward Selection (FBS), and (iii) Univariate
+Feature Selection (UFS). UFS and FBS were implemented using a parallelized im-
+plementation of standard binary logistic regression for Big Data provided in the
+Spark machine learning library [44]; this was also the implementation used to fit
+full logistic regression models for SFO at each iteration.
+The algorithms were compared in terms of classification accuracy and running
+time. To estimate the classification accuracy, 5% of the training instances were
+randomly selected and kept out. The remaining 95% were used by each algorithm
+to select a set of features and to train a logistic regression model using those
+features. For SFO, FBS and UFS, the default recommended parameters for data
+partition and fitting the logistic regression models of Spark were used. The max-
+imum number of features to select was set to 50. A timeout limit of 2 hours was
+used for each algorithm. In case an algorithm did not terminate within the time
+limit, the number of features selected up to that point are reported. If no feature
+was selected, the accuracy was set to N/A (not available).
+9.3.2 Results of the Comparative Evaluation
+Table 3 shows the results of the evaluation. It shows the running time in minutes,
+the classification accuracy and the number selected variables of each algorithm and
+on each dataset. We included the results of the trivial classification method, which
+classifies each sample to the most frequent class, and thus attains an accuracy
+equal to the frequency of the most common class. It can clearly be seen that
+PFBP outperforms all competing methods in terms of running time. All competing
+methods reach the timeout limit or crash and do not select a single feature even
+for the moderately sized rcv1 dataset, which contains only 47.2K variables and
+697.6K samples. PFBP reaches the timeout limit for 4 datasets, but is still able to
+select features (ranging from 25 to 33) and to produce a predictive model. For the
+few datasets in which the competing methods terminated, all methods perform
+similarly in terms of accuracy. For the avazu, kdd2010a and kdd2010b datasets,
+PFBP reaches an accuracy only marginally better than the trivial classifier, which
+Massively-Parallel Feature Selection for Big Data 35
+Table 3: The table shows the total running time in minutes, the classification
+accuracy % and the number of variables selected. PFBP significantly outperforms
+all competitors in terms of running time, and is the only algorithm that is able
+to produce results on all datasets within the given time limit of 2 hours. SFO
+produces results only for datasets up to 2000 variables (epsilon), whereas UFS and
+FBS produce results only for datasets with a few tens of variables. Furthermore,
+for SFO, UFS and FBS Spark either crashed or ran out of memory for the largest
+datasets. In terms of classification accuracy, all algorithms perform similarly, and
+perform better than trivial classification to the most frequent class.
+Running Time (Minutes) Classification Accuracy (%) Selected Variables
+Dataset PFBP SFO UFS FBS PFBP SFO UFS FBS Trivial PFBP SFO UFS FBS
+SUSY 0.1 4.5 1.0 26.9 78.87 78.55 78.59 78.59 54.24 10 14 18 15
+HIGGS 0.2 9.9 3.0 89.7 64.04 64.07 64.06 64.06 52.99 11 18 28 18
+covtype 3.0 55.1 1.6 1120.0 75.79 75.72 75.70 75.80 51.24 27 45 50 22
+epsilon 1.3 46.4 2120.0 2120.0 86.04 86.39 N/A N/A 50.00 50 50 0 0
+rcv1 10.8 2120.0 2120.0 2120.0 91.32 N/A N/A N/A 52.47 50 0 0 0
+avazu 1120.0 3N/A 2120.0 2120.0 88.17 N/A N/A N/A 88.11 33 0 0 0
+news20 55.2 2120.0 2120.0 2120.0 85.84 N/A N/A N/A 50.00 50 0 0 0
+url 91.9 2120.0 2120.0 2120.0 96.89 N/A N/A N/A 66.94 50 0 0 0
+webspam 1120.0 3N/A 3N/A 3N/A 97.60 N/A N/A N/A 60.62 33 0 0 0
+kdd2010a 1120.0 4N/A 4N/A 4N/A 86.13 N/A N/A N/A 85.30 27 0 0 0
+kdd2010b 1120.0 4N/A 4N/A 4N/A 86.13 N/A N/A N/A 86.06 25 0 0 0
+1 Timeout (returned model) | 2 Timeout (no model returned) | 3 Out of memory | 4 Spark crashed
+may be because of the hardness of the problem, or because logistic regression is
+not appropriate.
+9.3.3 Indirect Comparison with Information Theoretic Feature Selection Methods
+We compare PFBP to the Minimum-Redundancy Maximum-Relevance (mRMR)
+algorithm [52], an instance of the ITFS methods [11]. The mRMR algorithm has
+been extended for Spark and has been evaluated on binary classification datasets
+[53], including the epsilon, url and kdd2010b datasets. This allows us to perform
+an indirect comparison of mRMR and PFBP. They used a cluster with 432 cores in
+contrast to 64 used by us (6.75 times more cores), and used 80% of the samples as
+training data in contrast to the 95% we used. mRMR was able to select 50 features
+in 4.9 and 5.6 minutes for epsilon and url respectively, and 12.9 minutes to select
+25 features for kdd2010b. For epsilon, which is dense, PFBP took 1.3 minutes to
+select 50 features, while for url and kdd2010b which are sparse, PFBP needed
+91.9 minutes and 120 minutes to select 50 and 25 features respectively. Thus,
+for dense data PFBP may be faster, while possibly being a bit slower for sparse
+data, as mRMR had 6.75 times more cores available. Recall that no specialized
+implementation for sparse data was used for PFBP, which could potentially further
+reduce its running time. In any case, there does not seem to be a significant gap in
+running time between both approaches. Unfortunately, no comparison in terms of
+classification accuracy is possible, as a different different performance measure and
+a different classifier was used for mRMR. Finally, we point out that no predictive
+model was presented for the kdd2010b dataset, as the implementations of the naive
+Bayes and SVM classifiers used could not handle it, while PFBP is always able to
+36 Tsamardinos, I., Borboudakis, G. et al.
+produce a predictive model without any computational overhead, as long as it is
+able to complete a single iteration.
+9.4 Proof-of-Concept Application on SNP Data
+Single Nucleotide Polymorphisms (SNPs)15, the most common type of genetic
+variation, are variations of a single nucleotide at specific loci in the genome of
+a species. The Single Nucleotide Polymorphism Database (dbSNP) (build 150)
+[57] now lists 324 million different variants found in sequenced human genomes16.
+In several human studies, SNPs have been associated with genetic diseases or
+predisposition to disease or other phenotypic traits. As of 2017-08-13, the GWAS
+Catalog17 contains 3057 publications and 39366 unique SNP-trait associations.
+Large scale studies under way (e.g., Precision Medicine Initiative [14]) intend to
+collect SNP data in large population cohorts, as well as other medical, clinical and
+lifestyle data. The resulting matrices may end up with millions of rows, one for
+each individual, and variables (SNP or some other measured quantity). A proof-
+of-concept application of PFBP is presented next.
+9.4.1 SNP Data Generation and Setup
+We simulated genotype data containing 500000 individuals (samples) and 592555
+SNP genotypes (variables), following the procedure described in [12]. As SNP
+data are dense, they require approximately 2.16 TB of memory, and thus are more
+challenging to analyze than sparse data, such as the ones used in the previous
+experiment. The data were simulated with the HAPGEN 2 software [13] from the
+Hapmap 2 (release 22) CEU population [15]. A more detailed description of the
+data generation procedure is given in Appendix C.
+We used M = 100 randomly selected SNPs to generate a binary phenotype
+(outcome), as described in [12] (see also Appendix C). The optimal accuracy using
+all 100 SNPs is 81.42%. Ideally and given enough samples, any feature selection
+method should select those 100 SNPs and achieve an accuracy around 81.42%. Due
+to linkage disequilibrium however, many neighboring SNPs are highly correlated
+(collinear) and as a consequence offer similar predictive information about the
+outcome and are informationally equivalent. Therefore, a high accuracy can be
+achieved even with SNPs other than the 100 used to simulated the outcome.
+We used 95% of the samples as a training set, and 5% as a test set for perfor-
+mance estimation. We set a timeout limit of 15 hours, and used the same setup
+as used in previous experiments, with the exception that the maximum number of
+variables to select was set to 100.
+9.4.2 Repartitioning to Reduce Memory Requirements
+For big, dense data such as the SNP data considered in this experiment which
+require over 2 TB of memory, a direct application of PFBP as used in other exper-
+iments is possible, but may be unnecessarily slow.We found that for such problems,
+15 https://ghr.nlm.nih.gov/primer/genomicresearch/snp
+16 https://www.ncbi.nlm.nih.gov/news/04-11-2017-human-snp-build-150/
+17 https://www.ebi.ac.uk/gwas/
+Massively-Parallel Feature Selection for Big Data 37
+Fig. 3: The effects of the early pruning heuristics is shown for the first 10 forward
+iterations on the SNP data. The y-axis shows the number of variables on a loga-
+rithmic scale. The width of each iteration is proportional to the number of groups
+processed. The early dropping heuristic is able to quickly discard many features,
+reducing them by about an order of magnitude. Early stopping filters out most
+variables after processing the first group, and early return is applied two times.
+it makes sense to repartition the data at some point, if enough variables have been
+removed by the Early Dropping heuristic. Repartitioning and discarding dropped
+variables reduces storage requirements, and may offer a significant speed boost. It
+is an expensive operation however, and should only be used in special situations.
+For the SNP data, after the first iteration only about a third of the variables re-
+mained, reducing the memory requirements to less than 1 TB, and thus most (if
+not all) of the data blocks were able to fit in memory. In this case repartitioning
+makes sense, as its benefits far outweigh the computational overhead.
+9.4.3 Results on the SNP Data
+PFBP was able to select 84 features in 15 hours, using a total of 960 core hours.
+It achieved an accuracy of 77.62%, which is over 95% of the theoretical optimal
+accuracy. The results are very encouraging; in comparison the DISSECT software
+[12] took 4 hours on 8400 cores (that is, 33600 core hours) and using 16 TB of
+memory to fit a mixed linear model on similar data, and to achieve an accuracy
+around 86% of the theoretical maximum. The two experiments are not directly
+comparable because (a) the outcome in our case is binary instead of continuous
+requiring logistic regression models favoring DISSECT, (b) the scenarios simu-
+lated in [12] had larger Markov blankets (1000 and 10000 instead of 100) favoring
+PFBP (although, their results are invariant to the size of the Markov blanket).
+Nevertheless, the reported results are still indicative of the efficiency of PFBP on
+SNP Big Data.
+Figure 3 shows the effects of the heuristics used by PFBP for the first 10
+iterations. The y-axis shows the number of Remaining and Alive features on a
+logarithmic scale. The x-axis shows the current iteration, and the width is pro-
+portional to the total number of Groups processed in that iteration. We observe
+that (a) Early Dropping discards many features in the first iteration, reducing
+the number of Remaining features by about an order of magnitude, (b) in most
+38 Tsamardinos, I., Borboudakis, G. et al.
+0 10 20 30 40 50 60 70 80
+Number of Selected Features
+50
+55
+60
+65
+70
+75
+80
+C
+la
+ss
+ifi
+ca
+tio
+n 
+A
+cc
+ur
+ac
+y
+Accuracy vs Selected Features on the SNP Data
+Fig. 4: The figure shows how the accuracy of PFBP on the SNP data increases
+as it selects more features. The models are produced by PFBP at each iteration
+with minimal computational overhead. In the first few iteration, accuracy increases
+sharply, while in the later iterations a plateau is reached, reaching a value of 77.59%
+with 70 features, with the maximum being 77.62% with 84 features. This could be
+used as a criterion to stop feature selection early.
+iterations, Early Stopping is able to reduce the number of Alive features to around
+10 after processing the first Group, (c) Early Return is applied 2 times, ending
+the Iteration and selecting the top feature after processing a single Group.
+Finally, we also computed the accuracy at each iteration of PFBP, to inves-
+tigate its behavior with increasing number of selected features. As before, the
+accuracy is computed on the 5% of the data that were kept out as a test set.
+Such information could be used to decide early whether a sufficient number of
+features has been selected, and to stop computation if the accuracy reaches a
+plateau. This is often the case, as most important features are typically selected
+during the first few iterations. This task can be performed using PFBP with min-
+imal computational overhead, as the local models required to approximate a full
+global model (see Section 3.5) are already available. The results are shown in Fig-
+ure 4. As expected, the largest increase in accuracy is obtained after selected the
+first few features, reaching an accuracy of 75% even after selecting only 30 fea-
+tures. In addition, after selecting about 70 features, the accuracy increases only
+marginally afterwards, increasing from 77.59% with 70 features to 77.62% with
+84. Thus, computation could be stopped after 70 features have been selected, and
+still attain almost the same accuracy.
+10 Discussion and Conclusions
+We have presented a novel algorithm for feature selection (FS) in Big Data set-
+tings that can scale to millions of predictive quantities (i.e., features, variables)
+and millions of training instances (samples). The Parallel, Forward-Backward with
+Pruning (PFBP) enables computations that can be performed in a massively paral-
+lel way by partitioning data both horizontally (over samples) and vertically (over
+features) and using meta-analysis techniques to combine results of local compu-
+tations. It is equipped with heuristics that can quickly and safely drop from con-
+Massively-Parallel Feature Selection for Big Data 39
+sideration some of the redundant and irrelevant features to significantly speed up
+computations. The heuristics are inspired by causal models and provide theoreti-
+cal guarantees of correctness in distributions faithful to causal models (Bayesian
+networks or maximal ancestral graphs). Bootstrapping testing allows PFBP to
+determine whether enough samples have been seen to safely apply the heuristics
+and forgo computations on the remaining samples. Our empirical analysis con-
+firms that, PFBP exhibits a super-linear speedup with increasing sample size and
+a linear scalability with respect to the number of features and processing cores.
+A limitation to address in the future is to equip the algorithm with a principled
+criterion for the determining the number of selected features. Other directions to
+improve include exploiting the sparsity of the data, and implementing run-time
+re-partitioning when deemed beneficial, implementing tests in GPUs to name a
+few.
+Acknowledgements IT and GB have received funding from the European Research Council
+under the European Union’s Seventh Framework Programme (FP/2007-2013) / ERC Grant
+Agreement n. 617393. We’d like to thank Kleanthi Lakiotaki for help with the motivating
+example text and data simulation, and Vincenzo Lagani for proofreading and constructive
+feedback.
+40 Tsamardinos, I., Borboudakis, G. et al.
+Appendices
+A Accuracy of p-value Combination using Meta-Analysis and
+Evaluation of the STD Rule
+We evaluated the ability of the proposed p-value computation method (combination of local
+p-values using Fisher’s combined probability test) in identifying the same variable to select as
+when global p-values are used. We performed a computational experiment on simulated data
+to investigate the effect of the total sample size and number of data Blocks on the accuracy
+of the proposed approach. Furthermore, we compare the STD and EPV rules for setting the
+minimum number of samples in each Data Block. The EPV rule computes the sample size
+per Sample Group as s = df · c/min(p0, p1), while STD uses s = df · c/?p0 · p1, where df is
+set to the maximum number of degrees of freedom (see 5.1 for more details), c is a positive
+constant (which may take different values for each rule), and p0 and p1 are the frequencies of
+the negative and positive class respectively.
+A.1 Data Generation
+To generate data with complex correlation structures, we chose to generate data from simulated
+Bayesian networks. All variables are continuous Gaussian and are linear functions of their
+parents. The target variable is binary, and the log-odds ratio is a linear function of its parents.
+The procedure is described in detail in Appendix B.
+We used the following parameters to generate Bayesian networks and data from those
+networks: (a) the number of variables was set to 101 (100 variables plus the outcome T ),
+(b) the connectivity parameter was set to 10 (i.e., the average degree of each node), (c) the
+frequency of the most frequent class of T was set to {50%, 60%, 70%, 80%, 90%} and (d) the
+standard deviation of the error terms was set to {0.01, 0.1, 1}. In total this results in 15
+possible Bayesian network configurations. Note that, the connectivity is relatively high and the
+standard deviation of the error terms is relatively low so that all variables are highly correlated,
+increasing the difficulty of the problem of selecting the best variable. For each such parameter
+combination we generated 250 Bayesian networks, resulting in a total of 250 × 15 = 3750
+networks. Next, we generated datasets with different sample sizes, by varying the sample size
+from 102.5 to 104 in increments of 0.1 of the exponent, leading to 16 different sample sizes.
+Overall this resulted in 60000 datasets.
+A.2 Simulation Results: Combined p-values vs Global p-values
+We performed conditional independence tests on all generated datasets to simulate a forward
+Iteration using p-values from global tests (i.e., using all data) and from combined p-values
+using Fisher’s method. We varied the following parameters: (a) the number of conditioning
+variables, which was set to 0, 1, 2 or 3, and (b) the number of Sample Sets each dataset
+was split to, which ranged from 1 (no split) to 25 with increments of 1 (a total of 25 cases).
+This allows us to investigate the effect of the total number of combined local p-values. The
+simulation of a forward Iteration was performed for each dataset and conditioning size k as
+follows: (a) k variables were randomly selected from the Markov blanket of T (simulating
+that k variables have already been selected), (b) the global conditional independence test was
+performed between T and the remaining variables over all samples (i.e. number of sample sets
+equals 1), (c) the same test was performed on all Sample Sets resulting by splitting the data
+randomly to m equally-sized sample sets (m ranging from 2 to 25) and combining the p-values
+using Fisher’s combined probability test.
+We compute the percentage of agreement between both methods, that is, how often both
+methods select the same variable. This is computed as the proportion of times both methods
+agreed on the 250 repetitions, leading to one value for each of the 15 Bayesian network config-
+urations, each sample size, conditioning set size and number of Sample Sets. Thus, in total we
+have 15×16×4×24 = 23040 such values. The results are summarized in Figure 5. There are 4
+figures, one for each different conditioning size, and each figure contains 5 curves, one for each
+Massively-Parallel Feature Selection for Big Data 41
+0 100 200 300 400 500
+Sample size per sample set
+70%
+75%
+80%
+85%
+90%
+95%
+100%
+A
+gr
+ee
+m
+en
+t p
+er
+ce
+nt
+ag
+e
+Agreement between p-value computation methods (2 parameters)
+Class distribution 90/10
+Class distribution 80/20
+Class distribution 70/30
+Class distribution 60/40
+Class distribution 50/50
+0 100 200 300 400 500
+Sample size per sample set
+70%
+75%
+80%
+85%
+90%
+95%
+100%
+A
+gr
+ee
+m
+en
+t p
+er
+ce
+nt
+ag
+e
+Agreement between p-value computation methods (3 parameters)
+Class distribution 90/10
+Class distribution 80/20
+Class distribution 70/30
+Class distribution 60/40
+Class distribution 50/50
+0 100 200 300 400 500
+Sample size per sample set
+70%
+75%
+80%
+85%
+90%
+95%
+100%
+A
+gr
+ee
+m
+en
+t p
+er
+ce
+nt
+ag
+e
+Agreement between p-value computation methods (4 parameters)
+Class distribution 90/10
+Class distribution 80/20
+Class distribution 70/30
+Class distribution 60/40
+Class distribution 50/50
+0 100 200 300 400 500
+Sample size per sample set
+70%
+75%
+80%
+85%
+90%
+95%
+100%
+A
+gr
+ee
+m
+en
+t p
+er
+ce
+nt
+ag
+e
+Agreement between p-value computation methods (5 parameters)
+Class distribution 90/10
+Class distribution 80/20
+Class distribution 70/30
+Class distribution 60/40
+Class distribution 50/50
+Fig. 5: The percentage of agreement is shown, which corresponds to how often
+combining local p-values and computing the p-value on all samples leads to the
+same decision. The y-axis shows how the sample size per sample set affects the
+agreement percentage. Both methods tend to agree asymptotically for various class
+distributions and conditioning set sizes.
+class distribution of T . Each such curve summarizes the results over all error variances, sample
+sizes and number of Sample Sets (that is, 3 × 16 × 24 = 1152 points). Note that the number
+of parameters of the largest model is always the conditioning size plus 2, as the model also
+includes the variable that is tested for (conditional) independence with T and the intercept.
+The x-axis shows the sample size per Sample Set, which is computed as the sample size divided
+by the number of Sample Sets. We only show the results up to 500 samples per Sample Set;
+the agreement percentage approaches 100% in all cases with increasing sample size, reaching
+at least 99% with 5000 samples per Sample Set. The y-axis shows how often both methods
+lead to the same decision. To avoid cluttering, we computed the curves by fitting a power
+regression model y = ? · x? + c. We found that this model is appropriate, as it has R2 values
+between 0.75 and 0.95. We conclude the following: (a) both approaches tend to make the same
+decision with increasing sample size, (b) the sample size per Sample Set required depends on
+the number of parameters and the class distribution, and increases with increasing number of
+parameters and class imbalance.
+A.3 Simulation Results: STD vs EPV for Determining the Required Sample Size
+We propose an alternative rule to EPV, which is computed as df ·c/?p0 · p1. The denominator
+is the standard deviation of the class distribution, which follows a Bernoulli distribution. We
+call this the STD rule hereafter. For balanced class distributions the result is identical to the
+EPV rule, while for skewed distributions the value is always smaller.
+To validate the STD rule, we used the results of the previous simulation experiment and
+computed the value of c by solving the equation for c and substituting in the values of the
+class distributions, degrees of freedom and sample size per Sample Set. We kept the values of c
+42 Tsamardinos, I., Borboudakis, G. et al.
+Table 4: Median value of c to obtain an agreement percentage between 85% and
+95%. pmax corresponds to the proportion of the most frequent class, while df is the
+degrees of freedom in the largest model. The relative differences for the STD rule
+are smaller (less than 2 against over 2.5 for the EPV rule), suggesting it is more
+appropriate. A minimum value of c = 10 with the proposed rule is recommended
+and used in the experiments.
+EPV Rule STD Rule
+pmax | df 2 3 4 5 2 3 4 5
+0.5 11.2 7.8 9.0 9.7 11.2 7.8 9.0 9.7
+0.6 7.7 7.6 7.4 11.2 9.4 9.3 9.1 13.7
+0.7 6.6 5.7 5.9 8.6 10.1 8.8 9.1 13.2
+0.8 5.7 5.2 5.7 6.7 11.5 10.5 11.4 13.3
+0.9 5.0 4.4 4.2 4.4 14.9 13.2 12.5 13.3
+that correspond to an agreement percentage between 85% and 95% (focusing on an interesting
+range of high agreement between p-value computation methods), and computed their median
+value for each class distribution, conditioning size k and for both rules. Ideally, one would
+expect c to be constant across rows (class distribution) and columns (conditioning size). A
+constant value of c for a rule means that the rule can exactly compute the required sample
+size to get an agreement percentage around 90%. Furthermore, we note that the values of c are
+not comparable between rules, and thus their exact values are not important; what matters is
+the relative difference between values of c for the same rule.
+The results are shown in Table 4. Although the value of c varies across class distributions
+and degrees of freedom, we can see that the relative differences are smaller the STD rule.
+Specifically, for EPV c ranges from 4.2 to 11.2, the latter being over 2.5 times larger, while for
+STD it ranges from 7.8 to 14.9, which is less than 2 times larger. This suggests that the STD
+rule performs better than EPV across various conditioning set sizes and class distributions,
+at least on the experiments considered here. Furthermore, the results suggest that a value of
+at least c = 10 should be used for STD to get reasonably accurate results. We note that, in
+practice this value is much higher in most cases for PFBP, as it partitions the samples initially
+by considering the worst case scenario (i.e., selecting maxVars variables). Thus especially in
+early Iterations, which are the most crucial ones, PFBP will typically have a sufficient number
+of samples even with c = 10 to select the best variables.
+B Simulating Data from Bayesian Networks
+To generate data with complex correlation structures, we chose to generate data from Bayesian
+networks. This is done in three steps: (a) generate a Bayesian network structure G with N nodes
+(variables) and M edges, (b) sample the parameters of G, and (c) sample instances from G.
+We will next describe the procedures used for each step.
+B.1 Generating the Bayesian network structure
+First, we need to specify the number of nodes N and the connectivity C between those nodes,
+which implicitly corresponds to some number of edges M . The connectivity parameter C
+corresponds to the (average) degree of each variable. Using the connectivity instead of setting
+the number of edges allows one to easily control the complexity of the network, as C directly
+corresponds to the average number of parents and children of each node. We proceed by
+showing how the edges were sampled. Let V1, . . . , VN be all nodes of G, listed in topological
+order. To sample the edges of the network we iterate over all pairs of variables Vi and Vj (i ¡ j),
+and add an edge from Vi to Vj with probability C/(N ? 1), ensuring acyclicity of the resulting
+graph. It can be easily shown that this will result in a network with an average degree of C.
+Massively-Parallel Feature Selection for Big Data 43
+B.2 Generating the Bayesian network parameters
+The first step is to pick the variable that corresponds to the outcome variable T . We chose
+to use the node at position ?N/2?, as this node has the same number of parents and children
+on average. For our experiments, we chose T to be of binary type and all remaining variables
+to be of continuous type, but in principle everything stated can be easily adapted to other
+variable types. In Bayesian networks, the each variable V is a function of its parents Pa(V ).
+The functional form for continuous variables Vi is
+Vi = ?0 +
+?
+Vj?Pa(Vi)
+?jVj + ?i
+where ?0 is the intercept, ?j is the coefficient of the j-th parent of Vi and ?i is its error term. In
+our case, we set the intercept to 0, as it does not affect the correlation structure. The coefficients
+?j are sampled uniformly at random from [?1,?0.1] ? [0.1, 1] to avoid coefficients which are
+close to 0. The error term ?i follows a normal distribution with 0 mean and ?
+2
+i variance, which
+was set to the default value of 1 in our experiments, unless stated otherwise. Note that all
+variables are normally distributed as they are sums of normally distributed variables. For each
+variable Vi the mean equals zero and the variance equals ?2i +
+?
+Vj?Pa(Vi)
+?2j . The fact that the
+variance increases may lead to numerical instabilities in practice, especially when generating
+large networks. Because of that, we standardize each variable to have unit variance by dividing
+it with its standard deviation, which is the square root of the variance as described above. For
+the target T , its log-odds ratio is again a linear function of its parents, defined as
+log(
+P (T = 1)
+1 ? P (T = 1) ) = ?0 +
+?
+Vj?Pa(T )
+?jVj + ?T
+As before, the log-odds ratio is standardized to have unit variance.
+The value of T is set to 1 whenever the log-odds ratio is larger than some threshold
+t, and to 0 otherwise. Setting t to 0 results in a 50/50 class distribution of T . Other class
+distributions p0/p1 can be obtained by simply setting t to N
+?1
+0,1 (1 ? p0), where N?10,1 is the
+standard normal inverse cumulative distribution function. As a final note, the standardization
+method used above only guarantees that variables that come before T in the topological
+ordering are standard normal variables. As T is not normally distributed (nor does it have
+unit variance), all variables that are direct or indirect functions of T are not exactly normally
+distributed. However, as this neither alters the correctness of the data generation method, nor
+leads to any other issues, we leave it as is.
+B.3 Sampling data from the generated Bayesian network
+To generate a sample, one has to traverse the network in topological order and to compute the
+value of each variable separately, using the formulas described previously. By construction the
+network is already in topological order, which is simply given by the index of each variable.
+To compute the value of a variable one has to compute the sum of its parents (if it has any
+parents), and to add the error term, which is drawn from a normal distribution.
+C SNP Data Generation
+To generate the SNP dataset we followed the procedure described in [12]. We used the HAP-
+GEN 2 software [13] with the Hapmap 2 (release 22) CEU population [15] to simulate 500000
+individuals (samples). This population contains 2543887 SNPs, but only 592555 were kept, by
+filtering out the ones not available in the Illumina Human OmniExpress-12 v1.1 BeadChip
+18. The final dataset contains 500000 samples and 592555 SNPs. Each variable takes values
+in {0, 1, 2}, which correspond to the number of reference alleles. Thus, the dataset is dense,
+18 https://support.illumina.com/array/array_kits/humanomniexpress-12-beadchip-kit.html
+44 Tsamardinos, I., Borboudakis, G. et al.
+and requires approximately 2.16 TB memory (stored as double precision floats). Naturally,
+fewer bytes can be used to store SNP data as each variable only takes 3 values, but this would
+require a specialized implementation.
+C.1 Phenotype Simulation
+Let sij be the i-th value of the j-th SNP sj , and pj be the reference allele frequency of SNP j,
+that is, pj is the average value of sij divided by 2. The standardized value of sij , zij is defined
+as
+zij = (sij ? µj)/?j
+where µj = 2pj and ?j =
+?
+2pj(1? pj).
+The phenotype (outcome) y follows an additive genetic model
+yi = gi + ei =
+M
+?
+j=1
+zijuj + ei
+where yi is the i-th value of y, gi is the genetic effect, ei is the noise term, M is the number of
+variables influencing y, and uj is the effect (coefficient) of zj . The coefficients zj were sampled
+from a normal distribution with zero mean and unit variance. The error terms ei follow a
+normal distribution with zero mean and variance ?2i (1 ? h2)/h2, where ?2i is the variance of
+gi and h2 corresponds to the trait heritability. Naturally, the larger h2, the more y depends
+on the SNPs. In our case, we chose M = 100 and set h2 = 0.7, one of the values used in
+[12]. Finally, to obtain a binary outcome, we set the value of yi to 1 if it is positive, and to 0
+otherwise, resulting in an approximately balanced outcome.
+References
+1. A. Agresti. Categorical Data Analysis. Wiley Series in Probability and Statistics. Wiley-
+Interscience, 2nd edition, 2002.
+2. H. Akaike. Information theory and an extension of the maximum likelihood principle. In
+Second International Symposium on Information Theory, pages 267–281, Budapest, 1973.
+Akade?miai Kiado.
+3. C. F. Aliferis, A. Statnikov, I. Tsamardinos, S. Mani, and X. D. Koutsoukos. Local causal
+and Markov blanket induction for causal discovery and feature selection for classification
+part i: Algorithms and empirical evaluation. Journal of Machine Learning Research,
+11(Jan):171–234, 2010.
+4. C. F. Aliferis, I. Tsamardinos, and A. Statnikov. Hiton: a novel Markov blanket algorithm
+for optimal variable selection. In AMIA Annual Symposium Proceedings, volume 2003,
+page 21. American Medical Informatics Association, 2003.
+5. L. Armijo. Minimization of functions having lipschitz continuous first partial derivatives.
+Pacific Journal of Mathematics, 16(1):1–3, 1966.
+6. B. J. Becker and M.-J. Wu. The synthesis of regression slopes in meta-analysis. Statistical
+Science, pages 414–429, 2007.
+7. D. Bertsimas, A. King, R. Mazumder, et al. Best subset selection via a modern optimiza-
+tion lens. The Annals of Statistics, 44(2):813–852, 2016.
+8. V. Boln-Canedo, N. Snchez-Maroo, and A. Alonso-Betanzos. Feature Selection for High-
+Dimensional Data. Springer Publishing Company, Incorporated, 1st edition, 2015.
+9. G. Borboudakis and I. Tsamardinos. Forward-backward selection with early dropping.
+arXiv:1705.10770 [cs.LG], 2017.
+10. J. K. Bradley, A. Kyrola, D. Bickson, and C. Guestrin. Parallel coordinate descent for
+l1-regularized loss minimization. In Proceedings of the 28th International Conference on
+Machine Learning, ICML 2011, Bellevue, Washington, USA, June 28 - July 2, 2011,
+pages 321–328, 2011.
+11. G. Brown, A. Pocock, M.-J. Zhao, and M. Luja?n. Conditional likelihood maximisation:
+A unifying framework for information theoretic feature selection. J. Mach. Learn. Res.,
+13:27–66, Jan. 2012.
+Massively-Parallel Feature Selection for Big Data 45
+12. O. Canela-Xandri, A. Law, A. Gray, J. A. Woolliams, and A. Tenesa. A new tool called
+dissect for analysing large genomic data sets using a big data approach. Nature commu-
+nications, 6, 2015.
+13. C. C. Chang, C. C. Chow, L. C. Tellier, S. Vattikuti, S. M. Purcell, and J. J. Lee. Second-
+generation plink: rising to the challenge of larger and richer datasets. Gigascience, 4(1):7,
+2015.
+14. F. S. Collins and H. Varmus. A new initiative on precision medicine. New England Journal
+of Medicine, 372(9):793–795, 2015.
+15. I. H. Consortium et al. A haplotype map of the human genome. Nature, 437(7063):1299–
+1320, 2005.
+16. J. Dougherty, R. Kohavi, and M. Sahami. Supervised and unsupervised discretization of
+continuous features. In MACHINE LEARNING: PROCEEDINGS OF THE TWELFTH
+INTERNATIONAL CONFERENCE, pages 194–202. Morgan Kaufmann, 1995.
+17. B. Efron and R. J. Tibshirani. An introduction to the bootstrap. CRC press, 1994.
+18. R. F. Engle. Wald, likelihood ratio, and lagrange multiplier tests in econometrics. Hand-
+book of econometrics, 2:775–826, 1984.
+19. J. Fan, Y. Feng, Y. Wu, et al. High-dimensional variable selection for cox’s proportional
+hazards model. In Borrowing Strength: Theory Powering Applications–A Festschrift for
+Lawrence D. Brown, pages 70–86. Institute of Mathematical Statistics, 2010.
+20. R. Fisher. Statistical methods for research workers. Edinburgh Oliver & Boyd, 1932.
+21. R. V. Foutz and R. C. Srivastava. The performance of the likelihood ratio test when the
+model is incorrect. The Annals of Statistics, 5(6):1183–1194, 1977.
+22. J. Friedman, T. Hastie, and R. Tibshirani. The elements of statistical learning, volume 1.
+Springer series in statistics New York, 2001.
+23. S. v. d. Geer, P. Bu?hlmann, and J. Schelldorfer. Estimation for high-dimensional linear
+mixed-effects models using l1-penalization. Scandinavian Journal of Statistics, 38(2):197–
+214, 2011.
+24. I. Guyon and A. Elisseeff. An introduction to variable and feature selection. Journal of
+machine learning research, 3(Mar):1157–1182, 2003.
+25. F. Harrell. Regression Modeling Strategies. Springer, corrected edition, Jan. 2001.
+26. L. V. Hedges and J. L. Vevea. Fixed-and random-effects models in meta-analysis. Psy-
+chological methods, 3(4):486, 1998.
+27. D. W. Hosmer, Jr., S. Lemeshow, and R. X. Sturdivant. Introduction to the Logistic
+Regression Model. John Wiley & Sons, Inc., 2013.
+28. S. Ivanoff, F. Picard, and V. Rivoirard. Adaptive lasso and group-lasso for functional
+poisson regression. J. Mach. Learn. Res., 17(1):1903–1948, Jan. 2016.
+29. G. H. John, R. Kohavi, K. Pfleger, et al. Irrelevant features and the subset selection
+problem. In Machine learning: proceedings of the eleventh international conference, pages
+121–129, 1994.
+30. R. Kerber. Chimerge: Discretization of numeric attributes. In Proceedings of the tenth
+national conference on Artificial intelligence, pages 123–128. Aaai Press, 1992.
+31. P. Konda, A. Kumar, C. Re?, and V. Sashikanth. Feature selection in enterprise analytics: A
+demonstration using an R-based data analytics system. Proc. VLDB Endow., 6(12):1306–
+1309, Aug. 2013.
+32. M. H. Kutner, C. J. Nachtsheim, J. Neter, and W. Li. Applied Linear Statistical Models.
+McGraw-Hill/Irwin, 5th edition, Aug. 2004.
+33. V. Lagani, G. Athineou, A. Farcomeni, M. Tsagris, and I. Tsamardinos. Feature se-
+lection with the r package mxm: Discovering statistically-equivalent feature subsets.
+arXiv:1611.03227 [stat.ML], 2016.
+34. V. Lagani, G. Kortas, and I. Tsamardinos. Biomarker signature identification in omics data
+with multi-class outcome. Computational and structural biotechnology journal, 6(7):1–7,
+2013.
+35. V. Lagani and I. Tsamardinos. Structure-based variable selection for survival data. Bioin-
+formatics, 26(15):1887–1894, 2010.
+36. S. Lee, J. K. Kim, X. Zheng, Q. Ho, G. A. Gibson, and E. P. Xing. On model paralleliza-
+tion and scheduling strategies for distributed machine learning. In Advances in Neural
+Information Processing Systems 27: Annual Conference on Neural Information Process-
+ing Systems 2014, December 8-13 2014, Montreal, Quebec, Canada, pages 2834–2842,
+2014.
+46 Tsamardinos, I., Borboudakis, G. et al.
+37. J. Li, K. Cheng, S. Wang, F. Morstatter, R. P. Trevino, J. Tang, and H. Liu. Feature
+selection: A data perspective. arXiv preprint arXiv:1601.07996, 2016.
+38. Q. Li, S. Qiu, S. Ji, P. M. Thompson, J. Ye, and J. Wang. Parallel lasso screening for big
+data optimization. In Proceedings of the 22Nd ACM SIGKDD International Conference
+on Knowledge Discovery and Data Mining, KDD ’16, pages 1705–1714, New York, NY,
+USA, 2016. ACM.
+39. T. M. Loughin. A systematic comparison of methods for combining p-values from inde-
+pendent tests. Computational statistics & data analysis, 47(3):467–485, 2004.
+40. D. Margaritis. Toward provably correct feature selection in arbitrary domains. In Advances
+in Neural Information Processing Systems, pages 1240–1248, 2009.
+41. D. Margaritis and S. Thrun. Bayesian network induction via local neighborhoods. In S. A.
+Solla, T. K. Leen, and K. Mu?ller, editors, Advances in Neural Information Processing
+Systems 12, pages 505–511. MIT Press, 2000.
+42. L. Meier, S. V. D. Geer, and P. Bu?hlmann. The group lasso for logistic regression. Journal
+of the Royal Statistical Society, Series B, 2008.
+43. N. Meinshausen and P. Bu?hlmann. High-dimensional graphs and variable selection with
+the lasso. The annals of statistics, pages 1436–1462, 2006.
+44. X. Meng, J. Bradley, B. Yavuz, E. Sparks, S. Venkataraman, D. Liu, J. Freeman, D. Tsai,
+M. Amde, S. Owen, D. Xin, R. Xin, M. J. Franklin, R. Zadeh, M. Zaharia, and A. Tal-
+walkar. Mllib: Machine learning in apache spark. J. Mach. Learn. Res., 17(1):1235–1241,
+Jan. 2016.
+45. A. Miller. Subset selection in regression. CRC Press, 2002.
+46. T. P. Minka. A comparison of numerical optimizers for logistic regression. Unpublished
+draft, 2003.
+47. J. Pearl. Probabilistic Reasoning in Intelligent Systems: Networks of Plausible Inference.
+Morgan Kaufmann Publishers Inc., San Francisco, CA, USA, 1988.
+48. J. Pearl. Causality, Models, Reasoning, and Inference. Cambridge University Press,
+Cambridge, U.K., 2000.
+49. J. Pearl and T. S. Verma. A Theory of Inferred Causation. Morgan Kaufmann, 1991.
+50. P. Peduzzi, J. Concato, E. Kemper, T. R. Holford, and A. R. Feinstein. A simulation
+study of the number of events per variable in logistic regression analysis. Journal of
+clinical epidemiology, 49(12):1373–1379, 1996.
+51. J. M. Pen?a, R. Nilsson, J. Bjo?rkegren, and J. Tegne?r. Towards scalable and data effi-
+cient learning of markov boundaries. International Journal of Approximate Reasoning,
+45(2):211–232, 2007.
+52. H. Peng, F. Long, and C. Ding. Feature selection based on mutual information criteria
+of max-dependency, max-relevance, and min-redundancy. IEEE Transactions on pattern
+analysis and machine intelligence, 27(8):1226–1238, 2005.
+53. S. Ramrez-Gallego, H. Mourio-Taln, D. Martnez-Rego, V. Boln-Canedo, J. M. Bentez,
+A. Alonso-Betanzos, and F. Herrera. An information theory-based feature selection frame-
+work for big data under apache spark. IEEE Transactions on Systems, Man, and Cyber-
+netics: Systems, PP(99):1–13, 2017.
+54. T. Richardson and P. Spirtes. Ancestral graph Markov models. Annals of Statistics, pages
+962–1030, 2002.
+55. T. Sato, Y. Takano, R. Miyashiro, and A. Yoshise. Feature subset selection for logistic
+regression via mixed integer optimization. Computational Optimization and Applications,
+64(3):865–880, 2016.
+56. G. Schwarz et al. Estimating the dimension of a model. The annals of statistics, 6(2):461–
+464, 1978.
+57. S. T. Sherry, M.-H. Ward, M. Kholodov, J. Baker, L. Phan, E. M. Smigielski, and
+K. Sirotkin. dbsnp: the ncbi database of genetic variation. Nucleic acids research,
+29(1):308–311, 2001.
+58. S. Singh, J. Kubica, S. Larsen, and D. Sorokina. Parallel large scale feature selection for
+logistic regression. In Proceedings of the 2009 SIAM International Conference on Data
+Mining, pages 1172–1183. SIAM, 2009.
+59. P. Spirtes, C. N. Glymour, and R. Scheines. Causation, prediction, and search. MIT press,
+2nd edition, 2000.
+60. A. Statnikov, N. I. Lytkin, J. Lemeire, and C. F. Aliferis. Algorithms for discovery of
+multiple Markov boundaries. Journal of Machine Learning Research, 14(Feb):499–566,
+2013.
+Massively-Parallel Feature Selection for Big Data 47
+61. R. Tibshirani. Regression shrinkage and selection via the lasso. Journal of the Royal
+Statistical Society. Series B (Methodological), pages 267–288, 1996.
+62. I. Tsamardinos and C. F. Aliferis. Towards principled feature selection: relevancy, filters
+and wrappers. In Proceedings of the Ninth International Workshop on Artificial Intelli-
+gence and Statistics, 2003.
+63. I. Tsamardinos, C. F. Aliferis, and A. Statnikov. Time and sample efficient discovery of
+Markov blankets and direct causal relations. In Proceedings of the Ninth ACM SIGKDD
+international conference on Knowledge discovery and data mining, pages 673–678. ACM,
+2003.
+64. I. Tsamardinos, C. F. Aliferis, and A. R. Statnikov. Algorithms for large scale Markov
+blanket discovery. In FLAIRS conference, volume 2, 2003.
+65. I. Tsamardinos and A. P. Mariglis. Multi-source causal analysis: Learning Bayesian net-
+works from multiple datasets. In IFIP International Conference on Artificial Intelligence
+Applications and Innovations, pages 479–490. Springer, 2009.
+66. T. Verma and Pearl. Causal Networks: Semantics and Expressiveness. In in Proceedings,
+4th Workshop on Uncertainty in Artificial Intelligence, pages 352–359, Aug. 1988.
+67. E. Vittinghoff and C. E. McCulloch. Relaxing the rule of ten events per variable in logistic
+and Cox regression. American journal of epidemiology, 165(6):710–718, 2007.
+68. Q. H. Vuong. Likelihood ratio tests for model selection and non-nested hypotheses. Econo-
+metrica: Journal of the Econometric Society, pages 307–333, 1989.
+69. S. Weisberg. Applied linear regression, volume 528. John Wiley & Sons, 2005.
+70. W. J. Welch. Algorithmic complexity: three np-hard problems in computational statistics.
+Journal of Statistical Computation and Simulation, 15(1):17–25, 1982.
+71. H. White. Maximum likelihood estimation of misspecified models. Econometrica, 50(1):1–
+25, 1982.
+72. S. S. Wilks. The large-sample distribution of the likelihood ratio for testing composite
+hypotheses. The Annals of Mathematical Statistics, 9(1):60–62, 03 1938.
+73. E. P. Xing, Q. Ho, P. Xie, and D. Wei. Strategies and principles of distributed machine
+learning on big data. Engineering, 2(2):179 – 195, 2016.
+74. M. Zaharia, M. Chowdhury, M. J. Franklin, S. Shenker, and I. Stoica. Spark: Cluster
+computing with working sets. In HotCloud, 2010.
+75. Y. Zhai, Y. Ong, and I. W. Tsang. The emerging big dimensionality. IEEE Comp. Int.
+Mag., 9(3):14–26, 2014.
+76. K. Zhang, J. Peters, D. Janzing, and B. Scho?lkopf. Kernel-based conditional independence
+test and application in causal discovery. In Proceedings of the Twenty-Seventh Conference
+on Uncertainty in Artificial Intelligence, pages 804–813, 2011.
+77. Z. Zhao, R. Zhang, J. Cox, D. Duling, and W. Sarle. Massively parallel feature selection:
+an approach based on variance preservation. Machine Learning, 92(1):195–220, 2013.
+78. P. Zhimin, Y. Ming, and Y. Wotao. Parallel and distributed sparse optimization. In
+Proceedings of the Asilomar Conference on Signals, Systems and Computers, 2013.

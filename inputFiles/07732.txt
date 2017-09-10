@@ -1,0 +1,437 @@
+Multi-Agent Q-Learning for Minimizing
+Demand-Supply Power Deficit in Microgrids
+Raghuram Bharadwaj D.
+IISc, Bangalore, India
+raghu.bharadwaj@csa.iisc.ernet.in
+D. Sai Koti Reddy
+IISc, Bangalore, India
+danda.reddy@csa.iisc.ernet.in
+Shalabh Bhatnagar
+IISc, Bangalore, India
+shalabh@csa.iisc.ernet.in
+Abstract—We consider the problem of minimizing the differ-
+ence in the demand and the supply of power using microgrids.
+We setup multiple microgrids, that provide electricity to a village.
+They have access to the batteries that can store renewable power
+and also the electrical lines from the main grid. During each time
+period, these microgrids need to take decision on the amount of
+renewable power to be used from the batteries as well as the
+amount of power needed from the main grid. We formulate this
+problem in the framework of Markov Decision Process (MDP),
+similar to the one discussed in [1]. The power allotment to the
+village from the main grid is fixed and bounded, whereas the
+renewable energy generation is uncertain in nature. Therefore we
+adapt a distributed version of the popular Reinforcement learning
+technique, Multi-Agent Q-Learning to the problem. Finally, we
+also consider a variant of this problem where the cost of power
+production at the main site is taken into consideration. In this
+scenario the microgrids need to minimize the demand-supply
+deficit, while maintaining the desired average cost of the power
+production.
+I. INTRODUCTION
+Electricity is one of the most important components of the
+modern life. According to a recent survey, there are a total of
+18,452 un-electrified villages in India [2]. Providing electricity
+to these villages is difficult for a number of reasons. The
+village may be situated very far away from the main grid and
+it would be difficult to establish a direct electrical line between
+the main grid and the village. Also, due to increasing global
+warming, we want to make less use of fossil fuels for the
+generation of power. Our objective in this work is to provide
+a solution to electrifying these villages.
+The concept of smart grid [3], is aimed at improving
+traditional power grid operations. It is a distributed energy
+network composed of intelligent nodes (or agents) that can
+either operate autonomously or communicate and share energy.
+The power grid is facing wide variety of challenges due
+to incorporation of renewable and sustainable energy power
+generation sources. The aim of smart grid is to effectively
+deliver energy to consumers and maintain grid stability.
+A microgrid is a distributed networked group consisting of
+renewable energy generation sources with the aim of providing
+energy to small areas. This scenario is being envisaged as
+an important alternative to the conventional scheme with
+large power stations transmitting energy over long distances.
+The microgrid technology is useful particularly in the Indian
+context where extending power supply from the main grids
+to remote villages is a challenge. While the main power
+stations are highly connected, microgrids with local power
+generation, storage and conversion capabilities, act locally or
+share power with a few neighboring microgrid nodes [4].
+Integrating microgrids into smartgrid poses several technical
+challenges. These challenges need to be addressed in order to
+maintain the reliable and stable operation of electric grid.
+Research on smartgrids can be classified into two areas
+- Demand-side management and Supply-side management.
+Demand side management (DSM) ([5], [6], [7], [8], [9], [10])
+deals with techniques developed to efficiently use the power
+by bringing the customers into the play. The main idea is
+to reduce the consumption of power during peak time and
+shifting it during the other times. This is done by dynamically
+changing the price of power and sharing this information with
+the customers. Key techniques to address DSM problem in
+smart grid are peak clipping, valley filling, load shifting [11].
+In [12], Reinforcement Learning (RL) is used in smart grids
+for pricing mechanism so as to improve the profits of broker
+agents who procure energy from power generation sources and
+sell it to consumers.
+Supply-side management deals with developing techniques
+to efficiently make use of renewable and non-renewable energy
+at the supply side. In this paper, we consider one such problem
+of minimizing Demand-Supply deficit in microgrids. In [1],
+authors developed an MDP and applied Dynamic optimization
+methods to this problem. But when the model information (the
+renewable energy generation in this case) is not known, we
+cannot apply these techniques.
+In our current work, we setup microgrids closer to the
+village. These microgrids has power connections from the
+main grid and also with the batteries that can store renewable
+energy. Owing to their cost, these batteries will have limited
+storage capacities. Each microgrid needs to take decision on
+amount of renewable energy that needs to be used at every time
+slot and the amount of power that needs to be drawn from the
+main grid. Consider a scenario where, microgrids will use the
+renewable energy as it is generated. That is, they do not store
+the energy. Then, during the peak demand, if the amount of
+renewable energy generated is low and power obtained from
+the main grid is also low, it leads to huge blackout. Thus, it is
+important to intelligently store and use the renewable energy.
+In this work, we apply Multi-agent Q-learning algorithm to
+solve this problem.
+ar
+X
+iv
+:1
+70
+8.
+07
+73
+2v
+2 
+ [
+cs
+.S
+Y
+] 
+ 2
+8 
+A
+ug
+ 2
+01
+7
+ORGANIZATION OF THE PAPER
+The rest of the paper is organized as follows. The next
+section describes the important problems associated with the
+microgrids and solution techniques to solve them. Section III
+presents the results of experiments of our algorithms. Section
+IV provides the concluding remarks and Section V discusses
+the future research directions.
+II. OUR WORK
+In this section, we discuss two important problems associ-
+ated with the microgrids. We first formulate the problem in the
+framework of Markov Decision Process (MDP), similar to the
+one described in [1]. We then apply cooperative Multi-Agent
+Q-Learning algorithm to solve the problems.
+A. Problem 1 - Minimizing Demand-Supply Deficit
+Consider a village that has not been electrified yet. We
+setup microgrids close to the village, and provides electrical
+connections to the village. It also has power connections from
+the main grid. Decision on power supply is generally taken
+in time slots, for example every two hours. Microgrids do
+not have non-renewable power generation capabilities. They
+have access to the renewable power and needs to obtain the
+excess power from the main grid. For ease of explanation,
+we consider two renewable sources - solar and wind. At
+the beginning of each time slot, microgrids obtain the power
+demand from customers with the help of the smart meters
+[13]. These microgrids need to take decisions on amount of
+renewable power to be used so that the expected long term
+demand-supply deficit is minimized.
+One natural solution without the use of storage batteries is to
+fully use the solar and wind power generated in each time slot.
+The excess demand will be then requested from the main grid.
+If the requested power is less than or equal to the maximum
+allotted power, the main grid transfers this to the microgrids.
+Other wise, it transfers the maximum allotted power. This idea
+is described in Algorithm 1.
+Our objective in the current work is to do better than
+the above described solution. Microgrids are equipped with
+batteries that can store the renewable power. That is, we
+deploy the microgrids at the sites where there is availability of
+renewable resources. The goal is to intelligently use the stored
+power in batteries and take the optimal action at every time
+slot to minimize the demand-supply deficit.
+We formulate the problem in the framework of Markov
+Decision Process (MDP). MDP [14] is the most popular
+mathematical framework for modeling optimal sequential de-
+cision making problems under uncertainty. A Markov decision
+process is defined via tuple < S;A;P ;R >, where S is the set
+of states. A is the set of actions. P respectively the probability
+transition matrix. Pa(s, s
+?
+) is the probability that by taking
+action a in the state s, the system moves into the state s
+?
+. R is
+the reward function where Ra(s, s
+?
+) is the reward obtained by
+taking action a in the state s and the s
+?
+being the next state. In
+infinite horizon discounted setting [15], the goal is to obtain
+Algorithm 1
+1: Demand ? Initial Demand
+2: get Demand(Demand) : Function that gives next Demand
+based on the current Demand.
+3: solar() : Function that computes solar power generated in
+a time slot
+4: wind() : Function that computes wind power generated in
+a time slot
+5: max prod : Maximum power alloted by the main grid.
+6: Deficit = 0 ; iterations = 0
+7: procedure AT EVERY TIME SLOT
+8: solar action = solar()
+9: wind action = wind()
+10: main action = max(0,min(max prod,Demand?
+(solar action+ wind action)))
+11: Demand? get Demand(Demand).
+12: Deficit+ = Demand ? (solar action +
+wind action+main action)
+13: iterations+ = 1;
+14: end procedure
+15: AverageDeficit = Deficit/iterations;
+a stationary policy ?, which is a mapping from state space to
+action space that maximizes the following objective:
+??
+t=0
+?tRat(st, st+1), (1)
+where at = ?(st), and ? ? [0, 1] is the discount factor.
+We model Power Demand as a Markov process. That is,
+the current Demand depends only on the previous value. The
+Demand value, and the amount of power left in the batteries
+form the state of the MDP. That is,
+state = [Demand, solar batterylevel, wind batterylevel].
+(2)
+Based on the current state, the microgrids need to take
+decision on the number of units of power to be used from
+their batteries, and the number of units of power that is needed
+from the main grid. Note that the power from the main grid
+is fixed and bounded during all the time periods, while power
+from the renewable sources is uncertain in nature.
+Action = [solar power, wind power, main power], (3)
+The state evolves as follows:
+solar batterylevel = solar batterylevel ? solar power
++ solar(),
+(4)
+and
+wind batterylevel = wind batterylevel ? wind power
++ wind(),
+(5)
+where solar() and wind() are the solar and wind power
+generation policies. Our objective is to minimize the expected
+long term discounted difference in the demand and supply of
+the power. So, the single stage Reward function is as follows:
+R = ?(Demand?
+(solar power + wind power +main power))2
+(6)
+When there is uncertainty in the system, like the renewal
+energy generation in this case, traditional solution techniques
+like value iteration and policy iteration cannot be applied. Re-
+inforcement Learning provides us with the algorithms which
+can be applied when the model information is not completely
+known. One such popular model-free algorithm is Q-learning
+[16]. However, microgrids applying Q-Learning independently
+is not a feasible solution, as they are working towards a
+common goal. Hence we apply co-operative Multi-Agent Q-
+Learning algorithm [17] to solve the problem. At every time
+slot, the microgrids exchange the battery level information
+among themselves. Then they apply Q-Learning on the joint
+state and obtain the joint action. Each microgrid then selects its
+respective action. Let the joint state at time k be sk. We select a
+joint action, based on an ?greedy policy. An ?greedy policy
+is one where we select the action that gives maximum reward
+with probability 1?  and a random action with probability .
+Let it be ak and so we move to a new state sk+1. Let the single
+stage reward obtained be rk Then the Q-values are updated as
+follows:
+Q(sk, ak) = Q(sk, ak)+
+?[rk + ?maxaQ(sk+1, a)?Q(sk, ak)],
+(7)
+where ? ? [0, 1] is the learning parameter and ? ? [0, 1] is
+the discount factor.
+We update this Q-values until convergence. At the end of
+this process, we will have an optimal policy that gives for each
+state, the optimal action to be taken. The idea is described in
+Algorithm 2.
+B. Problem 2 - Balancing Demand-Supply Deficit and cost of
+Power Production
+In the above formulation, cost of the non-renewable power
+production at the main grid site is not taken into consideration.
+Therefore, it is natural to use the maximum alloted power from
+the main grid and the optimization is done on the amount of
+power drawn from the solar and the wind batteries. In this
+formulation, we put a cost on amount of power that can be
+obtained from the main grid. That is, we modify our single
+stage Reward as follows:
+?c ? (Demand? (solar power + wind power+
+main power))2 + (1? c) ? (main power)2.
+c ? [0, 1],
+(8)
+where c is the parameter that controls the demand-supply
+objective and the main grid production cost. Note here that
+when c = 1, it is same as the problem 1. In this formulation,
+Algorithm 2
+1: State ? Initial State
+2: get Demand(Demand) : Function that gives next Demand
+based on the current Demand.
+3: solar() : Function that computes solar power generated in
+a time slot
+4: wind() : Function that computes wind power generated in
+a time slot.
+5: max prod : Maximum power alloted by the main grid.
+6: Deficit = 0 ; iterations = 0
+7: procedure AT EVERY TIME SLOT AND FOR ALL THE
+MICROGRIDS
+8: Select an joint action a vector according to -greedy
+policy.
+9: new solar = solar ? a(solar action) + solar()
+10: new wind = wind? a(wind action) + wind()
+11: new Demand = get Demand(Demand)
+12: Update the Q-values according to (7)
+13: state = [new Demand, new solar, new wind]
+14: Deficit+ = Demand ? (a(solar action) +
+a(wind action) + a(main action))
+15: iterations+ = 1;
+16: end procedure
+17: AverageDeficit = Deficit/iterations;
+our objective is not only to minimize the demand-supply
+deficit, but also maintain a desired average production of
+power at the main site. Similar to the above problem, we apply
+multi-agent Q-Learning to obtain the optimal solution.
+III. EXPERIMENTS
+We consider two microgrids operating on the solar and the
+wind power batteries respectively. Demand values are taken
+to be 8,10 and 12. The probability transition matrix for the
+Demand is given below.
+P =
+?? 0.1 0.6 0.30.3 0.1 0.6
+0.6 0.3 0.1
+?? . (9)
+The maximum storage capacity of the batteries is set to
+5. The renewable energy generation process for simulation
+purposes is taken to be Poisson with mean 2. Discount factor
+of the Q-learning algorithm is set to 0.9.
+We begin our simulations with the state [8, 5, 5]. First we
+run Algorithm 1 for 106 iterations and compute the average
+deficit in demand and supply. Then we run Algorithm 2 for
+108 iterations with ?greedy policy with  = 0.85 and obtain
+an optimal policy. We then compute the average deficit using
+optimal Q-values for 104 iterations. We compare both the
+algorithms in Figure 1.
+With regard to the problem 2, we plot the values of average
+deficit in the power and the average production at the main
+grid obtained by different values of c in (8). The maximum
+power allocation at the main site is taken to be 8. This is
+shown in Figure 2.
+Fig. 1. Comparison of Algorithms on Problem 1
+Fig. 2. Algorithm 2 applied to Problem 2
+A. Observations
+• In Figure 1, we see that the Algorithm 1 performs
+better than the Algorithm 2, when the Maximum Power
+Allocation (MPA) at the main site is less than 3. This
+is because, when the MPA is very less compared to the
+minimum demand value, storing the power in the batteries
+doesn’t provide any advantage.
+• On the other hand, if the MPA is not very small and
+comparable to the minimum demand, the Algorithm 2
+outperforms Algorithm 1. Thus, in this case it is useful
+to store the power in the batteries. This is the main result
+of our paper.
+• In Figure 2, we observe that as the value of c increases,
+the average demand-supply deficit decreases and the
+average power obtained from the main grid increases.
+IV. CONCLUSION
+We considered the problem of electrifying a village by
+setting up microgrids close to the village. These microgrids
+have access to the renewable energy storage batteries and
+also electrical connections from the main grid. We identified
+two problems associated with the microgrid. First problem is
+to minimize the expected long-run discounted demand-supply
+deficit. We model this problem in the framework of MDP [1].
+This formulation doesn’t take into consideration the cost of
+power production at the main grid site. Finally, we formulated
+MDP taking the cost of power production into consideration.
+We applied Multi-Agent Q-Learning algorithm to solve these
+problems. Simulations show that, when maximum power al-
+location at the main site is not very less, storing the power in
+the batteries and using them intelligently is the better solution
+compared to not using the storage batteries.
+V. FUTURE WORK
+As future work, we would like to consider the possibility of
+power sharing between the microgrids. In this case, along with
+decision on amount of power to be used from stored batteries,
+microgrids also have to make decision on the amount of power
+that can be shared with others. We would also like to consider
+the heterogeneous power price system. In this scenario, the
+price of power production at the main grid will vary from
+time to time.
+ACKNOWLEDGMENT
+The authors would like to thank Robert Bosch Centre for
+Cyber-Physical Systems, IISc, Bangalore, India for supporting
+part of this work.
+REFERENCES
+[1] M. Kangas and S. Glisic, “Analogies in modelling wireless network
+stability and advanced power grid control,” in IEEE International
+Conference on Communications (ICC), 2013. IEEE, 2013, pp. 4035–
+4040.
+[2] “Rural households electrification,” https://garv.gov.in/garv2/dashboard/
+main.
+[3] H. Farhangi, “The path of the smart grid,” IEEE power and energy
+magazine, vol. 8, no. 1, 2010.
+[4] G. Weiss, Multiagent systems: a modern approach to distributed artifi-
+cial intelligence. MIT press, 1999.
+[5] T. Logenthiran, D. Srinivasan, and T. Z. Shun, “Multi-agent system for
+demand side management in smart grid,” in IEEE Ninth International
+Conference on Power Electronics and Drive Systems (PEDS), 2011.
+IEEE, 2011, pp. 424–429.
+[6] P. Wang, J. Huang, Y. Ding, P. Loh, and L. Goel, “Demand side load
+management of smart grids using intelligent trading/metering/billing
+system,” in Power and Energy Society General Meeting, 2010 IEEE.
+IEEE, 2010, pp. 1–6.
+[7] A.-H. Mohsenian-Rad, V. W. Wong, J. Jatskevich, R. Schober, and
+A. Leon-Garcia, “Autonomous demand-side management based on
+game-theoretic energy consumption scheduling for the future smart
+grid,” IEEE transactions on Smart Grid, vol. 1, no. 3, pp. 320–331,
+2010.
+[8] A. Moshari, G. Yousefi, A. Ebrahimi, and S. Haghbin, “Demand-
+side behavior in the smart grid environment,” in Innovative Smart
+Grid Technologies Conference Europe (ISGT Europe), 2010 IEEE PES.
+IEEE, 2010, pp. 1–7.
+[9] L. Gelazanskas and K. A. Gamage, “Demand side management in smart
+grid: A review and proposals for future direction,” Sustainable Cities and
+Society, vol. 11, pp. 22–30, 2014.
+[10] A. M. Kosek, G. T. Costanzo, H. W. Bindner, and O. Gehrke, “An
+overview of demand side management control schemes for buildings in
+smart grids,” in IEEE international conference on Smart energy grid
+engineering (SEGE), 2013. IEEE, 2013, pp. 1–9.
+[11] I. K. Maharjan, Demand side management: load management, load
+profiling, load shifting, residential and industrial consumer, energy
+audit, reliability, urban, semi-urban and rural setting. LAP Lambert
+Academic Publ, 2010.
+[12] P. P. Reddy and M. M. Veloso, “Learned behaviors of multiple au-
+tonomous agents in smart grid markets.” in AAAI. Citeseer, 2011.
+[13] S. S. S. R. Depuru, L. Wang, and V. Devabhaktuni, “Smart meters for
+power grid: Challenges, issues, advantages and status,” Renewable and
+sustainable energy reviews, vol. 15, no. 6, pp. 2736–2742, 2011.
+[14] R. S. Sutton and A. G. Barto, Reinforcement Learning: An Introduction.
+MIT press Cambridge, 1998, vol. 1, no. 1.
+[15] D. P. Bertsekas, Dynamic Programming and Optimal Control. Athena
+Scientific Belmont, MA, 1995, vol. 1, no. 2.
+[16] D. Bertsekas, “Dynamic Programming and Optimal Controlvolume 2,”
+1999.
+[17] L. Busoniu, R. Babuska, and B. De Schutter, “A comprehensive survey
+of multiagent reinforcement learning,” IEEE Transactions on Systems
+Man and Cybernetics Part C Applications and Reviews, vol. 38, no. 2,
+p. 156, 2008.

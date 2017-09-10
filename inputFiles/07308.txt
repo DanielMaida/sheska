@@ -1,0 +1,3403 @@
+Ease.ml: Towards Multi-tenant Resource Sharing for
+Machine Learning Workloads
+Tian Li† Jie Zhong‡ Ji Liu‡ Wentao Wu? Ce Zhang†
+†ETH Zurich, Switzerland
+litian@ethz.ch ce.zhang@inf.ethz.ch
+‡University of Rochester, USA
+jie.zhong@rochester.edu jliu@cs.rochester.edu
+?Microsoft Research, USA
+wentao.wu@microsoft.com
+ABSTRACT
+We present ease.ml, a declarative machine learning service plat-
+form we built to support more than ten research groups outside
+the computer science departments at ETH Zurich for their ma-
+chine learning needs. With ease.ml, a user defines the high-level
+schema of a machine learning application and submits the task via
+a Web interface. The system automatically deals with the rest, such
+as model selection and data movement. In this paper, we describe
+the ease.ml architecture and focus on a novel technical problem
+introduced by ease.ml regarding resource allocation. We ask, as
+a “service provider” that manages a shared cluster of machines
+among all our users running machine learning workloads, what is
+the resource allocation strategy that maximizes the global satisfac-
+tion of all our users?
+Resource allocation is a critical yet subtle issue in this multi-
+tenant scenario, as we have to balance between efficiency and fair-
+ness. We first formalize the problem that we call multi-tenant model
+selection, aiming for minimizing the total regret of all users run-
+ning automatic model selection tasks. We then develop a novel
+algorithm that combines multi-armed bandits with Bayesian opti-
+mization and prove a regret bound under the multi-tenant setting.
+Finally, we report our evaluation of ease.ml on synthetic data
+and on one service we are providing to our users, namely, image
+classification with deep neural networks. Our experimental eval-
+uation results show that our proposed solution can be up to 9.8×
+faster in achieving the same global quality for all users as the two
+popular heuristics used by our users before ease.ml.
+1. INTRODUCTION
+The past decade has witnessed the increasingly ubiquitous ap-
+plication of machine learning techniques in areas beyond computer
+sciences. One consequence of this wider application is that we can
+no longer assume a computer science background on the part of our
+users. As a result, how to make machine learning techniques more
+accessible and usable to non-computer science users has become a
+research topic that has attracted intensive interest from the database
+community [3, 6, 24, 37, 39].
+Motivating Example. At ETH Zurich, we as a research group
+provide “data science services” to other research groups outside the
+computer science domain. These users provide us their data sets
+and the tasks they want to perform with machine learning. We host
+these data sets on our machines for our users to run their machine
+learning jobs. Although we also have students serving as “consul-
+tants” to answer user questions, it is still our users who run the ma-
+chine learning systems by themselves in most cases. As of today,
+our infrastructure contains 24 TITAN X GPUs and 100 TB storage
+shared by more than ten research groups from areas that include
+astrophysics, biology, social sciences, meteorology, and material
+science. In this paper, we ask this question: What is an efficient
+and effective way to enable multiple users sharing the same com-
+putational infrastructure to run machine learning tasks?
+Failed Experience 1. Our first strategy was to provide all users
+with ssh access to all our machines and a shared Google Calendar
+for resource allocation. However, even when everyone respects the
+resource allocation protocol (which rarely happens), our users com-
+pete for resources fiercely. This decentralized management strategy
+fell into chaos and failed in less than two weeks.
+Failed Experience 2. We then resorted to classic resource man-
+agers and used Slurm for users to submit their jobs. Although
+this strategy isolates users from competing for resources, it poses
+a new problem for effective resource utilization. In almost all our
+applications, the user needs to conduct a series of explorations of
+different machine learning models. However, not all the explo-
+rations conducted by our users are necessary (either because the
+users lack machine learning knowledge or the explorations are au-
+tomatic scripts conducting exhaustive searches). For example, one
+of our users used five GPUs for a whole week trying different mod-
+els to improve a model that already had an accuracy of 0.99. An-
+other user continued to use his resources, trying deeper and deeper
+neural networks even though much simpler networks already over-
+fit on his data set. If these resources were allocated to other users,
+it would result in much better use of the computation time.
+Motivated by these experiences, we designed ease.ml, a declar-
+ative machine learning service platform we built for our local col-
+laborators at ETH Zurich that employs an automatic resource man-
+ager for multi-tenant machine learning workloads. Compared to
+existing multi-tenant resource managers [10, 20, 23], ease.ml is
+aware of the underlying workload and is able to integrate knowl-
+edge about machine learning to guide the exploration process more
+effectively. Compared to existing systems built for the single-tenant
+case such as Auto-WEKA [22, 38], Google Vizier [14], Spark Tu-
+PAQ [33], and Spearmint [31], ease.ml allows multiple users to
+share the same infrastructure and then tries to balance and optimize
+their use of it for the “global satisfaction” of all users.
+1
+ar
+X
+iv
+:1
+70
+8.
+07
+30
+8v
+1 
+ [
+cs
+.D
+B
+] 
+ 2
+4 
+A
+ug
+ 2
+01
+7
+Challenges. Automatic model selection is crucial to declarative
+machine learning services and has been studied intensively and ex-
+tensively in the literature. To enable automatic model selection for
+multiple users competing for a shared pool of resources, we started
+from two previous approaches: (1) single-tenant model selection
+using multi-armed bandits [13, 14, 22, 31, 33]; and (2) multi-task
+Bayesian optimization and Gaussian Process [4, 19, 36]. When we
+tried to extend these methods to the particular multi-tenant scenario
+ease.ml was designed for, we faced two challenges.
+(Optimization Objective) The optimization objective of single-
+tenant model selection is clear: Find the best model for the user as
+soon as possible (i.e., minimize the user’s regret accumulated over
+time). However, the optimization objective becomes messy once
+we turn to the multi-tenant case. Previous work has proposed dif-
+ferent objectives [36]. Unfortunately, none of these fit ease.ml’s
+application scenario (see Section 6). Therefore, our first challenge
+was to design an appropriate objective for ease.ml that captures
+the intuitive yet vague notion of “global satisfaction” for all users
+and then design an algorithm for this new objective.
+(Heterogeneous Costs and Performance) Most existing single-
+tenant model selection algorithms are aware of the execution cost
+of a given model. This is important as models with vastly differ-
+ent costs may have similar performance on a particular data set.
+Therefore, any multi-tenant model selection algorithm that is use-
+ful in practice should also be aware of costs. Previous work on
+cost-aware model-selection resorts to various heuristics to integrate
+the cost [31]. Moreover, theoretical analysis of many state-of-the-
+art algorithms is usually done in a “cost-oblivious” setting where
+costs are neglected. The question of how to integrate costs into
+model-selection algorithms while retaining the desirable theoreti-
+cal properties remains open. Our second challenge was to develop
+cost-aware multi-tenant algorithms with theoretical guarantees.
+Summary of Technical Contributions. With the above chal-
+lenges in mind, we developed a novel framework for multi-tenant,
+cost-aware model selection and integrated it into ease.ml. We
+summarize our contributions as follows.
+C1. (System Architecture and Problem Formulation) Our first
+contribution is the architecture of ease.ml and the formulation of
+its core technical problem. To the best of our knowledge, ease.ml
+is one of the first systems that provides declarative machine learn-
+ing services. In ease.ml, a user thinks about machine learning
+as an arbitrary function approximator. To specify such an approx-
+imator, the user provides the system with (1) the size of the input,
+(2) the size of the output, and (3) pairs of examples that the func-
+tion aims to approximate. For example, if the user wants to train a
+classifier for images into three classes, she would submit a job like
+Input = [256, 256, 3] Output = [3].
+ease.ml then automatically matches all consistent machine learn-
+ing models (e.g., AlexNet, ResNet-18, GoogLeNet, etc.) that can
+be used for this job and explores these models. Whenever a new
+model finishes running, ease.ml returns the model to the user.
+Despite the simplicity of this abstraction, more than 70% of our
+users’ applications can be built in this way.
+The core of the ease.ml architecture is an automatic sched-
+uler that prioritizes the execution of different models for different
+users. We further formalize the scheduling problem as what we
+call multi-tenant model selection. Although similar problems have
+been explored in previous work [36], to the best of our knowledge
+we are the first to formulate the multi-tenant model selection prob-
+lem in the context of a multi-tenant machine learning platform. As
+a consequence, we have come up with a new optimization objective
+based on real user requirements in practice.
+C2. (Multi-tenant Model Selection Algorithms) Our second con-
+tribution is a novel algorithm for multi-tenant, cost-aware model
+selection. Our proposed algorithm adopts a two-phase approach.
+At each time step, it first determines the best model to run next for
+each user by estimating the “potential for quality improvement”
+for each model. It then picks the user with the highest potential in
+terms of the estimated quality improvement. For the first “model-
+picking” phase, we developed a cost-aware variant of the standard
+GP-UCB algorithm [35] for selecting the best model of each user.
+For the second “user-picking” phase, we developed a simple but
+novel criterion to decide on the best user to be scheduled next.
+We studied the theoretical properties of the proposed algorithm
+as well as a variant that replaces the criterion in the “user-picking”
+phase with a round-robin strategy. In summary, we proved rigor-
+ous regret bounds for both algorithms: For the multi-tenant model
+selection problem with n users (each user has K candidate models
+to choose from), the total regret RT of all users is bounded by
+RT < Cn
+3/2
+?
+T log(KT 2) log(T/n),
+where T is the total execution time and C is a constant. This is
+in line with the best-known bound for the standard GP-UCB algo-
+rithm. It implies that both algorithms are regret-free, i.e.,RT /T ?
+0, which is a desired property for any practical algorithm.
+We further analyzed the strength and weakness of both algo-
+rithms and designed a hybrid algorithm that explicitly considers
+the varying accuracy of the underlying estimator employed by the
+“user-picking” criterion. The hybrid algorithm observes the same
+regret bound but outperforms both of the original algorithms.
+C3. (Evaluation) Our third contribution is an extensive evalua-
+tion of ease.ml on synthetic data and on a real service that we
+are currently providing to our users: image classification with neu-
+ral networks. When a user submits a job with the schema that
+maps a three-dimensional tensor to a vector, ease.ml automat-
+ically matches the job with eight different neural network archi-
+tectures, including NIN, GoogLeNet, ResNet-50, AlexNet, BN-
+AlexNet, ResNet-18, VGG-16, and SqueezeNet. We collect twenty
+data sets (users) and compare ease.ml’s scheduler to the popular
+heuristics used by our users (prior to the availability of ease.ml),
+as well as variants of our algorithm that leverage classic scheduling
+policies in the “user-picking” phase such as round robin or random
+scheduling. We show that ease.ml is able to outperform these
+workload-agnostic schedulers by up to 9.8×. On synthetic data
+sets, we observe similar behaviors and speedups.
+Limitations and Future Work. As of today, ease.ml has
+been running to support applications for our local collaborators [30].
+As the number of users growing, we expect that the current frame-
+work, both in a theoretical and a practical perspective, needs to
+be improved. We highlight these limitations and promising future
+work in Section 4.5. The multi-tenant model selection in ease.ml
+is motivated by our experience in supporting our users, but the ap-
+plicability goes beyond ease.ml— we hope this framework can
+also help other, much larger, service providers of machine learning
+infrastructures such as Azure Machine Learning Studio and Ama-
+zon Machine Learning to reduce their operating cost.
+Overview. The rest of this paper is organized as follows. We
+describe the system architecture of ease.ml in Section 2. As a
+preliminary, we present the single-tenant model selection problem
+and a cost-aware variant of the standard GP-UCB algorithm in Sec-
+tion 3. We then formalize the multi-tenant model selection problem
+and present our solution and theoretical analysis in Section 4. We
+report experimental evaluation results in Section 5, summarize re-
+lated work in Section 6, and conclude the paper in Section 7.
+2
+Computation ResourcesUser Program
+# Schema
+Input = [256, 256, 3]
+Output = [3]
+# Supervision
+Input <- load(ImageNet)
+Output <- mylabel(Input)
+Shared Storage
+ImageNet SDSS
+PubMEDCIFAR-10
+AlexNet ResNet-15 GoogLeNet
+VGG-16 ResNet-50 NIN …
+(1) Schema matching and task generation
+…
+…
+User-level Task Pool
+(2) Simple profiling 
+and submission
+(3) Resource 
+Allocation 
+Current Best Model
+ease.ml
+Figure 1: System architecture of ease.ml.
+prog ::=  {input: data_type, output: data_type}
+data_type ::=  {nonrec_field list, rec_field list}
+nonrec_field ::= Tensor[int list] | field_name :: Tensor[int list]
+rec_field ::= field_name
+field_name ::= [a-z0-9_]*
+Figure 2: Formal syntax of an ease.ml program
+2. SYSTEM ARCHITECTURE
+The design goal of ease.ml is twofold: (1) provide an abstrac-
+tion to enable more effective model exploration for our users, and
+(2) manage the shared infrastructure to enable more efficient re-
+source utilization during the exploration process for all instead of
+one of our users. A similar, but vague, objective for ease.ml was
+published as a short vision paper [40]. This paper tackles the first
+concrete technical problem we faced in realizing this vision.
+ease.ml provides a simple high-level declarative language. In
+ease.ml, the user thinks about machine learning as an arbitrary
+function approximator. To specify such an approximator, the user
+provides the system with (1) the size of the input, (2) the size of the
+output, and (3) pairs of examples that the function aims to approx-
+imate. Figure 1 illustrates the system architecture of ease.ml.
+2.1 Components and Implementations
+We walk through each component of ease.ml and describe de-
+sign decisions motivated by our observation of our users.
+Input Program. The input of ease.ml is program written in
+a simple domain-specific language (DSL). Figure 2 shows the for-
+mal syntax of the DSL. To specify a machine learning task, the
+user program (prog) contains the information about the shape and
+structure of an input object (e.g., images, time series) and an output
+object (e.g., class vector, images, time series).
+The design goal of input and output objects is to provide enough
+flexibility to support most workloads that we observed from our
+users. In the current design, each object (data type) contains
+two parts: (1) the “recursive” component (rec field) and (2)
+the “nonrecursive” component (nonrec field). The recursive
+component contains a list of named fields of the type of the same
+object, and the nonrecursive component contains a list of constant-
+sized tensors. This combination of recursive and nonrecursive com-
+ponents allows ease.ml to model a range of the workloads that
+our users need, including image, time series, and trees.
+(Example) Figure 3 shows two example user programs for (1) im-
+age classification and (2) time series prediction. For image classi-
+fication, each input object is a tensor of the size 256×256×3 and
+each output object is a tensor of the size 1,000 corresponding to
+1,000 classes. Here the input and output objects contain only the
+nonrecursive component. For the time series prediction, each ob-
+ject contains a 1-D tensor and a “pointer” to another object of the
+same type. This forms a time series.
+type Input
+field1 :: Tensor[256, 256, 3]
+end
+type Input
+field1 :: Tensor[10]
+next :: Nullable{Input}
+end
+type Output
+field1 :: Tensor[1000]
+end
+{input: {[Tensor[256, 256, 3]], []}
+output:{[Tensor[1000]], []}}
+{input: {[Tensor[10]], [next]}
+output:{[Tensor[10]], [next]}}
+type Output
+field1 :: Tensor[10]
+next :: Nullable{Input}
+end
+User Program
+System 
+Data Type
+(Julia Format)
+User-facing
+Binaries
+feed refine infer
+find -name “*jpg” dog_imgs \
+|./feed -input - -output “dog”
+find -name “*jpg” dog_imgs \
+|./infer -input -
+c. Supervision
+a. Define Model: myapp.py
+I = [256, 256, 3]
+O = [2]
+execfile("ease.ml")
+$ find "dogs/*jpg" | lam - -s " dog" | ./myapp
+myapp: 250 images added
+$ find "cats/*jpg" | lam - -s " cat" | ./myapp
+myapp: 300 images added
+b. Apply Model: x.py
+import myapp
+img = load_img("...")
+label = myapp.f(img)
+d. Update Model
+$ ./myapp up
+myapp: New model found 
+on ArXiv. Acc 75->77!
+- - - - REPORT - - - -
+Jan 13: AlexNet    :60
+Jan 14: GoogLeNet  :64
+Jan 16: ResNet     :75
+Jan 17: FancyResNet:77
+- - - - - - - - - - - 
+e. Supervision Engineering
+$ ./myapp refine
+myapp: goto
+ http://localhost:9000
+ dog
+ dog
+ dog
+ dog
+ dog
+ cat
+ cat
+ cat
+ cat
+Image Classification Time Series Prediction
+Figure 3: System walkthrough
+Code Generation and User Interaction. Given an input
+program, ease.ml conducts code generation to generate binaries
+that the user directly interacts with. Figure 3 illustrates the process.
+In the first step of code generation, ease.ml translates the user
+programs into system-data types, data types that the rest of the sys-
+tem is able to understand. Figure 3 shows the system-data types
+generated in Julia. The translation process is based on very sim-
+ple operational semantics, and we thus omit the details here. One
+inherent assumption during the translation is that there is no reuse
+of objects, i.e., we can only generate types corresponding to DAG
+without loop (e.g., singleton, chains, and trees).
+Given the system-data types generated by the translation proce-
+dure, ease.ml then generates three binaries and a Python library.
+The Python library shares the same functionality as the binaries but
+can be used in a programmable way. Figure 3 shows the three bina-
+ries, and Figure 1 illustrates one example in Python. The binaries
+and the Python library contain a unique identifier and an IP address
+mapped to the ease.ml server. All operations the users conduct
+with the generated binaries and Python library will be sent to the
+server, which hosts the shared storage and the pool of computation
+resources. There are three basic operations in ease.ml.
+1. feed. The feed operator takes as input a set of input/output
+pairs. ease.ml provides a default loader for some popular Tensor
+types (e.g., loads JPEG images into Tensor[A,B,3]). To associate
+an output object and an input object, the user can simply pipe a pair
+of objects into the binary, as shown in Figure 3 or write a labeling
+function that maps an input object into an output object as shown in
+Figure 1. Every time the user invokes the feed operator, all data
+will be sent and stored in the centralized ease.ml server.
+2. refine. The refine operator shows all input/output pairs
+that the user ever feed’ed into the system and allows the user to
+“turn on” and “turn off” each example. This is especially useful
+when the users want to conduct data cleaning on the training set to
+get rid of noisy labels introduced by weak or distant supervision.
+3. infer. The infer operator takes as input an input object and
+outputs an output object using the best model learned so far.
+3
+Input Template Type of Workload Consistent Models
+Input : {[Tensor[A,B,C]], []}
+Output: {[Tensor[D]], []} Image/Tensor Classification
+AlexNet, ResNet, GoogLeNet, 
+SqueezeNet, VGG, NIN, BN-AlexNet
+Input : {[Tensor[A,B,C]], []}
+Output: {[Tensor[D,E,F]], []} Image/Tensor “Recovery” Auto-encoder, GAN, pix2pix
+Input : {[Tensor[A], *], [a]}
+Output: {[Tensor[D]], []} Time Series Classification RNN, LSTM, bi-LSTM, GRU
+Input : {[Tensor[A], *], [a]}
+Output: {[Tensor[B], *], [b]} Time Series “Translation” seq2seq
+Input : {[Tensor[A], *], [a, c]}
+Output: {[Tensor[B]], []} Tree Classification Tree-RNN, Tree kernel SVM
+Input : {[*], [*]}
+Output: {[Tensor[B]], []} General Classification Bit-level RNN
+Input : {[*], [*]}
+Output: {[*], [*]} General Auto-encoder Bit-level Auto-encoder
+Figure 4: Templates for candidate model generations. A, B, C,
+D, E, and F are natural number constants; a, b, and c are of the
+type field name. * represents matching for arbitrary “tail”
+of an array. Matching order goes from top to bottom.
+Automatic Model Exploration. The above interface provides
+the user with a high-level abstraction in which the user only has
+a “view” of the best available model instead of what model the
+system trains and when and where a model is trained. To enable
+this interface, automatic model selection plays a central role.
+(Candidate Model Generation: Template Matching) The first
+step of automatic model exploration is to generate a set of candidate
+models given a user program. The current version of ease.ml
+uses a template-matching approach. Figure 4 shows the current set
+of templates and the corresponding candidate models. The match-
+ing happens from the top to the bottom (from the more specific
+template to the more general template).
+(Candidate Model Generation: Automatic Normalization) In
+addition to template matching, another source of candidate mod-
+els comes from ease.ml’s automatic normalization feature. For
+image-shaped templates (e.g., Tensor[A,B,3]), most of the consis-
+tent deep-learning models are designed for image data. However,
+much of the data from our users, although they have shapes like
+an image, have a much larger dynamic range than an image. For
+one astrophysics application [30] and one proteomics application,
+the dynamic range could vary by more than ten orders of magni-
+tude. In this case, simply treating the input as an image results in
+unusable quality. ease.ml provides an automatic input normal-
+ization feature by normalizing the input with a family of functions
+as shown in Figure 5. Each normalization function in this family,
+together with a consistent model, generates one candidate model.
+(Automatic Model Selection) Given a set of candidate models,
+ease.ml decides on an order of execution. The current execu-
+tion strategy of ease.ml is to use all its GPUs to train a single
+model (see Section 4.5 for a discussion about this design decision).
+In the near future, ease.ml will need to allow a more flexible re-
+source allocation strategy to support a resource pool with hundreds
+of GPUs. Because there are different users using ease.ml at the
+same time, ease.ml also needs to decide which user to serve at
+the current time. This problem motivated the core technical prob-
+lem of this paper, which we describe in detail in Sections 3 and 4.
+Discussion: Hyperparameter Tuning. We highlight one
+design decision in ease.ml that is not optimal. ease.ml also
+conducts automatic hyperparameter tuning but treats it as part of
+the training procedure of a model. For example, for the model-
+selection subsystem, when it decides to train a given model, it will
+always train with automatic hyperparameter tuning. A more opti-
+mal design would be to fuse the hyperparameter tuning subsystem
+with the model-selection subsystem to better utilize available re-
+sources to maximize the global satisfaction of all users.
+0
+0.2
+0.4
+0.6
+0.8
+1
+0 0.2 0.4 0.6 0.8 1
+N
+or
+m
+al
+ize
+d	
+Va
+lu
+e
+Input	Value
+k=0.2
+0.4
+0.6
+0.8
+Figure 5: Automatic normalization in ease.ml. Normaliza-
+tion function is from fk(x) = ?x2k + xk with different values
+of k. Each k generates one additional candidate model. Snap-
+shots of a galaxy illustrate the impact of normalization. Images
+are from the astrophysics application motivated this feature.
+3. SINGLE-TENANT MODEL SELECTION
+We now focus on the model-selection subsystem in ease.ml.
+In this section, we discuss the single-tenant case in which a single
+user needs to choose from K different models. We first present
+background on the classic, cost-oblivious GP-UCB algorithm and
+then present a simple twist for a cost-aware GP-UCB algorithm.
+Despite the simplicity of this twist, the resulting cost-aware algo-
+rithm forms a basic building block for the multi-tenant setting.
+Problem Formulation. We treat model selection as a multi-
+armed bandit problem. Each algorithm corresponds to an arm of
+the bandit, whereas the observed evaluation result of the algorithm
+corresponds to the reward of playing the conceivable arm. A com-
+mon optimization criterion is to minimize the cumulative regret.
+Formally, let there be K arms and [K] be the set of all arms.
+Let xat,t be the reward of playing the arm at ? [K] at time t, and
+suppose that xat,t follows a distribution with the mean µat . Let
+µ? = maxk?[K] E(µk) be the “best” solution in the expectation
+sense that is unknown to the algorithm. The instantaneous regret at
+time t if we play the arm at is rt = µ? ? E(xat,t) or equivalently
+rt = µ? ? µat . The cumulative regret up to time T is defined as
+RT =
+?T
+t=1
+rt =
+?T
+t=1
+(
+µ? ? E(xat,t)
+)
+.
+For different strategies of choosing different arms at each time t,
+they incur different cumulative regret. One desired property of the
+bandit problem is that asymptotically there is no cumulative regret,
+i.e., limT??RT /T = 0. The performance of a given strategy can
+be measured as the convergence rate of the cumulative regret.
+Discussion: Relation to Model Selection. The random-
+ness commonly exists in machine learning algorithms. In our model-
+selection setting, we treat each arm as a model and the random re-
+ward xat,t is the accuracy of the model at at time t. The best model
+that the user has at time t has the quality xt = maxt xat,t. We de-
+fine a slightly different version of regret that is directly associated
+with the user experience in ease.ml:
+R?T =
+?T
+t=1
+(
+µ? ? E(max
+t
+xat,t)
+)
+.
+Intuitively, this means that the user experience of a single user in
+ease.ml relies not on the quality of the model the system gets
+at time t but on the best model so far up to time t because it is
+the “best model so far” that ease.ml is going to use to serve the
+infer operator. To capture the relation between the “ease.ml
+regret” R?T and the classic cumulative regret RT , observe that
+R?T ? RT ?t, a1, ..., at.
+Because we are only interested in the upper bound of R?T , for the
+rest of this paper, we will always try to find the upper bound for the
+standard cumulative regret RT instead of R?T directly.
+4
+Algorithm 1 Single-tenant, cost-oblivious GP-UCB
+Input: GP prior µ0, ?, ?, and ? ? (0, 1)
+Output: Return the best algorithm among all algorithms in a[1:T ]
+1: Initialize ?0 = diag(?)
+2: for t = 1, 2, · · · , T do
+3: ?t ? log(Kt2/?)
+4: at ? arg maxk?[K] µt?1(k) +
+?
+?t?t?1(k)
+5: Observe yt by playing bandit at.
+6: µt(k) = ?t(k)>(?t + ?2I)?1y[1:t]
+7: ?2t (k) = ?(k, k)? ?t(k)>(?t + ?2I)?1?t(k)
+8: end for
+Notation:
+• [K] = {1, 2, · · · , K}.
+• y[1:t] = {y1, · · · , yt}.
+• ?(i, j) = ?i,j , for i, j ? [K].
+• ?t(k) = [?(a1, k), · · ·?(at, k)]>, k ? [K].
+• ?t = [?(i, j)]i,j?a[1:t] .
+0
+0.2
+0.4
+0.6
+0.8
+1
+1.2
+0 50 100
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Runs
+greedy
+round robin
+Real Surface
+Current 
+Estimated 
+Surface
+(a) Illustration of GP-UCB (b) Round Robin vs. Greedy
+Figure 6: Illustration of (1) Gaussian process and (2) the differ-
+ence between ROUNDROBIN and GREEDY.
+3.1 Cost-Oblivious GP-UCB
+We start from the standard GP-UCB algorithm [8] for a single-
+tenant bandit problem. The key idea of GP-UCB is to combine
+the Gaussian Process (GP), which models the belief at time t on
+the reward of arms {xk,t+1} at the next timestamp, with the upper
+confidence bound (UCB) heuristic that chooses the next arm to play
+given the current belief. Algorithm 1 presents the algorithm.
+Gaussian Process. The Guassian Process component model is
+the reward of all arms at the next timestamp t as a random draw
+from a Gaussian distributionN (µt, ??) where µt ? RK is the mean
+vector and ?? ? RK×K is the covariance matrix. Therefore, the
+marginal probability of each arm is also a Guassian: In Algorithm 1
+(lines 4, 6, and 7), the arm k has distributionN (µt(k), ?2t (k)). The
+belief of the joint distribution keeps changing during the execution
+when more observations are made available. Lines 6 and 7 of Al-
+gorithm 1 are used to update this belief given a new observation yt
+(line 5). Figure 6(a) illustrates the Gaussian Process, in which the
+blue surface is the real underlying function and the orange surface
+is the current mean vector after multiple observations.
+Upper Confidence Bound (UCB). The UCB rule chooses
+the next arm to play with the following heuristic. At time t ? 1,
+choose the arm with the largest µk+? ·?k where µk and ?2k are the
+current mean and variance of the reward distribution of the arm k
+(line 5 in Algorithm 1). This is the upper bound of the ?-confidence
+interval. Despite its simplicity, it exhibits a trade-off between ex-
+ploration and exploitation. Intuitively, UCB favors arms with high
+reward (for exploitation) and high uncertainty (for exploration),
+which implies high risk but also high opportunity for gaining a bet-
+ter reward. The choice of ? has an impact on the convergence rate.
+Theoretical Analysis. The well-known cumulative regret of
+the UCB algorithm [8] is RT ? C · K log T , where C is some
+constant depending on the arm distribution. It is known to be one
+of the best upper bounds for the multi-bandit problem. This bound
+has a minor dependence on T but depends seriously on the distri-
+bution of all arms and the number of arms. This is mainly because
+the UCB algorithm does not consider dependence between arms.
+In order to make RT /T converge to zero, we have to try at least K
+times. So the UCB algorithm must play all arms once or twice in
+the initial step. To utilize the dependence between arms, previous
+work has extended the UCB algorithm with the Gaussian Process,
+where the dependence between arms can be measured by a kernel
+matrix. The GP-UCB algorithm can achieve the regret
+RT ? C ·
+?
+T log(KT 2) log T ,
+where C is some constant that does not depend on the distribution
+of arms. We can see that this bound only has minor dependence on
+the number of arms but has a greater dependence on T . GP-UCB
+does not have to pull all arms once to initialize the algorithm. It
+can achieve a satisfactory average regret before all arms get pulled.
+GP-UCB is suitable when the variance of each arm is small.
+3.2 Cost-aware Single-tenant GP-UCB
+The previous algorithm does not consider the cost of playing an
+arm. In the context of model selection, this could correspond to the
+execution time of a given model. As we will see, being aware of
+cost becomes even more important in the multi-tenant setting as it
+is one of the criteria used to balance between multiple users.
+In this section, we extend the standard GP-UCB algorithm to
+a cost-aware version with a very simple twist. We then analyze
+the theoretical property of this cost-aware algorithm. We note here
+that, while the theoretical analysis is relatively simple and thus we
+do not claim a technical contribution for it, we did not see a similar
+algorithm or analysis in the literature.
+A Simple Twist. Based on Algorithm 1, the idea is simple. We
+just replace Line 4 in the following (difference in red font)
+at ? arg max
+k?[K]
+µt?1(k) +
+?
+?t/ck?t?1(k),
+where ck is arm k’s cost. This introduces a trade-off between cost
+and confidence: Everything being equal, the slower models (larger
+ck) have lower priority. However, if it has very large potential re-
+ward (larger ?t?1(k)), even an expensive arm is worth a bet.
+Theoretical Analysis. The following theorem bounds the cu-
+mulative regret for our simple cost-aware GP-UCB extension. We
+first define the cost-aware cumulative regret as R?T =
+?T
+t=1 catrt.
+THEOREM 1. If c? = maxk?[K]{ck} and in Algorithm 1 ?t =
+2c? log
+[
+?2Kt2
+6?
+]
+, with probability at least 1 ? ?, the cumulative
+regret of single-tenant, cost-aware GP-UCB is bounded above by
+R?T <
+?
+T · I(T )
+where I(T ) = 4c
+??T
+log(1+??2)
+?T
+t=1 log(1 + ?
+?2?2t?1(at)). More-
+over, we have the bound for the instantaneous regret:
+P
+(
+min
+t?[T ]
+rt ?
+?
+I?(T )?T
+t=1 cat
+)
+? 1? ?,
+where I?(T ) = I(T )/c?.
+Note that I(T ) is proportional to the information gain, and the
+order is at most log T (see Theorem 5 in [35] for details). There-
+fore, this theorem is in line with the classical GP-UCB result and
+yields the desired regret-free property that RT /T ? 0 as T ??.
+In the same spirit, this theorem also suggests that the regret at
+iteration t (the minimal regret up to iteration t) converges to 0 with
+respect to the running time
+?T
+t=1 cat with high probability.
+5
+4. MULTI-TENANT MODEL SELECTION
+We now present the multi-tenant model-selection algorithm in
+ease.ml. This section is organized as follows.
+•We formulate the problem by extending the classic single-tenant
+regret into a multi-tenant, cost-aware form. We then discuss the
+difference compared to one very similar formulation [36].
+•We start from a very simple strategy that we call ROUNDROBIN.
+ROUNDROBIN schedules each user in a round-robin way while
+each user uses their own single-tenant GP-UCB during their allo-
+cated time slices. We proved a regret bound for this simple strategy.
+• We then present an improved algorithm that we call GREEDY.
+GREEDY schedules each user by maximizing their potential contri-
+bution to the global objective. This is a novel algorithm. We also
+prove a regret bound for this strategy.
+• The theoretical bound and empirical experiments show a trade-off
+between ROUNDROBIN and GREEDY. Last, we present a HYBRID
+strategy that balances ROUNDROBIN and GREEDY. HYBRID is the
+default multi-tenant model-selection algorithm in ease.ml.
+4.1 Problem Formulation
+In the multi-tenant setting, ease.ml aims to serve n different
+users instead of a single user. Without loss of generality, assume
+that each user i ? [n] has her own machine-learning task repre-
+sented by a different data set and that each user i can choose Ki
+machine-learning models. All users share the same infrastructure,
+and at a single time point only a single user can be served. Figure 7
+illustrates a canonical view of this problem.
+Multi-tenant Regrets. We extend the definitions of instanta-
+neous and cumulative regrets for the multi-tenant setting. The key
+difference compared to the single-tenant setting is that, at round t,
+there are users who are not served. In this case, how should we
+define the regret for these unscheduled users?
+The intuition is that these unscheduled users should also incur
+a penalty — because these users are not being served, they do not
+have a chance to get a better model. Instead, they need to stick with
+the same model as before. Before we describe our extension for the
+multi-tenant regret, we introduce notation as follows. At round t,
+1. It: The user that the system chooses to serve.
+2. aItt : The arm played by the chosen user It at round t.
+3. ti: The last round a user i gets served, i.e., ti = arg max{t? :
+i = It? , 1 ? t? ? t}.
+4. aiti : The arm played by a user i at the last round when she
+was served.
+5. cik: the cost of a tenant i choosing a model k ? [Ki].
+6. Ct := cIt
+a
+It
+t
+: the cost of the algorithm chosen at round t.
+7. µi?: the best possible quality that a user i can get.
+8. Xit := xai
+ti
+,ti : the rewards user i gets at time t
+i.
+We define the cumulative, multi-tenant, cost-aware, regret as
+RT =
+T?
+t=1
+Ct
+(
+n?
+i=1
+riti
+)
+,
+where riti = µ
+i
+? ? E(Xit) is the regret of a user i for continuing
+using the model chosen at the last time she got served.
+Ease.ml Regret. Similar to the single-tenant case, we can de-
+fine a variant of the cumulative regret Rt that directly relates to
+ease.ml’s design of always returning the best model so far:
+R?T =
+T?
+t=1
+Ct
+(
+n?
+i=1
+(
+µi? ? E(max
+t
+Xit)
+))
+< RT .
+0.9 0.2 0.2 0.6 0.5 0.6 0.2 ? ? ?
+0.6 0.7 0.2 0.4 0.6 0.1 0.7 ? ? ?
+0.9 0.2 0.2 0.6 0.5 0.6 0.2 ? 0.2 ?
+0.9 0.2 0.2 0.6 0.5 0.6 0.2 ? ? ?
+0.6 0.7 0.2 0.4 0.6 0.1 0.7 ? ? ?
+? ? 0.5 ? ? ? ? ? ?
+? ? ? ? ? ? ? 0.9 ? ?
+? ? ? ? 0.7 ? ? ? ? ?
+Machine Learning Models
+D
+at
+as
+et
+s 
+(U
+se
+rs
+)
+D1
+D2
+D3
+D4
+D5
+D6
+…
+Dn
+M1 M2 M3 M4 M5 M6 M7 M8 … Mk
+Existing Models
+Ex
+ist
+ing
+ D
+ata
+se
+ts
+Ne
+w 
+Da
+tas
+ets
+New Models
+Computation Resource
+?
+Figure 7: A canonical view of the multi-tenant, cost-aware
+model-selection problem we studied in this paper.
+The Problem of “First Come First Served”. One of the
+most straightforward ideas of serving multiple users might be the
+“first come first served” (FCFS) strategy in which the system will
+serve the tenant who comes into the system first until it finds an
+optimal algorithm. The system then moves on to serve the next
+user. This strategy incurs a terrible cumulative regret of order T .
+(Example) Intuitively, it is easy to see why the FCFS strategy fails.
+Consider two users, each of which has the best possible model qual-
+ity 100. Each user has three models:
+U1 = {M1: 90, M2: 95, M3: 100},
+U2 = {M1: 70, M2: 95, M3: 100}.
+Assume U1 comes into the system slightly earlier and the system
+decides to try M1 for U1 in the first round. Then, in round t = 1,
+U1 incurs regret r1t=1 = 100 ? 90 = 10 and U2 incurs regret
+r2t=1 = 100 as it does not have a model to use. In the second
+round, the FCFS strategy would continue to serve U1. Assume the
+system tried M2. Then, in round t = 2, U1 incurs regret r1t=2 =
+100?95 = 5 and U2 continues to incur regret r2t=2 = 100 because
+it still has not been served. The accumulative regret among all users
+has already become 215 at round t = 2. On the other hand, if the
+system decides to serve U2 in the second round, U1 would incur
+regret r1t=2 = 10, which is the same as the first round, and U2 will
+incur regret r2t=2 = 100? 70 = 30. In this case, the accumulative
+regret among all users would become 150 at round t = 2.
+This example shows the importance of choosing the next user to
+serve. The goal of ease.ml is to design an algorithm that auto-
+matically manages resource allocations among multiple users.
+Discussion: Relation to Multi-task Model Selection.
+We compare our multi-tenant regret with the most similar multi-
+task regret recently studied by Swersky et al. [36]. Swersky et al.
+focus on k-fold cross validation. They take advantage of the cor-
+relation between folds by skipping the evaluations for certain folds
+for the same model. Here, each fold corresponds to one of our
+tenants. The multi-task regret optimized is
+?T
+t=1
+?n
+i=1 f(x, i, t),
+where f(x, i, t) is the regret incurred at time t for fold i after choos-
+ing model x. The key difference is that, in their setting, choos-
+ing a better x lowers the regret for all users, while in our setting
+users who do not get served continue to incur the same regret as
+before. Directly using their algorithms would cause a problem in
+ease.ml. Consider a case when two users are strongly corre-
+lated. Swersky et al. would try to skip evaluating one user com-
+pletely simply because it does not provide much new information.
+ease.ml, on the other hand, must balance between two users as it
+cannot simply reuse the model trained for user i to serve a different
+user j. As a result, the ease.ml algorithm is also very different.
+6
+4.2 Round-Robin GP-UCB
+We start from a very simple strategy. Instead of serving users in
+an FCFS manner, what if we serve them in a “round robin” way?
+More precisely, with n users, at round t the system chooses to serve
+one user: i = t mod n. When that user gets served, she runs one
+iteration of her own GP-UCB algorithm. Intuitively, this strategy
+enforces the absolute “fairness” among all users.
+Theoretical Analysis. Surprisingly, the simple ROUNDROBIN
+strategy already has a much better regret bound compared to FCFS.
+The following theorem shows the result.
+THEOREM 2. Given ? ? (0, 1), set ?it = 2c? log
+[
+?2nK?t2
+6?
+]
+with c? = maxi?[n],k?[Ki]{cik} and K? = maxi?[n]{Ki}. Then
+the cumulative regret of ROUNDROBIN is bounded by
+RT ?
+?
+nT
+n?
+i=1
+?
+Ii([T (i)])
+with probability at least 1? ?, where
+Ii([T (i)]) =
+8(c?)2??
+c? log(1 + (??)?2)?
+t?T (i)
+log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+,
+with c? = mini?[n],k?[Ki]{cik}, ?? = 2c? log
+[
+?2nK?T2
+6?
+]
+, ?? =
+maxi?[n]{?i}, and T (i) is the set of time points when tenant i is
+picked up to time T , i.e., T (i) = {s : 1 ? s ? T, Is = i}.
+In the ROUNDROBIN case, each tenant is picked for the same
+number of rounds, that is, all |T (i)|’s are roughly the same, bounded
+by dT/ne. Then Ii([T (i)]) can be uniformly upper bounded by
+?? log(T/n) for commonly used covariance (kernel) matrices; see
+Theorem 5 in [35]. Consequently, the cumulative regret is upper
+bounded, up to a constant, by
+n1.5
+?
+??T log |T (i)| = n1.5
+?
+??T log
+T
+n
+. (1)
+Thus, when T ??, we have R?T /T < RT /T ? 0.
+Practical Considerations. From a theoretical point of view,
+ROUNDROBIN only has slightly worse theoretical bound than the
+GREEDY scheduler used by ease.ml. Practically, it outperforms
+FCFS significantly. However, there is still room to improve.
+The enforcement of absolute fairness with a ROUNDROBIN strat-
+egy means that it may waste resources on users who already have
+reached their optimal solution. For example, consider two users
+U1 and U2 that both have the best possible quality 100. Assume
+that U1 has already reached accuracy 99 while U2 is still at 70.
+ROUNDROBIN will still schedule both users fairly. However, it is
+clear in this case that a better scheduler would put more resources
+on U2. This requires us to automatically balance between differ-
+ent users and to disproportionately serve users who the system be-
+lieves could contribute more to the “global satisfaction” of all users.
+However, reaching this goal is not trivial. For each user, we do not
+know the real “best possible quality” beforehand. Thus, we need
+to estimate the potential for improvement for each user from their
+execution history and fuse these estimations in a comparable and
+balanced way across all users in the system. This motivates the
+novel GREEDY algorithm we designed for ease.ml.
+Algorithm 2 GREEDY, cost-oblivious, multi-tenant GP-UCB
+Input: GP prior {µi0}ni=1, {?i}ni=1, {?i}ni=1, and ? ? (0, 1)
+Output: Return the best algorithm among all algorithms in ai
+[1:T ]
+for all
+users [n].
+1: for i = 1, ...n do
+2: Initialize ?i0 = diag(?i) and ti = 1
+3: Run one step of GP-UCB (i.e., lines 3 to 5 of Algorithm 1) for the
+user i to obtain ?iti and µ
+i
+ti
+4: end for
+5: for t = 1, ..., T do
+6: Refine regrets for users i ? [n] with new observations
+??iti?1 = min
+{
+Bti?1(a
+i
+ti?1), mint?<ti?1
+yit? + ??
+i
+t?
+}
+? yiti?1
+where Bt(k) = µt?1(k) +
+?
+?t?t?1(k).
+7: Decide the candidate set
+Vt :=
+{
+i ? [n] : ??iti?1 ?
+1
+n
+n?
+i=1
+??iti?1
+}
+8: Select a user (using any rule) from Vt indexed by j
+9: Update ?jtj by
+?jtj = log(K
+jt2j/?)
+10: Select the best algorithm for the user j
+ajtj = arg max
+k?[Kj ]
+µjtj?1(k) +
+?
+?jtj?
+j
+tj?1(k)
+11: Observe yjtj (a
+j
+tj
+)
+12: Update ?jtj and µ
+j
+tj
+(see lines 4 and 5 in Algorithm 1)
+13: Increase the count of the user j by tj ? tj + 1
+14: end for
+4.3 Greedy GP-UCB
+We now describe the GREEDY algorithm, an algorithm that im-
+proves over ROUNDROBIN by dynamically allocating resources.
+Intuition. The intuition behind GREEDY is to have each user run
+their own GP-UCB. At round t, when the system tries to decide
+which user to serve, it estimates the “potential” of each user re-
+garding how much each user could further benefit from another
+model-selection step. The system then chooses a user with high-
+enough potential. The technical difficulty is how to estimate the
+potential for each user in a way that is comparable among all users.
+The Greedy Algorithm. Algorithm 2 shows the details of the
+GREEDY algorithm. For simplicity, these are shown only for the
+cost-oblivious version of the algorithm. The cost-aware version
+simply replaces all occurrences of
+?
+? by
+?
+?/c, where c is the cor-
+responding cost. The GREEDY algorithm consists of two phases. In
+the first phase (lines 6 to 8), we determine which user to schedule
+next (i.e., the user-picking phase). In the second phase (lines 9 to
+12), we determine which model to run for this user (i.e., the model-
+picking phase). The model-picking phase is straightforward. We
+choose the model with respect to the single-tenant GP-UCB cri-
+terion. (Compare lines 9 to 12 in Algorithm 2 to lines 3 to 5 in
+Algorithm 1.) The user-picking phase is more sophisticated.
+One idea for user selection is to compare the best models from
+different users and pick “the best of the best.” However, in what
+sense are the best models comparable? To understand the subtlety
+here, consider two models M1 and M2 from two users. Suppose
+that, at a certain time step t, the mean quality of M1 and M2 is 90
+7
+and 70, respectively. Moreover, assume that the Gaussian variances
+of M1 and M2 are the same. The UCB criterion will then favor M1
+over M2. In the single-tenant case, this makes perfect sense: M1 is
+a clear win over M2. In the multi-tenant case, this is perhaps indef-
+inite because it is possible that M1 is working on an easy data set
+whereas M2 is working on a hard one. Therefore, the mean qual-
+ity in the UCB criterion (i.e., the µ part in the single-tenant GP-
+UCB algorithm) is not a reliable indicator of the potential model
+improvement when comparing different users. Based on this ob-
+servation, we choose to omit the mean quality in the UCB criterion
+and focus on the observed variance.
+This leads to the specific user-selection strategy illustrated in
+lines 6 to 8 of Algorithm 2. In line 6, we first compute more ac-
+curate regrets for users with new observations. Clearly, line 6 rep-
+resents a recurrence relation on the empirical confidence bounds
+yit + ??
+i
+t that replace the means in the upper confidence bounds by
+the actual observations y. Assuming that user i was scheduled at
+time t ? 1, the empirical confidence bound for user i after time
+t ? 1 (i.e., at time t) is either the updated upper confidence bound
+Bt?1 or the minimum empirical confidence bound before time t,
+whichever is smaller. Intuitively, the empirical confidence bound
+tries to tighten the upper confidence bound by utilizing the observed
+reward more directly. (The UCB criterion merely uses the obser-
+vations to update the parameters of the Gaussian Process.) In lines
+7 and 8, we further use the empirical variances ??2 of the users to
+determine which user to schedule next. Specifically, we first iden-
+tify a set of candidate users whose empirical confidence bounds are
+above the average and then pick one user from the candidates.
+Strategy for Line 8. By choosing a user with a confidence
+bound above the average, we can reduce the time-averaging regret.
+It is interesting that the regret bound remains the same regardless
+of the rule for picking a user from the candidates (line 8), though
+in practice a different rule may make a difference. For example,
+picking the user with the maximum empirical variance may be bet-
+ter than randomly picking a user. In ease.ml, we use a rule that
+picks the user with the maximum gap between the largest upper
+confidence bound and the best accuracy so far. Nevertheless, the
+existence of an optimal rule for deciding on the best candidate user
+in the practical sense remains as an open question.
+Theoretical Analysis. We can prove the following regret bound
+for the GREEDY algorithm.
+THEOREM 3. Given ? ? (0, 1), set ?it = 2c? log
+[
+?2nK?t2
+6?
+]
+.
+Then the cumulative regret of GREEDY is bounded by
+RT ? n
+?
+T
+???? n?
+i=1
+Ii([T (i)])
+with probability at least 1? ?, where
+Ii([T (i)]) =
+4c???
+log(1 + (??)?2)?
+t?T (i)
+log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+,
+with c?, K?, ??, ??, and T (i) defined in Theorem 2.
+Ii([T (i)]) is proportional to the information gain for each user
+i. In particular, if the kernel function or covariance matrix is lin-
+ear (see Theorem 5 in [35]), then for each i ? [n], the order of
+Ii([T (i)]) is at most ?? log(|T (i)|). Since
+n?
+i=1
+log(|T (i)|) = log
+n?
+i=1
+|T (i)|,
+with the constraint
+?n
+i=1 |T (i)| = T, we have
+n?
+i=1
+log(|T (i)|) ? n log
+(
+T
+n
+)
+.
+In this case, the total regret is bounded (up to some constant) by
+n3/2
+??????T n?
+i=1
+log(|T (i)|) ? n3/2
+?
+??T log
+(
+T
+n
+)
+? ?? ?
+the regret for RR, see (1)
+.
+For two other popular kernels – the squared exponential and the
+Mate?rn kernel – we can also get a bound that is sublinear in T , and
+thus RT /T ? 0 as T ? ? (Section 5.2 in [35]). We see that the
+regret of GREEDY is slightly better than the one of ROUNDROBIN.
+4.4 A Hybrid Approach
+One problem of Algorithm 2 is that it may enter a freezing stage
+and never step out. That is, after a certain time step (usually at the
+very end of running the algorithm), the candidate set of users will
+remain stable. The algorithm will stick to these users forever and
+therefore make no further progress if the optimal models for these
+users have been found. The reason for this phenomenon is that the
+empirical variance, though improved over the Gaussian variance in
+the UCB criterion, is still an estimated bound rather than the true
+gap between the observed and optimal model quality. When the
+observed model quality is close to the optimal quality, this esti-
+mated bound is no longer reliable as an indicator of the true gap.
+Consequently, the empirical variances for the users remain almost
+constant, which results in a stable candidate set.
+To overcome this problem, we further propose a hybrid approach.
+When we notice that the candidate set remains unchanged and the
+overall regret does not drop for s steps, we know that the algorithm
+has entered the freezing stage. We then switch to the round-robin
+user-selection strategy so that the algorithm can leave the freezing
+stage and make progress on the other users. We used this hybrid
+approach in our experimental evaluation (Section 5), where we set
+s = 10. As we have just discussed, this hybrid approach observes
+the same regret bound as Algorithm 2 because using a round-robin
+user-selection strategy instead does not change the regret bound.
+4.5 Discussion on Limitations
+As the first attempt at resolving the multi-tenant model-selection
+problem, this paper has the following limitations. From the the-
+oretical perspective, the regret bound is not yet theoretically opti-
+mal. From the practical perspective, the current framework only
+supports the case where the whole GPU pool is treated as a sin-
+gle device. With our current scale, this is not a problem as our
+deep learning subsystem still achieves significant speed up in our
+setup (all machines are connected with InfiniBand, all communica-
+tions are in low precision [41], and we tune learning rate following
+Goyal et al. [16]). However, as our service grows rapidly, this nice
+scalability will soon disappear. We will need to extend our current
+framework such that it is aware of multiple devices in the near fu-
+ture. Another limitation is that our analysis focuses on GP-UCB
+and it is not clear how to integrate other algorithms such as GP-
+EI [32] and GP-PI [25] into a multi-tenant framework. Last, we
+define the global satisfaction of all users as the sum of their regrets.
+It is not clear how to integrate hard rules such as the “each user’s
+deadline” and design algorithms for other aggregation functions.
+8
+5. EXPERIMENTS
+We present the experimental results of ease.ml for the real and
+synthetic data sets. On the real data set, we validate that ease.ml
+is able to provide better global user experiences on one real service
+we are providing to our users. We then use five synthetic data sets
+to better understand the multi-tenant model-selection subsystem in-
+side ease.ml. We validate that each of the technical contributions
+involved in the design of our multi-tenant model-selection subsys-
+tem results in a significant speedup over strong baselines.
+5.1 Data Sets
+We now describe the six data sets we used in the experiment.
+Figure 8 summarizes these data sets. Each data set used in our
+experiment contains a set of users and machine learning models.
+For each (user, model) pair, there are two measurements associated
+with it, namely (1) quality (accuracy) and (2) cost (execution time).
+(Real Quality, Real Cost) The DEEPLEARNING data set was col-
+lected from the ease.ml log of 22 users running image classifi-
+cation tasks. Each user corresponds to a data set and ease.ml
+uses eight models for each data set: NIN, GoogLeNet, ResNet-
+50, AlexNet, BN-AlexNet, ResNet-18, VGG-16, and SqueezeNet.
+Each (user, model) pair is trained with an Adam optimizer [21].
+The system automatically grid-searches the initial learning rate in
+{0.1, 0.01, 0.001, 0.0001} and runs each setting for 100 epochs.
+Unfortunately, image classification is the only ease.ml service
+so far that has enough users to be used as a benchmark data set. To
+further understand the robustness of ease.ml and understand the
+behavior of each of our technical contributions, we used a set of
+synthetic data sets described as follows.
+(Real Quality, Synthetic Cost) 179CLASSIFIER is a data set with
+real quality but synthetic costs. It contains 121 users and 179 mod-
+els obtained from Delgado et al. [11] on benchmarking different
+machine- learning models on UCI data sets. We use each data set as
+a user. Because the original paper does not report the training time,
+we generate synthetic costs from the uniform distribution U(0, 1).
+(Synthetic Quality, Synthetic Cost) We further generate a family
+of synthetic data sets with a synthetic data generator that generates
+synthetic quality and synthetic cost.
+ForN users andM models, the synthetic data generator contains
+a generative model for the quality xi,j of a model j ? [K] for a user
+i ? [N ]. We consider the following two factors that can affect xi,j .
+1. User baseline quality bi: Different users have different degrees
+of difficulty associated with their tasks — we can achieve higher
+accuracy on some tasks than on others. For a user i, bi then de-
+scribes how difficult the corresponding task is. In other words, bi
+characterizes the inherent difficulty of i and the final model quality
+xi,j is modeled as a fluctuation around bi (for the model j). We
+simply draw the bis from a normal distributionN (µb, ?2b ).
+2. Model quality variation mj : We use mj to denote the fluctu-
+ation of model j over the baseline quality. The generative model
+for mjs needs to capture this model correlation. Specifically, for
+each model j, we first assign a “hidden feature” by drawing from
+f(j) ? U(0, 1). Then, we define the covariance between two mod-
+els j and j? as ?M [j, j?] = exp
+{
+? (f(j)?f(j
+?))2
+?2
+M
+}
+. We sample for
+each user i: [m1, ...,mK ] ? N (0,?M ).
+We combine the above two factors and calculate the model qual-
+ity as xi,j = bi + ? ·mj . Each synthetic data set is specified by
+two hyperparameters: ?M and ?. ?M captures the strength of the
+model correlation, and ? captures the weight of the model correla-
+tion in the final quality. We vary these two parameters and generate
+the four data sets (SYN(?M , ?)) shown in Figure 8.
+Dataset # Users # Models Quality Cost
+DEEPLEARNING 22 8 Real Real
+179CLASSIFIER 121 179 Real Synthetic
+SYN(0.01,0.1) 200 100 Synthetic Synthetic
+SYN(0.01,1.0) 200 100 Synthetic Synthetic
+SYN(0.5,0.1) 200 100 Synthetic Synthetic
+SYN(0.5,1.0) 200 100 Synthetic Synthetic
+Figure 8: Statistics of Datasets
+0
+0.02
+0.04
+0.06
+0.08
+0.1
+0.12
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Total Cost
+0
+0.05
+0.1
+0.15
+0.2
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Total Cost
+Most Cited
+Most Recent
+ease.ml
+Most Recent
+Most Cited
+ease.ml
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss
+9.8x 3.1x
+Figure 9: End-to-end performance of ease.ml on the
+DEEPLEARNING dataset compared with two strategies popu-
+larly used by our users without ease.ml. Each user uses one
+of the two heuristics: (1) most cited network first or (2) most
+recently published network first. Different users are scheduled
+with a round-robin scheduler.
+5.2 End-to-End Performance of ease.ml
+We validate that ease.ml is able to achieve a better global user
+experience than an end-to-end system.
+Competitor Strategies. We compare ease.mlwith two strate-
+gies: (1) MOSTRECENT and (2) MOSTCITED. Both strategies use
+a round-robin scheduler to choose the next user to serve. Inside
+each user, it chooses the next model to train by choosing the net-
+works with the most citations on Google Scholar or published most
+recently. These two strategies are the strategies that most of our
+users were using before we provided them with ease.ml.
+Protocol. We run all three strategies, namely (1) ease.ml, (2)
+MOSTRECENT, and (3) MOSTCITED, on the data set DEEPLEARN-
+ING. We assume that all users enter the system at the same time and
+randomly sample ten users as a testing set and the rest of the users
+as a training set. For each strategy, we run it for 10% of the to-
+tal runtime of all models. For ease.ml, all hyperparameters for
+GP-UCB are tuned by maximizing the log-marginal-likelihood as
+in scikit-learn.1 We repeat the experiment 50 times.
+Metrics. We measure the performance of all strategies in two
+ways. For each of the 50 runs, we measure the average of accu-
+racy loss among all users at a given time point. Accuracy loss for
+each user is defined as the gap between the best possible accuracy
+among all models and the best accuracy we trained for the user so
+far. We then measure the average across all 50 runs as the first
+performance measurement. Because we treat ourselves as a “ser-
+vice provider”, we also care about the worst-case performance and
+thus we measure the worst-case accuracy loss across all 50 runs as
+another performance measure.
+Results. Figure 9 illustrates the result. We see that ease.ml
+outperforms the best of the two heuristics by up to 9.8× when
+comparing the average accuracy loss. The time spent on taking
+the average accuracy loss down from 0.1 to 0.02 of MOSTCITED
+is about 9.8 times of (i.e., 8.8 times longer than) that of ease.ml.
+In the worst case, ease.ml outperforms both competitors by up
+to 3.1×. We discuss in detail the reason for such improvements
+together with other data sets in the rest of this section.
+1
+http://scikit-learn.org/stable/modules/gaussian_
+process.html#gaussian-process
+9
+0
+0.02
+0.04
+0.06
+0.08
+0.1
+0.12
+0.14
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Runs
+0
+0.05
+0.1
+0.15
+0.2
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Runs
+ease.ml ease.ml
+round robin
+random
+random
+round robin U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Quality Distribution
+DEEPLEARNING
+0
+0.2
+0.4
+0.6
+0.8
+1
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Runs
+0
+0.2
+0.4
+0.6
+0.8
+1
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Runs
+ease.ml
+random
+round robin
+ease.ml
+round robin
+random
+U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Quality Distribution
+179CLASSIFIER
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Runs
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Runs
+ease.ml
+random
+round robin
+ease.ml
+round robin
+random
+U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Quality Distribution
+SYN(0.01, 0.1)
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Runs
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Runs
+ease.ml ease.mlround robin
+random
+random
+round robin
+U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Quality Distribution
+SYN(0.01, 1.0)
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Runs
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Runs
+ease.ml
+round robin
+random
+ease.ml
+randomround robin
+U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Quality Distribution
+SYN(0.5, 0.1)
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0.35
+0.4
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Runs
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Runs
+ease.ml
+round robin
+random
+ease.ml
+random
+round robin
+U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Quality Distribution
+SYN(0.5, 1.0)
+Figure 10: Performance of the cost-oblivious case.
+0
+0.02
+0.04
+0.06
+0.08
+0.1
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Total Cost
+0
+0.05
+0.1
+0.15
+0.2
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Total Cost
+random
+round robin
+ease.ml
+round robin
+random
+ease.ml
+U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Cost Distribution
+DEEPLEARNING
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Total Cost
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Total Cost
+ease.ml
+round robin
+random
+ease.ml
+random
+round robin
+U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Cost Distribution
+179CLASSIFIER
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Total Cost
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Total Cost
+ease.ml
+round robin
+random
+ease.ml
+random
+round robin Us
+er
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Cost Distribution
+SYN(0.01, 0.1)
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Total Cost
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Total Cost
+random
+round robin
+ease.ml
+round robin
+random
+ease.ml
+U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Cost Distribution
+SYN(0.01, 1.0)
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Total Cost
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Total Cost
+random
+round robin
+ease.ml
+round robin
+random
+ease.ml
+U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Cost Distribution
+SYN(0.5, 0.1)
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0.35
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Total Cost
+0
+0.05
+0.1
+0.15
+0.2
+0.25
+0.3
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Total Cost
+random
+ease.ml
+round robin
+random
+ease.ml
+round robin
+U
+se
+r
+Model
+(a) Average Accuracy Loss (b) Worse-case Accuracy Loss (c) Cost Distribution
+SYN(0.5, 1.0)
+Figure 11: Performance of the cost-aware case.
+10
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Runs
+Model
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Runs
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Runs
+U
+se
+r
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Runs
+ease.ml
+randomround robin
+U
+se
+r
+Model
+Stronger Model Correlation
+Stronger Model-Irrelevant Noise
+Figure 12: The impact of model correlation and noise
+5.3 Multi-tenant Model Selection
+We validate that the end-to-end performance improvement of
+ease.ml is brought about by the multi-tenant, cost-aware model-
+selection algorithm we propose in this paper. We follow a similar
+protocol as the end-to-end experiment with the following changes.
+Stronger Competitors. We compare ease.ml with two even
+stronger baselines than MOSTCITED and MOSTRECENT — in-
+stead of using heuristics to choose the next models to run for each
+user, we use GP-UCB for each user and choose the next users to
+serve in a ROUNDROBIN and RANDOM way. In practice, we ob-
+serve ROUNDROBIN outperforms both MOSTCITED and MOSTRE-
+CENT on DEEPLEARNING.
+Robustness to # Users. In addition to the end-to-end protocol,
+we also ran experiments with 50 users in the testing set for data sets
+with more than 100 users. The experiment result is similar to the
+ten-user case. Thus, we will only show the results for the ten users.
+5.3.1 The Cost-oblivious, Multi-tenant Case
+We first evaluate the multi-tenant setting when all systems are
+not cost-aware. In this case, the performance is measured as in #
+runs instead of cost (execution time). We run each system to allow
+it to train 50% of all available models.
+Results. Figure 10 shows the results. Each row in Figure 10 cor-
+responds to one data set. The first column shows the average ac-
+curacy loss (of the 50 runs of the same experiment) as the num-
+ber of runs increases, whereas the second column shows the worst-
+case accuracy loss (among the 50 runs of the same experiment) as
+the number of runs increases. The third column further shows the
+model-quality distribution of the underlying data set.
+On the two datasets with real quality, i.e., DEEPLEARNING and
+179CLASSIFIER, we observe that the average and worst-case ac-
+curacy loss of ease.ml drops faster, up to 1.9×, compared to
+RANDOM and ROUNDROBIN. We also observe similar results for
+all four synthetic data sets. This shows that ease.ml reduces the
+total regret of all users faster than the other two baselines.
+Compared with the end-to-end performance on DEEPLEARN-
+ING, we observe that, in the cost-oblivious case, the performance
+improvement of ease.ml is much smaller than 9.8×. As we will
+see later, the large end-to-end improvement can only be achieved
+when different models have different execution costs, in which case
+prioritizing between users becomes more important.
+In all experiments, ROUNDROBIN slightly outperforms RAN-
+DOM. This is not surprising as the only difference between RAN-
+DOM and ROUNDROBIN can be explained as two uniform sam-
+plings, one with and one without replacement. ROUNDROBIN out-
+performs RANDOM because it enforces deterministic fairness on all
+users, thought the performance gain is not much.
+Impact of Model Correlation. One important factor that has
+an impact on the performance of ease.ml is the strength of corre-
+lation among the quality of all models. Intuitively, the stronger the
+0
+0.02
+0.04
+0.06
+0.08
+0.1
+0.12
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Total Cost
+0
+0.05
+0.1
+0.15
+0.2
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Total Cost
+ease.ml
+ease.ml w/o cost
+ease.ml w/o cost
+ease.ml
+DEEPLEARNING
+Figure 13: Lesion study: The impact of cost-awareness.
+correlation, the better ease.ml would perform because its esti-
+mation on the quality of other models becomes more accurate. We
+study the impact of model correlation with the four synthetic data
+sets as shown in Figure 12. As we increase ?M from 0.01 to 0.5,
+the model correlation increases. As we reduce ? from 1.0 to 0.1,
+the weight of the model correlation decreases, which implies that
+the impact of the model-irrelevant noise increases.
+As illustrated in Figure 12, the performance of the algorithms im-
+proves upon the stronger model correlation. This is understandable.
+When model correlation becomes stronger, it is easier to distin-
+guish good models from bad ones. On the other hand, consider an
+extreme case when all the models are independent. In such circum-
+stance, an evaluation of one model cannot gain information about
+the others, which therefore requires more explorations before the
+overall picture of model performance becomes clear. Meanwhile,
+dampening the impact of the model correlation has similar effects.
+5.3.2 The Cost-aware, Multi-tenant Case
+We now evaluate the multi-tenant setting when all systems are
+aware of the cost, the more realistic scenario that ease.ml is de-
+signed for. For the DEEPLEARNING data set, we use the real cost
+(execution time) of each model. For the 179CLASSIFIER data set
+and the four synthetic data sets, we generate costs randomly.
+Results. Figure 11 shows the result. The first two columns show
+the average accuracy loss and worst-case accuracy loss, respec-
+tively. The third column shows the cost distribution of the underly-
+ing data set. All data sets share the same quality distribution as the
+cost-oblivious case, as can be read from Figure 10.
+The relative performance of the three algorithms is similar to
+the cost-oblivious case. However, the improvement of ease.ml
+becomes more significant. This is because different costs magnify
+the differences between different users, and thus the multi-tenant
+algorithm in ease.ml becomes more useful.
+Impact of Cost-Awareness. We validate the impact of using
+a cost-aware model-selection algorithm for each user. We conduct
+a lesion study by disabling the cost-aware component in ease.ml
+(set ci,j = 1 for GP-UCB). Figure 13 shows the result on the
+DEEPLEARNING data set. We see that considering the execution
+cost of the model significantly improves the performance of the
+system. Combining the data distribution in Figure 10 and the cost
+distribution in Figure 11, we see that this improvement is reason-
+able — models exist that are significantly faster on certain tasks
+and have a quality that is only a little bit worse than the best slower
+model. By integrating cost into our algorithm, ease.ml is able to
+automatically balance between execution time and the increase in
+quality of the global user experience.
+Impact of the Size of Training Data. We validate that by
+providing ease.ml as a service available to multiple users and
+collecting the logs from all these users. ease.ml is able to use
+this information to help other users in the system. The design of
+the algorithm in ease.ml achieves this by calculating the kernel
+of the Guassian Process from the training set — in other words,
+the performance of a model on other users’ data sets defines the
+similarity (correlation) between models. To validate the impact of
+11
+0
+0.02
+0.04
+0.06
+0.08
+0.1
+0.12
+0 50 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Total Cost
+0
+0.05
+0.1
+0.15
+0.2
+0 50 100
+W
+or
+se
+ A
+cc
+ur
+ac
+y 
+Lo
+ss
+% of Total Cost
+ease.ml ease.ml
+10%
+50%
+10%50%
+Figure 14: The impact of training set size (cost aware).
+0.001
+0.01
+0.1
+1
+1 10 100
+Av
+er
+ag
+e 
+Ac
+cu
+ra
+cy
+ L
+os
+s
+% of Runs
+greedy
+ease.ml
+round robin
+Figure 15: Lesion study: The impact of hybrid execution.
+this kernel, we decrease the amount of training data made available
+to the kernel (10%, 50%, 100%) and compare their performance.
+From Figure 14 we see that having more models to calculate a ker-
+nel significantly improves the performance of ease.ml. On the
+other hand, we also observe the phenomenon of “diminishing re-
+turn” — that is, using 50% of the training data results in similar
+performance as using 100% of the training data.
+Impact of Hybrid Execution. We now validate the impact of
+the hybrid approach in ease.ml. We disable the hybrid compo-
+nent and use each of the two strategies for comparison: (1) GREEDY
+and (2) ROUNDROBIN. Figure 15 shows the result on the 179CLAS-
+SIFIER data set for the cost-oblivious case.
+We observe that, while GREEDY outperforms ROUNDROBIN at
+the beginning, there is a crossover point as the algorithms proceed
+where ROUNDROBIN becomes superior to GREEDY. Switching to
+ROUNDROBIN after the crossover point makes the hybrid execu-
+tion strategy the best among the three algorithms. The reason that
+the crossover point exists is because of the quality of the GP estima-
+tor: As the execution proceeds, it is more and more important for
+GP to have a good estimation of the quality to choose the next user
+to serve. When all users’ current accuracy is high enough, the mod-
+eling error of treating the model-selection problem as a Gaussian
+Process starts to become ineligible. Thus, ROUNDROBIN works
+better for the second half by serving users fairly.
+Discussion: Single- vs. Multi- Devices. One decision we
+made in ease.ml that is reflected in our experiment protocol is
+that we are treating all GPUs we have as a single device. In our cur-
+rent setting (8 GPUs per machine while all machines are connected
+by InfiniBand; All data movements are in low precision [41] and
+we follow Goyal et al), this does not cause a problem because we
+can still get significant speed up with all GPUs training the same
+model. Consider a multi-device alternative that allocates one GPU
+to each user. Both alternatives require the similar amount of GPU-
+time to finish training. However, the single-device strategy returns
+a model faster for some users. In fact, for our DEEPLEARNING
+service, the single-device option achieves lower accumulated regret
+among users than the multi-device alternative. However, we realize
+that this design is not fundamental and that it will be important in
+future work to make ease.ml aware of multi-devices.
+6. RELATED WORK
+From the system perspective, ease.ml is closely related to
+the AutoML systems recently built by the database and machine
+learning communities. Examples include Spark TuPAQ [33], Auto-
+WEKA [22, 38], Google Vizier [14], Spearmint [31], GPyOpt [17],
+and Auto scikit-learn [13]. Most of these systems are built on
+state-of-the-art automatic model selection and hyperparameter tun-
+ing algorithms such as GP-UCB [35], GP-PI [25], GP-EI [32]. See
+Luo [27] for an overview. Compared to these systems, ease.ml is
+an AutoML system based on GP-UCB. However, the focus is on the
+multi-tenant case in which multiple users share the same infrastruc-
+ture running machine learning workloads. To our best knowledge,
+this is different from all existing model-selection systems.
+Multi-task Model Selection and Bayesian Optimization.
+The most relevant line of research is multi-task model selection op-
+timized for multiple concurrent single-tenant model selection tasks.
+ease.ml contains a new multi-task model-selection algorithm.
+Compared to previous work, ease.ml focuses on a different
+multi-tenant setting. For example, Swersky et al. [36] proposed
+different algorithms for two scenarios. Other than the cross valida-
+tion application we discussed before, it also consider cases when
+a cheaper classifier and an expensive classifier coexist. Swersky
+et al. try to query the cheaper classifier to get information for the
+expensive one — this is different from our objective as their algo-
+rithm requires a “primary user” while in ease.ml all users need to
+be treated equally. Similar observations hold for previous work by
+Bardenet et al. [4] and Hutter et al. [19]. We designed ease.ml to
+optimize for an objective that we generalized from our experience
+in serving our collaborators and also designed a novel algorithm.
+Multi-task Gaussian Process. There has been work done in
+extending the Gaussian Process to the multi-task case. One tech-
+nical example is the intrinsic model of coregionalization [15] that
+decomposes a kernel with a Kronecker product. Most multi-task
+model-selection algorithms use some version of a multi-task Gaus-
+sian Process as the underlying estimator. ease.ml uses a simple
+multi-task Gaussian Process estimator in which we do not consider
+the dependencies between users. One future direction will be to
+further integrate user correlations into ease.ml. Another related
+direction is parallel Gaussian Process in which multiple processes
+are being evaluated instead of just one [12]. The key here is to
+balance the diversity of multiple samples, and integrating similar
+techniques to extend ease.ml’s resource model from a single de-
+vice to multiple devices will be the subject of future work.
+Multi-tenant Clouds and Resource Management. The
+focus of multi-tenancy on shared infrastructure is not new — in
+fact, it has been one of the classic topics intensively studied by the
+database community. Examples include sharing buffer pools [29]
+and CPUs [9] for multi-tenant relational “databases-as-a-service”
+and sharing semi-structured data sources [5]. ease.ml is inspired
+by such work but focuses on multi-tenancy for machine learning.
+Declarative Machine Learning Clouds. There has been
+intensive study of declarative machine learning systems [1, 2, 7,
+18, 26, 28, 34]. In ease.ml we study how to integrate automatic
+model selection into a high-level abstraction and hope our result
+can be integrated into other systems in the future. Another related
+trend is the so-called “machine learning cloud.” Examples include
+the Azure ML Studio and Amazon ML. These services provide a
+high-level interface and often support automatic model selection
+and hyperparameter tuning. ease.ml is designed with the goal of
+lowering the operating cost for these services by enabling multiple
+users sharing the same underlying infrastructure.
+7. CONCLUSION
+In this paper, we presented ease.ml, a declarative machine
+learning system that automatically manages an infrastructure shared
+by multiple users. We focused on studying one of the key technical
+problems in ease.ml, i.e., multi-tenant model-selection. We gave
+the first formulation and proposed a solution that extends the well-
+known GP-UCB algorithm into the multi-tenant, cost-aware setting
+with theoretical guarantees. Our experimental evaluation substan-
+tiates the effectiveness of ease.ml, which significantly outper-
+forms popular heuristic approaches currently used in practice.
+12
+8. REFERENCES
+[1] M. Abadi, A. Agarwal, P. Barham, E. Brevdo, Z. Chen,
+C. Citro, G. S. Corrado, A. Davis, J. Dean, M. Devin,
+S. Ghemawat, I. Goodfellow, A. Harp, G. Irving, M. Isard,
+Y. Jia, R. Jozefowicz, L. Kaiser, M. Kudlur, J. Levenberg,
+D. Mane, R. Monga, S. Moore, D. Murray, C. Olah,
+M. Schuster, J. Shlens, B. Steiner, I. Sutskever, K. Talwar,
+P. Tucker, V. Vanhoucke, V. Vasudevan, F. Viegas,
+O. Vinyals, P. Warden, M. Wattenberg, M. Wicke, Y. Yu, and
+X. Zheng. TensorFlow: Large-Scale Machine Learning on
+Heterogeneous Distributed Systems. ArXiv, mar 2016.
+[2] A. Alexandrov, A. Kunft, A. Katsifodimos, F. Schu?ler,
+L. Thamsen, O. Kao, T. Herb, and V. Markl. Implicit
+Parallelism through Deep Language Embedding. In
+Proceedings of the 2015 ACM SIGMOD International
+Conference on Management of Data - SIGMOD ’15, pages
+47–61, New York, New York, USA, 2015. ACM Press.
+[3] P. Bailis, K. Olukotun, C. Re, and M. Zaharia. Infrastructure
+for Usable Machine Learning: The Stanford DAWN Project.
+arXiv, may 2017.
+[4] R. Bardenet, M. Brendel, B. Ke?gl, and M. Sebag.
+Collaborative hyperparameter tuning. In ICML, pages
+II–199. JMLR.org, 2013.
+[5] K. Bellare, C. Curino, A. Machanavajihala, P. Mika,
+M. Rahurkar, and A. Sane. WOO: a scalable and multi-tenant
+platform for continuous knowledge base synthesis.
+Proceedings of the VLDB Endowment, 6(11):1114–1125,
+aug 2013.
+[6] C. Binnig, A. Fekete, A. Nandi, Association for Computing
+Machinery, C. ACM-Sigmod International Conference on
+Management of Data (2016 : San Francisco, and C. ACM
+SIGACT-SIGMOD-SIGART Symposium on Principles of
+Database Systems (2016 : San Francisco. Proceedings of the
+Workshop on Human-In-the-Loop Data Analytics. ACM,
+2016.
+[7] M. Boehm, A. C. Surve, S. Tatikonda, M. W. Dusenberry,
+D. Eriksson, A. V. Evfimievski, F. M. Manshadi, N. Pansare,
+B. Reinwald, F. R. Reiss, and P. Sen. SystemML: Declarative
+Machine Learning on Spark. Proceedings of the VLDB
+Endowment, 9(13):1425–1436, sep 2016.
+[8] S. Bubeck and N. Cesa-Bianchi. Regret Analysis of
+Stochastic and Nonstochastic Multi-armed Bandit Problems.
+Foundations and Trends in Machine Learning, 5(1):1–122,
+2012.
+[9] S. Das, V. R. Narasayya, F. Li, and M. Syamala. CPU
+sharing techniques for performance isolation in multi-tenant
+relational database-as-a-service. Proceedings of the VLDB
+Endowment, 7(1):37–48, sep 2013.
+[10] David Shue, Michael J. Freedman, and Anees Shaikh.
+Performance Isolation and Fairness for Multi-Tenant Cloud
+Storage — USENIX. In OSDI, 2012.
+[11] M. F. Delgado, E. Cernadas, S. Barro, and D. G. Amorim.
+Do we need hundreds of classifiers to solve real world
+classification problems? Journal of Machine Learning
+Research, 15(1):3133–3181, 2014.
+[12] T. Desautels, A. Krause, and J. W. Burdick. Parallelizing
+Exploration-Exploitation Tradeoffs in Gaussian Process
+Bandit Optimization. Journal of Machine Learning
+Research, 15:4053–4103, 2014.
+[13] M. Feurer, A. Klein, K. Eggensperger, J. Springenberg,
+M. Blum, and F. Hutter. Efficient and Robust Automated
+Machine Learning. In NIPS, pages 2962–2970, 2015.
+[14] D. Golovin, B. Solnik, S. Moitra, G. Kochanski, J. E. Karro,
+and D. Sculley. Google Vizier: A Service for Black-Box
+Optimization. In KDD, 2017.
+[15] P. Goovaerts. Geostatistics for natural resources evaluation.
+Oxford University Press, 1997.
+[16] P. Goyal, P. Dolla?r, R. Girshick, P. Noordhuis,
+L. Wesolowski, A. Kyrola, A. Tulloch, Y. Jia, and K. He.
+Accurate, Large Minibatch SGD: Training ImageNet in 1
+Hour. ArXiv e-prints, June 2017.
+[17] GPyOpt. {GPyOpt}: A Bayesian Optimization framework in
+python. \url{http://github.com/SheffieldML/GPyOpt}, 2016.
+[18] J. M. Hellerstein, C. Re?, F. Schoppmann, D. Z. Wang,
+E. Fratkin, A. Gorajek, K. S. Ng, C. Welton, X. Feng, K. Li,
+and A. Kumar. The MADlib Analytics Library: Or MAD
+Skills, the SQL. Proc. VLDB Endow., 2012.
+[19] F. Hutter, H. H. Hoos, and K. Leyton-Brown. Sequential
+Model-Based Optimization for General Algorithm
+Configuration. In LION, pages 507–523. Springer-Verlag,
+2011.
+[20] Jonathan Mace, Peter Bodik, Rodrigo Fonseca, and Madanlal
+Musuvathi. Retro: Targeted Resource Management in
+Multi-tenant Distributed Systems — USENIX. In NSDI,
+2015.
+[21] D. P. Kingma and J. Ba. Adam: A Method for Stochastic
+Optimization. ICLR, dec 2014.
+[22] L. Kotthoff, C. Thornton, H. H. Hoos, F. Hutter, and
+K. Leyton-Brown. Auto-WEKA 2.0: Automatic model
+selection and hyperparameter optimization in WEKA.
+Journal of Machine Learning Research, 18(25):1–5, 2017.
+[23] R. Krebs, S. Spinner, N. Ahmed, and S. Kounev. Resource
+Usage Control in Multi-tenant Applications. In 2014 14th
+IEEE/ACM International Symposium on Cluster, Cloud and
+Grid Computing, pages 122–131. IEEE, may 2014.
+[24] S. Krishnan and E. Wu. PALM: Machine Learning
+Explanations For Iterative Debugging. In Proceedings of the
+2nd Workshop on Human-In-the-Loop Data Analytics -
+HILDA’17, pages 1–6, New York, New York, USA, 2017.
+ACM Press.
+[25] H. J. Kushner. A New Method of Locating the Maximum
+Point of an Arbitrary Multipeak Curve in the Presence of
+Noise. Journal of Basic Engineering, 86(1), 1964.
+[26] Y. Low, D. Bickson, J. Gonzalez, C. Guestrin, A. Kyrola, and
+J. M. Hellerstein. Distributed GraphLab. PVLDB,
+5(8):716–727, apr 2012.
+[27] G. Luo. A review of automatic selection methods for
+machine learning algorithms and hyper-parameter values.
+NetMAHIB, 5(1):18, 2016.
+[28] X. Meng, J. Bradley, B. Yavuz, E. Sparks, S. Venkataraman,
+D. Liu, J. Freeman, D. Tsai, M. Amde, S. Owen, D. Xin,
+R. Xin, M. J. Franklin, R. Zadeh, M. Zaharia, and
+A. Talwalkar. MLlib: machine learning in apache spark,
+volume 17. MIT Press, 2016.
+[29] V. Narasayya, I. Menache, M. Singh, F. Li, M. Syamala, and
+S. Chaudhuri. Sharing buffer pool memory in multi-tenant
+relational database-as-a-service. Proceedings of the VLDB
+Endowment, 8(7):726–737, feb 2015.
+[30] K. Schawinski, C. Zhang, H. Zhang, L. Fowler, and G. K.
+Santhanam. Generative Adversarial Networks recover
+features in astrophysical images of galaxies beyond the
+deconvolution limit. Monthly Notices of the Royal
+Astronomical Society: Letters, 120(1):slx008, jan 2017.
+13
+[31] J. Snoek, H. Larochelle, and R. P. Adams. Practical Bayesian
+Optimization of Machine Learning Algorithms. In NIPS,
+pages 2951–2959, 2012.
+[32] J. Snoek, H. Larochelle, and R. P. Adams. Practical bayesian
+optimization of machine learning algorithms. pages
+2960–2968, 2012.
+[33] E. R. Sparks, A. Talwalkar, D. Haas, M. J. Franklin, M. I.
+Jordan, and T. Kraska. Automating model search for large
+scale machine learning. In Proceedings of the Sixth ACM
+Symposium on Cloud Computing - SoCC ’15, pages
+368–380, New York, New York, USA, 2015. ACM Press.
+[34] E. R. Sparks, S. Venkataraman, T. Kaftan, M. J. Franklin,
+and B. Recht. KeystoneML: Optimizing Pipelines for
+Large-Scale Advanced Analytics. ICDE, 2017.
+[35] N. Srinivas, A. Krause, S. Kakade, and M. W. Seeger.
+Gaussian process optimization in the bandit setting: No
+regret and experimental design. In ICML, pages 1015–1022,
+2010.
+[36] K. Swersky, J. Snoek, and R. P. Adams. Multi-Task Bayesian
+Optimization. In NIPS, pages 2004–2012, 2013.
+[37] P. Tamagnini, J. Krause, A. Dasgupta, and E. Bertini.
+Interpreting Black-Box Classifiers Using Instance-Level
+Visual Explanations. In Proceedings of the 2nd Workshop on
+Human-In-the-Loop Data Analytics - HILDA’17, pages 1–6,
+New York, New York, USA, 2017. ACM Press.
+[38] C. Thornton, F. Hutter, H. H. Hoos, and K. Leyton-Brown.
+Auto-WEKA. In Proceedings of the 19th ACM SIGKDD
+international conference on Knowledge discovery and data
+mining - KDD ’13, page 847, New York, New York, USA,
+2013. ACM Press.
+[39] P. Varma, D. Iter, C. De Sa, and C. Re?. Flipper: A Systematic
+Approach to Debugging Training Sets. In Proceedings of the
+2nd Workshop on Human-In-the-Loop Data Analytics -
+HILDA’17, pages 1–5, New York, New York, USA, 2017.
+ACM Press.
+[40] C. Zhang, W. Wu, and T. Li. An Overreaction to the Broken
+Machine Learning Abstraction: The ease.ml Vision. In
+Proceedings of the 2nd Workshop on Human-In-the-Loop
+Data Analytics - HILDA’17, pages 1–6, New York, New
+York, USA, 2017. ACM Press.
+[41] H. Zhang, K. Kara, J. Li, D. Alistarh, J. Liu, and C. Zhang.
+ZipML: An End-to-end Bitwise Framework for Dense
+Generalized Linear Models. ICML, 2017.
+APPENDIX
+A. DETAILED EXPERIMENT SETTINGS
+GP-UCB requires to specify a prior (µ(x), k(x,x?)). As a con-
+vention, for GP’s not conditioned on data, we assume that µ = 0
+without loss of generality [35]. While we can use standard kernel
+functions for the k, we need to come up with a vector representation
+(i.e., the x) for the models. For this purpose, we randomly split a
+dataset into a “training set” and a “testing set.” We use the training
+set to compute a vector for each model as follows: We first evalu-
+ate the model on each user in the training set to get its quality, and
+we then pack these qualities into a “quality vector” x indexed by
+the users. In our experiments, we used 90% data for training and
+10% data for testing. We run each experiment 50 times by using
+different random splits of the data into training and testing sets.
+Given a dataset, for each of the three algorithms, we report its
+accuracy loss as time goes by. For a user i ? [n] and a time step T ,
+let ai,T = max1?t?T ai,t be the best accuracy of evaluating the
+selected models up to the time T , and let a?i be the best accuracy
+that the user i can achieve. We define the accuracy loss of the user
+i at the time T as
+li,T = a
+?
+i ? ai,T . (2)
+Accordingly, we define the accuracy loss at the time T to be the
+average accuracy loss of the users:
+lT =
+1
+n
+?n
+i=1
+li,T . (3)
+Clearly lT ? 0 as T ? ?, if the multi-tenant model selection
+algorithm is regret-free (i.e., the best model for each user is eventu-
+ally found). Moreover, we have li,T ? ri,T , namely, the accuracy
+loss of each user is upper bounded by his/her instantaneous regret.
+One may wonder why we report accuracy loss instead of regret.
+The reason is that accuracy loss is a metric we care more in practice.
+Recall the real scenario where the multi-tenant model selection al-
+gorithm is applied in our system (Section 2): At each time step T , a
+user is using the best model he/she has found so far (even if he/she
+is not scheduled at time T ) for his/her task, rather than using the
+model being evaluated at time T ! Therefore, compared with re-
+gret, accuracy loss is closer in the sense of characterizing the real
+user “happiness.” On the other hand, regret is the standard metric
+when analyzing bandit algorithms. Given that accuracy loss is up-
+per bounded by instantaneous regret, the upper bounds for regret
+apply to accuracy loss as well.
+B. DETAILS OF SYNTHETIC DATA GEN-
+ERATION
+We present the model we used to generate synthetic data for N
+users and M models. The dataset we used is a special case of this
+model. The basic assumption behind our model is that the quality
+of a model j ? [M ] for a user i ? [N ] can be decomposed into the
+following four factors:
+1. User baseline quality bi: Different users have different hard-
+ness associated with their tasks — we can achieve higher ac-
+curacy on some tasks than the others. For a user i, bi then
+describes how difficult the corresponding task is.
+2. Model quality correlation mj : For each user i, {mj} cor-
+responds to the fluctuation of the quality of the model j over
+the baseline quality that can be explained by model correla-
+tion. For example, on a given user dataset, we would ex-
+pect ResNet-20 always outperforms ResNet-50 if the dataset
+is small.
+3. User quality correlation ui: For each model j, {ui} corre-
+sponds to the fluctuation of the quality of the model j across
+different users over the baseline quality that can be explained
+by user dataset correlation. For example, given a neural net-
+work such as ResNet-1000, we should expect that it works
+well on all large datasets but worse on all small ones.
+4. White noise i,j : This factor tries to capture everything that
+are not explained by the previous three factors.
+Let xi,j be the quality of model j for user i. With the above
+notation, it follows that
+xi,j = bi +mj + ui + i,j . (4)
+By convention we define xi,j = 0 if Equation 4 leads to xi,j < 0
+and define xi,j = 1 if Equation 4 leads to xi,j > 1.
+The generative procedure for each xi,j is to draw samples bi,mj ,
+ui, i,j from their corresponding distributions (defined as follows),
+and then sum them together.
+14
+B.1 Generative Model
+The generative model behind the synthetic dataset we used is as
+follows.
+1. Baseline Group: There are different groups of tasks – those
+that are difficult (with small baseline quality) and those that
+are easy (with higher baseline quality). A given user can be-
+long to a single baseline group.
+2. User Group: A user group is a group of users who share the
+same generative model of ui. There are different groups –
+high correlation groups and low correlation groups. A given
+user can belong to a single user group.
+3. Model Group: A model group is a group of models who
+share the same generative model of mj . There are different
+groups – high correlation groups and low correlation groups.
+A given model can belong to a single model group.
+4. White Noise: We assume all white noises are i.i.d.
+Given a user who belongs to baseline group B and user group
+U , and a model that belongs to model group M , each of the above
+four terms can be sampled from the corresponding distribution of
+the group.
+B.1.1 Generative Model of a Baseline Group
+Different baseline groups are governed by the expected quality
+µb of the group and the variation of quality ?b within the group.
+Given a user belong to a (µb, ?b)-baseline group, the user baseline
+quality b is sampled as
+b ? N (µb, ?b).
+B.1.2 Generative Model of a Model Group
+Different model groups are governed by a constant ?M corre-
+sponding to the strength of correlation. Let M1, ...,MK be all
+models in a ?M -model group, we assume the following generative
+models.
+Hidden Similarity between Models. One assumption we
+have is that each model has a similarity measure with each other
+that is not known to the algorithm. This similarity defines how
+strong the correlations are between different models. For each
+model Mj , we assign
+f(Mj) ? U(0, 1)
+and will use it later to calculate the similarity between models.
+Sample from a model group. Given a ?M -model group and
+the f(?) score already pre-assigned to each model, we sample
+[m1, ...mK ] ? N (0,?M )
+where the covariance matrix ?M is defined as follows.
+For each pair of (i, j), ?M [i, j] follows the following intuition:
+If f(Mi) and f(Mj) are close to each other, then their correlation
+is stronger. Thus, we define
+?M [i, j] = exp
+{
+? (f(Mi)? f(Mj))
+2
+?2M
+}
+B.1.3 Generative Model of the User Group
+Different user groups are governed by a constant ?U correspond-
+ing to the strength of correlation. Let M1, ...,MK be all users in a
+?U -user group, the generative model is similar to that of a model
+group.
+[u1, ..., uK ] ? N (0,?U ).
+B.1.4 Generative Model of the White Noise
+All white noises are i.i.d, governed by the same constant ?W .
+i,j ? N (0, ?W ).
+B.2 Dataset Generation
+A synthetic dataset is governed by the following tuple
+(B = {(µ(i)b , ?
+(i)
+b )},M = {(?
+(j)
+M )},U = ?, ?W ,
+pU : B × U 7? N, pM :M 7? N)
+which is generated by |B| baseline groups, |M| model groups, and
+|U| user groups. pU maps each combination of baseline group and
+user group to the number of users belonging to the given combina-
+tion. pM maps each model group to how many models belong to
+the given group.
+The synthetic dataset we used in this paper uses the following
+instantiation.
+1. B = {(0.75, ?B), (0.25, ?B)}
+2. M = {?M}
+3. U = {?U}
+4. pU (?) = 50
+5. pM (?) = 100
+which will generate 100 models and 100 users.
+To understand the impact of different factors to the algorithm,
+1. Change ?M to understand the impact of correlations between
+models.
+2. Change ?U to understand the impact of correlations between
+users.
+3. Change PU to understand the impact of mixing users with
+different task difficulties (if all users’ task are equally hard,
+why not round-robin)
+C. PROOFS
+In the sequel, we denote by f i(k) the performance or reward of
+choosing model k ? [K] for tenant i ? [n], and for single tenant
+case, we simply use f(k).
+LEMMA 4. Fix ? ? (0, 1) and let ?t = 2c? log
+[
+?2Kt2
+6?
+]
+. Then
+|f(k)? µt?1(k)| ?
+?
+?t
+ck
+?t?1(k), ?2 ? t ? T, k ? [K],
+with probability at least 1? ?.
+15
+PROOF. Fix t ? 2. Conditioned on y[1:t?1], we have
+f(k) ? N (µt?1(k), ?2t?1(k)), ?k ? [K].
+Then
+P
+(
+|f(k)? µt?1(k)| ?
+?
+?t
+ck
+?t?1(k)
+)
+= P
+(
+|f(k)? µt?1(k)|??1t?1(k) ?
+?
+?t
+ck
+)
+=
+2?
+2?
+? ??
+?t
+ck
+e?
+z2
+2 dz = e
+? ?t
+2ck
+1?
+2?
+? ??
+?t
+ck
+e?
+?t/ck?z
+2
+2 dz
+= e
+? ?t
+2ck
+2?
+2?
+? ??
+?t
+ck
+e?
+(
+?
+?t/ck?z)
+2
+2 e?z(z?
+?
+?t/ck) dz
+? e?
+?t
+2ck
+2?
+2?
+? ?
+0
+e?
+z2
+2 dz
+= e
+? ?t
+2ck .
+Applying the union bound for 2 ? t ? T, k ? [K], we obtain
+|f(k)? µt?1(k)| ?
+?
+?t
+ck
+?t?1(k), ?k ? [K],
+with probability at least 1?
+?T
+t=1
+?K
+k=1 e
+? ?t
+2ck ? 1? ?.
+Proof of Theorem 1
+PROOF. We here only show the proof of the bound for the sim-
+ple regret, and the cumulative regret case can be shown by setting
+n = 1 in the proof of multi-tenant case.
+By the definition of at in our algorithm, we have
+µt?1(at) +
+?
+?t
+cat
+?t?1(at) ? µt?1(a?) +
+?
+?t
+ca?
+?t?1(a
+?).
+Then it follows from Lemma 4 that with at least probability 1? ?,
+we have
+rt = f(a
+?)? f(at)
+? µt?1(a?) +
+?
+?t
+ca?
+?t?1(a
+?)? f(at)
+? µt?1(at) +
+?
+?t
+cat
+?t?1(at)? f(at)
+? 2
+?
+?t
+cat
+?t?1(at).
+Note that ?t is increasing in t, ?2t?1(at) ? ?(at, at) ? 1 and the
+function x/ log(1 + x) is increasing in x ? 0, we have
+catr
+2
+t ? cat · 4?tc
+?1
+at ?
+2
+t?1(at) = 4?t?
+2
+t?1(at)
+? 4?2?T
+??2?2t?1(at)
+log(1 + ??2?2t?1(at))
+· log(1 + ??2?2t?1(at))
+? 4?2?T
+??2
+log(1 + ??2)
+· log(1 + ??2?2t?1(at))
+=
+4?T
+log(1 + ??2)
+· log(1 + ??2?2t?1(at)),
+and thus
+T?
+t=1
+catr
+2
+t ? I?(T ).
+By Cauchy-Schwarz inequality, we obtain
+min
+t?[T ]
+rt ?
+?T
+t=1 catrt?T
+t=1 cat
+?
+??T
+t=1 cat ·
+??T
+t=1 catr
+2
+t?T
+t=1 cat
+?
+?
+I?(T )?T
+t=1 cat
+,
+which completes the proof.
+Proof of Theorem 2
+PROOF. Fix t ? 2 and i ? [n]. Conditioned on the observations
+of previous t? 1 rounds, we know that
+f i(k) ? N (µit?1(k), (?it?1(k))2), ?k ? [Ki].
+Then
+P
+(
+|f i(k)? µit?1(k)| ?
+?
+?it
+cik
+?it?1(k)
+)
+= P
+(
+|f i(k)? µit?1(k)|
+?it?1(k)
+?
+?
+?it
+cik
+)
+? e
+? ?
+i
+t
+2ci
+k .
+Applying the union bound, we obtain for any 2 ? t ? T, i ? [n]
+and k ? [Ki],
+|f i(k)? µit?1(k)| ?
+?
+?it
+cik
+?it?1(k),
+with probability at least 1?
+?T
+t=1
+?n
+i=1
+?Ki
+k=1 e
+? ?
+i
+t
+2ci
+k ? 1? ?.
+For each user i ? [n], we have
+riti = f
+i(ai,?)? f i(aiti)
+?
+?????iti
+ci
+ait
+?it?1(a
+i
+ti) + µ
+i
+t?1(a
+i
+ti)? f
+i(aiti)
+? 2
+?????iti
+ci
+ait
+?it?1(a
+i
+ti),
+and thus by algorithm,
+T?
+t=1
+n?
+i=1
+cIt
+a
+It
+t
+riti ?
+T?
+t=1
+n?
+i=1
+cIt
+a
+It
+t
+2
+???? ?iti
+ci
+ai
+ti
+?it?1(a
+i
+ti)
+? 2
+?
+(c?)2
+c?
+T?
+t=1
+n?
+i=1
+?
+?i
+ti
+?it?1(a
+i
+ti)
+= 2n
+?
+(c?)2??
+c?
+n?
+i=1
+?
+t?T (i)
+?it?1(a
+i
+t)
+? 2n
+?
+(c?)2??
+c?
+n?
+i=1
+?
+|T (i)|
+? ?
+t?T (i)
+(?it?1(a
+i
+t))
+2
+? 2n
+?
+(c?)2??
+c?
+n?
+i=1
+?
+2T
+n
+? ?
+t?T (i)
+(?it?1(a
+i
+t))
+2
+16
+Note that
+(?it?1(a
+i
+t))
+2 = (?i)2 · (?
+i)?2(?it?1(a
+i
+t))
+2
+log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+· log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+? (?i)2 · (?
+i)?2
+log (1 + (?i)?2)
+· log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+=
+1
+log (1 + (?i)?2)
+· log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+,
+and so?
+t?T (i)
+(?it?1(a
+i
+t))
+2 ? 1
+log (1 + (?i)?2)?
+t?T (i)
+log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+.
+Therefore,
+T?
+t=1
+n?
+i=1
+cIt
+a
+It
+t
+riti ?
+?
+nT
+n?
+i=1
+?
+Ii([T (i)]).
+Proof of Theorem 3
+PROOF. Fix t ? 2 and i ? [n]. Conditioned on the observations
+of previous t? 1 rounds, we know that
+f i(k) ? N (µit?1(k), (?it?1(k))2), ?k ? [Ki].
+Then
+P
+(
+|f i(k)? µit?1(k)| ?
+?
+?it
+cik
+?it?1(k)
+)
+= P
+(
+|f i(k)? µit?1(k)|
+?it?1(k)
+?
+?
+?it
+cik
+)
+? e
+? ?
+i
+t
+2ci
+k .
+Applying the union bound, we obtain for any 2 ? t ? T, i ? [n]
+and k ? [Ki],
+|f i(k)? µit?1(k)| ?
+?
+?it
+cik
+?it?1(k),
+with probability at least 1?
+?T
+t=1
+?n
+i=1
+?Ki
+k=1 e
+? ?
+i
+t
+2ci
+k ? 1? ?.
+It follows from the algorithm, we have
+riti = f
+i(ai,?)? f i(aiti)
+? ??iti ? 2
+???? ?iti
+ci
+ai
+ti
+?it?1(a
+i
+ti), ?i ? [n], t ? [T ],
+and thus,
+T?
+t=1
+n?
+i=1
+cIt
+a
+It
+t
+riti ?
+T?
+t=1
+cIt
+a
+It
+t
+n?
+i=1
+2
+???? ?iti
+ci
+ai
+ti
+?it?1(a
+i
+ti)
+? 2n
+T?
+t=1
+cIt
+a
+It
+t
+???? ?Itt
+cIt
+a
+It
+t
+?Itt?1(a
+It
+t ) (since t
+It = t)
+= 2n
+T?
+t=1
+?
+cIt
+a
+It
+t
+?Itt ?
+It
+t?1(a
+It
+t )
+? 2n
+???? T?
+t=1
+cIt
+a
+It
+t
+?Itt
+???? T?
+t=1
+(?Itt?1(a
+It
+t ))
+2
+? 2n
+?
+c???T
+???? T?
+t=1
+(?Itt?1(a
+It
+t ))
+2.
+Note that
+T?
+t=1
+(?Itt?1(a
+It
+t ))
+2 =
+n?
+i=1
+?
+t?T (i)
+(?it?1(a
+i
+t))
+2,
+and also
+(?it?1(a
+i
+t))
+2 = (?i)2 · (?
+i)?2(?it?1(a
+i
+t))
+2
+log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+· log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+? (?i)2 · (?
+i)?2
+log (1 + (?i)?2)
+· log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+=
+1
+log (1 + (?i)?2)
+· log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+.
+Therefore,
+T?
+t=1
+(?Itt?1(a
+It
+t ))
+2 ?
+n?
+i=1
+1
+log (1 + (?i)?2)?
+t?T (i)
+log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+.
+Finally, we obtain the bound for the total regret:
+T?
+t=1
+n?
+i=1
+cIt
+a
+It
+t
+riti
+? 2n
+?
+c???T
+·
+???? n?
+i=1
+1
+log (1 + (?i)?2)
+?
+t?T (i)
+log
+(
+1 + (?i)?2(?it?1(a
+i
+t))
+2
+)
+= n
+?
+T
+???? n?
+i=1
+Ii([T (i)]),
+which completes the proof.
+17

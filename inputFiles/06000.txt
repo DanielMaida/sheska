@@ -1,0 +1,1057 @@
+Eicient Online Inference for Infinite Evolutionary Cluster
+models with Applications to Latent Social Event Discovery
+Wei Wei
+Carnegie Mellon University
+weiwei@cs.cmu.edu
+Kennth Joseph
+Northeastern University ?
+k.joseph@northeastern.edu
+Kathleen M. Carley
+Carnegie Mellon University
+kathleen.carley@cs.cmu.edu
+ABSTRACT
+The Recurrent Chinese Restaurant Process (RCRP) is a powerful
+statistical method for modeling evolving clusters in large scale
+social media data. With the RCRP, one can allow both the number
+of clusters and the cluster parameters in a model to change over
+time. However, application of the RCRP has largely been limited due
+to the non-conjugacy between the cluster evolutionary priors and
+the Multinomial likelihood. This non-conjugacy makes inference
+dicult and restricts the scalability of models which use the RCRP,
+leading to the RCRP being applied only in simple problems, such as
+those that can be approximated by a single Gaussian emission. In
+this paper, we provide a novel solution for the non-conjugacy issues
+for the RCRP and an example of how to leverage our solution for
+one specic problem - the social event discovery problem. By utilizing
+Sequential Monte Carlo methods in inference, our approach can
+be massively paralleled and is highly scalable, to the extent it can
+work on tens of millions of documents. We are able to generate high
+quality topical and location distributions of the clusters that can
+be directly interpreted as real social events, and our experimental
+results suggest that the approaches proposed achieve much better
+predictive performance than techniques reported in prior work. We
+also demonstrate how the techniques we develop can be used in a
+much more general ways toward similar problems.
+CCS CONCEPTS
+• Computer systems organization ? Embedded systems; Re-
+dundancy; Robotics; • Networks ? Network reliability;
+KEYWORDS
+ACM proceedings, LATEX, text tagging
+ACM Reference format:
+Wei Wei, Kennth Joseph, and Kathleen M. Carley. 1997. Ecient Online
+Inference for Innite Evolutionary Cluster models with Applications to
+Latent Social Event Discovery. In Proceedings of ACM Woodstock conference,
+El Paso, Texas USA, July 1997 (WOODSTOCK’97), 9 pages.
+DOI: 10.475/123_4
+1 INTRODUCTION
+With the increasing amount of unlabeled data sets that can be easily
+acquired, clustering techniques have become increasingly impor-
+tant to the community of machine learning. Thanks to the growing
+Permission to make digital or hard copies of part or all of this work for personal or
+classroom use is granted without fee provided that copies are not made or distributed
+for prot or commercial advantage and that copies bear this notice and the full citation
+on the rst page. Copyrights for third-party components of this work must be honored.
+For all other uses, contact the owner/author(s).
+WOODSTOCK’97, El Paso, Texas USA
+© 2016 Copyright held by the owner/author(s). 123-4567-24-567/08/06. . . $15.00
+DOI: 10.475/123_4
+amount of social media and social networking applications, publicly
+available text data, specically, has grown at a massive, exponential
+rate. As the amount of such data produced has rapidly surpassed
+human capacity for interpretation of it, one of the most important
+questions we face today is how we can eectively organize this
+text into clusters that are meaningful for humans and allow for
+actionable insights.
+Bayesian ad-mixture based methods such as Latent Dirichlet
+Allocation (LDA) [5], otherwise known as “topic models”, have been
+one of the most popular clustering methods for text data. In topic
+models, latent representations of clusters referred to as “topics”,
+which are distributions over words in the corpus, are learned by
+scanning a large text corpus. Extensions of topic models have been
+developed for when meta information such as spatial coordinates
+or timestamps are present. Examples include the geographical topic
+model[13], the dynamic topic model [3] and the event detection
+model [15]. In these models, topics usually contain distributions
+that describe metadata in addition to the word distributions found
+in traditional topic models.
+When topic models are applied to data over long periods of
+time, it is likely that topics will change or evolve. For example, a
+topic about the presidential elections trained on data from 2012
+might contain words like “debate”, “Democrat”, “election”, generic
+to almost any presidential election, and words like “marriage” and
+“Romney” that were specic to the 2012 race. Similarly, a topic
+trained on data from 2016 might contain the same general terms but
+refer to “wall” and “Trump” as opposed to “marriage” and “Romney”.
+A temporal evolutionary model such as the dynamic topic model
+[3] can be trained on data from both 2012 and 2016 and can identify
+a single “presidential election” topic that shifted slightly over time
+between 2012 and 2016, rather than creating two totally distinct
+topics. Rather than having to perform manual, post-hoc analyses
+to make such connections, temporal evolutionary topic models
+thus can easily allow for understanding how general themes of
+importance in the data shift over time.
+Temporal evolutionary topic models can also address the fact
+that over time, not only do old topics shift, new topics also arise. The
+non-parametric version of the evolutionary dynamic models uses
+the Recurrent Chinese Restaurant Process (RCRP)[2] and therefore
+allows for the number topics to be automatically determined by
+the data set rather than setting a xed value. Because the model
+works on temporally ordered data, inference techniques such as
+Sequential Monte Carlo can allow for massively paralleled online
+algorithms to be developed to deal with streaming data sets. Non-
+parametric evolutionary dynamic models thus allow for both the
+creation of “new” topics dynamically from the data as well as the
+evolution of “old” topics over time, making them an ideal candidate
+for the rapid analysis of large-scale text data.
+ar
+X
+iv
+:1
+70
+8.
+06
+00
+0v
+1 
+ [
+cs
+.A
+I]
+  2
+0 
+A
+ug
+ 2
+01
+7
+WOODSTOCK’97, July 1997, El Paso, Texas USA Wei Wei, Kennth Joseph, and Kathleen M. Carley
+Unfortunately, such models are dicult to apply to large-scale
+text data, because inference is too inecient. One of the primary
+issues in this inference is the non-conjugacy between the data
+likelihood and the priors of the evolutionary model. In such models,
+cluster evolutionary priors are usually chosen to be logistic-normal
+distributions [2, 3], which are not conjugate with the Multinomial
+likelihood used in topic modeling. Non-conjugacy puts signicant
+computational limitations on the evaluation of marginal likelihood,
+which is usually required for the inference of such statistical models.
+The usual solution to this issue is to utilize Laplace Approximations
+to approximate the marginal likelihoods. In this approximation,
+Taylor expansion up to the second order is used to approximate
+the integral around a point that maximizes the original function.
+However, the particular form of the evolutionary dynamic model
+makes it dicult to solve this maximum point. Based on Bayesian
+theory, prior work therefore chose the point to maximize the data
+likelihood instead of the posterior in order to obtain a tractable
+solution [2]. This solution, however, ignored information on the
+prior, which contains historical clusters on previous time steps.
+Another issue with the evolutionary dynamic models for cluster-
+ing is the diculties involved in inference in general. Prior work
+[2] uses RTS smoothing to solve the model, which is only feasible
+when the emission functions are in the form of strictly Gaussian.
+Thus, in situations where emission functions can not be expressed
+as a single Gaussian, new inferences technique has to be developed.
+In this paper, we study inference techniques to solve the evo-
+lutionary dynamic clustering problem. To illustrate how our tech-
+nique works, we apply it onto the Evolutionary Social Event Discov-
+ery (ESED) problem Based on prior work on event detection[15]. The
+ESED task is to discover evolutionary latent clusters of documents
+that characterize distinct social events by monitoring an evolving
+set of documents with spatiotemporal meta-data that contain text
+about social events. Our experimental results suggest that we are
+able to detect major evolutionary social events on a set of Twitter
+data. Although the methods are illustrated through a model to solve
+a specic problem, we note that our inference technique can be
+used to solve latent evolutionary clustering models in general that
+are not restricted to the ESED problem.
+2 BACKGROUND
+2.1 Topic Modeling
+Topic modeling has become a popular approach to discover latent
+topics in large collections of text data[5, 12]. Over the past decade,
+a signicant amount of work has considered how to extend topic
+modeling by incorporating metadata[15], by improving its sam-
+pling eciencies[14, 16], and by improving the generalizability of
+the model[3]. Within the topic modeling literature, perhaps the
+most relevant work for our purposes are those models dealing with
+temporal dynamics. Specically, the dynamic topic model [3] uses
+a parametric model to characterize changes of topics over time by
+assuming logistic-normally distributed topics.
+2.2 Non-parametric Bayesian
+There exist a wide range of Bayesian non-parametric techniques
+that are relevant to topic modeling, most of which are based on
+Dirichlet Process (DP) [11]. One of the strands of research addresses
+ktkt?1 kt+1
+N
+ktkt?1 kt+1
+D
+?t+1?t
+?t ?t+1?t?1
+st?1
+l
+st st+1
+µ
+?0
+?0
+w
+?, ?,?
+z
+?
+?t?1
+Figure 1: Graphical Model
+the temporal dynamics of non-parametric clustering or topic mod-
+eling specically. For example, the recurrent Chinese Restaurant
+Process (RCRP) [2] divides data into epochs and the process of
+choosing a specic cluster membership for the dth document at
+time (epoch) t , st,d , is given by Equation 1. Here s1:(t,d )?1 denotes
+the set of all documents before (and excluding) the dth document at
+time t . Documents can either create a new cluster with probability
+proportional to the dispersion parameter ? or reuse the existing
+cluster k with probability proportional to
+??
+?=0 e
+? ??m?dt??,k . Here
+m?dt??,k is the number of documents belong to cluster k at time t ??
+that includes all the documents before (and excluding) d . e?
+?
+? here
+is a decay factor that put more weights on recent time steps rather
+than historical ones. By using Gaussian transiting distributions, we
+are able to develop evolutionary document clustering algorithms
+such as the one in [2].
+Eicient Online Inference for Infinite Evolutionary Cluster models with Applications to Latent Social Event DiscoveryWOODSTOCK’97, July 1997, El Paso, Texas USA
+P(st,d = k |s1:(t,d )?1) ?
+{??
+?=0 e
+? ??m?dt??,k k exists
+? , k is new
+(1)
+2.3 Non-conjugacy on Logistic-Normal Prior
+with Multinomial Likelihood
+Temporal dynamic models with a topic modeling component [2, 3]
+rely on the logistic normal distribution to provide the ability to
+model topic evolutions. A logistic normally distributed variable
+L(X ) can be acquired by applying a logistic function L(·) onto the
+normally distributed variable X . Unfortunately, the non-conjugacy
+between the logistic normal prior and Multinomial likelihood makes
+it dicult to integrate the topic variable out, which is essential for
+ecient and eective inference in practice. Many solutions have
+been proposed to address this issue, such auxiliary sampling using
+the Polya-Gamma distribution [7] and Laplace approximation [2]. In
+this paper, we favor the later approach since the auxiliary sampling
+method still needs to sample each dimension of the latent variable.
+In the Bayesian setting of the Laplace approximation, our goal
+is to come up with an approximation to the marginal likelihood,
+denoted as M . The basic idea of Laplace approximation is to use
+a single point ?? to approximate the whole integral mass. Here we
+let h(? ) = ? 1N (log P(X |? ) + log? (? )) with N being the number
+samples, d being the dimension of the data, and ? = (D2h(?? ))?1.
+M =
+?
+P(X |? )? (? ) ? P(X |?? )? (?? )(2? )d/2 |?|1/2N?d/2 (2)
+A Laplace approximation solution that is similar to the problem
+we are studying in this paper has been proposed in [2]. However,
+their solution ignored the historical data and, for reasons described
+below, makes too many simplifying assumptions. We will remedy
+this issue here by providing a better solution to the approximation
+that is ecient at the same time.
+2.4 Sequential Monte Carlo
+Sequential Monte Carlo (SMC) methods, otherwise known as par-
+ticle ltering [9] methods, are widely used in the inference of
+Bayesian models [1, 6, 10]. SMC algorithm keeps track of sev-
+eral sets of instances, known as “particles” and update them se-
+quentially. For each instance, an SMC algorithm maintains the
+posterior distribution of latent variables given the data. In our
+case, since documents are organized into epochs, SMC maintains
+the posterior P(z1,(t,d ), s1:(t,d ) |x1:(t,d )). Here z1,(t,d ) is the set of
+latent variables up to the dth document at time t . Similar nota-
+tions apply to s1:(t,d ) and x1:(t,d ), which are cluster indicators and
+the data, respectively. An SMC algorithm updates this posterior
+to P(z1,(t,d+1), s1:(t,d+1) |x1:(t,d+1)) after scanning another piece of
+data x(t,d+1) by sampling a proposal distribution in the form of
+Q(z(t,d+1), s(t,d+1) |x1:(t,d+1), z1,(t,d ), s1:(t,d )). Here, like in all SMC
+algorithms, we maintain several sets of those particles and calculate
+“particle weights” to evaluate how good of a representation of the
+true posterior distribution they are. Once the weights in the parti-
+cles become unbalanced, we eliminate low particles and duplicate
+high weight ones. This process is referred to as resampling in the
+SMC literature [2].
+Table 1: The notation used in the construction of our statis-
+tical model
+Symbol Description
+(t ,d) index of document dth document at time t
+1 : (t ,d) a collection of documents up to the dth document at
+time t
+Kt num. of events at time t
+Dt num. of documents at time t
+Nt,d num. of words belongs to document (t ,d)
+M num. of Gaussian distributed location centers
+F num. of particles in Sequential Monte Carlo
+st,d event index of document (t ,d)
+?t,k mixture weight (before logistic transform) of location
+centers of event k at time t
+?t,k topic distribution (before logistic transform) of event
+k at time t
+µm mean parameter for locationm
+?m co-variance matrix of componentm
+lt,d location of document (t ,d)
+wt,d text that belongs to document (t ,d)
+? decay factor for RCRP
+? dispersion parameter for RCRP
+? temporal width for RCRP
+?0 parameter for topic transition Gaussian co-variance
+matrix
+?0 parameter for location weight Gaussian co-variance
+matrix
+L(·) logistic function
+?k the rst time step when cluster k presents.
+3 STATISTICAL MODEL
+Rooted in prior work on event discovery [15], our model charac-
+terizes a social event as a collection of distributions on text and
+location that change with time. Figure 1 displays a probabilistic
+graphical model representation of our model and Table 1 provides
+an overview of notation used. Our model can roughly be character-
+ized as follows: we assume that a cluster at a particular time step
+is characterized by a spatial distribution and a topical distribution
+over words. Importantly, these distributions are allowed to evolve
+over time. Within a given time step, each document is character-
+ized by the cluster it belongs to. The cluster to which it belongs
+informs the set of words the document is likely to have, as well as
+the location the document is likely to be sent from. On the latter
+point, each document is characterized by a location represented by
+a latitude, longitude pair. In our model, this latitude and longitude
+is generated by selecting a specic pre-dened region, described
+below.
+A key component of the model we develop is that we discretize
+the time stamps of tweets (referred to generically here as docu-
+ments) and organize them into epochs . For example, if we chose to
+discretize our data into month-long time periods, all documents
+with a timestamp in January, 2016 would fall into the same epoch,
+while February 2016 will be another epoch, etc. The dth document
+at time step (or synonymously, epoch) t is labeled with the subscript
+WOODSTOCK’97, July 1997, El Paso, Texas USA Wei Wei, Kennth Joseph, and Kathleen M. Carley
+(t ,d). More specically, each document has a unique event index
+st,d generated from a RCRP with dispersion parameter ? , temporal
+width ? and decay factor ? [2]. Heremt,k =
+?Dt
+i=1 I(st,i = k) rep-
+resents the number of documents that belong to cluster k at time t
+andm?dt,k represents this same quantity up to document d .
+Compared to Dirichlet Process [11], the RCRP considers the
+temporal dynamics of clusters in the history. Specically, the hyper-
+parameter ? controls the amount of history information to be
+taken into account. From Equation 1, we can see that recent data
+will receive a much higher weight and that this weight decays
+exponentially over time. The parameter ? controls the speed of
+such decay. As a result of RCRP, new events can be “born” and old
+events can “die out” once the weight becomes zero, as the event
+will therefore not be able to attract subsequent documents.
+Within each cluster k in our model, there exists a topical com-
+ponent ?t,l and a spatial component ?t,l for each time t that are
+initially generated by a Gaussian centered on 0 with diagonal co-
+variance ?0I and ?0I respectively.
+?t,k ? N(0,?0I ) (3)
+?t,k ? N(0, ?0I ) (4)
+For a given document, the probability of generating the words
+in the document, w(t,d ),i and the region index of the document
+zt,d are determined using a multinomial distribution. By applying
+a logistic function L(?), the parameters ?t,l and ?t,l serve as the
+natural parameter of these distributions. Hence, w and z follows
+a logistic normal distribution. Such structure is not new to the
+community of topic modeling and has been explored by many prior
+work such as the Correlated Topic Model [4].
+w(t,d ),i ? Multi(L(?t,st,d )) (5)
+zt,d ? Multi(L(?t,st,d )) (6)
+Once the region index zt,d of a document is determined, the
+actual document location lt,d , which contains a two-dimensional
+vector representing latitude and longitude, can be generated by
+using the Gaussian prior µ and ? generated from each region.
+l(t,d ) ? N(µz , ?z ) (7)
+One unique characteristic of our model is to allow both the
+topical parameter?t,k and the spatial parameter ?t,k to evolve with
+time. This can be achieved by using another Gaussian evolutionary
+prior on existing events for the current time step that is centered on
+but that can deviate from the value of the last time step. This idea
+has been explored in [2]. However, as we mentioned, the authors
+tried to approximate the emission function using a single Gaussian,
+which is a reasonable assumption in that model but no longer holds
+in our scenario since we are modeling spatial component as well.
+?t,k ? N(?t?1,k ,?0I ) (8)
+?t,k ? N(?t?1,k , ?0I ) (9)
+The model can be summarized with a description of its generative
+process, which is as follows:
+(1) For each time period t :
+(a) For each existing event k
+(i) Draw ?t,k ? N(?t?1,k , ?0I )
+(ii) Draw ?t,k ? N(?t?1,k ,?0I )
+(b) For each document d
+(i) Draw event index st,d from RCRP(? ,? ,?)
+(ii) If st,d = k is a new event
+(A) Draw ?t,k ? N(0, ?0I )
+(B) Draw ?t,k ? N(0,?0I )
+(iii) Draw w(t,d ),i , zt ,d and lt,d according to Eq.5,
+Eq.6, and Eq.7
+4 SCALABLE INFERENCE
+4.1 Integrating Variables
+We start with the joint probability of the model and seek a collapsed
+version of it, P(s, z,w, l |µ,? ,? ,?,? , ?0,?0) by integrating out the
+natural parameters ?t,k and ?t,k . In the following derivations,
+we will omit hyper-parameters and use “·” to annotate them for
+cleaner notation. We also dene ?(·) to be the likelihood function.
+The location likelihood ?(?t,k ) and the text likelihood ?(?t,k ) are
+dened in Equation 10 and Equation 11, respectively. Here n?t,k,?
+and n?t,k,i are the number of occurrence in cluster k at time t for
+location component ? and vocabulary i , respectively.
+?(?t,k ) =
+Dt?
+d=1
+P(zt,d |?t,k , st,d = k) =
+?
+?
+( e?t,k,??
+j e
+?t,k, j
+)n?t,k,?
+(10)
+?(?t,k ) =
+Dt?
+d=1
+P(wt,d |?t,k , st,d = k) =
+?
+i
+( e?t,k,i?
+j e
+?t,k, j
+)n?t,k,i
+(11)
+By utilizing the notations dened above, the integration can be
+expressed in Equation 12. Here we use ?k to denote the st time
+step when cluster k occurs. We also dene ? ?t,k = 0 when t = ?k
+and? ?t,k = ?t?1,k if t > ?k . A similar denition is applied to?
+?
+t,k .
+P(s, z,w, l |·)
+=
+K?
+k=1
+T?
+t=?k
+?
+?t,k
+?(?t,k )P(?t,k |? ?t,k )
+?
+?t,k
+?(?t,k )P(?t,k |?
+?
+t,k )
+T?
+t=1
+T?
+t=?k
+Dt?
+d=1
+P(st,d |s1:(t,d )?1)P(lt,d |µk , ?k , zt,d = k)
+(12)
+The key to the integration is to correctly deal with terms involv-
+ing the likelihood function?(·) and its priors, ?Tt=?k ??t,k ?(?t,k )P(?t,k |? ?t,k ).
+As we will see shortly, we can conduct integrations in a chain fash-
+ion from the very beginning when t = ?k all the way to the end
+when t = T . When an integration is done for a specic time step,
+we will get a constant term and a “future term”. The future term,
+which we denote as ft,k (?t+1,k |?t,k ) contains the information for
+a future integration and will participate in the integration for the
+next time step. The constant term, which we annotate as Dt,k will
+Eicient Online Inference for Infinite Evolutionary Cluster models with Applications to Latent Social Event DiscoveryWOODSTOCK’97, July 1997, El Paso, Texas USA
+be emitted as part of our nal integration result. Here we will focus
+on the terms that involves ? and we will omit the procedures for ?
+since it can be derived similarly.
+As we mentioned above, the future term ft,k (?t+1,k |?t,k ) is gen-
+erated as part of the integration result at time t . It contains variable
+?t+1,k that will participate the integration of the next time step t+1
+with parameter ?t,k that is determined by information on the previ-
+ous time steps. To illustrate how the future term ft,k (?t+1,k |?t,k )
+interplay with the integration, we dene the following relationship
+in Equation 13. We also assume that ft?1,k (?t,k |?t?1,k ) is in the
+form of Gaussian distribution with mean ?t?1,k and covariance
+matrix ?0I . We will prove this using mathematical induction.?
+?t,k
+?(?t,k )P(?t+1,k |?t,k , ?0I )ft?1,k (?t,k |?t?1,k ) (13)
+For the base cases, where t = ?k?1we dene f?k?1,k (?t=?k ,k |??k?1,k )
+to be a zero mean Gaussian with covariance matrix ?0I . One can val-
+idate this denition by taking f?k?1,k (?t=?k ,k |??k?1,k ) into Equa-
+tion 13 to get the expression for the rst integration.
+f?k?1,k (?t=?k ,k |??k?1,k ) = N(?t,k |0, ?0I ) (14)
+For the general case where ?k ? t < T , we dene the recursive
+formula of ft,k (·) in Equation 16 to be the integration of ?t,k di-
+vided by a constant Dt,k , which is dened in Equation 15 and is
+designed to absorb all constants that are not related to the Gaussian
+distribution to “participate” in the next round of integration.
+Dt,k = N(??t,k |?t?1,k , ?0I )(2? )d/2 |?t,k |1/2N
+?d/2
+t,k ?(??t,k ) (15)
+Here we utilize the induction assumption that ft?1,k is a Gauss-
+ian distribution with mean ?t?1,k and covariance matrix ?0I . We
+also use Laplace Approximation to approximate the integral around
+a point ??t,k , which will be discussed in more detail in the next
+sub-section. After letting Dt,k to absorb all the constants, we again
+get a Gaussian form of ft,k (·) with mean value equal to ??t,k and
+covariance matrix ?0I .
+ft,k (?t,k |?t?1,k )
+=
+?
+?t,k
+P(?t+1,k |?t,k , ?0I ) · ft?1,k (?t,k |?t?1,k )?(?t,k )
+Dt,k
+=
+?
+?t,k
+N(?t,k |
+?t+1,k+?
+2 , ?0I/2)N(?t+1,k |?t?1,k ,2?0I )?(?t,k )
+Dt,k
+= N(??t,k |
+?t+1,k + ?t?1,k
+2
+, ?0I/2)N(?t+1,k |?t?1,k ,2?0I )
+?(??t,k )(2? )d/2 |?|1/2N?d/2
+Dt,k
+= N(?t+1,k |??t,k , ?0I )N(??t,k |?t?1,k , ?0I )
+(2? )d/2 |?t,k |1/2N
+?d/2
+t,k ?(??t,k )
+Dt,k
+= N(?t+1,k |??t,k , ?0I )
+(16)
+Note that we do not dene ft,k (·) when t = T since there will
+be no term to contribute to future integrations. To summarize, the
+integration of ?t,k over time equals to the
+?T
+t=?k Dt,k . We can use
+the same technique to get the integration of ?t,k to be
+?T
+?k Ct,k
+with Ct,k dened below:
+Ct,k = N(??t,k |?t,k , ?0I )(2? )d/2 |?|1/2N?d/2?(??t,k ) (17)
+We then use the same notation to get the joint distribution after
+? and ? are integrated out by taking the results in the previous
+steps into Equation 12:
+P(s, z,w, l |·) =
+T?
+t=1
+Kt?
+k=1
+Ct,kDt,k
+T?
+t=1
+Dt?
+d=1
+P(st,d |s1:(t,d )?1)P(lt,d |µ, ?, zt,d )
+(18)
+The collapsed joint distribution thus leaves only two variables to
+be inferred: zt,d and st,d for each document (t ,d). In experiments
+we found that the MCMC converges very quickly and only sev-
+eral Gibbs iteration steps are necessary for the algorithm to reach
+convergence.
+4.2 Laplace Approximation to Marginal
+Likelihood
+Although we have discussed the general form of the joint distribu-
+tion after the integration, we haven’t covered the details on how
+we conducted the Laplace Approximation when taking the integral.
+As seen in Equation 2, Laplace’s method approximates the inte-
+gral around a specic point where the majority of the probability
+mass lies on. In our case, h(·) takes the form of a negative log of a
+Multinomial likelihood function with a Gaussian prior.
+Ideally, we should choose ??t,k to minimize h(?t,k ). However,
+when we use sequential techniques to solve the model, we do not
+have the knowledge of cluster parameters in the next time step,
+?t+1,k , which is required to evaluate h(?t,k ). Instead, we use the
+expectation of its prior information ?t?1,k to approximate h(?t,k ).
+h(?t,k ) then becomes:
+h(?t,k ) =
+? log
+(
+N(?t,k |
+?t?1,k+?t+1,k
+2 ,
+?20
+2 I )?(?t,k )
+)
+Nt,k
+=
+? log
+(
+N(?t,k |?t?1,k ,
+?20
+2 I )?(?t,k )
+)
+Nt,k
+(19)
+When the sample size Nt,k is large enough, the impact of the
+prior will be very small and a natural selection of ??t,k will be
+the one that maximize its likelihood. This solution is illustrated in
+Equation 20 as Solution 1 and is used by [2]. Here, we illustrate
+the solution by its logistic form rather than its original form, which
+is more useful since ?(?t,k ) utilizes the logistic form of ?t,k . This
+solution simply normalizes the number of documents having the
+locations in spatial component i for each cluster k at time t , N ?t,k,i
+with the total number of documents that belong to cluster k at time
+t , N ?t,k . However, this solution ignores all the historical data before
+time t since it ignored the prior information.
+WOODSTOCK’97, July 1997, El Paso, Texas USA Wei Wei, Kennth Joseph, and Kathleen M. Carley
+Solution1 :
+e??t,k,i?
+j e
+??t,k, j = N
+?
+t,k,i
+N ?t,k
+(20)
+Another solution that can be used as an natural comparison to
+Solution 1 is to use the document count of all historical data that
+cluster k has on this location component i instead of the count just
+on this particular time step. Equation 21 illustrates the exact form of
+Solution 2. Here the solution is taken to be the normalized count
+of all the documents belong to cluster k that are located in location
+component i , N ?k,i . This solution, however, ignores the temporal
+importance and information across all time steps are treated equally.
+Solution2 :
+e??t,k,i?
+j e
+??t,k, j = N
+?
+k,i
+N ?k
+(21)
+However, we note that neither of the solutions above take into
+account of the prior information. A better approach is to solve ??t,k
+to minimize the whole h(?t,k ) rather than only the likelihood part.
+In order to do this, we take the derivative of Equation 19 and set it
+to zero. After we assume that
+?
+j e
+?t,k, j = 1, we are left with the
+relations in Equation 22.
+2?t,k,i + nt,k,i?20
+nt,k
+? 2
+?20nt,k
+?t,k,i = e
+?t,k,i (22)
+A novel observation of the present work is that the above equa-
+tion falls into the set of problems that can be solved using the
+notation of Lambert’s W [8]. Conveniently, this solution can be ex-
+pressed analytically and we illustrate it in Equation 23 in the logistic
+form. In this equation, we dene n
+?
+t,k,i such that e
+?t,k,i =
+n
+?
+t,k,i
+nt,k
+to
+represent the pseudo counting that is introduced by the prior, an
+important trick that will be utilized later.
+e??t,k,i?
+j e
+??t,k, j = 2?20nt,kW (
+e?i ?20nt,k
+2
+e
+?20nt,k,i
+2 )
+=
+2
+?20nt,k
+W (
+?20n
+?
+t,k,i
+2
+e
+?20nt,k,i
+2 )
+(23)
+We observed that terms inside Lambert W’s function can be
+bounded by two quantities.
+min{
+?20nt,k,i
+2
+e
+?20nt,k,i
+2 ,
+?20n
+?
+t,k,i
+2
+e
+?20n
+?
+t,k,i
+2 }
+? e
+??t,k,i?
+j e
+??t,k, j ?
+max{
+?20nt,k,i
+2
+e
+?20nt,k,i
+2 ,
+?20n
+?
+t,k,i
+2
+e
+?20n
+?
+t,k,i
+2 }
+(24)
+By utilizing the fact thatW (xex ) = x , we know that the actual
+solution of e
+??t,k,i?
+j e
+??t,k, j must lie in the linear combination of its lower
+and upper bounds. A good choice of the linear weight is the use
+the information on the variance, ?0. Since ?0 controls the amount
+of information that we can allow to change from one time step to
+the other, a natural choice of the combination weight would be
+1/(1 + ?0) and ?0/(1 + ?0). We put weight 1/(1 + ?0) on the bound
+that contains the information about the prior while using ?0/(1+?0)
+on the bound that contains the information on the current time
+step. Our solution, which here will be referred to as Solution 3,
+takes the linear combination of the document count nt,k,i at time
+t of cluster k on component i and the pseudo document count on
+the prior n
+?
+t,k,i normalized by the total number of documents that
+belong to cluster k on this time step t , nt,k . And since n
+?
+t,k,i is
+normalized by nt,k , our solution takes value range from 0 to 1.
+Solution3 :
+e??t,k,i?
+j e
+??t,k, j
+=
+2
+?20nt,k
+( 1
+1 + ?0
+W (
+?20nt,k,i
+2
+e
+nt,k,i ?
+2
+0
+2
+)
++
+?0
+1 + ?0
+W (
+?20n
+?
+t,k,i
+2
+e
+n
+?
+t,k,i ?
+2
+0
+2 ))
+=
+2
+?20nt,k
+( 1
+1 + ?0
+?20nt,k,i
+2
++
+?0
+1 + ?0
+?20n
+?
+t,k,i
+2
+)
+=
+1
+1+?0n
+?
+t,k,i +
+?0
+1+?0nt,k,i
+nt,k
+(25)
+We can derive a similar solution for the optimal points to be used
+in Laplace approximation for ?t,k . For the length of this paper we
+will omit the exact derivation since the results are highly similar.
+4.3 Sample Cluster Index st,d
+Starting from Equation 18, it is now straightforward to derive Equa-
+tion 26 to sample the cluster index st,d for each document. Here
+we see that the equation is linear to the number of words in the
+document, Nt,d . We need to choose one of the three solutions
+proposed in the previous section to substitute ??t,k,n and ??t,k,z .
+P(st,d |s1:(t,d )?1) is the RCRP prior dened in Equation 1.
+P(st,d = k |s1:(t,d )?1,wt,d , zt,d )
+?
+Nt,d?
+n=1
+(e ??t,k,wt,d,n?
+j e
+??t,k, j )Nd,t,i ( e ??t,k,zt,d?j e??t,k, j )P(st,d |s1:(t,d )?1) (26)
+4.4 Sample Region Index zt,d
+Similarly, we can derive the equation to sample the location re-
+gion index zt,d for each document from the joint distribution in
+Equation 18. Here we see that the probability of selecting zt,d
+is proportional to the logistic normal component e
+??t,k,z?
+j e
+??t,k, j and
+P(lt,d |µz , ?z ), which is the Gaussian probability of location slt,d
+on the zth component of the Gaussian prior.
+P(zt,d = z |st,d = k, lt,d ) ?
+( e??t,k,z?
+j e
+??t,k, j )P(lt,d |µz , ?z ) (27)
+4.5 SMC Updates
+As we stated in the background section, SMC evaluates a weight
+for each particle and we need to update this weight every time
+after we have sampled a new document. Our result is illustrated in
+Eicient Online Inference for Infinite Evolutionary Cluster models with Applications to Latent Social Event DiscoveryWOODSTOCK’97, July 1997, El Paso, Texas USA
+Table 2: Summary of dataset used in the experiment
+Item Statistics
+Spatial Coverage United States
+Temporal Coverage Aug, 2010 to Sep, 2012
+Vocabulary Size 40,173
+Num. Documents 5,298,978
+Equation 28. Here we see that the weight update is proportional to
+the likelihood of the newly sampled data.
+?
+f
+1:(t,d ) ??
+f
+1:(t,d )?1
+Nt,d?
+n=1
+P(wt,d,n = v |st,d = k,?t,k,v )
+P(lt,d |zt,d = z, µz , ?z )
+(28)
+4.6 Algorithm
+The general procedure of our approach is illustrated in Algorithm 1.
+We organize our data into epochs and for each epoch t we process
+documents one by one. For each document (t ,d), only two variables
+z and s are sampled and we iterate through the MCMC stepMaxIter
+times. Particle weights are then updated and we evaluate whether
+it is necessary to resample particles by comparing the L2 norm of
+the particle weight to a threshold.
+Algorithm 1 Particle Filtering Algorithm Framework
+1: Initialize ?f1 to
+1
+F for all f ? {1, ..F }
+2: for epoch t from 1 to T do
+3: for document d from 1 to Dt do
+4: for particle f ? {1, ..F } do
+5: for iter ? MaxIter do
+6: Sample s ,z using Eq. 26 and 27
+7: end for
+8: Update ?f using Eq. 28
+9: end for
+10: Normalize particle weight ?f
+11: if | |?t | |?22 < threshold then
+12: resample particles
+13: end if
+14: end for
+15: end for
+5 DATA
+We collected Twitter data from August, 2010 to September, 2012
+using Twitter’s Decahose API. Only tweets with geo-coordinates
+within United States are kept; everything else is discarded. We con-
+ducted basic natural language processing on the data and deleted
+stop words and punctuations. Words in the documents are con-
+verted to lower cases and are tokenized. Low frequency words that
+appear below a threshold are deleted. At the end, we are left with
+a dictionary size of 40,173 unique tokens and a document size of
+5,298,978. We keep 90% of them for training and 10% of them for
+testing.
+Table 3: Fact sheet about the Superbowl Event
+Superbowl XLV Superbowl XLVI
+Time February 6, 2011 February 5, 2012
+Location Arlington, TX Indianapolis, IN
+Teams Pittsburgh Steelers New York GiantsGreen Bay Packers New England Patriots
+6 EXPERIMENTAL RESULTS
+6.1 Qualitative Results
+We rst evaluate our model qualitatively by manually examining
+the contents of various topics (clusters) uncovered by the model
+during out experiment. Figure 2 illustrates one particular cluster
+that demonstrates the ability of the model to capture an evolving
+spatio-temporal topic focused on the Super Bowl, the championship
+game of the National Football League (NFL). As a convenience, we
+also list a fact sheet about the Super Bowls in these two years,
+which can be found in Table 3. Shown in Figure 2 are two pairs
+of summary gures (split by the left and right) characterizing the
+parameterizations of a single topic detected by the algorithm we
+propose. The pair of gures on the left characterizes the represen-
+tative distributions of this topic in February 2011, the pair on the
+right characterizes these same distributions in February 2012. Each
+pair of gures is characterized by a word cloud (top) that represents
+the distribution of words for the topic and a map (bottom) with
+dots representing the spatial distribution of the topic in terms of
+weights in its mixture distribution over the modeled spatial centers.
+Clearly, the two events characterized in Figure 2 share many
+common terms relevant to the Super Bowl in general - “super”,
+“bowl”, and “Sunday” being examples. However, at these two dif-
+ferent points in time, this topic also exhibits important distinct
+properties. In the word cloud visualization of the 2011 Super Bowl
+(top left of Figure 2, we see words such as “Steelers” and “Packers”,
+which were the names of the two competing teams in that year.
+Further, the spatial distribution of the event topic at this time clearly
+highlights an area in central Texas, which was the actual location
+at which the Super Bowl was held event is held at that year. Since
+the Super Bowl is a nationwide event, the method also captures
+minor levels of activity across the country.
+In contrast, on the right hand side of Figure 2, we see terms
+relevant to the 2012 Super Bowl, including the names of the two
+teams playing in it (“Giants” and “Patriots”). Importantly, teams
+from the previous year are no longer important to the topic, even
+though terms relevant to the Super Bowl itself have been retained.
+Similarly, the spatial visualization clearly illustrated the spatial
+center of the event, which lies in the state of Indiana, but as the
+Super Bowl was still a nationwide event in 2001, location of interests
+exist across the country. This is particularly true in 2012, relative
+to 2011, in the New York City and Boston areas, which are where
+the two teams playing in the game were from.
+This analysis of the output of our model gives us condence that
+the model can capture events of interest in the manner expected.
+We now turn to a quantitative analysis of model performance on
+several dierent prediction problems.
+WOODSTOCK’97, July 1997, El Paso, Texas USA Wei Wei, Kennth Joseph, and Kathleen M. Carley
+(a) Superbowl event on February 2011 (b) Superbowl event on February 2012
+Figure 2: Superbowl Event Detected by Our Algorithm
+6.2 Numerical Results
+We conducted numerical results by rst training our model using
+90% of the data and then testing it on the rest of the data set by
+measuring its testing perplexity and the Mean Square Error (MSE)
+of prediction on held out document locations. We compared three
+dierent solutions for Laplace approximation in Eq. 20, Eq. 21 and
+Eq. 25. Although our theoretical results favor Solution 3, compari-
+son is still important since prior work reported using Solution 1
+and Solution 2 in similar models.
+In the perplexity result in Figure 3, we tested for results using
+various parameterizations of the model and the three dierent solu-
+tions for the Laplace approximation. Here, perplexity is calculated
+according to Equation 29. The rst thing we see here is that So-
+lution 3 generally performs better than the other two baseline
+approaches. However, it is clear that this result is impacted by the
+setting of model parameters.
+For example, perplexity on testing data changes with the pa-
+rameter ? , which is the decay factor of the RCRP prior dened in
+Equation 1- the perplexity when ? is large is generally better than
+those with smaller ? . Our proposed approach (Solution 3) beats the
+other two baseline methods when ? is larger than 0.1. This indi-
+cates that our model prefers a less radical weight distribution on
+previous epochs. Instead, taking more epochs into considerations
+generates a much better result.
+We observe a similar pattern for variable ? , which is a dispersion
+parameter that controls the way that new clusters are created in
+the model. We see that a high ? yields a better performance for
+our proposed approach, which is not surprising since generally the
+higher model complexity the better expressiveness the model will
+be able to generalize our data.
+The pattern of perplexity for variable ?0 is also very interest-
+ing. Recall that ?0 is the Markov transiting prior that controls the
+variance of the same topic from one time to the other. Since both
+the baseline solutions ignore this prior information, one of their
+performance will change with ?0. Our approach, however, does
+change with ?0 and we can clearly observe a region where our
+approach outperform the others. When ?0 is close to innity, our
+proposed approach approximates Solution 1. When ?0 is close to
+zero, no counting on the current time step (i.e. nt,k,i ) is being used
+and nothing is being learned in the model. The Markov transiting
+prior for location, ?0 has less impacts to the perplexity results than
+Eicient Online Inference for Infinite Evolutionary Cluster models with Applications to Latent Social Event DiscoveryWOODSTOCK’97, July 1997, El Paso, Texas USA
+Figure 3: Perplexity and prediction for document location when model parameters are changed
+the prediction error for location, which we will discuss in the next
+paragraph.
+perp(Dtest ) = ?
+?t ?d?n logp(wt,d,n |st,d = k,?t,k )
+?t ?d?n1
+(29)
+Figure 3 shows the Mean Square Error (MSE) for the task of
+prediction the location specied of the left out posts. The results
+are illustrated in Figure 3. Here we see that our proposed method
+(Solution 3) outperform the baselines signicantly throughout the
+range of the tested parameters. Most parameters do not impact
+location prediction results. The only exception is ?0, which is the
+Markov transitioning prior for location. Here we see that the MSE
+climbed slightly with an increase of ?0 but declined sharply after
+?0 reaches 0.1. This indicates that higher prior values that put more
+weight on recent counting information are benecial for the model
+to eectively learn to predict locations.
+7 CONCLUSION
+In this paper, we proposed a Bayesian non-parametric model to
+discover evolutionary social events. We experimented with the
+model on Twitter data and are able to identied evolutionary latent
+social events that change over time - an example of the Super Bowl
+was given to highlight our model’s ability to do so. There are several
+limitations to this paper that are open to potential future work.
+First, the assumption that each document has to belong to a specic
+event is a bit simplistic considering many tweets are not event-
+centric. Second, the fact that the spatial priors are predetermined
+makes the model dicult to deal with streaming data outside the
+predetermined spatial regions. And nally, spatial components do
+not penalize towards their distances to the event centers and this
+assumption can sometime generate universal events that doesn’t
+contain any specic event information. Future word should address
+these issues.
+REFERENCES
+[1] Amr Ahmed, Qirong Ho, Choon H Teo, Jacob Eisenstein, Eric P Xing, and Alex J
+Smola. 2011. Online inference for the innite topic-cluster model: Storylines
+from streaming text. In International Conference on Articial Intelligence and
+Statistics. 101–109.
+[2] Amr Ahmed and Eric P Xing. 2008. Dynamic Non-Parametric Mixture Models
+and the Recurrent Chinese Restaurant Process: with Applications to Evolutionary
+Clustering.. In SDM. SIAM, 219–230.
+[3] David M Blei and John D Laerty. 2006. Dynamic topic models. In Proceedings of
+the 23rd international conference on Machine learning. ACM, 113–120.
+[4] D. M. Blei and J. D. Laerty. 2007. A correlated topic model of science. The Annals
+of Applied Statistics (2007), 17–35. http://www.jstor.org/stable/10.2307/4537420
+[5] David M. Blei, Andrew Y. Ng, and Michael I. Jordan. 2003. Latent dirichlet
+allocation. J. Mach. Learn. Res. 3 (March 2003), 993–1022. http://dl.acm.org/
+citation.cfm?id=944919.944937
+[6] Kevin Robert Canini, Lei Shi, and Thomas L Griths. 2009. Online Inference of
+Topics with Latent Dirichlet Allocation.. In AISTATS, Vol. 9. 65–72.
+[7] Jianfei Chen, Jun Zhu, Zi Wang, Xun Zheng, and Bo Zhang. 2013. Scalable
+inference for logistic-normal topic models. In Advances in Neural Information
+Processing Systems. 2445–2453.
+[8] Robert M Corless, Gaston H Gonnet, David EG Hare, David J Jerey, and Donald E
+Knuth. 1996. On the LambertW function. Advances in Computational mathematics
+5, 1 (1996), 329–359.
+[9] Arnaud Doucet, Nando De Freitas, and Neil Gordon. 2001. An introduction to
+sequential Monte Carlo methods. In Sequential Monte Carlo methods in practice.
+Springer, 3–14.
+[10] Nan Du, Mehrdad Farajtabar, Amr Ahmed, Alexander J Smola, and Le Song.
+2015. Dirichlet-hawkes processes with applications to clustering continuous-
+time document streams. In Proceedings of the 21th ACM SIGKDD International
+Conference on Knowledge Discovery and Data Mining. ACM, 219–228.
+[11] Thomas S Ferguson. 1973. A Bayesian analysis of some nonparametric problems.
+The annals of statistics (1973), 209–230.
+[12] Thomas L Griths and Mark Steyvers. 2004. Finding scientic topics. Proceedings
+of the National academy of Sciences 101, suppl 1 (2004), 5228–5235.
+[13] Liangjie Hong, Amr Ahmed, Siva Gurumurthy, Alexander J Smola, and Kostas
+Tsioutsiouliklis. 2012. Discovering geographical topics in the twitter stream.
+In Proceedings of the 21st international conference on World Wide Web. ACM,
+769–778.
+[14] Aaron Q Li, Amr Ahmed, Sujith Ravi, and Alexander J Smola. 2014. Reducing the
+sampling complexity of topic models. In Proceedings of the 20th ACM SIGKDD
+international conference on Knowledge discovery and data mining. ACM, 891–900.
+[15] Wei Wei, Kenneth Joseph, Wei Lo, and Kathleen M Carley. 2015. A Bayesian
+Graphical Model to Discover Latent Events from Twitter. In Ninth International
+AAAI Conference on Web and Social Media.
+[16] Limin Yao, David Mimno, and Andrew McCallum. 2009. Ecient methods for
+topic model inference on streaming document collections. In Proceedings of the
+15th ACM SIGKDD international conference on Knowledge discovery and data
+mining. ACM, 937–946.

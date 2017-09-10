@@ -1,0 +1,442 @@
+ar
+X
+iv
+:1
+70
+8.
+05
+96
+3v
+1 
+ [
+st
+at
+.M
+L
+] 
+ 2
+0 
+A
+ug
+ 2
+01
+7
+Neural Networks Compression for Language
+Modeling
+Artem M. Grachev1,2, Dmitry I. Ignatov2, and Andrey V. Savchenko3
+1 Samsung R&D Institute Rus, Moscow, Russia
+2 National Research University Higher School of Economics, Moscow, Russia
+3 National Research University Higher School of Economics, Laboratory of
+Algorithms and Technologies for Network Analysis, Nizhny Novgorod, Russia
+grachev.art@gmail.com
+Abstract. In this paper, we consider several compression techniques
+for the language modeling problem based on recurrent neural networks
+(RNNs). It is known that conventional RNNs, e.g, LSTM-based networks
+in language modeling, are characterized with either high space complex-
+ity or substantial inference time. This problem is especially crucial for
+mobile applications, in which the constant interaction with the remote
+server is inappropriate. By using the Penn Treebank (PTB) dataset we
+compare pruning, quantization, low-rank factorization, tensor train de-
+composition for LSTM networks in terms of model size and suitability
+for fast inference.
+Keywords: LSTM, RNN, language modeling, low-rank factorization,
+pruning, quantization
+1 Introduction
+Neural network models can require a lot of space on disk and in memory. They
+can also need a substantial amount of time for inference. This is especially im-
+portant for models that we put on devices like mobile phones. There are several
+approaches to solve these problems. Some of them are based on sparse compu-
+tations. They also include pruning or more advanced methods. In general, such
+approaches are able to provide a large reduction in the size of a trained net-
+work, when the model is stored on a disk. However, there are some problems
+when we use such models for inference. They are caused by high computation
+time of sparse computing. Another branch of methods uses different matrix-
+based approaches in neural networks. Thus, there are methods based on the
+usage of Toeplitz-like structured matrices in [1] or different matrix decomposi-
+tion techniques: low-rank decomposition [1], TT-decomposition (Tensor Train
+decomposition) [2,3]. Also [4] proposes a new type of RNN, called uRNN (Uni-
+tary Evolution Recurrent Neural Networks).
+In this paper, we analyze some of the aforementioned approaches. The mate-
+rial is organized as follows. In Section 2, we give an overview of language mod-
+eling methods and then focus on respective neural networks approaches. Next
+we describe different types of compression. In Section 3.1, we consider the sim-
+plest methods for neural networks compression like pruning or quantization. In
+Section 3.2, we consider approaches to compression of neural networks based on
+different matrix factorization methods. Section 3.3 deals with TT-decomposition.
+Section 4 describes our results and some implementation details. Finally, in Sec-
+tion 5, we summarize the results of our work.
+2 Language modeling with neural networks
+Consider the language modeling problem. We need to compute the probability
+of a sentence or sequence of words (w1, . . . , wT ) in a language L.
+P(w1, . . . , wT ) = P(w1, . . . , wT?1)P(wT |w1, . . . , wT?1) =
+=
+T
+?
+t=1
+P(wt|w1, . . . , wt?1) (1)
+The use of such a model directly would require calculation P(wt|w1, . . . , wt?1)
+and in general it is too difficult due to a lot of computation steps. That is
+why a common approach features computations with a fixed value of N and
+approximate (1) with P(wt|wt?N , . . . , wt?1). This leads us to the widely known
+N -gram models [5,6]. It was very popular approach until the middle of the 2000s.
+A new milestone in language modeling had become the use of recurrent neural
+networks [7]. A lot of work in this area was done by Thomas Mikolov [8].
+Consider a recurrent neural network, RNN, where N is the number of timesteps,
+L is the number of recurrent layers, xt?1? is the input of the layer ? at the moment
+t. Here t ? {1, . . . , N}, ? ? {1, . . . , L}, and xt0 is the embedding vector. We can
+describe each layer as follows:
+zt? =W?x
+t
+??1 + V?x
+t?1
+? + bl (2)
+xt? =?(z
+t
+?), (3)
+where W? and V? are matrices of weights and ? is an activation function. The
+output of the network is given by
+yt = softmax
+[
+WL+1x
+t
+L + bL+1
+]
+. (4)
+Then, we define
+P(wt|wt?N , . . . , wt?1) = y
+t. (5)
+While N -gram models even with not very big N require a lot of space due
+to the combinatorial explosion, neural networks can learn some representations
+of words and their sequences without memorizing directly all options.
+Now the mainly used variations of RNN are designed to solve the problem of
+decaying gradients [9]. The most popular variation is Long Short-Term Memory
+(LSTM) [7] and Gated Recurrent Unit (GRU) [10]. Let us describe one layer of
+LSTM:
+it? = ?
+[
+W il x
+t
+l?1 + V
+i
+l x
+t?1
+l + b
+i
+l
+]
+input gate (6)
+f t? = ?
+[
+W
+f
+l x
+t
+l?1 + V
+f
+l x
+t?1
+l + b
+f
+l
+]
+forget gate (7)
+ct? = f
+t
+l · c
+t?1
+l + i
+t
+l tanh
+[
+W cl x
+t
+l?1 + U
+c
+l x
+t?1
+l + b
+c
+l
+]
+cell state (8)
+ot? = ?
+[
+W ol x
+t
+??1 + V
+o
+l x
+t?1
+l + b
+o
+l
+]
+output gate (9)
+xt? = o
+t
+? · tanh[c
+t
+l ], (10)
+where again t ? {1, . . . , N}, ? ? {1, . . . , L}, ct? is the memory vector at the layer
+? and time step t. The output of the network is given the same formula 4 as
+above.
+Approaches to the language modeling problem based on neural networks are
+efficient and widely adopted, but still require a lot of space. In each LSTM layer
+of size k × k we have 8 matrices of size k × k. Moreover, usually the first (or
+zero) layer of such a network is an embedding layer that maps word’s vocabulary
+number to some vector. And we need to store this embedding matrix too. Its size
+is nvocab×k, where nvocab is the vocabulary size. Also we have an output softmax
+layer with the same number of parameters as in the embedding, i.e. k×nvocab. In
+our experiments, we try to reduce the embedding size and to decompose softmax
+layer as well as hidden layers.
+We produce our experiments with compression on standard PTB models.
+There are three main benchmarks: Small, Medium and Large LSTM models
+[11]. But we mostly work with Small and Medium ones.
+3 Compression methods
+3.1 Pruning and quantization
+In this subsection, we consider maybe not very effective but still useful tech-
+niques. Some of them were described in application to audio processing [12]
+or image-processing [13,14], but for language modeling this field is not yet well
+described.
+Pruning is a method for reducing the number of parameters of NN. In
+Fig 1. (left), we can see that usually the majority of weight values are con-
+centrated near zero. It means that such weights do not provide a valuable con-
+tribution in the final output. We can set some threshold and then remove all
+connections with the weights below it from the network. After that we retrain
+the network to learn the final weights for the remaining sparse connections.
+Quantization is a method for reducing the size of a compressed neural net-
+work in memory. We are compressing each float value to an eight-bit integer
+representing the closest real number in one of 256 equally-sized intervals within
+the range.
+Fig. 1. Weights distribution before and after pruning
+?3 ?2 ?1 0 1 2 3
+Value
+0
+20000
+40000
+60000
+80000
+100000
+120000
+140000
+160000
+180000
+Fr
+e
+q
+u
+e
+n
+cy
+?3 ?2 ?1 0 1 2 3
+Value
+0
+1000
+2000
+3000
+4000
+5000
+6000
+7000
+8000
+9000
+Fr
+e
+q
+u
+e
+n
+cy
+Pruning and quantization have common disadvantages since training from
+scratch is impossible and their usage is quite laborious. In pruning the reason
+is mostly lies in the inefficiency of sparse computing. When we do quantization,
+we store our model in an 8-bit representation, but we still need to do 32-bits
+computations. It means that we have not advantages using RAM. At least until
+we do not use the tensor processing unit (TPU) that is adopted for effective 8-
+and 16-bits computations.
+3.2 Low-rank factorization
+Low-rank factorization represents more powerful methods. For example, in [1],
+the authors applied it to a voice recognition task. A simple factorization can be
+done as follows:
+xtl = ?
+[
+W a? W
+b
+? x
+t
+??1 + U
+a
+l U
+b
+l x
+t?1
+? + bl
+]
+(11)
+Following [1] require W bl = U
+b
+??1. After this we can rewrite our equation for
+RNN:
+xtl = ?
+[
+W al m
+t
+l?1 + U
+a
+l m
+t?1
+l + bl
+]
+(12)
+mtl = U
+b
+l x
+t
+l (13)
+yt = softmax
+[
+WL+1m
+t
+L + bL+1
+]
+(14)
+For LSTM it is mostly the same with more complicated formulas. The main
+advantage we get here from the sizes of matrices W al , U
+b
+l , U
+a
+l . They have the
+sizes r × n and n × r, respectively, where the original Wl and Vl matrices have
+size n × n. With small r we have the advantage in size and in multiplication
+speed. We discuss some implementation details in Section 4.
+3.3 The Tensor Train decomposition
+In the light of recent advances of tensor train approach [2,3], we have also decided
+to apply this technique to LSTM compression in language modeling.
+The tensor train decomposition was originally proposed as an alternative
+and more efficient form of tensor’s representation [15]. The TT-decomposition
+(or TT-representation) of a tensor A ? Rn1×...×nd is the set of matrices Gk[jk] ?
+R
+rk?1×rk , where jk = 1, . . . , nk, k = 1, . . . , d, and r0 = rd = 1 such that each of
+the tensor elements can be represented as A(j1, j2, . . . , jd) = G1[j1]G2[j2] . . .Gd[jd].
+In the same paper, the author proposed to consider the input matrix as a multi-
+dimensional tensor and apply the same decomposition to it. If we have matrix A
+of size N ×M , we can fix d and such n1, . . . , nd, m1, . . . ,md that the following
+conditions are fulfilled:
+?d
+j=1 nj = N ,
+?d
+i=1 mi = M . Then we reshape our ma-
+trix A to the tensor A with d dimensions and size n1m1 × n2m2 × . . .× ndmd.
+Finally, we can perform tensor train decomposition with this tensor. This ap-
+proach was successfully applied to compress fully connected neural networks [2]
+and for developing convolution TT layer [3].
+In its turn, we have applied this approach to LSTM. Similarly, as we describe
+it above for usual matrix decomposition, here we also describe only RNN layer.
+We apply TT-decomposition to each of the matrices W and V in equation 2 and
+get:
+zt? = TT(Wi)x
+t
+??1 +TT(Vl)x
+t?1
+? + b?. (15)
+Here TT(W ) means that we apply TT-decomposition for matrix W . It is nec-
+essary to note that even with the fixed number of tensors in TT-decomposition
+and their sizes we still have plenty of variants because we can choose the rank
+of each tensor.
+4 Results
+For testing pruning and quantization we choose Small PTB Benchmark. The
+results can be found in Table 1. We can see that we have a reduction of the size
+with a small loss of quality.
+For matrix decomposition we perform experiments with Medium and Large
+PTB benchmarks. When we talk about language modeling, we must say that the
+embedding and the output layer each occupy one third of the total network size.
+It follows us to the necessity of reducing their sizes too. We reduce the output
+layer by applying matrix decomposition. We describe sizes of LR LSTM 650-
+650 since it is the most useful model for the practical application. We start with
+basic sizes for W and V , 650× 650, and 10000× 650 for embedding. We reduce
+each W and V down to 650× 128 and reduce embedding down to 10000× 128.
+The value 128 is chosen as the most suitable degree of 2 for efficient device
+implementation. We have performed several experiments, but this configuration
+is near the best. Our compressed model, LR LSTM 650-650, is even smaller
+than LSTM 200-200 with better perplexity. The results of experiments can be
+found in Table 2.
+In TT decomposition we have some freedom in way of choosing internal ranks
+and number of tensors. We fix the basic configuration of an LSTM-network with
+Table 1. Pruning and quantization results on PTB dataset
+Model Size No. of params Test PP
+LSTM 200-200 (Small benchmark) 18.6 Mb 4.64 M 117.659
+Pruning output layer 90%
+w/o additional training 5.5 Mb 0.5 M 149.310
+Pruning output layer 90%
+with additional training 5.5 Mb 0.5 M 121.123
+Quantization (1 byte per number) 4.7 Mb 4.64 M 118.232
+two 600-600 layers and four tensors for each matrix in a layer. And we perform
+a grid search through different number of dimensions and various ranks.
+We have trained about 100 models with using the Adam optimizer [16]. The
+average training time for each is about 5-6 hours on GeForce GTX TITAN X
+(Maxwell architecture), but unfortunately none of them has achieved acceptable
+quality. The best obtained result (TT LSTM 600-600) is even worse than
+LSTM-200-200 both in terms of size and perplexity.
+Table 2. Matrix decomposition results on PTB dataset
+Model Size No. of params Test PP
+PTB LSTM 200-200 18.6 Mb 4.64 M 117.659
+Benchmarks LSTM 650-650 79.1 Mb 19.7 M 82.07
+LSTM 1500-1500 264.1 Mb 66.02 M 78.29
+Ours LR LSTM 650-650 16.8 Mb 4.2 M 92.885
+TT LSTM 600-600 50.4 Mb 12.6 M 168.639
+LR LSTM 1500-1500 94.9 Mb 23.72 M 89.462
+5 Conclusion
+In this article, we have considered several methods of neural networks compres-
+sion for the language modeling problem. The first part is about pruning and
+quantization. We have shown that for language modeling there is no difference
+in applying of these two techniques. The second part is about matrix decompo-
+sition methods. We have shown some advantages when we implement models on
+devices since usually in such tasks there are tight restrictions on the model size
+and its structure. From this point of view, the model LR LSTM 650-650 has
+nice characteristics. It is even smaller than the smallest benchmark on PTB and
+demonstrates quality comparable with the medium-sized benchmarks on PTB.
+Acknowledgements. This study is supported by Russian Federation President
+grant MD-306.2017.9. A.V. Savchenko is supported by the Laboratory of Algo-
+rithms and Technologies for Network Analysis, National Research University
+Higher School of Economics.
+References
+1. Lu, Z., Sindhwan, V., Sainath, T.N.: Learning compact recurrent neural networks.
+Acoustics, Speech and Signal Processing (ICASSP) (2016)
+2. Novikov, A., Podoprikhin, D., Osokin, A., Vetrov, D.P.: Tensorizing neural net-
+works. In: Advances in Neural Information Processing Systems 28: Annual Con-
+ference on Neural Information Processing Systems 2015. (2015) 442–450
+3. Garipov, T., Podoprikhin, D., Novikov, A., Vetrov, D.P.: Ultimate tensorization:
+compressing convolutional and FC layers alike. CoRR/NIPS 2016 workshop: Learn-
+ing with Tensors: Why Now and How? abs/1611.03214 (2016)
+4. Arjovsky, M., Shah, A., Bengio, Y.: Unitary evolution recurrent neural networks.
+In: Proceedings of the 33nd International Conference on Machine Learning, ICML
+2016. (2016) 1120–1128
+5. Jelinek, F.: Statistical Methods for Speech Recognition. MIT Press (1997)
+6. Kneser, R., Ney, H.: Improved backing-off for m-gram language modeling. In
+Proceedings of the IEEE International Conference on Acoustics, Speech and Signal
+Processing 1 (1995) 181–184.
+7. Hochreiter, S., Schmidhuber, J.: Long short-term memory. Neural Computation
+(9(8)) (1997) 1735–1780
+8. Mikolov, T.: Statistical Language Models Based on Neural Networks. PhD thesis,
+Brno University of Technology (2012)
+9. Hochreiter, S., Bengio, Y., Frasconi, P., Schmidhuber, J.: Gradient flow in recurrent
+nets: the difficulty of learning long-term dependencies. S. C. Kremer and J. F.
+Kolen, eds. A Field Guide to Dynamical Recurrent Neural Networks (2001)
+10. Cho, K., van Merrienboer, B., Bahdanau, D., Bengio, Y.: On the proper-
+ties of neural machine translation: Encoder-decoder approaches. arXiv preprint
+arXiv:1409.1259, 2014f (2014)
+11. Zaremba, W., Sutskever, I., Vinyals, O.: Recurrent neural network regularization.
+Arxiv preprint (2014)
+12. Han, S., Mao, H., Dally, W.J.: Deep compression: Compressing deep neural net-
+works with pruning, trained quantization and huffman coding. Acoustics, Speech
+and Signal Processing (ICASSP) (2016)
+13. Molchanov, P., Tyree, S., Karras, T., Aila, T., Kaut, J.: Pruning convolu-
+tional neural networks for resource efficient transfer learning. arXiv preprint
+arXiv:1611.06440 (2016)
+14. Rassadin, A.G., Savchenko, A.V.: Deep neural networks performance optimiza-
+tion in image recognition. Proceedings of the 3rd International Conference on
+Information Technologies and Nanotechnologies (ITNT) (2017)
+15. Oseledets, I.V.: Tensor-train decomposition. SIAM J. Scientific Computing 33(5)
+(2011) 2295–2317
+16. Kingma, D., Ba, J.: Adam: A method for stochastic optimization. The Interna-
+tional Conference on Learning Representations (ICLR) (2015)

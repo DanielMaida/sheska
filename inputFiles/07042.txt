@@ -1,0 +1,1999 @@
+ar
+X
+iv
+:1
+70
+8.
+07
+04
+2v
+1 
+ [
+cs
+.L
+G
+] 
+ 2
+3 
+A
+ug
+ 2
+01
+7
+Scale-Invariant Unconstrained Online Learning
+Wojciech Kot lowski wkotlowski@cs.put.poznan.pl
+Poznan? University of Technology, Poland
+Abstract
+We consider a variant of online convex optimization in which both the instances (input
+vectors) and the comparator (weight vector) are unconstrained. We exploit a natural scale
+invariance symmetry in our unconstrained setting: the predictions of the optimal compara-
+tor are invariant under any linear transformation of the instances. Our goal is to design
+online algorithms which also enjoy this property, i.e. are scale-invariant. We start with the
+case of coordinate-wise invariance, in which the individual coordinates (features) can be
+arbitrarily rescaled. We give an algorithm, which achieves essentially optimal regret bound
+in this setup, expressed by means of a coordinate-wise scale-invariant norm of the compara-
+tor. We then study general invariance with respect to arbitrary linear transformations. We
+first give a negative result, showing that no algorithm can achieve a meaningful bound in
+terms of scale-invariant norm of the comparator in the worst case. Next, we compliment
+this result with a positive one, providing an algorithm which “almost” achieves the desired
+bound, incurring only a logarithmic overhead in terms of the norm of the instances.
+Keywords: Online learning, online convex optimization, scale invariance, unconstrained
+online learning, linear classification, regret bound.
+1. Introduction
+We consider the following variant of online convex optimization (Cesa-Bianchi and Lugosi,
+2006; Shalev-Shwartz, 2011; Hazan, 2015). In trials t = 1, . . . , T , the algorithm receives an
+instance xt ? Rd, on which it predicts y?t = x?t wt by means of a weight vector wt ? Rd.
+Then, the true label yt is revealed and the algorithm suffers loss ?(yt, y?t), convex in y?t.
+The algorithm’s performance is evaluated by means of regret, the difference between the
+algorithm’s cumulative loss and the cumulative loss of a prediction sequence produced by
+a fixed comparator (weight vector) u ? Rd. The goal of the algorithm is to minimize
+its regret for every data sequence {(xt, yt)}Tt=1 and every comparator u. This framework
+includes numerous machine learning scenarios, such as linear classification (with convex
+surrogate losses) and regression.
+Most of the work in online convex optimization assumes that the instances and the
+comparator are constrained to some bounded convex sets, often known to the algorithm
+in advance. In practice, however, such boundedness assumptions are often unjustified: the
+learner has little prior knowledge on the potential magnitude of instances, while the prior
+knowledge on the upper bound of the comparator seems even less realistic. Therefore,
+there has been much work recently dedicated to relaxing some of these prior assumptions
+(Streeter and McMahan, 2012; Orabona, 2013; McMahan and Abernethy, 2013; McMahan
+and Orabona, 2014; Orabona and Pa?l, 2015, 2016; Luo et al., 2016). Here, we go a step
+Scale-Invariant Unconstrained Online Learning
+further, dropping these assumptions entirely and treating the instances, the comparator, as
+well as comparator’s predictions as unconstrained.
+In this paper, we exploit a natural scale invariance symmetry of the unconstrained
+setting: if we transform all instances by any invertible linear transformation A, x 7? Ax,
+and simultaneously transform the comparator by the (transposed) inverse ofA, u 7? A??u,
+the predictions, and hence the comparator’s loss will not change. This means that the
+predictions of the optimal (loss-minimizing) comparator (if exists) are invariant under any
+linear transformation of the instances, so that the scale of the weight vector is only relative
+to the scale of the instances. Our goal is to design online algorithms which also enjoy this
+property, i.e. their predictions are invariant under any rescaling of the instances.
+Since in the absence of any constraints, the adversary can inflict arbitrarily large regret
+in just one trial by choosing the instance an/or comparator sufficiently large, the regret can
+only be bounded by a data-dependent function ?(u, {xt}Tt=1), which can be thought of as
+a penalty for the adversary for having played with sequence {xt}Tt=1 and the comparator u.
+We incorporate the scale invariance into this framework by working with ? which depends
+on the data and the comparator only throught the predictions of u. As we will see, designing
+the online algorithms to have their regret bounded by such ? will automatically lead to
+scale-invariant methods.
+We first consider a specific form of scale-invariance, which we call coordinate-wise invari-
+ance, in which the individual instance coordinates (“features”) can be arbitrarily rescaled
+(which corresponds to choosing transformation A which is diagonal). One can think of such
+rescaling as the change of units in which coordinates are expressed. Inspired by the work of
+Ross et al. (2013), we choose the penalty function to capture the coordinate-wise invariance
+in the following decomposable form:
+?(u, {xt}Tt=1) =
+d?
+i=1
+f(|ui|sT,i),
+where sT,i =
+??T
+t=1 x
+2
+t,i are “standard deviations”
+1 of individual coordinates (so that
+|ui|sT,i measures the scale of i-th coordinate relative to comparator’s weight) and f(x) =
+x
+?
+log(1 + x2). This particular choice of f is motivated by a lower bound of Streeter and
+McMahan (2012), which indicates that such dependency is the best we can hope for. The
+main result of Section 3 is a scale-invariant algorithm which achieves this bound up to
+O(log T ) factor. The algorithm is a first-order method and runs in O(d) time per trial.
+We note that when the Euclidean norms of instances and comparator are bounded by X
+and U , respectively, our bound reduces to Online Gradient Descent bound of O(UX
+?
+T )
+(Zinkevich, 2003) up to a logarithmic factor.
+We then turn to a general setup in which the instances can be rescaled by arbitrary
+linear transformations. A natural and analytically tractable choice is to parameterize the
+bound by means of a sum of squared predictions:
+?(u, {xt}Tt=1) = f(?u?ST ), where ?u?ST
+def
+=
+?
+u?STu =
+????
+T?
+t=1
+(x?t u)
+2,
+1. Throughout the paper, the terms “standard deviation”, “variance” and “covariance matrix” are used
+informally (the coordinate values are not shifted by their mean), to capture the scale of the instances.
+2
+Scale-Invariant Unconstrained Online Learning
+and where ST =
+?
+t xtx
+?
+t is the empirical “covariance” matrix, and f(x) = x
+?
+log(1 + x2)
+as before. Our first result is a negative one: any algorithm can be forced by an adversary
+to have a regret at least ?(?u?ST
+?
+T ) already for d = 2 dimensional inputs. It turns out
+that such a bound is meaningless, as a trivial algorithm which always predicts zero has its
+regret bounded by O(?u?ST
+?
+T ).
+Is is then the end of the story? While the above result suggests that the adversary has
+too much power and every algorithm fails in this setting, we show that this view is too
+pessimistic, complementing the negative result with a positive one. In Section 4 we derive
+a scale-invariant algorithm that is capable of almost achieving the bound expressed by ?
+above, with only a logarithmic dependence on the norm of the instances. The algorithm is
+a second-order method and runs in O(d2) time per trial.
+1.1. Related work
+A standard setup in online convex optimization (Cesa-Bianchi and Lugosi, 2006; Shalev-
+Shwartz, 2011; Hazan, 2015) assumes that both the instances2 and the comparator are
+constrained to some bounded convex sets, known to the learner in advance. A recent
+series of papers has explored a setting in which the comparator is unconstrained and the
+learner needs to adapt to an unknown comparator norm (Streeter and McMahan, 2012;
+Orabona, 2013; McMahan and Abernethy, 2013; McMahan and Orabona, 2014; Orabona,
+2014; Orabona and Pa?l, 2016). Most of these papers (exception being Orabona (2013)),
+however, assume that the loss gradients (and thus instances in our setup) are bounded.
+Moreover, none of these papers concerns scale-invariance.
+Scale-invariant online algorithms were studied by Ross et al. (2013), who consider a
+setup similar to our coordinate-wise case. They, however, make a strong assumption that
+all individual feature constituents of the comparator predictions are bounded: |uixt,i| ? C
+for all i = 1, . . . , d and t = 1, . . . , T , where C is known to the learner. Their algorithm has
+a bound which depends on CbT,i , i = 1, . . . , d (where bt,i = maxq=1,...,t |xq,i|), which is in fact
+the worst-case upper bound on ui; furthermore their bound also depend as on the ratios
+bT,i
+xti,i
+(ti being the first trial in which the i-th feature xti,i is non-zero), which can be made
+arbitrarily large in the worst case. Orabona et al. (2015) study a similar setup, giving a
+bound in terms of the quantities C
+|xt,i|
+bt,i
+, and the algorithm still requires to know C to tune
+its learning rate. In contrast, we do not make any assumptions on the predictions of u, and
+our bound depends on the actual values of ui, solely by means of
+?
+u2i
+?
+t x
+2
+t,i, i = 1, . . . , d.
+Luo et al. (2016) consider a setup similar to our full scale-invariant case, but they require
+an additional constraint that |u?xt| ? C for all t, which we avoid in this work. Finally,
+Orabona and Pa?l (2015) consider a different notion of invariance, unrelated to this setup.
+2. Problem Setup
+We consider a variant of online convex optimization summarized in Figure 1. In each trial
+t = 1, . . . , T , an instance xt ? Rd is presented to the learner, which produces a weight
+2. Most papers assume the bound on the (sub)gradient of loss with respect to w, which translates to bound
+on the instances, as ?w?(y,x?w) = ?y??(y, y?) · x.
+3
+Scale-Invariant Unconstrained Online Learning
+At trial t = 1 . . . T :
+Instance xt ? Rd is revealed to the learner.
+Learner predicts with y?t = x
+?
+t wt for some wt ? Rd.
+Adversary reveals label yt ? R.
+Learner suffers loss ?(yt, y?t).
+Figure 1: Online learning protocol considered in this work.
+vector wt ? Rd (possibly depending on xt) and prediction y?t = x?t wt. Then, the true
+label yt is revealed, and the learner suffers loss ?(yt, y?t). We assume the loss is convex in
+its second argument and L-Lipschitz (where L is known to the learner), i.e. subderivatives
+of ? are bounded, |?y??(y, y?)| ? L for all y, y?. Two popular loss functions which fall into
+this framework (with L = 1) are logistic loss ?(y, y?) = log(1 + exp(?yy?)), and hinge loss
+?(y, y?) = (1 ? yy?)+. Throughout the rest of the paper, we assume L = 1 without loss of
+generality.
+The performance of the learner is evaluated by means of regret :
+regretT (u) =
+T?
+t=1
+?(yt,x
+?
+t wt)?
+T?
+t=1
+?(yt,x
+?
+t u),
+where u ? Rd is a fixed comparator weight vector, and the dependence on the data sequence
+has been omitted on the left-hand side as clear from the context. The goal of the learner is
+to minimize its regret for every data sequence {(xt, yt)}Tt=1 and every comparator vector u.
+We use the “gradient trick” (Kivinen and Warmuth, 1997; Shalev-Shwartz, 2011), which
+exploits the convexity of ? to bound ?(yt, y?
+?
+t) ? ?(yt, y?t) + ?y?t?(y, y?t)(y??t ? y?t) for any sub-
+derivative ?y?t?(yt, y?t) at y?t. Using this inequality in each trial with y?
+?
+t = u
+?wt, we get:
+regretT (u) ?
+T?
+t=1
+gtx
+?
+t (wt ? u), (1)
+where we denoted the subderivative by gt. Throughout the rest of the paper, we will only
+be concerned with bounding the right-hand side of (1), i.e. we will treat the loss to be linear
+in the prediction, gty?, with |gt| ? 1 (which follows from 1-Lipschitzness of the loss).
+In this paper, contrary to previous work, we do not impose any constraints on the
+instances xt or the comparator u, neither on the predictions x
+?
+t u. Since in the absence of
+any constraints, the adversary can inflict arbitrarily large regret in just one trial, the regret
+can only be bounded by a data dependent function ?(u, {xt}Tt=1), which we henceforth
+concisely denote by ?T (u), dropping the dependence on data as clear from the context. An
+alternative view, which will turn out to be useful, is to study penalized regret regretT (u)?
+?T (u), i.e. the regret offset by ?T (u), where the latter can now be treated as the penalty
+for the adversary (a related quantity was called benchmark by McMahan and Abernethy
+(2013)). We will design online learning algorithms which aim at minimizing the penalized
+regret, and this will immediately imply a data-dependent regret bound expressed by ?T (u).
+As in the unconstrained setup, the predictions of the optimal comparator are invariant
+under any linear transformation of the instances, our goal will be to design online learning
+4
+Scale-Invariant Unconstrained Online Learning
+algorithms which also enjoy this property, i.e. their predictions do not change under lin-
+ear transformation of the instances. As we will see, the invariance of learning algorithms
+will follow from an appropriate choice of the penalty function. In Section 3, we consider
+algorithms invariant with respect to coordinate-wise transformations. We then move to full
+scale invariance (for arbitrary linear transformations) in Section 4.
+3. Coordinate-wise Scale Invariance
+In this section we consider algorithms which are invariant under any rescaling of individual
+features: if we apply any coordinate-wise transformation xt,i 7? aixt,i for some ai > 0,
+i = 1, . . . , d, t = 1, . . . , T , the predictions of the algorithm should remain the same. Such
+transformation has a natural interpretation as a change of units in which the instances are
+measured on each coordinate. The key element is the right choice of the penalty function
+?T (u), which translates into the desired bound on the regret: the penalty function should be
+invariant under any feature scaling, offset by the corresponding rescaling of the comparator.
+Inspired by Ross et al. (2013), we consider the following function which has such a property:
+?T (u) =
+d?
+i=1
+f(|ui|sT,i), where sT,i =
+????
+T?
+t=1
+x2t,i.
+Quantities {sT,i}di=1 (“standard deviations”) have a very natural interpretation as mea-
+suring the scale of individual features, so that |ui|sT,i measures the scale relative to the
+comparator’s weight. It remains to choose the right form of f . To this end, we use a lower
+bound obtained by Streeter and McMahan (2012) (translated to our setup):
+Lemma 1 (Streeter and McMahan, 2012, Theorem 7) Consider the online protocol
+in Figure 1 with d = 1 and xt = 1 for all t. Choose any learning algorithm which guarantees
+constant regret against comparator u = 0. Then for any comparator u ? R, there exists a
+gradient sequences {gt}Tt=1 for which
+?
+t gtxt(wt ? u) = ?
+(
+|u|
+?
+T
+?
+log(|u|
+?
+T )
+)
+.
+Since xt = 1 for all t, we have sT,1 =
+?
+T , and the theorem suggests that the best
+dependence on |ui|sT,i one can hope for is f(x) = x
+?
+log x. This motivates us to study the
+function of the form (McMahan and Orabona, 2014; Orabona and Pa?l, 2016):
+f(x) = x
+?
+? log(1 + ??2x2), (2)
+for some ?, ? > 0. This particular choice of parameterization will simplify the forthcom-
+ing analysis. Ross et al. (2013) have shown that if the learner knew the comparator and
+standard deviations of each feature in hindsight, the optimal tuning of learning rate would
+result in a regret bound
+?
+i |ui|sT,i (for gt ? {?1, 1}). We will show that without any
+such prior knowledge, we will be able to essentially (up to log(T ) factor) achieve a bound
+of
+?
+i f(|ui|sT,i), incurring only a logarithmic overhead for not knowing the scale of the
+instances and the comparator.
+5
+Scale-Invariant Unconstrained Online Learning
+Note that the problem decomposes coordinate-wise into d one-dimensional problems, as:
+regretT (u)??T (u) =
+d?
+i=1
+(?
+t
+gtxt,i(wt,i ? ui)? f(|ui|sT,i)
+? ?? ?
+penalized regret in 1-dim problem
+)
+.
+Thus, it suffices to separately analyze each such one-dimensional problem, and the final
+bound will be obtained by summing the individual bounds for each coordinate.
+3.1. Motivation
+Fix i ? {1, . . . , d} and let us temporarily drop index i for the sake of clarity. Our goal is to
+design an algorithm which minimizes the one dimensional penalized regret:
+?
+t
+gtxt(wt ? u)? f(|u|sT ),
+where sT =
+??
+t x
+2
+t and f is given by (2). If we denote ht = ?
+?
+q?t xqgq, we can rewrite
+the penalized regret by:
+?
+t
+gtxtwt +
+(
+uhT ? f(|u|sT )
+)
+?
+?
+t
+gtxtwt + sup
+u?0
+(
+u|hT | ? f(|u|sT )
+)
+,
+where we observed that the worst-case u will have the same sign as hT . We now use
+some simple facts on Fenchel duality (Boyd and Vandenberghe, 2004). Given a function
+f : X ? R, X ? R, its Fenchel conjugate is f?(?) = supx?X{?x ? f(x)}. If g(x) = f(ax)
+for some a > 0, then g?(?) = f?(?/a). Choosing X = [0,?), and a = sT , we get that:3
+?
+t
+gtxt(wt ? u)? f(|u|sT ) ?
+?
+t
+gtxtwt + f
+?
+( |hT |
+sT
+)
+. (3)
+We now use Lemma 18 by Orabona and Pa?l (2016) (modified to our needs):
+Lemma 2 (Orabona and Pa?l, 2016) Let f(x) = x
+?
+? log(1 + ??2x2) for ?, ? > 0 and
+x ? 0. Then f?(?) ? 1? e
+?2
+2? .
+Applying Lemma 2 to (3) results in:
+?
+t
+gtxt(wt ? u)? f(|u|sT ) ?
+?
+t
+gtxtwt +
+1
+?
+exp
+( h2T
+2?s2T
+)
+. (4)
+The main advantage of this bound is the elimination of unknown comparator u. We can now
+design learning algorithm to directly minimize the right-hand side of (4) over the worst-case
+choice of the data. What we derived here is essentially a variant of “regret-reward duality”
+(Streeter and McMahan, 2012; McMahan and Orabona, 2014; Orabona and Pa?l, 2016).
+3. In the excluded case sT = 0 the regret is trivially zero as xt = 0 for all t.
+6
+Scale-Invariant Unconstrained Online Learning
+Algorithm 1: Coordinate-wise scale invariant algorithm
+Parameter : ? > 98 = 1.125.
+Initialization: s2i ? 0, hi ? 0, i = 1, . . . , d.
+for t = 1, . . . , T do
+Receive xt ? Rd
+for i = 1, . . . , d do
+s2i ? s2i + x2t,i
+if s2i > 0 then
+?i ? 1?td exp
+(
+h2i+x
+2
+t,i
+2?s2
+i
+)
+wi ? ?i his2i
+else
+wi ? 0
+Predict with y?t =
+?
+iwixt,i
+Receive yt and suffer loss ?(yt, y?t)
+Compute gt = ?y?t?(yt, y?t)
+Update hi ? hi ? gtxt,i for all i = 1, . . . , d
+3.2. The algorithm
+We now describe an algorithm which aims at minimizing (4) for each coordinate i = 1, . . . , d.
+The algorithm maintains the negative past cumulative (linearized) losses:
+ht,i = ?
+?
+q?t
+gqxq,i,
+as well as variances s2t,i for all i. At the beginning of trial t, after observing xt (and updating
+s2t,i), the algorithm predicts with weight vector wt, such that:
+wt,i = ?t,i
+ht?1,i
+s2t,i
+, where ?t,i =
+1
+?td
+exp
+(
+h2t?1,i + x
+2
+t,i
+2?s2t,i
+)
+. (5)
+Our algorithm resembles two previously considered methods in online convex optimization,
+AdaptiveNomal (McMahan and Orabona, 2014) and PiSTOL (Orabona, 2014). Similarly
+to these methods, we also use a step size which is exponential in the square of the gradient
+(which is actually directly related to the same shape of regret bound (2) we are aiming for).
+However, we counterweight the total gradient by dividing it by the variance s2t,i, whereas
+AdaptiveNormal uses to this end the number of trials t, while PiSTOL – sum of the absolute
+values,
+?
+q?t |gtxt,i|. Only our choice leads to a scale invariant algorithm, which is easiest
+to understand by thinking in terms of physical units: if we imagine that i-th coordinate
+of instances has unit [xi], the term in the exponent in (5) is unitless, while the weight wi
+has unit 1/[xi], so that the prediction y?t also becomes unitless. Thus, rescaling the i-th
+coordinate (or, equivalently, changing its unit) does not affect the prediction. Note that
+our algorithm uses a separate “learning rate” ?t,i for each coordinate, similarly to methods
+by McMahan and Streeter (2010); Duchi et al. (2011). The pseudo-code is presented as
+Algorithm 1.
+7
+Scale-Invariant Unconstrained Online Learning
+We now show that the algorithm maintains small penalized regret (4). To simplify
+notation, define the potential function:
+?t(h, s) =
+{
+(td)?1 exp
+(
+h2
+2?s2
+)
+when s > 0,
+0 otherwise.
+Lemma 3 Let ?0 =
+9
+8 and define: ?(?) = exp
+(
+1
+2(???0)
+)
+. In each trial t = 1, . . . , T , for
+all i = 1, . . . , d, Algorithm 1 satisfies:
+gtwt,ixt,i + ?t(ht,i, st,i) ? ?t?1(ht?1,i, st?1,i) +
+?(?)
+td
+.
+The proof is given in Appendix A. Lemma 3 can be though of as a motivation behind the
+particular form of the weight vector used by the algorithm: the algorithm’s predictions
+are set to keep its loss bounded by the drop of the potential. Note, however, that the
+algorithm does not play with the negative gradient of the potential (which is how many
+online learning algorithms can be motivated), as there is additional, necessary, correction
+of exp(x2t,i/(2?s
+2
+t,i)) in the weight expression.
+Applying Lemma 3 to each t = 1, . . . , T and summing over trials gives:
+?
+t
+gtwt,ixt,i + ?T (hT,i, sT,i) ?
+?(?)
+d
+(1 + log T ),
+where we bound
+?T
+t=1
+1
+t ? 1 + log T . Identifying the left-hand side of the above with the
+right-hand side of (4) for ? = Td, and following the line of reasoning in Section 3.1, we
+obtain the bound on the penalized regret for the i-th coordinate:
+?
+t
+gtxt,i(wt,i ? ui) ? |ui|sT,i
+?
+? log(1 + ?d2T 2u2i s
+2
+T,i) +
+?(?)
+d
+(1 + log T ).
+Summing over i = 1, . . . , d results in the following regret bound for the algorithm:
+Theorem 4 For any comparator u and any sequence of outcomes {(xt, yt)}Tt=1, Algorithm
+1 satisfies:
+regretT (u) ?
+d?
+i=1
+|ui|sT,i
+?
+? log(1 + ?d2T 2u2i s
+2
+T,i) + ?(?)(1 + log T ).
+We finish this section by comparing the obtained bound with a standard bound of Online
+Gradient Descent UX
+?
+T when the instances and the comparator are bounded, ?xt? ? X,
+?u? ? U . By Cauchy-Schwarz inequality we have:
+?
+i
+|ui|sT,i ?
+??
+i
+u2i
+??
+i
+s2T,i ? U
+??
+i,t
+x2t,i = U
+??
+t
+?xt?2 ? UX
+?
+T ,
+so that our bound is O(UX
+?
+T log(1 + d2U2X2T 3)), incurring only a logarithmic overhead
+for not knowing the bound on the instances and on the comparator in hindsight.
+8
+Scale-Invariant Unconstrained Online Learning
+4. Full Scale Invariance
+In this section we consider algorithms which are invariant under general linear transforma-
+tions of the form xt 7? Axt for all t = 1, . . . , T . As we will see, imposing such a general
+symmetry will lead to a second order algorithm, i.e. the algorithm will maintain the full
+covariance matrix St =
+?
+q?t xtx
+?
+t . To incorporate the scale invariance into the problem,
+we choose the penalty ?T (u) to depend only on the predictions generated by u. A natural
+and analytically tractable choice is to parameterize ?T (u) by means of a sum of squared
+predictions:
+?T (u) = f(?u?ST ), where ?u?ST
+def
+=
+?
+u?STu =
+????
+T?
+t=1
+(x?t u)
+2.
+As before, by taking into account the lower bound from Lemma 1, we choose f(x) as defined
+in (2), i.e. f(x) = x
+?
+? log(1 + ??2x2), for some ?, ? > 0. Our goal is thus to design a
+scale-invariant algorithm which maintains small penalized regret:
+regretT (u)??T (u) =
+?
+t
+gtx
+?
+t wt + h
+?
+Tu? f(?u?ST )
+?
+?
+t
+gtx
+?
+t wt + sup
+u
+(
+h?Tu? f(?u?ST )
+)
+,
+where we defined ht = ?
+?
+q?t gqxq. We will make use of the following general result, proven
+in the Appendix B. For any positive semi-definite matrix A ? Rd×d, let ?u?A def=
+?
+u?Au
+denote the semi-norm of u ? Rd induced by A. We have:
+Lemma 5 For any f(x) : [0,?) ? R, any positive semi-definite matrix A and any vector
+y ? range(A),
+sup
+u
+{
+y?u? f
+(
+?u?A
+)}
+= f?
+(
+?y?
+A
+†
+)
+where f?(?) = supx?0 x?? f(x) is the conjugate of f(x) and A† denotes the pseudo-inverse
+of A. In particular,
+sup
+u
+{
+h?Tu? f
+(
+?u?ST
+)}
+= f?
+(
+?hT ?S†
+T
+)
+.
+Application of Lemma 5 together with Lemma 2 gives:
+regretT (u)??T (u) ?
+T?
+t=1
+gtx
+?wt +
+1
+?
+exp
+( 1
+2?
+?hT ?S†
+T
+)
+? ?? ?
+f?
+(
+?hT ?
+S
+†
+T
+)
+(6)
+As before, we have eliminated the unknown comparator from the equation, and we will
+design the algorithm to directly minimize the right-hand side of (6) over the worst-case
+choice of the data.
+9
+Scale-Invariant Unconstrained Online Learning
+4.1. Lower bound
+We start with a negative result. It turns out that the full scale invariance setting is sig-
+nificantly harder than then coordinate-wise one already for d = 2. We will show that any
+algorithm will suffer at least ?(?u?ST
+?
+T ) regret in the worst case, and this bound has a
+matching upper bound for a trivial algorithm which predicts 0 all the time.
+Theorem 6 Let d ? 2. For any algorithm, and any nonnegative number ? ? R+, there
+exist a sequence of outcomes and a comparator u, such that ?u?ST = ? and:
+regretT (u) ? ?u?ST
+?
+T/2.
+On the other hand, consider an algorithm which predicts 0 all the time. In this case,
+regretT (u) = ?
+T?
+t=1
+gtx
+?
+t u ?
+T?
+t=1
+|gtx?t u| ?
+??
+t
+(x?t u)
+2
+??
+t
+g2t ? ?u?ST
+?
+T ,
+where the second inequality is from Cauchy-Schwarz inequality. Thus, the lower bound is
+trivially achieved, and we conclude that it is not possible to obtain meaningful bound that
+only depends on ?u?ST by any online algorithm in the worst-case.
+4.2. The algorithm
+While it is not possible to get a meaningful bound in terms of ?u?ST in the worst case, here
+we provide a scale-invariant algorithm which almost achieves that. Precisely, we derive an
+algorithm with a regret bound expressed by f(?u?ST ), with f defined as in (2), with only
+a logarithmic dependence on the size of the instances hidden in constant ?.
+The algorithm is designed in order to minimize the right-hand side of (6). It maintains
+the negative past cumulative (linearized) loss vector ht = ?
+?
+q?t gqxq, as well as the
+covariance matrix St. Furthermore, the algorithm also keeps track of a quantity ?t ? 0,
+recursively defined as:
+?0 = 0, ?t = ?t?1 + g
+2
+tx
+?
+t S
+†
+txt.
+At the beginning of trial t, after observing xt (and updating St), the algorithm predicts
+with weight vector wt, such that:
+wt = ?tS
+†
+tht?1, where ?t =
+1
+?
+exp
+( 1
+2?
+(
+h?t?1S
+†
+tht?1 ? ?t?1
+))
+. (7)
+This choice of the update leads to the invariance of the algorithm’s predictions under trans-
+formations of the form xt 7? Axt, t = 1, . . . , T , for any invertible matrix A (shown in
+Appendix D). The algorithm is a second-order method, and is reminiscent of the Online
+Newton algorithm (Hazan et al., 2007; Luo et al., 2016). Our algorithm, however, adap-
+tively chooses step size ?t (“learning rate”) in each trial. Moreover, no projections are
+performed, which let us reduce the runtime of the algorithm to O(d2) per trial (an efficient
+implementation is discussed at the end of this section). The pseudo-code is presented as
+Algorithm 2.
+10
+Scale-Invariant Unconstrained Online Learning
+Algorithm 2: Scale invariant algorithm
+Parameter : ? > 98 = 1.125.
+Initialization: S ? 0, h? 0,?? 0
+for t = 1, . . . , T do
+Receive xt ? Rd
+Update S ? S + xtx?t
+? ? 1? exp
+(
+1
+2?
+(
+h?S†h? ?
+))
+w ? ?S†h
+Predict with y?t = w
+?xt
+Receive yt and suffer loss ?(yt, y?t)
+Compute gt = ?y?t?(yt, y?t)
+Update h? h? gtxt
+Update ?? ? + g2tx?t S†xt
+We now bound the regret of the algorithm. Define the potential function as:
+?t(h,S) = exp
+( 1
+2?
+h?S†h? ?t
+)
+We have the following result:
+Lemma 7 In each trial t = 1, . . . , T , Algorithm 2 satisfies:
+gtx
+?
+t wt + ?t(ht,St) ? ?t?1(ht?1,St?1).
+The proof is given in Appendix E. The choice of wt in Algorithm 2 can be motivated as
+the one that guarantees bounding the loss of the algorithm by the drop of the potential
+function (note, however, the as in the coordinate-wise case, the weight vector is not equal
+to the negative gradient of the potential). Comparing to Lemma 3, there is no overhead
+on the right-hand side; however, the overhead is actually hidden in the definition of ?t in
+quantity ?t.
+Applying Lemma 7 to each t = 1, . . . , T and summing over trials gives:
+?
+t
+gtx
+?
+t wt ? ?T (hT ,ST ) ? ?0(h0,S0) = 1.
+Identifying the left-hand side of the above with the right-hand side of (6) for ? = e
+?T
+2? , we
+obtain the following bound on the regret:
+regretT (u) ? ?u?ST
+?
+? log
+(
+1 + ??u?2
+ST
+e
+?T
+?
+)
++ 1
+? ?u?ST
+?
+? log
+(
+1 + ??u?2
+ST
+)
++ log(?)?T + 1,
+where we used log(1+ab) ? log(a+ab) = log a+log(1+b) for a ? 1, applied to a = e?T /? ? 1.
+Thus, the algorithm achieves an essentially optimal (up to logarithmic factor) scale-invariant
+bound expressed in terms ?u?ST , with an additional overhead hidden in ?T .
+11
+Scale-Invariant Unconstrained Online Learning
+How large can ?T be? By the definition, ?T =
+?
+t g
+2
+tx
+?
+t S
+†
+txt; as g
+2
+tx
+?
+t S
+†
+txt ? g2t ? 1, ?T
+is at most T in the worst case, and the bound becomes O?(?u?ST
+?
+T ) (logarithmic factors
+dropped), which is what we expected given the negative result in Theorem 6. However, ?T
+can be much smaller in most practical cases as it can be shown to grow only logarithmically
+with the size of the instances (Luo et al., 2016, notation translated to our setup):
+Lemma 8 (Luo et al., 2016, Theorem 4) Let ?? be the minimum among the smallest
+nonzero eigenvalues of St (t = 1, . . . , T ) and r be the rank of ST . We have:
+T?
+t=1
+x?t S
+†
+txt ? r +
+(1 + r)r
+2
+log
+(
+1 +
+2
+?T
+t=1 ?xt?2
+(1 + r)r??
+)
+.
+Combining the above results, we thus get:
+Theorem 9 For any comparator u and any sequence of outcomes {(xt, yt)}Tt=1, Algorithm
+2 satisfies:
+regretT (u) ? ?u?ST
+?
+? log
+(
+1 + ??u?2
+ST
+)
++ log(?)?T + 1,
+where:
+?T =
+T?
+t=1
+gtx
+?
+t S
+†
+txt ? r +
+(1 + r)r
+2
+log
+(
+1 +
+2
+?T
+t=1 ?xt?2
+(1 + r)r??
+)
+.
+with ?? being the minimum among the smallest nonzero eigenvalues of St (t = 1, . . . , T )
+and r being the rank of ST .
+We finally note that the dependence on the dimension d in the bound (through the
+dependence on the rank r in ?T ) cannot be eliminated, as Luo et al. (2016, Theorem 1)
+show that in a setting in which the predictions of u are constrained to be at most C, any
+algorithm will suffer the regret at least ?(C
+?
+dT ).4
+Efficient implementation. The dominating cost in Algorithm 2 is the computation of
+pseudoinverse S†t in each trial after performing the update St = St?1 + xtx
+?
+t , which can
+be O(d3). However, we can improve the computational cost per trial to O(d2) by noticing
+that St is never used by the algorithm, so it suffices to store and directly update S
+†
+t using
+a rank-one update procedure in the spirit Sherman-Morrison formula, which takes O(d2).
+The procedure is highlighted in the proof of Lemma 7 in Appendix E.
+5. Conclusions
+We considered unconstrained online convex optimization, exploiting a natural scale invari-
+ance symmetry: the predictions of the optimal comparator (weight vector) are invariant
+under any linear transformation of the instances (input vectors). Thus, the scale of the
+4. We can, however, improve the dependence on d to O(
+?
+d) by modifying the algorithm to play with
+S?t = ?I + St for ? > 0, and apply the bound on
+?
+t
+x
+?
+t S?txt from Cesa-Bianchi and Lugosi (2006),
+Theorem 11.7. This would, however, come at the price of losing the scale invariance of the algorithm.
+12
+Scale-Invariant Unconstrained Online Learning
+weight vector is only relative to the scale of the instances, and we aimed at designing on-
+line algorithms which also enjoy this property, i.e. are scale-invariant. We first considered
+the case of coordinate-wise invariance, in which the individual coordinates (features) can
+be arbitrarily rescaled. We gave an algorithm, which achieves essentially (up to logarith-
+mic factor) optimal regret bound in this setup (expressed by means of a coordinate-wise
+scale-invariant norm of the comparator). We then moved to a general (full) invariance with
+respect to arbitrary linear transformations. We first gave a negative result, showing that no
+algorithm can achieve a meaningful bound in terms of scale-invariant norm of the compara-
+tor in the worst case. Next, we complimented this result with a positive one, providing an
+algorithm which “almost” achieve the desired bound, incurring only a logarithmic overhead
+in terms of the norm of the instances.
+In the future research, we plan to test the introduced algorithms in the computational
+experiments to verify how their performance relate to the existing online methods from the
+past work (Zinkevich, 2003; Ross et al., 2013; Orabona et al., 2015; Luo et al., 2016).
+Acknowledgments
+We thank the anonymous reviewers for suggestions which improved the quality of our
+work. The author acknowledges support from the Polish National Science Centre (grant
+no. 2016/22/E/ST6/00299).
+References
+S. Boyd and L. Vandenberghe. Convex Optimization. Cambridge University Press, 2004.
+Stephen L. Campbell and Carl D. Meyer. Generalized Inverses of Linear Transformations.
+SIAM, 2009.
+Nicolo? Cesa-Bianchi and Ga?bor Lugosi. Prediction, learning, and games. Cambridge Uni-
+versity Press, 2006.
+Xuzhou Chen and Jun Ji. Computing the Moore-Penrose inverse of a matrix through
+symmetric rank-one updates. American Journal of Computational Mathematics, 1(3):
+147–151, 2011.
+John C. Duchi, Elad Hazan, and Yoram Singer. Adaptive subgradient methods for online
+learning and stochastic optimization. Journal of Machine Learning Research, 12:2121–
+2159, 2011.
+Elad Hazan. Introduction to online convex optimization. Foundations and Trends in Opti-
+mization, 2(3–4):157–325, 2015.
+Elad Hazan, Amit Agarwal, and Satyen Kale. Logarithmic regret algorithms for online
+convex optimization. Machine Learning, 69(2-3):169–192, 2007.
+Jyrki Kivinen and Manfred K. Warmuth. Additive versus Exponentiated Gradient updates
+for linear prediction. Information and Computation, 132(1):1–64, 1997.
+13
+Scale-Invariant Unconstrained Online Learning
+Haipeng Luo, Alekh Agarwal, Nicolo? Cesa-Bianchi, and John Langford. Efficient second
+order online learning by sketching. In Advances in Neural Information Processing Systems
+(NIPS) 29, 2016.
+H. Brendan McMahan and Jacob Abernethy. Minimax optimal algorithms for unconstrained
+linear optimization. In Advances in Neural Information Processing Systems (NIPS) 26,
+pages 2724–2732, 2013.
+H. Brendan McMahan and Francesco Orabona. Unconstrained online linear learning in
+Hilbert spaces: Minimax algorithms and normal approximation. In Proc. of the 27th
+Conference on Learning Theory (COLT), pages 1020–1039, 2014.
+H. Brendan McMahan and Matthew J. Streeter. Adaptive bound optimization for online
+convex optimization. In Conference on Learning Theory (COLT), pages 244–256, 2010.
+Francesco Orabona. Dimension-free exponentiated gradient. In Advances in Neural Infor-
+mation Processing Systems (NIPS) 26, pages 1806–1814, 2013.
+Francesco Orabona. Simultaneous model selection and optimization through parameter-free
+stochastic learning. In Advances in Neural Information Processing Systems (NIPS) 27,
+pages 1116–1124, 2014.
+Francesco Orabona and Da?vid Pa?l. Scale-free algorithms for online linear optimization. In
+Algorithmic Learning Theory (ALT), pages 287–301, 2015.
+Francesco Orabona and Da?vid Pa?l. Coin betting and parameter-free online learning. In
+Neural Information Processing Systems (NIPS), 2016.
+Francesco Orabona, Koby Crammer, and Nicolo? Cesa-Bianchi. A generalized online mirror
+descent with applications to classification and regression. Machine Learning, 99(3):411–
+435, 2015.
+Stephane Ross, Paul Mineiro, and John Langford. Normalized online learning. In Proc. of
+the 29th Conference on Uncertainty in Artificial Intelligence (UAI), pages 537–545, 2013.
+Shai Shalev-Shwartz. Online learning and online convex optimization. Foundations and
+Trends in Machine Learning, 4(2):107–194, 2011.
+Matthew Streeter and H. Brendan McMahan. No-regret algorithms for unconstrained online
+convex optimization. In Advances in Neural Information Processing Systems (NIPS) 25,
+pages 2402–2410, 2012.
+Martin Zinkevich. Online convex programming and generalized infinitesimal gradient ascent.
+In International Conference on Machine Learning (ICML), pages 928–936, 2003.
+14
+Scale-Invariant Unconstrained Online Learning
+Appendix A. Proof of Lemma 3
+Let t0 be the first trial in which st0,i > 0. This means that in trials t = 1, . . . , t0?1, xt,i = 0
+and hence ht,i = 0, and the lemma is trivially satisfied, as the left-hand side is zero. At
+trial t0, the algorithm still predicts with wt,i = 0, and Lemma 3 boils down to showing that
+1
+t0d
+exp
+( h2t0,i
+2?s2t0,i
+)
+? ?(?)
+t0d
+,
+where ?(?) = e
+1
+2(???0) . Since ht0,i = ?gt0xt0,i and s2t0,i = x2t0,i, we have
+h2t0,i
+s2t0,i
+? 1, and thus
+the left-hand side is bounded by:
+1
+t0d
+e
+1
+2? ? 1
+t0d
+e
+1
+2(???0) =
+?(?)
+t0d
+.
+Thus, we have shown the lemma for trials t = 1, . . . , t0. We can now assume that st?1,i > 0
+and prove the lemma for the remaining trials t > t0. By using the definition of wt,i from
+(5)), we need to show:
+gtxt,iht?1,i
+s2t,i?td
+exp
+(h2t?1,i + x2t,i
+2?s2t,i
+)
++
+1
+td
+exp
+( h2t,i
+2?s2t,i
+)
+? 1
+(t? 1)d exp
+( h2t?1,i
+2?s2t?1,i
+)
++
+?(?)
+td
+, (8)
+where we remind that ht,i = ht?1,i ? gtxt,i and s2t,i = s2t?1,i + x2t,i. First note that the
+left-hand side is convex in gt, and hence it is maximized for gt ? {?1, 1}. As the right-hand
+side does not depend on gt, it suffices to show that the inequality holds for gt ? {?1, 1}.
+Furthermore, as the inequality depends on gt only through the product gtxt,i, we assume
+without loss of generality that xt,i ? 0 (the sign can always be incorporated to gt). We now
+simplify the notation. Define:
+v =
+gtht?1,i
+st?1,i
+, ?2 =
+s2t?1,i
+s2t,i
+.
+Note that by the definition ? ? (0, 1] as xt,i is unconstrained. In this notation, we have:
+xt,i
+st,i
+=
+?
+x2t,i
+s2t,i
+=
+?
+1?
+s2t?1,i
+s2t,i
+=
+?
+1? ?2,
+h2t?1,i
+s2t,i
+=
+h2t?1,i
+s2t?1,i
+s2t?1,i
+s2t,i
+= v2?2
+h2t,i
+s2t,i
+=
+h2t?1,i
+s2t,i
+? 2ht?1,igtxt,i
+s2t,i
++
+x2t,i
+s2t,i
+= v2?2 ? 2v?
+?
+1? ?2 + (1? ?2),
+where we used g2t = 1. Using the new notation in (8), multiplying both sides by td we
+equivalently get:
+v?
+?
+1? ?2
+?
+e
+v2?2+1??2
+2? + e
+v2?2?2v?
+?
+1??2+1??2
+2? ? t
+t? 1e
+v2
+2? + ?(?). (9)
+15
+Scale-Invariant Unconstrained Online Learning
+Let us denote the left-hand side of (9) as A. We have:
+A = e
+v2?2+1??2
+2?
+(
+v?
+?
+1? ?2
+?
++ e
+?v?
+?
+1??2
+?
+)
+We need the following result, which is proved in Appendix F:
+Lemma 10 Let ?0 =
+9
+8 . For all x ? R it holds:
+x+ e?x ? ex
+2
+2
+?0 .
+Using Lemma 10 with x =
+v?
+?
+1??2
+? , we bound:
+A ? exp
+{ 1
+2?
+(
+v2?2 + 1? ?2 + av2?2(1? ?2)? ?? ?
+=B(?2)
+)}
+,
+where a = ?0? < 1. Note that B(?
+2) is a concave quadratic function of ?2, and its (uncon-
+strained) maximizer is given by: ??2 = 12 +
+v2?1
+2av2
+. However, since the allowed values of ?2
+are (0, 1], the maximizer within the closure of this range is:
+• ??2 = 0 for v2 ? 11+a , which gives B(??2) = 1,
+• ??2 = 1 for v2 ? 11?a , which gives B(??2) = v2,
+• ??2 = 12 + v
+2?1
+2av2
+for v2 ?
+[
+1
+1+a ,
+1
+1?a
+]
+, which gives B(??2) = a?12a + v
+2 (1+a)
+2
+4a +
+1
+4av2
+. Since
+this function is monotonically increasing in v2 for v2 ? 11+a , we will upper bound it
+by setting v2 = 11?a , which gives B(?
+?) ? 11?a .
+We thus jointly upper bound B(?) ? max{v2, 11?a}, which results in:
+A ? max
+{
+e
+v2
+2? , e
+1
+2?(1?a)
+}
+? e v
+2
+2? + e
+1
+2?(1?a) ? t
+t? 1e
+v2
+2? + ?(?),
+which verifies (9) and finishes the proof.
+Appendix B. Proof of Lemma 5
+Without loss of generality assume A has k ? 1 strictly positive eigenvalues (the remaining
+eigenvalues being zero), as otherwise (for k = 0) range(A) = {0} and there is nothing
+to show. Let A = V ?V ? for V ? Rd×k, ? = diag(?1, . . . , ?k), be the ‘thin’ eigenvalue
+decomposition ofA (i.e., the eigendecomposition without explicit appearance of eigenvectors
+with zero eigenvalues). Since y ? range(A), there exists y? ? Rd, such that y = Ay?, and
+therefore:
+y = V ?V ?y? = V ?1/2z, where z = ?1/2V ?y? ? Rk.
+16
+Scale-Invariant Unconstrained Online Learning
+We have:
+sup
+u?Rd
+{
+y?u? f
+(?
+u?Au
+)}
+= sup
+u?Rd
+{
+z?(?1/2V ?u)? f
+(???1/2V ?u
+??
+)}
+= sup
+u?Rk
+{
+z?u? f(?u?)
+}
+,
+where we reparametrized ?1/2V ?u as u ? Rk. Now, note that keeping the norm ?u? fixed,
+the supremum is achieved by u in the direction of z; therefore, without loss of generality
+assume u = ? z?z? for some ? ? 0. This means that:
+sup
+u?Rd
+{
+z?u? f(?u?)
+}
+= sup
+??0
+{
+??z? ? f(?)
+}
+= f?(?z?).
+Since A† = V ??1V ?,
+?y?2
+A
+† = y
+?A†y = y?V ??1V ?y = ???1/2V ?y?2 = ?z?2,
+which finishes the proof of the first part of the lemma.
+For the second part, we only need hT ? range(ST ), a well-known fact, which we show
+below for completeness. Let v be any eigenvector of ST associated with zero eigenvalue, so
+that v?STv = 0. Using the definition ST =
+?T
+t=1 xtx
+?
+t , we have v
+?STv =
+?T
+t=1(x
+?
+t v)
+2 =
+0, which implies x?t v = 0 for all t. But since hT = ?
+?T
+t=1 gtxt, this also means h
+?
+T v = 0.
+Let v1, . . . ,vk be the eigenvectors of ST associated with all non-zero eigenvalues ?1, . . . , ?k.
+By the previous argument, hT ? span {v1, . . . ,vk}, i.e. hT =
+?k
+i=1 ?ivi. Choosing a vector
+z =
+?k
+i=1
+?i
+?i
+vi reveals that:
+STz =
+k?
+i=1
+?iviv
+?
+i z =
+k?
+i=1
+?i
+?i
+?i
+vi =
+k?
+i=1
+?ivi = hT ,
+which shows that hT ? range(ST ). This finishes the proof.
+Appendix C. Proof of Theorem 6
+We will show that for any algorithm, there exists a sequence of outcomes {(xt, gt)}Tt=1, such
+that the loss of the algorithm is nonnegative on this sequence, while h?TS
+†
+ThT =
+T
+2 . Then,
+we can choose the comparator as u = ?
+?
+2
+T S
+†
+ThT , which invariant norm is equal to:
+?u?ST =
+?
+u?STu = ?
+?
+2
+T
+?
+h?TS
+†
+TSTS
+†
+ThT = ?
+?
+2
+T
+?
+h?TS
+†
+ThT = ?
+?
+2
+T
+?
+T
+2
+= ?,
+and the regret becomes:
+regretT (u) =
+T?
+t=1
+gtx
+?
+t wt
+? ?? ?
+nonnegative
++h?Tu ? h?Tu = ?
+?
+2
+T
+h?TS
+†
+ThT = ?
+?
+T
+2
+= ?u?ST
+?
+T
+2
+.
+17
+Scale-Invariant Unconstrained Online Learning
+Thus, to finish the proof, it suffices to find a sequence with the claimed properties. The
+sequence goes as follows. In each trial t, the adversary chooses the sign of gt to match the
+sign of y?t = x
+?
+t wt, so that gtx
+?
+t wt ? 0, i.e. the loss of the algorithm is nonnegative in each
+trial. Moreover, xt and gt are chosen so that h
+?
+t S
+†
+tht =
+t
+2 for all t, and hence h
+?
+TS
+†
+ThT =
+T
+2 .
+In the first d trials, the adversary chooses xt = et and gt ? {? 1?2 ,
+1?
+2
+}. In this case, for
+any t = 1, . . . , d:
+ht = (g1, . . . , gt, 0, . . . , 0), St = S
+†
+t = diag(1, . . . , 1? ?? ?
+t
+, 0 . . . , 0),
+and hence h?t S
+†
+tht =
+?t
+i=1 g
+2
+i =
+t
+2 . Note that Gt is invertible for all t ? d, i.e. S
+†
+t = S
+?1
+t
+for t ? d. For the remaining trials t = d + 1, . . . , T the adversary chooses gt ? {?1, 1},
+and xt in any direction for which h
+?
+t?1S
+?1
+t?1xt = 0, with ?xt? chosen in such a way that
+x?t S
+?1
+t?1xt = 1 (which is always possible as d ? 2). Using Sherman-Morrison inversion
+formula for St = St?1 + xtx?t ,
+h?t S
+†
+th
+?
+t = h
+?
+t S
+?1
+t?1ht ?
+(
+h?t S
+?1
+t?1xt
+)2
+1 + x?t S
+?1
+t?1xt
+= h?t?1S
+?1
+t?1ht?1 + x
+?
+t S
+?1
+t?1xt ?
+(
+x?t S
+?1
+t?1xt
+)2
+1 + x?t S
+?1
+t?1xt
+= h?t?1S
+?1
+t?1ht?1 +
+x?t S
+?1
+t?1xt
+1 + x?t S
+?1
+t?1xt
+= h?t?1S
+†
+t?1ht?1 +
+1
+2
+,
+where in the second equality we used h?t?1S
+?1
+t?1xt = 0 and in the last equality we used
+x?t S
+?1
+t?1xt = 1. Thus, h
+?
+t S
+†
+tht =
+t
+2 for all t.
+Appendix D. Scale invariance of Algorithm 2
+We need to show that under linear transformation xt 7? Axt, t = 1, . . . , T , for any invertible
+A, the predictions of the algorithm, {y?t}Tt=1, do not change. We remind that the predictions
+are given by:
+y?t = ?tx
+?
+t S
+†
+tht?1, where ?t =
+1
+?
+exp
+( 1
+2?
+(
+h?t?1S
+†
+tht?1 ? ?t?1
+))
+, ?t =
+?
+q?t
+g2qx
+?
+q S
+†
+txq.
+We proceed by induction on t. For t = 1, y?1 = 0, which is trivially invariant under
+linear transformation of the instances. Now, assume inductively that {y?q}t?1q=1 are invariant,
+which implies {gq}t?1q=1 are also invariant as they only depend on past predictions and past
+labels. Since ht?1 = ?
+?
+q<t gqxq, prediction y?t depends on the data only by means of
+{gq}t?1q=1 and quantities x?i S
+†
+txj for i, j ? t. Thus, to show the invariance of y?t under linear
+transformation of the instances, it suffices to show the invariance of x?i S
+†
+txj , for i, j ? t.
+As St =
+?
+q?t xqx
+?
+q maps to
+?
+q?tAxqx
+?
+q A
+? = AStA
+? under linear transformation, it
+thus amounts to show that:
+x?i S
+†
+txj = (Axi)
+?
+(
+AStA
+?
+)†
+Axj = x
+?
+i A
+?
+(
+AStA
+?
+)†
+Axj ,
+18
+Scale-Invariant Unconstrained Online Learning
+for any i, j ? t and any invertible A.5 Since xi,xj ? range(St), we have: xi = S†tStxi and
+similarly xj = S
+†
+tStxj . Thus:
+x?i A
+?
+(
+AStA
+?
+)†
+Axj = x
+?
+i S
+†
+tStA
+?
+(
+AStA
+?
+)†
+AStS
+†
+txj
+= x?i S
+†
+tA
+?1
+(
+AStA
+?
+)(
+AStA
+?
+)† (
+AStA
+?
+)
+A??S†txj
+= x?i S
+†
+tA
+?1
+(
+AStA
+?
+)
+A??S†txj
+= x?i S
+†
+tStS
+†
+txj
+= x?i S
+†
+txj,
+which was to be shown.
+Appendix E. Proof of Lemma 7
+By plugging the definition of the algorithm’s weight (7) to the inequality in the lemma, we
+need to show:
+gtx
+?
+t S
+†
+tht?1
+?
+e
+1
+2?
+(h?t?1S
+†
+tht?1??t?1) + e
+1
+2?
+(h?t S
+†
+tht??t) ? e 12? (h?t?1S
+†
+t?1ht?1??t?1). (10)
+Using ht = ht?1 ? gtxt, we have:
+h?t S
+†
+tht ? ?t = h?t?1S†tht?1 ? 2gth?t?1S†txt + g2tx?t S†txt ? ?t
+= h?t?1S
+†
+tht?1 ? 2gth?t?1S
+†
+txt ? ?t?1,
+from the definition of ?t. Plugging the above into (10) and multiplying both sides by e
+?t?1 ,
+we equivalently need to show:
+e
+1
+2?
+h
+?
+t?1S
+†
+tht?1
+(gth?t?1S†txt
+?
++ e?
+gth
+?
+t?1S
+†
+t
+xt
+?
+)
+? e 12?h?t?1S
+†
+t?1ht?1 . (11)
+Denote the left-hand side of (11) by A. Applying x+ e?x ? ex
+2
+2
+?0 for ?0 =
+9
+8 (Lemma 10)
+with x =
+gth
+?
+t?1S
+†
+txt
+? to the left-hand side of (11) results in the following bound:
+A ? exp
+( 1
+2?
+(
+h?t?1S
+†
+tht?1 +
+?0
+?
+(
+gth
+?
+t?1S
+†
+txt
+)2))
+? exp
+( 1
+2?
+(
+h?t?1S
+†
+tht?1 +
+(
+h?t?1S
+†
+txt
+)2))
+,
+where we used ?0 ? ? and g2t ? 1.
+We now express S†t in terms of S
+†
+t?1, by using an extension of well-known Sherman-
+Morisson formula to pseudoinverse (Campbell and Meyer, 2009; Chen and Ji, 2011). To
+5. The simplest approach to show the invariance would be to prove (AStA
+?)† = A??S†tA
+?1. Unfortu-
+nately (and surprisingly to us), while this relation holds for a matrix inverse, it does not hold in general
+for pseudoinverse! In the proof, we need to use a crucial fact that xi and xj are in the range of St.
+19
+Scale-Invariant Unconstrained Online Learning
+this end define x? = (I ? St?1S†t?1)xt to be the component of xt orthogonal to the range
+of St?1. Note that since ht?1 ? range(St?1) (see the proof of Lemma 5 in Appendix B),
+we have h?t?1x? = 0. Moreover, x
+?
+?xt = x
+?
+t (I ? St?1S†t?1)xt = x?t (I ? St?1S
+†
+t?1)
+2xt =
+x??x? = ?x??2, where we used that I ? St?1S
+†
+t?1 = (I ? St?1S
+†
+t?1)
+2 is idempotent as a
+projection operator. Let us also define ? = 1 + x?t S
+†
+t?1xt. Depending on whether x? = 0
+we need to consider two cases (Chen and Ji, 2011):
+1. Case x? = 0. In this case, we essentially follow Sherman-Morrison formula:
+S
+†
+t = S
+†
+t?1 ?
+1
+?
+S
+†
+t?1xtx
+?
+t S
+†
+t?1,
+and we get:
+h?t?1S
+†
+tht?1 = h
+?
+t?1S
+†
+t?1ht?1 ?
+1
+?
+(
+h?t?1S
+†
+t?1xt
+)2
+,
+h?t?1S
+†
+txt = h
+?
+t?1S
+†
+t?1xt ?
+1
+?
+h?t?1S
+†
+t?1xt x
+?
+t S
+†
+t?1xt? ?? ?
+=??1
+=
+1
+?
+h?t?1S
+†
+t?1xt.
+Therefore:
+A ? exp
+(
+1
+2?
+(
+h?t?1S
+†
+t?1ht?1 ?
+1
+?
+(
+h?t?1S
+†
+t?1xt
+)2
++
+1
+?2
+(
+h?t?1S
+†
+t?1xt
+)2)
+)
+? exp
+( 1
+2?
+h?t?1S
+†
+t?1ht?1
+)
+,
+where we used ? ? 1. Thus, (11) follows.
+2. Case x? 6= 0. In this case the update formula has a different form:
+S
+†
+t = S
+†
+t?1 ?
+S
+†
+t?1xtx
+?
+?
+?x??2
+? x?x
+?
+t S
+†
+t?1
+?x??2
++ ?
+x?x??
+?x??4
+,
+and we get:
+h?t?1S
+†
+tht?1 = h
+?
+t?1S
+†
+t?1ht?1,
+h?t?1S
+†
+txt = h
+?
+t?1S
+†
+t?1xt ? h?t?1S
+†
+t?1xt
+x??xt
+?x??2
+= 0,
+where we used h?x? = 0 and x??xt = ?x??2. Therefore,
+A ? exp
+( 1
+2?
+h?t?1S
+†
+t?1ht?1
+)
+,
+and (11) follows. This finishes the proof.
+20
+Scale-Invariant Unconstrained Online Learning
+Appendix F. Proof of Lemma 10
+We need to show that for all x ? R it holds:
+x+ e?x ? ex
+2
+2
+?0 . (12)
+where ?0 =
+9
+8 . First, consider x > 0. We have e
+x2
+2
+?0 ? ex
+2
+2 ? 1 + x22 , and ex ? 1 + x+ x
+2
+2 ,
+which implies e?x ? 1
+1+x+x
+2
+2
+. Thus, it suffices to show 1+ x
+2
+2 ? 11+x+x2
+2
++x, which amounts
+to:
+x2
+2
+? x+ 1 ? 1
+1 + x+ x
+2
+2
+??
+(
+x2
+2
++ 1? x
+)(
+x2
+2
++ 1 + x
+)
+? 1 ?? x
+4
+4
+? 0,
+which clearly holds. Now, consider x ? 0. Showing (12) for x < 0 is equivalent to showing:
+e
+x2
+2
+?0 + x? ex ? 0, (13)
+for x ? 0 (after substituting x? ?x). First note that when x ? 2?0 , e
+x2
+2
+?0 ? ex ? ex ? x,
+so that (13) holds. Thus, it suffices to check the inequality for x ? [0, 2/?0] = [0, 16/9].
+When x ? 0.34, we make use of the fact that ex?x?1
+x2
+is nondecreasing in x, so that ex?x ?
+1 + x2 e
+0.34?0.34?1
+0.342
+? 1 + 0.5619x2, whereas ex
+2
+2
+?0 ? 1 + x22 ?0 ? 1 + 916x2 = 1 + 0.5625x2.
+Therefore, e
+x2
+2
+?0 ? ex + x ? 0.0006x2 ? 0, and we showed (13) for x ? 0.34. From now on,
+the proof becomes very tedious and requires first-order Taylor approximations and the use
+of convexity at various subintervals of [0.34, 169 ] to finally combine the bound. Thus, the
+rest of the proof works by splitting the range [0.34, 169 ] into intervals [u1, v1], . . . , [um, vm],
+where u1 = 0.34, ui = vi?1, and vm =
+16
+9 . For each i = 1, . . . ,m, for x ? [ui, vi], we use
+convexity of ex and upper bound it by:
+ex ? x? ui
+vi ? ui
+evi +
+vi ? x
+vi ? ui
+eui =
+vie
+ui ? uievi
+vi ? ui? ?? ?
+=bi
++x
+evi ? eui
+vi ? ui? ?? ?
+=ci
+.
+On the other hand, we use convexity of f(x) = e
+x2
+2
+?0 to lower bound it by f(x) ? f(ui) +
+f ?(ui)(x? ui). Thus, the left-hand side of (13) is lower bounded by:
+f(ui)?f ?(ui)ui?bi+x(f ?(ui)?ci+1) ? f(ui)?f ?(ui)ui?bi+min{vi(f ?(ui)?ci+1), ui(f ?(ui)?ci+1)}.
+(14)
+In the table below, we present the numerical values of (14) for a set of chosen intervals:
+21
+Scale-Invariant Unconstrained Online Learning
+interval [ui, vi] lower bound (14)
+[1.24, 1.78] 0.017
+[0.99, 1.24] 0.003
+[0.85, 0.99] 0.001
+[0.76, 0.85] 0.0007
+[0.7, 0.76] 0.001
+[0.65, 0.7] 0.0008
+[0.6, 0.65] 0.0002
+[0.56, 0.6] 0.0008
+[0.52, 0.56] 0.0005
+[0.47, 0.52] 0.0002
+[0.42, 0.47] 0.0004
+[0.37, 0.42] 0.0005
+[0.34, 0.37] 0.001
+As all lower bounds are positive, this finishes the proof.
+Note: If we chose ?0 = 2, the proof of the lemma would simplify dramatically, as we
+would only need to separately bound x ? (??,?1), x ? [?1, 0], and x ? (0,?). However,
+we opted for the smallest ?0, as smaller ?0 translates to a smaller achievable constant in
+the regret bound. Our choice ?0 =
+9
+8 was obtained by performing numerical tests, which
+showed that this value is very close to the smallest ?0, for which the inequality still holds.
+22

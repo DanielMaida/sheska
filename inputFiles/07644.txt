@@ -1,0 +1,435 @@
+Joint Structured Learning and Predictions under Logical Constraints  
+in Conditional Random Fields 
+Jean-Luc Meunier 
+Xerox Research Centre Europe 
+ 
+May 30, 2017. 
+ 
+Abstract 
+This paper is concerned with structured machine learning, 
+in a supervised machine learning context. It discusses how 
+to make joint structured learning on interdependent objects 
+of different nature, as well as how to enforce logical con-
+straints when predicting labels. 
+We explain how this need arose in a Document Understand-
+ing task. We then discuss a general extension to Conditional 
+Random Fields (CRF) for this purpose and present the con-
+tributed open source implementation on top of the open 
+source PyStruct library. We evaluate its performance on a 
+publicly available dataset. 
+Keywords: supervised machine learning, structured pre-
+diction, conditional random fields. 
+1 Introduction 
+Structured prediction is about predicting a structured output 
+rather than a scalar value, given some input. It finds appli-
+cations in natural language processing, computer vision and 
+many other fields. While there are several models and rele-
+vant methods to support structured machine learning, our 
+focus here is on the popular graphical model named Condi-
+tional Random Fields (CRF).  
+CRF was first introduced by Lafferty et al. in 2001 [1] 
+and later applied on many tasks in computer vision, natural 
+language processing to cite a few. We review here only a 
+few salient works, relevant to the topic of this paper.  
+In 2004, Quattoni et al. [13] aimed at categorizing an im-
+age based on its parts. Since the parts were not labelled, i.e. 
+unobserved, they introduced hidden variables. While this 
+incorporation of hidden variables in the CRF framework is 
+the key contribution, we also view this work as one of the 
+first at dealing with objects of different natures in CRF. In-
+deed, the so-called parts are patches while it is the image 
+itself that needs to be categorized. Similarly, He et al. [14] 
+introduced an additional layer of hidden variables to encode 
+particular patterns within a subset of nodes.  
+In 2004 also, Sutton et al. [15] introduced the concept of 
+Factorial CRF, which is a generalization of linear-chain 
+CRFs that repeat structure and parameters over a sequence 
+of state vectors. In this approach, the labels of a chain be-
+long each to a certain temporality, with connection between 
+labels that are consecutive within-chain and between con-
+secutive chains. One advantage of this model is to jointly 
+solve multiple labelling tasks, on the same sequence, in-
+stead of applying multiple separate models. Recently, for 
+instance, Wang & Kan in [16] used Factorial CRF to jointly 
+perform Chinese word recognition and segmentation. We 
+will show in section 3.2.2 how our proposal generalizes 
+Factorial CRFs.  
+CRF models came later in the Document Understanding 
+community and was used to segment and label a page image 
+in [17]. Recently, and closer to the task discussed in next 
+section, CRF was used for labeling the objects on a page of 
+a document [19], moving away from pixel-based or pixel-
+patch-labeling.  
+The work of Albert et al. in [18] is also of particular rel-
+evance to us. They propose a two-layer CRF model to sim-
+ultaneously classify the so-called land cover and land use, 
+the former relates to the nature of the terrain while the latter 
+relates to its socio-economic function. Both layers consist 
+of nodes and intra-layer edges. The nodes at different layers 
+are connected by inter-layer edges. Both layers differ with 
+respect to the entities corresponding to the nodes and the 
+classes to be distinguished, which is caused by the different 
+nature of these classification tasks.  
+We are addressing here this problem, i.e. having nodes 
+of different nature, in a general principled manner.  
+The goal of this paper it to focus on an extension of CRF 
+supporting joint prediction on items of different nature but 
+possibly interdependent. We also propose to support logical 
+constraints on items’ labelling. We illustrate the approach 
+by an open source extension to the open source CRF library 
+called PyStruct [2,3,4]. 
+In the next sections, we will illustrate similar needs aris-
+ing in the Document Understanding field. We then discuss 
+how to support nodes of different nature in CRF and how 
+to support first order logic constraints at inference time in 
+PyStruct. Finally, we extend the Snake example introduced 
+in [6] to experimentally validate this work. 
+2 Need for Joint Structured 
+Prediction and Logical Constraints 
+2.1 Nodes of Different Natures 
+During a Document Understanding task consisting in label-
+ing textual blocks of OCRed or digital documents, a CRF-
+based structured learning approach was chosen. We mod-
+elled each document as a general CRF graph, consisting 
+only of unary and pairwise potential functions. In this 
+graph, a node reflects a textual block while an edge reflects 
+a spatial relation between two blocks, either on same page 
+or on two contiguous pages [5]. The unary potential applies 
+onto nodes, while the pairwise applies onto edges. Model-
+ing the whole document as a graph allowed us to leverage 
+the patterns that exist within a document, within and across 
+its pages.  
+However, a secondary task consisted in labeling each 
+page of a document. Since the page labels clearly follow a 
+pattern over the sequence of pages of each document, we 
+again used structured learning, a chain CRF model in this 
+case.  
+Eventually, a structured classifier at block-level and a 
+structured classifier at page-level were delivered for pro-
+duction use, using PyStruct.  
+But this two-part solution cannot capture and exploit the 
+dependency between the two tasks. Our intuition is that the 
+category of a page is informative for labelling its text 
+blocks, and vice versa. We therefore believe a better solu-
+tion could be constructed by addressing both tasks jointly 
+instead of independently of each other. This would involve 
+representing the text blocks and the pages of a document as 
+nodes, of different types, in the same graph. Each type of 
+node would have its own label space and edges would be 
+allowed between pairs of nodes of same type and of differ-
+ent types. This was not possible with PyStruct, which on the 
+contrary assumes that all nodes are homogeneous, that is 
+they all have the same meaning. In other words, all nodes 
+must have the same number of classes and these classes 
+mean the same things. So, all nodes share the same weights 
+(per class) and all edges share the same weights (per pair of 
+class), as discussed later.  
+Beyond this case, CRF seems promising for labelling 
+page objects simultaneously while exploiting their interde-
+pendences. However, objects on a page are of different na-
+ture, like text, image, graphical line, to mention a few con-
+ventional page objects. Each nature of object calls for a spe-
+cific vector representation and a specific set of classes (la-
+bels). 
+Therefore, we propose CRF models where nodes can be 
+of one of several possible natures, or type. This is discussed 
+in next section in more details. 
+2.2 First order Logic Constraints 
+During the same work, several known facts were not ex-
+plicitly expressed in our block model. In this case, it was 
+given as fact that each page could have zero or one so-called 
+‘number’ and zero or one so-called ‘title’. While the CRF 
+model could learn that from the training set, having the ca-
+pability to express this a priori knowledge in the model is 
+beneficial. Given that one inference library used by 
+PyStruct [3] has the capability of making inferences while 
+taking into account certain first order logic constraints, we 
+extended PyStruct to benefit from this mechanism, as dis-
+cussed in next section. 
+3 Heterogeneous CRF Models 
+We first recall the definition of a CRF model before defin-
+ing the proposed model. 
+3.1 Conditional Random Fields 
+The original CRF model [1] assumes that nodes are homo-
+geneous, that is, they share the same label set. The predic-
+tion of a CRF model [1] is multivariate, i.e. it is a vector of 
+length ? of discrete labels in space {1, … , ?} . 
+  
+? = {1,… , ?}? 
+Let  ? = (?, ?) where V denotes the set of vertices, and 
+E ? V × V the set of edges. The graph potential function 
+?(?, ?) between an input ?  and its structured label vector 
+? takes the form below. 
+  
+?(?, ?) =  ???(?, ??)
+???
++ ? ??,?(?, ?? , ??)
+(?,?)??
+ 
+ (1) 
+Here ??(?, ??)  is the unary potential function, while 
+??,?(?, ?? , ??) is the pairwise potential functions. 
+ 
+Under the usual assumption that the potential functions 
+are linear, like in PyStruct,  ?(?, ?) is: 
+  
+?(?, ?) =  ? ???
+? . ??(?)
+???
++ ?  ???,??
+? . ??(?, ?)
+(?,?)??
+ 
+ (2) 
+Here, ???  is the model’s unary weight vector given a 
+node label ??, ??(?) is a vector representation of the vertex 
+?, ???,?? is a pairwise weight vector given a pair of labels, 
+and ??(?, ?) is a vector representation of an edge (?, ?). 
+3.2 Heterogenous Nodes 
+We generalize the supported graphs to a form which is close 
+to what is called multi-type graphs in [7]: 
+Let  ? = (? ?? ,
+?
+?=1 ? ? ??,?? )
+?
+??=1   
+?
+?=1 be a k-type graph 
+where ??  denotes a set of vertices of type t, and ??,?? de-
+notes the set of edges connecting a vertex of type ? to a 
+vertex of type ??. Note that ??,?? can be empty if none of 
+the t-type vertices is connected to t’-type vertices. 
+We then consider ? label spaces of the form {1, … , ??} 
+where ?? is the number of labels of nodes of type ? ?
+{1, … , ?}. 
+We can generalize the PyStruct potential function to: 
+  
+?(?, ?) =  ?  ? ???
+? ? . ???(?)
+????
+?
+?=1
++ ? ? ? ???,??
+?,??
+?
+. ??
+?,??
+(?, ?)
+(?,?)???,??
+?
+??=1
+?
+?=1
+ 
+ (3) 
+Here, each type ? defines its own unary weight vector ???
+?  
+given a label ?? ? {1, … , ??} and defines its own vector rep-
+resentation ???(?) of a vertex ? ?  ?? . Similarly, each pair 
+of type ?, ?? defines its own pairwise weight vector ???,??
+?,??
+ 
+given a pair of labels ?? , ??  ?  {1, … , ??} × {1, … , ???} and 
+its own vector representation ??
+?,??
+(?, ?)  of the edge  
+(?, ?) ? ??,??. 
+Operationally, the unary and pairwise weights of single-
+type CRF in Equation (2) can be factorized into Equation 
+below. 
+?(?, ?)
+=  ?  ??
+? . [ ? ??(??)
+???{? ? ?|?? = ?}
+]
+?
+?=1
++ ? ? ??,?
+? .
+[
+ 
+ 
+ 
+ 
+ 
+? ??(?? , ??)
+???{? ? ?|?? = ?}
+???{? ? ?|?? = ?} ]
+ 
+ 
+ 
+ 
+ 
+?
+?=1
+?
+?=1
+  
+  (4) 
+By concatenating the ?? and the  ??,?, on one side, into a 
+single vector ?  and, on the other side, concatenating with 
+proper shift the feature vectors aggregated by label, or pair 
+of labels, into a single vector ?(?, ?), one gets an equation 
+like: 
+?(?, ?) =  ? . ?(?, ?) (5) 
+This is the form internally used by PyStruct, which then 
+uses a learner method to learn the weights ? and an infer-
+ence method to predict the label vector ?  that maximizes 
+the potential given the input ?. 
+The generalized form for multi-type CRF graphs is ame-
+nable to a similar form, shown below. 
+?(?, ?) =  ?  ???
+?? . [ ? ???(??)
+???{? ? ??|?? = ?}
+]
+??
+?=1
+ 
+?
+?=1
+ 
++ ? ? ??  ??,?
+?,??
+?
+.
+[
+ 
+ 
+ 
+ 
+ 
+? ??
+?,??
+(?? , ??)
+???{? ? ??|?? = ?}
+???{? ? ???|?? = ?} ]
+ 
+ 
+ 
+ 
+ ???
+?=1
+??
+?=1
+?
+??=1
+?
+?=1
+ 
+  (6) 
+By concatenating the ??
+?  and the ??,?
+?,??
+, we get the multi-
+type model weight vector ? while the aggregated feature 
+vectors can be concatenated with proper shift to obtain the 
+?(?, ?). We again end with Equation (5) and fit with the 
+general PyStruct design. 
+This is how we implemented the multi-type CRF model 
+in PyStruct, but the approach is quite general and applies to 
+CRF models based on linear potential functions. 
+This implementation however requires an adaptation of 
+the inference method, since nodes do not have all the same 
+set of labels. We chose to adapt the AD3 [10,12] inference 
+library for that purpose. AD3 is one of the inference method 
+supported by PyStruct, it provides an “approximate maxi-
+mum a posteriori (MAP) inference on factor graphs, based 
+on the alternating directions method of multipliers”. The 
+adaptation is immediate as a CRF vertex ? ?  ??  is re-
+flected as a factor graph variable associated to a potential 
+vector of length ??, computed as ?
+? . ???(??). A CRF edge 
+(?, ?) ? ??,?? is reflected as a pairwise factor associated to 
+a potential matrix of shape ??×??? computed as 
+??,?
+?
+. ??
+?,??
+(?, ?). 
+The contributed source code is available in GitHub [8,9]. 
+3.2.1 Number of Model Parameters 
+In unstructured machine learning, dealing with multi-type 
+input is usually dealt with by training one classifier per type 
+of input and associated set of labels. Alternatively, a single, 
+but a priori sub-optimal, model could be set up by simple 
+concatenation of the sets of labels in a single set, and con-
+catenation of the corresponding features vectors with ap-
+propriate shift per type.  
+But in structured machine learning, more precisely in a 
+CRF-based approach, doing so would not be effective be-
+cause it would lead to learn useless model parameters, for 
+irrelevant states given a node, and for irrelevant pairwise 
+interaction between pair of states given a pair of node. Due 
+to the regularization, those parameters should be set to 0 but 
+in any case, such an approach would lead to an unnecessary 
+large model, with a number of parameters equal to: 
+?. ? ??
+?
+?=1 +(? ??
+?
+?=1 ). (? ??
+?
+?=1 ) (7) 
+In addition, one is not guaranteed against inconsistent 
+prediction, given the type of a node. In such case, no easy 
+workaround exists, as choosing among relevant labels even 
+for a small number of nodes is quickly intractable. 
+ 
+The proposed approach lead to a smaller number of 
+model parameters equal to:  
+? ??
+?
+?=1 + ? ? ?? .
+?
+??=1
+?
+?=1 ??? (8) 
+3.2.2 Relationship with Factorial CRF 
+We reproduce below a figure from [15] showing in a 
+graphical representation how the multiple labels (? and ?) 
+interact in a Factorial CRF.  
+ 
+Fig. 1. Figure from [15] 
+The same representation is obtained in the present work 
+by defining two types of nodes, one with labels ?  and the 
+other with labels ? . Then each observation is reflected 
+twice, once per node type, and by constructing a ladder-
+shape graph, one obtains the unary and pairwise interac-
+tions depicted in figure above. But contrary to Factorial 
+CRF, other graph structures are possible as well, and in this 
+sense, the notion of node type is more general. 
+Of course, as a practical remark, the representation of 
+each observation does not need to be duplicated in memory, 
+despite leading to two nodes in the graph. 
+3.3 First Order Logic Constraints 
+When using AD3 for inference, PyStruct converts the input 
+CRF graph into a pairwise factor graph, as discussed in sec-
+tion 4.1.1 of Müller’s thesis [4]. Noticing that the AD3 in-
+ference library can consider certain first order logic con-
+straints for factor graphs made of binary variables and that, 
+in addition, Martins et al. describe a procedure for reflecting 
+CRF graphs as binary factor graphs, we considered support-
+ing first order logic constraints expressed on the vertices’ 
+states of the CRF graph at inference time.  
+3.3.1 Logic Constraints in Single-Type PyStruct 
+CRF 
+For supporting logic constraints in a single-type CRF, the 
+CRF graph must be reflected as a binary pairwise factor 
+graph. This is described in section 4.3 of [10] as follow: 
+• For each node ? ?  ? of a CRF graph, define binary var-
+iable ??,? for each possible label ? ? {1, … , ?}; link those 
+variables to a ???  factor. This imposes ? ??,?
+?
+?=1 =
+1, ? ? ? ?. 
+• For each edge (?, ?) ? ? , define binary variables 
+??,?,?,?  for each possible pair of labels (?, ?) ?
+{1, … , ?} × {1, … , ?} ; link variables {??,?,?,?}?=1
+?  and 
+¬??,?  to a ???  factor for each ? ? {1, … , ?}; and link 
+variables {??,?,?,?}?=1
+?  and ¬??,?  to a ???  factor for 
+each ? ? {1, … , ?} . These impose constraints ??,? =
+ ? ??,?,?,?
+?
+?=1  ??, and ?

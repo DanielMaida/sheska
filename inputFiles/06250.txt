@@ -1,0 +1,531 @@
+Pillar Networks++: Distributed non-parametric deep and wide networks
+Biswa Sengupta
+Imperial College London
+Cortexica Vision Systems Limited
+b.sengupta@imperial.ac.uk
+Yu Qian?
+Cortexica Vision Systems Limited
+Abstract
+In recent work, it was shown that combining multi-kernel
+based support vector machines (SVMs) can lead to near
+state-of-the-art performance on an action recognition dataset
+(HMDB-51 dataset). This was 0.4% lower than frameworks
+that used hand-crafted features in addition to the deep convo-
+lutional feature extractors. In the present work, we show that
+combining distributed Gaussian Processes with multi-stream
+deep convolutional neural networks (CNN) alleviate the need
+to augment a neural network with hand-crafted features. In
+contrast to prior work, we treat each deep neural convolu-
+tional network as an expert wherein the individual predictions
+(and their respective uncertainties) are combined into a Prod-
+uct of Experts (PoE) framework.
+Introduction
+Recognizing actions in a video stream requires the aggrega-
+tion of temporal as well as spatial features (as in object clas-
+sification). These video streams, unlike still images, have
+short and long temporal correlations, attributes that single
+frame convolutional neural networks fail to discover. There-
+fore, the first hurdle to reach human-level performance is
+designing feature extractors that can learn this latent tempo-
+ral structure. Nonetheless, there has been much progress in
+devising novel neural network architecture since the work of
+(Karpathy et al. 2014). Another problem is the large com-
+pute, storage and memory requirement for analysing moder-
+ately sized video snippets. One requires a relatively larger
+computing resource to train ultra deep neural networks that
+can learn the subtleties in temporal correlations, given vary-
+ing lighting, camera angles, pose, etc. It is also difficult to
+utilise standard image augmentation (like random rotations,
+shears, flips, etc.) techniques on a video stream. Addition-
+ally, features for a video stream (unlike static images) evolve
+with a dynamics across several orders of time-scales.
+Nonetheless, the action recognition problem has reached
+sufficient maturity using the two-stream deep convolutional
+neural networks (CNN) framework (Simonyan and Zisser-
+man 2014). Such a framework utilises a deep convolutional
+neural network (CNN) to extract static RGB (Red-Green-
+Blue) features as well as motion cues by deconstructing the
+optic-flow of a given video clip. Notably, there has been
+?joint first author
+Copyright c© 2018, All rights reserved by the authors.
+plenty of work in utilising a variety of network architectures
+for factorising the RGB and optical-flow based features. For
+example, an inception network (Szegedy et al. 2016) uses
+1 × 1 convolutions in its inception block to estimate cross-
+channel corrections, which is then followed by the estima-
+tion of cross-spatial and cross-channel correlations. A resid-
+ual network (ResNet), on the other hand, learns residuals on
+the inputs instead of learning unreferenced functions (He et
+al. 2016). While such frameworks have proven useful for
+many action recognition datasets (UCF101, UCF50, etc.),
+they are yet to show promise where videos have varying
+signal-to-noise ratio, viewing angles, etc.
+We improve upon existing technology by combining In-
+ception networks and ResNets using a Gaussian Process
+classifier that is further combined in a product-of-expert
+(PoE) framework to yield, to the best of our knowledge,
+a state-of-the-art performance on the HMDB51 data-set
+(Kuehne et al. 2013). Under a Bayesian setting, our pillar
+networks provide not only mean predictions, but also the un-
+certainty associated with each prediction. Notably, our work
+forwards the following contributions:
+• We introduce pillar networks++ that allow for indepen-
+dent multi-stream deep neural networks, enabling hori-
+zontal scalability
+• Ability to classify video snippets that have heterogeneity
+regarding camera angle, video quality, pose, etc.
+• Combine deep convolutional neural networks with non-
+parametric Bayesian models, wherein there is a possibility
+to train them using less amount of data
+• Demonstrate the utility of model averaging that takes un-
+certainty around mean predictions into account
+Methods
+In this section, we describe the dataset, the network architec-
+tures and the nonparametric Bayesian setup that we utilise in
+our four-stream CNN pillar network for activity recognition.
+We refer the readers to the original network architectures in
+(Wang et al. 2016) and (Ma et al. 2017) for further techni-
+cal details. Utilising classification methodologies like Ad-
+aBoost, gradient boosting, random forests, etc. provide us
+with accuracies in the range of 5-55% for this dataset, for
+either the RGB or the optic-flow based features.
+ar
+X
+iv
+:1
+70
+8.
+06
+25
+0v
+1 
+ [
+cs
+.C
+V
+] 
+ 1
+8 
+A
+ug
+ 2
+01
+7
+Dataset
+The HMDB51 dataset (Kuehne et al. 2013) is an action
+classification dataset that comprises of 6,766 video clips
+which have been divided into 51 action classes. Although
+a much larger UCF-sports dataset exists with 101 action
+classes (Soomro, Zamir, and Shah 2012), the HMDB51 has
+proven to be more challenging. This is because each video
+has been filmed using a variety of viewpoints, occlusions,
+camera motions, video quality, etc. anointing the challenges
+of video-based prediction problems. The second motivation
+behind using such a dataset lies in the fact that HMDB51
+has storage and compute requirement that is fulfilled by a
+modern workstation with GPUs – alleviating deployment on
+expensive cloud-based compute resources.
+All experiments were done on Intel Xeon E5-2687W 3
+GHz 128 GB workstation with two 12GB nVIDIA TITAN
+Xp GPUs. As in the original evaluation scheme, we report
+accuracy as an average over the three training/testing splits.
+Inception layers for RGB and flow extraction
+We use the inception layer architecture described in (Wang
+et al. 2016). Each video is divided into N segments, and a
+short sub-segment is randomly selected from each segment
+so that a preliminary prediction can be produced from each
+snippet. This is later combined to form a video-level predic-
+tion. An Inception with Batch Normalisation network (Ioffe
+and Szegedy 2015) is utilised for both the spatial and the
+optic-flow stream. The feature size of each inception net-
+work is fixed at 1024. For further details on network pre-
+training, construction, etc. please refer to (Wang et al. 2016).
+Residual layers for RGB and flow extraction
+We utilise the network architecture proposed in (Ma et al.
+2017) where the authors leverage recurrent networks and
+convolutions over temporally constructed feature matrices
+as shown in Fig. 1. In our instantiation, we truncate the
+network to yield 2048 features, which is different from (Ma
+et al. 2017) where these features feed into an LSTM (Long
+Short Term Memory) network. The spatial stream network
+takes in RGB images as input with a ResNet-101 (He et al.
+2016) as a feature extractor; this ResNet-101 spatial-stream
+ConvNet has been pre-trained on the ImageNet dataset. The
+temporal stream stacks ten optical flow images using the pre-
+training protocol suggested in (Wang et al. 2016). The fea-
+ture size of each ResNet network is fixed at 2048. For further
+details on network pre-training, construction, etc. please re-
+fer to (Ma et al. 2017).
+Non-parametric Bayesian Classification
+Gaussian Processes (GP) emerged out of filtering theory
+(Wiener 1949) in non-parametric Bayesian statistics via
+work done in geostatistics (Matheron 1973). Put simply,
+GPs are collection of random variables that have a joint
+Gaussian distribution,
+Obervation: y |f, ? ?
+n?
+i=1
+p (yi |fi, ? )
+GP Prior: f (x)| ? ? GP (m (x) , k (x, x?| ?))
+Hyperprior: ?,? ? p (?) p (?) (1)
+where, k (x, x?| ?) is the kernel function parameterized by
+?; ? is the parameter of the observation model; f (x) is the
+latent function evaluated at x i.e., the features. y denotes the
+class of the input features and {?, ?} ? ? denote the set of
+hyper-parameters.
+For multi-class problem with a non-Gaussian likelihood
+(softmax; p (yi| f (xi)) =
+exp(fyii )
+51?
+c=1
+exp(fci )
+), the conditional
+posterior is approximated via the Laplace approximation
+(Williams and Barber 1998) i.e., a second order Taylor ex-
+pansion of log p (f | y, ?, ?)around the mode f? as,
+p (f | D, ?, ?) ? q (f | D, ?, ?) = N
+(
+f
+???f? ,?)
+f? = arg max
+f
+p (f | D, ?, ?)
+??1 = ??? log p (f | D, ?, ?)|f=f? = K
+?1
+f,f +W
+Wii = ?fi?fi log p (y| fi, ?)|fi=f?i (2)
+D is the (input,output) tuple. After the Laplace approxi-
+mations, the approximate posterior distribution becomes,
+f?
+???D, ?, ? ? GP (mp (x?) , kp (x?, x??))
+mp (x?) = k (x?, X)? log p (y| f)|f=f?
+kp (x?, x?
+?) = k (x?, x??)? k (x?, X) (Kf,f +W )?1k (X, x??)
+(3)
+Finally, we can evaulate the approximate conditional pre-
+dictive density of y?i,
+p ( y?i|D, ?, ?) ?
+?
+p
+(
+y?i| f?i, ?
+)
+q
+(
+f?i
+???D, ?, ?) df?i (4)
+Product of Experts
+For each of the neural network, we subdivide the training
+set into K = 7 sub-sets so that K different GPs could be
+trained, giving us 28 GPs for the 4 deep networks (2 Incep-
+tion networks and 2 ResNets) that we have trained in the first
+part of our training. We assume that each of the 7 GPs are in-
+dependent, such that the marginal likelihood in our product
+of expert (PoE) becomes,
+p (y |X,? ) ?
+K?
+k=1
+pk
+(
+y(k)
+???X(k), ?)
+pk
+(
+y(k)
+???X(k), ?) = ?1
+2
+y(k)
+(
+K
+(k)
+? + ?
+2
+?I
+)?1
+y(k)
+? 1
+2
+log
+???K(k)? + ?2?I??? (5)
+What we have done is to reduce the computational expen-
+diture from O(n3) to O(n3k). Notice that unlike GPs with
+inducing inputs or variational parameters such a distributed
+GP does not require optimisation of additional parameters.
+Finally, a product-of-GP-experts is instantiated that predicts
+the function f? at the test point x? as,
+p (f? |x?, D ) =
+K?
+k=1
+pk
+(
+f?
+???x?, D(k))
+µpoe? =
+1
+(?poe? )
+2
+?
+k
+??2k (x?)µk (x?)
+1
+(?poe? )
+2 =
+?
+k
+??2k (x?) (6)
+Results
+We used 3570 videos from HMDB51 as the training data-
+set; this was further split into seven sub-sets, each with 510
+videos. We select ten videos randomly chosen from each
+category, and each sub-set is non-overlapping. Based on
+seven sub-sets, seven GPs are trained on different features
+(RGB and Flow) from different Networks (TSN-Inception
+(Wang et al. 2016) and ResNet-LSTM (Ma et al. 2017)).
+In total, twenty-eight GPs are generated. The features for
+both the RGB and the optical flow were extracted from the
+last connected layer with 1024 dimension for the Inception
+network and 2028 for the ResNet network. The fusion is
+then performed both vertically (seven sub-sets) and horizon-
+tally (four networks). The accuracies of individual GPs and
+different fusion combinations (PoE) on split-1 are shown in
+Table 1. Fusion-1 represents the results from the fusion of
+seven GPs for each feature; Fusion-2 show the fusion re-
+sult of RGB and Flow using different networks; Fusion-all
+shows the result by fusion of all the 28 GPs. Additionally,
+the results with a support-vector-machine (SVM) for each
+of the network and their fusion using multi-kernel-learning
+(MKL) are listed in the last three rows (Sengupta and Qian
+2017). The average result for three splits is displayed in Ta-
+ble 2.
+Discussion
+Here, we make two contributions – (a) we build on re-
+cently proposed pillar networks (Sengupta and Qian 2017)
+and combine deep convolutional neural networks with non-
+parametric Bayesian models, wherein they have the possibil-
+ity of being trained with less amount of data and (b) demon-
+strate the utility of model averaging that takes uncertainty
+around mean predictions into account. Combining differ-
+ent methodologies allow us to supersede the current state-of-
+the-art in video classification especially, action recognition.
+We utilised the HMDB-51 dataset instead of UCF101 as
+the former has proven to be difficult for deep networks due
+to the heterogeneity of image quality, camera angles, etc.
+As is well-known, videos contain extensive long-range tem-
+poral structure; using different networks (2 ResNets and 2
+Inception networks) to capture the subtleties of this tempo-
+ral structure is an absolute requirement. Since each network
+implements a different non-linear transformation, one can
+utilise them to learn very deep yet different features. Util-
+ising the distributed-GP architecture then enables us to par-
+cellate the feature tensors into computable chunks (by be-
+ing distributed) of input for a Gaussian Process classifier.
+Such an architectural choice, therefore, enables us to scale
+horizontally by plugging in a variety of networks as per re-
+quirement. While we have used this architecture for video
+based classification, there is a wide range of problems where
+we can apply this methodology – from speech process-
+ing (with different pillars/networks) to natural-language-
+processing (NLP).
+Ultra deep convolutional networks have been influential
+for a variety of problems, from image classification to nat-
+ural language processing (NLP). Recently, there has been
+work on combining the Inception network with that of a
+Residual network such that the resulting network builds
+on the advantages offered by either network in isolation
+(Szegedy et al. 2017). In future, it would be useful to see
+how different are the features when they are extracted from
+Inception module, ResNet module or a combination of both.
+Not only this, a wide variety of hand-crafted features can
+also be augmented as inputs to the distributed GPs; our ini-
+tial experiments using the iDT features show that this is in-
+deed the case. Input data can also be augmented using RGB
+difference or optic flow warps, as had been done in (Wang
+et al. 2016).
+Also, the second stage of training, i.e., the GP classi-
+fiers work with far fewer examples than what a deep learn-
+ing network requires. It would be useful to see how pillar
+networks perform on immensely large datasets such as the
+Youtube-8m data-set (Abu-El-Haija et al. 2016). Addition-
+ally, recently published Kinetics human action video dataset
+from DeepMind (Kay et al. 2017) is equally attractive, as
+pre-training, the pillar networks on this dataset before fine-
+grained training on HMDB-51 will invariably increase the
+accuracy of the current network architecture.
+The Bayesian product-of-GPs would suffer from a prob-
+lem were we to increase the number of experts. This is be-
+cause the precision of the experts adds up which leads to
+overconfident predictions, especially in the absence of data.
+In unpublished work, we have utilised generalised Product
+of Experts (gPoE) (Cao and Fleet 2014) and Bayesian Com-
+mittee Machine (BCM) (Tresp 2000) to increase the fidelity
+of our predictions. These would be reported in a subsequent
+publication along with results from a robust Bayesian Com-
+mittee Machine (rBCM) which includes the product-of-GPs
+and the BCM as special cases (Deisenroth and Ng 2015).
+For inference, we have limited our experiments to the
+Laplace approximation inference under a distributed GP
+framework. An alternative inference methodology for multi-
+class classification include (stochastic) expectation propa-
+gation (Riihima?ki, Jyla?nki, and Vehtari ; Villacampa-Calvo
+and Herna?ndez-Lobato 2017) or variational approximations
+(Hensman, Matthews, and Ghahramani 2015). From our
+experience in variational optimisation for dynamical prob-
+abilistic graphical models (Cooray et al. 2017), there is
+merit in using free-energy minimization, simply due to
+lower computational overhead. Indeed, it comes with its
+Figure 1: The Pillar Network++ framework: Each pillar represents either a single ultra-deep neural network or other feature
+tensors that can be learnt automatically from the input data. For action recognition, we factorize the static (RGB), and dynamic
+(optic flow) features using a ResNet and an Inception Network. Using the features of the last layer, we train seven Gaussian
+Processes for each of the network, which is combined under a Product-of-Experts (PoE) formalism. This hierarchy is then
+fused again to give us a prediction of action types.
+Table 1: GP-PoE and SVM results for the HMDB51 data-set on split-1
+Accuracy [%] Inception-RGB Inception-Flow ResNet-RGB ResNet-Flow
+GP-1 51.4 59.5 52.7 58.9
+GP-2 52.0 59.7 51.9 59.1
+GP-3 50.1 60.3 49.7 59.9
+GP-4 48.7 58.5 49.5 59.1
+GP-5 48.2 59.3 49.0 59.5
+GP-6 52.0 59.5 52.2 57.9
+GP-7 51.1 58.8 51.8 58.1
+Average 50.5 59.4 51.0 58.9
+Fusion-1 54.6 62.6 54.8 61.6
+Fusion-2 69.7 68.2
+Fusion-all 75.7
+SVM-SingleKernel 54.0 61.0 53.1 58.5
+SVM-MutliKernels-1 68.1 63.3
+SVM-MutliKernels-2 71.7
+Table 2: Accuracy scores for the HMDB51 data-set
+Methods Accuracy [%] Reference
+Two-stream 59.4 (Simonyan and Zisserman 2014)
+Rank Pooling (ALL)+ HRP (CNN) 65 (Fernando and Gould 2017)
+Convolutional Two-stream 65.4 (Feichtenhofer, Pinz, and Zisserman 2016)
+Temporal-Inception 67.5 (Ma et al. 2017)
+Temporal Segment Network (2/3 modalities) 68.5/69.4 (Wang et al. 2016)
+TS-LSTM 69 (Ma et al. 2017)
+Pillar Networks++ (ResNet) 66.8 this paper
+Pillar Networks++ (Inceptionv2) 69.4 this paper
+Pillar Networks SVM-MKL 71.8 (Sengupta and Qian 2017)
+ST-multiplier network + hand-crafted iDT 72.2 (Feichtenhofer, Pinz, and Wildes 2017)
+Pillar Networks++ (4 Networks) 73.6 this paper
+problems such as underestimation of the variability of the
+posterior density, inability to describe multi-modal densi-
+ties and the inaccuracy due to the presence of multiple
+equilibrium points. All being said, some of these prob-
+lems are also shared by state-of-the-art MCMC samplers
+for dynamical systems (Sengupta, Friston, and Penny 2015a;
+Sengupta, Friston, and Penny 2015b). Due to the flexibility
+of utilising GPUs, both methods (variational inference and
+EP) can prove to be computationally efficient, especially for
+streaming data. Thus, there is a scope of future work where
+one can apply these inference methodologies and compare it
+with vanilla Laplace approximations, as utilised here.
+References
+[Abu-El-Haija et al. 2016] Abu-El-Haija, S.; Kothari, N.;
+Lee, J.; Natsev, P.; Toderici, G.; Varadarajan, B.; and Vi-
+jayanarasimhan, S. 2016. YouTube-8M: a large-scale video
+classification benchmark.
+[Cao and Fleet 2014] Cao, Y., and Fleet, D. J. 2014. Gen-
+eralized product of experts for automatic and principled
+fusion of Gaussian process predictions. arXiv preprint
+arXiv:1410.7827.
+[Cooray et al. 2017] Cooray, G.; Rosch, R.; Baldeweg, T.;
+Lemieux, L.; Friston, K.; and Sengupta, B. 2017.
+Bayesian Belief Updating of Spatiotemporal Seizure Dy-
+namics. ICML Workshop on Time-Series methods.
+[Deisenroth and Ng 2015] Deisenroth, M. P., and Ng, J. W.
+2015. Distributed Gaussian processes. arXiv preprint
+arXiv:1502.02843.
+[Feichtenhofer, Pinz, and Wildes 2017] Feichtenhofer, C.;
+Pinz, A.; and Wildes, R. P. 2017. Spatiotemporal multiplier
+networks for video action recognition. Proceedings of
+the IEEE Conference on Computer Vision and Pattern
+Recognition.
+[Feichtenhofer, Pinz, and Zisserman 2016] Feichtenhofer,
+C.; Pinz, A.; and Zisserman, A. 2016. Convolutional
+two-stream network fusion for video action recognition. In
+Proceedings of the IEEE Conference on Computer Vision
+and Pattern Recognition, 1933–1941.
+[Fernando and Gould 2017] Fernando, B., and Gould, S.
+2017. Discriminatively learned hierarchical rank pooling
+networks. arXiv preprint arXiv:1705.10420.
+[He et al. 2016] He, K.; Zhang, X.; Ren, S.; and Sun, J. 2016.
+Deep residual learning for image recognition. In Proceed-
+ings of the IEEE conference on computer vision and pattern
+recognition, 770–778.
+[Hensman, Matthews, and Ghahramani 2015] Hensman, J.;
+Matthews, A. G. d. G.; and Ghahramani, Z. 2015. Scalable
+variational Gaussian process classification. In Proceedings
+of the Eighteenth International Conference on Artificial In-
+telligence and Statistics.
+[Ioffe and Szegedy 2015] Ioffe, S., and Szegedy, C. 2015.
+Batch normalization: Accelerating deep network training by
+reducing internal covariate shift. In International Confer-
+ence on Machine Learning, 448–456.
+[Karpathy et al. 2014] Karpathy, A.; Toderici, G.; Shetty, S.;
+Leung, T.; Sukthankar, R.; and Fei-Fei, L. 2014. Large-scale
+video classification with convolutional neural networks. In
+Proceedings of the IEEE conference on Computer Vision
+and Pattern Recognition, 1725–1732.
+[Kay et al. 2017] Kay, W.; Carreira, J.; Simonyan, K.;
+Zhang, B.; Hillier, C.; Vijayanarasimhan, S.; Viola, F.;
+Green, T.; Back, T.; Natsev, P.; et al. 2017. The Kinetics hu-
+man action video dataset. arXiv preprint arXiv:1705.06950.
+[Kuehne et al. 2013] Kuehne, H.; Jhuang, H.; Stiefelhagen,
+R.; and Serre, T. 2013. HMDB51: a large video database
+for human motion recognition. In High Performance Com-
+puting in Science and Engineering 12. Springer. 571–582.
+[Ma et al. 2017] Ma, C.-Y.; Chen, M.-H.; Kira, Z.; and Al-
+Regib, G. 2017. TS-LSTM and Temporal-Inception: Ex-
+ploiting spatiotemporal dynamics for activity recognition.
+arXiv preprint arXiv:1703.10667.
+[Matheron 1973] Matheron, G. 1973. The intrinsic random
+functions and their applications. Advances in applied prob-
+ability 5(3):439–468.
+[Riihima?ki, Jyla?nki, and Vehtari ] Riihima?ki, J.; Jyla?nki, P.;
+and Vehtari, A. Nested expectation propagation for Gaussian
+Process classification with a multinomial probit likelihood.
+[Sengupta and Qian 2017] Sengupta, B., and Qian, Y. 2017.
+Pillar Networks for action recognition. IROS Workshop
+on Semantic Policy and Action Representations for Au-
+tonomous Robots.
+[Sengupta, Friston, and Penny 2015a] Sengupta, B.; Friston,
+K. J.; and Penny, W. D. 2015a. Gradient-based MCMC
+samplers for dynamic causal modelling. Neuroimage.
+[Sengupta, Friston, and Penny 2015b] Sengupta, B.; Friston,
+K. J.; and Penny, W. D. 2015b. Gradient-free MCMC meth-
+ods for dynamic causal modelling. Neuroimage 112:375–81.
+[Simonyan and Zisserman 2014] Simonyan, K., and Zisser-
+man, A. 2014. Two-stream convolutional networks for ac-
+tion recognition in videos. In Advances in neural informa-
+tion processing systems, 568–576.
+[Soomro, Zamir, and Shah 2012] Soomro, K.; Zamir, A. R.;
+and Shah, M. 2012. UCF101: a dataset of 101 human
+actions classes from videos in the wild. arXiv preprint
+arXiv:1212.0402.
+[Szegedy et al. 2016] Szegedy, C.; Vanhoucke, V.; Ioffe, S.;
+Shlens, J.; and Wojna, Z. 2016. Rethinking the inception
+architecture for computer vision. In 2016 IEEE Conference
+on Computer Vision and Pattern Recognition, CVPR, 2818–
+2826.
+[Szegedy et al. 2017] Szegedy, C.; Ioffe, S.; Vanhoucke, V.;
+and Alemi, A. A. 2017. Inception-v4, inception-resnet and
+the impact of residual connections on learning. In AAAI,
+4278–4284.
+[Tresp 2000] Tresp, V. 2000. A Bayesian committee ma-
+chine. Neural computation 12(11):2719–2741.
+[Villacampa-Calvo and Herna?ndez-Lobato 2017]
+Villacampa-Calvo, C., and Herna?ndez-Lobato, D. 2017.
+Scalable Multi-Class Gaussian Process Classification using
+Expectation Propagation. ArXiv e-prints.
+[Wang et al. 2016] Wang, L.; Xiong, Y.; Wang, Z.; Qiao, Y.;
+Lin, D.; Tang, X.; and Van Gool, L. 2016. Temporal segment
+networks: Towards good practices for deep action recogni-
+tion. In European Conference on Computer Vision, 20–36.
+Springer.
+[Wiener 1949] Wiener, N. 1949. Extrapolation, interpo-
+lation, and smoothing of stationary time series, volume 7.
+MIT press Cambridge, MA.
+[Williams and Barber 1998] Williams, C. K., and Barber, D.
+1998. Bayesian classification with Gaussian processes.
+IEEE Transactions on Pattern Analysis and Machine Intelli-
+gence 20(12):1342–1351.

@@ -1,0 +1,1495 @@
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 1
+Gradient-based Camera Exposure Control for
+Outdoor Mobile Platforms
+Inwook Shim, Tae-Hyun Oh, Joon-Young Lee, Dong-Geol Choi, Jinwook Choi, and In So Kweon
+Abstract—We introduce a novel method to automatically adjust
+camera exposure for image processing and computer vision
+applications of mobile robot platforms. Since most image pro-
+cessing algorithms heavily rely on low-level image features, which
+are largely based on local gradient information, we consider a
+gradient quantity to determine a proper exposure level, so that
+a camera is able to capture important image features robust
+to illumination conditions. We extend it to multi-camera system
+and present a new control algorithm to achieve both brightness
+consistency between adjacent cameras and a proper exposure
+level for each camera. We implement our prototype system
+with off-the-shelf machine vision cameras and demonstrate the
+effectiveness of the proposed algorithms on practical applications:
+pedestrian detection, visual odometry, surround-view imaging,
+panoramic imaging, and stereo matching.
+Index Terms—Auto exposure, camera parameter control, gra-
+dient information, visual odometry, surround-view, panoramic
+imaging, stereo matching
+I. INTRODUCTION
+Recent improvements of image processing and computer
+vision technologies for object detection, recognition, and
+tracking have enabled various vision systems to operate au-
+tonomously, and this leads to the feasibility of autonomous
+mobile platforms. In such real-time vision-based systems,
+images captured from a camera are directly fed into followed
+algorithms as input, and the quality of images strongly affects
+the success of the algorithms; however, research on camera
+control for robust image capture has been overlooked and less
+studied compared to the progress of those computer vision
+algorithms.
+Most vision systems of mobile platforms rely on a standard
+auto-exposure method1 built-in the camera or a fixed expo-
+sure tuned by user handcrafting. Conventional auto-exposure
+methods adjust camera exposure by evaluating the average
+brightness of an image [1, 2, 3]. With this simple approach,
+one can easily find undesirably exposed images, especially
+I. Shim is with the Ground Autonomy Laboratory, Agency for Defense
+Development, 34186, Korea (e-mail: inugi00@gmail.ac.kr).
+T-H. Oh is with the CSAIL, MIT, Cambridge, MA, USA (e-
+mail: thoh.mit.edu@gmail.com).
+J-Y. Lee is with the Adobe Research, 345 Park Ave San Jose, CA 95110 (e-
+mail: joonyoung@live.com).
+D.-G. Choi is with the Robotics and Computer Vision Laboratory, De-
+partment of Electrical Engineering, KAIST, Daejeon, 305-701, Korea (e-
+mail: dgchoi@rcv.kaist.ac.kr).
+J. Choi is with the ADAS Recognition Development Team, Hyundai Motor
+Group, Hwaseong-si, 445-706, Korea (e-mail: cjw0512@hyundai.com).
+I.S. Kweon is with Department of Electrical Engineering, KAIST, Daejeon,
+307-701, Korea (e-mail: iskweon@ee.kaist.ac.kr).
+1Specific methodologies are often not disclosed or confidential by camera
+manufacturers.
+Auto 
+Auto 
+Manual 
+Manual 
+Ours 
+Ours 
+Auto Manual Ours 
+Fig. 1: Images are captured in different illumination con-
+ditions. From the left to the right, a camera built-in auto-
+exposure method, a manually tuned fixed exposure setting, and
+our method are used. Both the built-in auto-exposure method
+and the manual setting fail to capture well-exposed images for
+vision algorithms, while our method captures images suitable
+for the processing of computer vision algorithms.
+when scene has a large gap between dynamic ranges of
+the region of interest and the background. This common
+phenomenon degrades the performance of followed computer
+vision algorithms. Overcoming the problem of diverse and
+challenging illumination conditions at the image capture stage
+is an essential prerequisite for the development of robust vision
+systems.
+More specifically, Figure 1 shows comparisons of the
+standard built-in auto-exposure method and a fixed exposure
+setting in an outdoor environment. When the dynamic range
+of the scene is relatively narrow, both methods can capture
+well-exposed images. In this case, a single representative
+parameter may be easily determined by virtue of the narrow
+dynamic range. On the other hand, both methods provide un-
+desirably exposed images under abruptly varying illumination
+conditions. The rationals behind this can be characterized as
+follows: 1) adaptability shortage of auto-exposure algorithm
+for exposure control (i.e., prediction), 2) non-consideration of
+limited dynamic range of camera, and 3) weak criterion for
+assessing exposure status. We address the first and the second
+issues by a simulation based approach, and the third one by a
+gradient based metric.
+In this paper, we present a new method to automatically
+adjust camera exposure using the gradient information. To
+handle severe illumination changes and a wide dynamic range
+of scene radiance, we simulate the proper exposure of the
+ar
+X
+iv
+:1
+70
+8.
+07
+33
+8v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+4 
+A
+ug
+ 2
+01
+7
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 2
+Current frame
+?=0.1 ?=0.5 ?=0.8 ?=1.0 ?=1.2 ?=1.5 ?=1.9
+?-correction & outputting mappingImage Capture
+Camera1
+ ? estimation
+?
+0 0.5 1 1.5 2
+0
+0.5
+1
+1.5
+2
+x 10
+4
+ ?
+Process of auto-adjusting exposure for a single camera system
+??+1
+1
+Camera0
+Same process for the single camera as below Overlapped region
+??=0,?=1
+Exposure
+balancing
+??+1
+1?
+Update 
+function
+Diff. ratio of 
+overlapping regions
+??
+1
+?0 ?1
+??
+0
+Fig. 2: The overall framework of our camera exposure control. Our method adjusts camera exposure to maximize gradient
+information of the captured images. We apply ? correction technique to simulate information changes by exposure variations,
+then update camera exposures using the real-time feedback system. In addition, we balance the exposures of multi-camera
+using intensity differences between neighboring cameras.
+scene in the gradient domain and followed by a feedback
+mechanism for auto-exposure. Since the gradient domain is
+robust against illumination changes and has been leveraged
+by many computer vision algorithms, the proposed method
+enables to capture well-exposed images, of which enriched
+image features are beneficial to such computer vision algo-
+rithms.
+The overall framework of our method is shown in Figure 2.
+To build a real-time feedback control system, we use a ?
+correction technique [4] that imitates exposure changes and
+then determines the best ? value. It implicitly guides the
+direction of exposure updates in the feedback system to
+maximize gradient information. Moreover, in the multi-camera
+case, our method adjusts camera exposure by taking into
+account neighboring cameras.
+In Section II we review existing alternatives, including
+both direct exposure control and post-processing; however,
+we stress that none of these has considered the performance
+of followed algorithms, where enriching gradient in image
+may help. We then describe a gradient based criterion we
+developed in Section III-A, whereby a simulation based con-
+trol mechanism is developed in Section III-B. A preliminary
+version of this paper has appeared in [5]. We extend the
+work by 1) improving the stability of exposure updating
+in Section III-C, 2) extending the proposed methodology
+to multi-camera system in Section IV, 3) providing further
+technical details of implementation, and further analyzing the
+behavior of the proposed method diversely in Section V. Then,
+we conclude this work with discussion in Section VI. Our
+high-level contributions can be summarized as follows:
+• We propose a novel camera exposure control mechanism
+that leverage image gradient information to determine a
+proper exposure level. Specifically, we take a novel notion
+of simulation based exposure prediction, whereby the
+state of camera exposure is updated by a newly proposed
+control function. This shows empirically fast convergence
+to the target exposure level.
+• We extend the approach for multi-camera setup, where
+exposure balancing issue across cameras arise. We pro-
+pose a camera network aware exposure update method to
+reduce the brightness gap among neighbor cameras.
+• We implement a mobile system with synchronized cam-
+eras to prove the concept of the propose methodology
+and to conduct fully controllable and ease experiments.
+We validate our method by extensive experiments with
+practical computer vision applications: pedestrian detec-
+tion, visual odometry, surround-view imaging, panoramic
+imaging, and stereo matching.
+II. RELATED WORK
+There are several methods to control the amount of light
+reaching a camera sensor, namely, adjusting shutter speed,
+aperture size, or gain (ISO) [6]; mounting a sort of density
+filter [7, 8, 9]; or designing new concepts of cameras, such as
+computational cameras [10]. Each of them has their advantages
+and disadvantages. Shutter speed affects image blur, gain is
+related to image noise, and aperture size changes the depth
+of field. The other methods require external devices, such
+as a density filter or a new optical device. Among them,
+adjusting the shutter speed and gain is the most popular and
+desirable in vision applications for mobile platforms since it
+preserves a linear relationship between irradiance and intensity
+measurement ideally. On contrary, though the others could
+be good complements in some beneficial situations, they may
+introduce some artifacts: for example, changing aperture size
+or mounting a density filter2 lead to changing the depth of
+field (spatially varying blur) or color shift respectively. These
+feed non-linear artifacts into subsequent vision algorithms. In
+this paper, we focus our review on approaches that control
+shutter speed and gain, and compare their criteria to determine
+proper parameters. We then discuss algorithmic efforts to
+overcome the limitation of exposure control and extensions
+to joint-adjustment among multiple cameras.
+One conventional approach to auto-exposure is extracting
+the statistics of an image and controlling camera parameters
+to satisfy the statistics of certain conditions. The simplest way
+2Specialized hardware implementation is required as in [7, 8, 9].
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 3
+is measuring the average brightness over an entire image or
+in certain regions and adjusting it to be in the mid-range
+(e.g., 128 for 8-bit images) [3, 11].3 This may result in a
+proper exposure level for a scene where intensities are well-
+distributed over all regions and the dynamic range of the
+scene is narrow. In practice, a scene has multiple intensity
+distributions over an image, and this simple method may lead
+to under-/over-saturation of important details of an image. To
+overcome this limitation, there have been attempts to adopt
+other measures that may be robust against scene variations,
+such as entropy [12] and histogram [13, 14]. In this paper, we
+maximize the sum of log response of image gradients so that
+the gradient information of an image is enriched.
+There are several methods that measure statistics over
+regions of interest (ROI) to make algorithms robust to scene
+variations [13, 15, 16, 17]. These methods measure the statis-
+tics of an ROI, such as the image center [11], a moving
+object or face regions [17], a user predefined ROI [13],
+or foreground regions, by separating the background [15]
+or back-light regions [16]. Since these methods control the
+camera exposure according to specific interests of an image,
+these are mostly preferable only for a few specific applications
+rather than general scenarios. Nonetheless, ROI-based methods
+are potentially useful to be combined and directly extended,
+in that other measures can be adopted in a similar framework.
+We also adopt the ROI approach to assess well-exposedness
+only over interesting regions for the surround-view imaging
+application as described in Section V.
+Other methods exploit prior knowledge of a scene to deter-
+mine the proper camera exposure. With a pre-defined reference
+area (black and white, brightness, or color patterns) in captured
+images, the exposure is adjusted according to an intensity
+histogram [18], color histogram [14], and image entropy [12].
+While the approaches based on prior information work well
+in a known environment, it is hard to assume that prior
+information always stands in any scene, especially in most
+image processing applications for outdoor mobile platforms.
+Therefore, we focus on measuring goodness-of-fit on exposure
+without any reference.
+To overcome the limitations of hardware and exposure con-
+trol, high dynamic range (HDR) imaging provides a way to ob-
+tain well-exposed images that are both visually and physically
+compelling (i.e., recovering irradiance). Since all the difficul-
+ties of auto-exposure come from the limited dynamic range
+of camera sensors, combining multi-exposure images can be
+an alternative, which is a typical approach of HDR [19, 20].
+To maximize visual information in an HDR result, a set of
+images with different exposures is needed [21, 22]. However,
+such multi-exposure bracketing approaches are actually not
+suitable for dynamic scenes. Although there are HDR methods
+for dynamic scenes [23, 24], recovering the true irradiance of
+dynamic part is challenging with inputs captured at different
+times [25]. Even though a pair of low dynamic image with a
+stereo camera is simultaneously captured to generate an HDR
+image [26], it may still suffer from misalignment artifacts due
+3Concepts of camera metering and auto exposure are introduced in:
+http://www.cambridgeincolour.com/tutorials/camera-metering.htm.
+0 0.2 0.4 0.6 0.8 1
+0
+0.2
+0.4
+0.6
+0.8
+1
+Gradient responses
+A
+m
+ou
+nt
+ o
+f g
+ra
+di
+en
+t i
+nf
+or
+m
+at
+io
+n
+ 
+ 
+?=100
+?=101
+?=102
+?=103
+?=104
+, m
+i 
+, mi 
+mi ? ?  
+mi < ?  
+Fig. 3: Our mapping function, Eq. (1) between gradient mag-
+nitude and amount of gradient information according to the
+control parameters, ? and ?. We design the mapping function
+by reflecting general characteristics of gradient.
+to imperfect stereo matching. This led to the development
+of a practical hardware implementation for HDR capture [7]
+to simultaneously capture several different exposure images
+for the same view. In this work, rather than an expensive
+specialized hardware setup, we develop a method to get well-
+exposed images from off-the-shelf cameras.
+Up to now, previous studies have mostly relied on a single
+camera setup, and multi-camera exposure control has rarely
+been investigated. In practical image processing applications
+for mobile platforms, multi-camera setups are popular, and
+brightness similarity between cameras is required in many
+applications, while exposure difference between cameras is
+frequently observed and may be quite large due to different
+view points if exposure control is applied to each camera
+independently. Conventional multi-camera vision applications
+have been developed with specially designed algorithms to
+compensate or overcome brightness difference: correspon-
+dence matching [27], panorama imaging [28], visual odom-
+etry [29, 30], etc. All of these approaches are applied as
+post processing after image acquisition. Unavoidably, scene
+information beyond the dynamic range of a camera is hard
+to recover after an image has been captured; therefore, the
+working range of these post processing approaches is definitely
+limited by input. On the other hand, our extension to a
+multi-camera setup allows coherently exposed images to be
+obtained so that subsequent image processing algorithms get
+the benefits of stability and robustness.
+III. GRADIENT BASED AUTOMATIC EXPOSURE CONTROL
+A. Image quality from a image processing perspective
+Intensity gradient is one of the most important cues for
+image processing and understanding. Most image features such
+as edges, corners, SIFT [31], and HOG [32], leverage the illu-
+mination change robustness of gradient. Moreover, the gradient
+information can characterize object appearance and shape well,
+whereby it is typically exploited in applications requiring mid-
+level understanding, e.g., object detection, tracking, recog-
+nition, and simultaneous localization and mapping (SLAM).
+Therefore, capturing images with rich gradient information
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 4
+is an important first step toward the success of many vision
+algorithms. In this section, we explain how the quality of
+exposure of a scene is evaluated in terms of gradient quantity.
+In order to evaluate image quality from a machine vision
+perspective, it is natural to exploit the gradient domain since
+gradient is a dominant source of visual information for many
+computer vision algorithms [33]. We define well-exposed im-
+ages as images having rich gradient information; therefore, we
+evaluate exposure by the total amount of gradient information
+in an image.
+The gradient magnitude of a natural scene has a heavy-tailed
+distribution [34, 35]; therefore, most gradients have small
+values (including noise or zeros) relative to the maximum
+gradient value, and there exist sparse large gradients. Since
+large gradients are typically around object’s boundaries, it
+is high probability to embed important information. On the
+other hand, gradients is sensitive to subtle intensity variations,
+i.e., small magnitude gradient, image noise should be filtered
+properly.
+To balance the importance of small and large gradients, we
+use a logarithm function4 to map the relationship between
+gradient magnitude and the quantity of gradient information.
+When we use the logarithm mapping, it may over-emphasize
+small gradients that occur due to image noise. For robust
+mapping against image noise, we modify the mapping function
+to discard the small noise values by simple threshold, defined
+as
+m?i =
+{
+1
+N log(?(mi ? ?) + 1) for mi ? ?
+0 for mi < ?
+s.t. N = log(?(1? ?) + 1),
+(1)
+where mi5 is the gradient magnitude at the pixel location i,
+? is the activation threshold value, ? is the control parameter
+to adjust mapping tendencies, and m?i represents the amount
+of gradient information corresponding to gradient magnitude.
+Also, N is the normalization factor to bound the output range
+of the function to [0, 1].
+In Eq. (1), there are two user control parameters, ? and ?,
+so that these allows user to tune our method according to their
+needs. ? determines the activation threshold value; therefore,
+the mapping function regards a gradient value smaller than ? as
+a noise response and ignores it. ? determines the tendencies of
+the mapping. We can emphasize strong intensity variations by
+setting ? to a small value and vitalize subtle texture variations
+by setting ? to a large value. Figure 3 plots the mapping
+function according to the control parameters.
+From Eq. (1), we compute the total amount of gradient
+information of an image as M =
+?
+m?i. In our method, we
+regard the images with a larger value of M as a better exposed
+images that contain the rich gradient information of a scene.
+B. Camera exposure auto-adjusting
+Our method adjusts camera exposure at each frame such that
+the proposed criterion in Eq. (1) is increased. A challenge is
+4In information theory, the quantity of information is often measured by
+logarithmic function, e.g., entropy
+5In this paper, the gradient magnitude is computed by Sobel operator [36],
+and we normalize the magnitude to the range of [0, 1].
+that the true relationship between exposure time and sensed
+gradient (or intensity) is not known [37], rather there exist
+complex imaging pipelines in modern cameras. Revealing
+such pipeline is also another challenging research area. Thus,
+rather than modeling the complex relationship explicitly, we
+propose an alternative approach that can avoid the difficulty
+of imaging pipeline modeling. We develop a simulation based
+feedback system, so that we can find a approximate direction
+of exposure to be updated.
+We simply use a ?-mapping for exposure change simulation,
+whereby non-linear imaging pipelines are roughly approxi-
+mated as well as under/over-saturation effects. We generate
+?-mapped images Iout = I
+?
+in from a current input image Iin
+6.
+The ?-mapping makes an image darker when ?<1, and it
+makes an image brighter when ?>1. Using this, we simulate
+exposure changes by a batch of ?-mapped images, compute
+the amount of gradient information for each image, and then
+find a ? such that
+arg max
+?
+M(I?in). (2)
+It is time-consuming to compute Eq. (2) from all possible ?-
+mapped images. For efficiency, we calculate the total amount
+of gradient information, M , from seven anchor images given
+by ? ? [ 11.9 , 11.5 , 11.2 , 1.0, 1.2, 1.5, 1.9], and we fit the sample
+values of gradient information with a fifth-order polynomial
+fitting. We take the maximum value of the polynomial func-
+tion in the range of ? = [ 11.9 , 1.9] as a reference, and its
+corresponding ? is assigned to ??. The parameters for Eq. (2)
+are empirically determined and the related experiments can be
+found the supplementary material7.
+C. Camera exposure update function
+In this section, we describe update rules of camera exposure
+given ??. The update rules are designed such that the current
+exposure move toward a value that eventually leads ?? to
+be 1. We propose two ways for updating camera exposure;
+linear update function and its extension to a nonlinear version.
+These two functions are designed to adjust camera exposure
+in inversely proportion to ??. Figure 4 shows how the linear
+and nonlinear update functions work according to the control
+parameters, Kp and d. The details of the update functions with
+the control parameter are described as follows.
+Linear update function. The linear update function is defined
+as
+Et+1 = (1 + ?Kp(1? ??))Et
+s.t. ? =
+{
+1/2 for ?? ? 1
+1 for ?? < 1,
+(3)
+where Et is the exposure level at time t, and Kp is the propor-
+tional gain to control the convergence speed by adjusting the
+maximum and minimum values of the exposure update ratio.
+Figure 4 (a) shows the tendency of this function according to
+Kp. As shown in the figure, there is a trade-off between the
+convergence speed and stability of the update function. High
+Kp induces the feedback system to catch up quickly, but it
+may cause oscillation and overshooting.
+6We assume that intensity is in the range of [0, 1].
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 5
+ ?
+??+?
+??
+1/2 1/1.5 1 1.5 2
+(a) Linear update function by Kp
+d = 0.4
+ ?
+??+?
+??
+1/2 1/1.5 1 1.5 2
+(b) Nonlinear update function by Kp
+Kp = 1.0
+ ?
+??+?
+??
+1/2 1/1.5 1 1.5 2
+(c) Nonlinear update function by d
+Fig. 4: Examples of linear and nonlinear update functions according to the control parameters, Kp and d.
+0 400 800 1200
+10
+15
+20
+25 Kp = 0.2
+Kp = 0.2, d = 0.75
+AE
+dB
+frames
+5s
+Fig. 5: Camera parameter changes according to illumination
+changes. The built-in auto exposure method has different
+exposure values from our method because of the different
+exposure evaluation metrics.
+Nonlinear update function. The oscillation and overshooting
+problems of the linear update function are caused by non-
+smooth transition of exposure update ratios at the convergence
+point (?? = 1.0) (the curved point in Figure 4 (a)). To relieve
+this problem, we designed a new update function, which is
+parametric and nonlinear. This nonlinear update function is
+defined as
+Et+1 = (1 + ?Kp(R? 1))Et
+s.t. R = d · tan{(2? ??) · arctan(1
+d
+)? arctan(1
+d
+)}+ 1,
+? =
+{
+1/2 for ?? ? 1
+1 for ?? < 1.
+(4)
+The R mapping is designed for realization of the shape
+of curves. The nonlinear update function has two control
+parameters Kp and d. Figure 4 (b) and (c) show how the
+parameters Kp and d work to control the convergence speed
+and stability of exposure update ratios. As with the linear
+update function, Kp controls the convergence speed from
+the current exposure level to the desired exposure level. The
+additional control parameter d controls the nonlinearity of the
+update function. As shown in the figure, smaller d makes more
+nonlinearity of the slope of the update ratios, which results in
+smooth transition at the convergence point.
+To determine the proper parameter values of the linear
+and nonlinear update functions, we ran an experiment for
+parameter sweeping. For this, we control the environment as
+dark room and controllable illumination due to two reasons: 1)
+the parameters are only related to the convergence speed and
+stability, thus various and continuous variation of illumination
+is necessary, and 2) the parameters are invariant to absolute
+value of illumination but only relevant to its changes, thus it
+is generalized to real environment.
+We used five LED light sources, and each LEDs was turned
+on and off repeatedly with different time intervals controlled
+by digital timers. All the sets of parameters were tested at
+intervals of 0.1 values, and we empirically evaluated the
+convergence speed and stability of each parameter set. Figure 5
+shows the results with the best performing parameters, which
+resulted in fast convergence with low overshoot and small
+oscillation. Due to the smooth slope of the nonlinear update
+function around the convergence point (1, 1), the nonlinear
+update function rarely suffered from overshoot and oscillation,
+while the linear update function suffered from those problems.
+IV. EXPOSURE BALANCING FOR MULTI-CAMERA SYSTEM
+Figure 6 shows an example of a surround-view imaging
+application which uses multi-camera images together. Even
+though images captured by each individual camera have
+reasonable quality, brightness inconsistency among images
+degrades the overall quality of the surround-view image.
+This kind of problems in multi-camera systems can be eas-
+ily observed in many applications, such as 360? panoramic
+imaging and multi-camera tracking, if each camera controls its
+exposure individually. On the other hand, if all cameras share
+the same camera exposure to achieve brightness constancy, the
+system only captures a narrow dynamic range and may lose
+important information of a scene.
+Based on our gradient-based exposure control development,
+we also address an advanced exposure control problem for a
+multi-camera system as it is popular in many vision systems,
+e.g., autonomous vehicle. While independent control of each
+camera can capture image features better, there are many cases
+for multi-view image processing that favors to have consis-
+tent brightness among adjacent cameras, such as panoramic
+imaging and stereo matching. To take into account such cases,
+we present an exposure balancing algorithm that can achieve
+our gradient-based camera control with brightness consistency
+between neighboring images simultaneously.
+On top of our gradient-based exposure control, we formulate
+an optimization problem that determines camera exposure
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 6
+(a) Built-in auto-exposure
+(b) Proposed method
+Fig. 6: The images show one of the worst case in perfor-
+mance of surround view application caused by low consistency
+between images. (a) and (b) show the original images and
+result of surround-view image using built-in auto-exposure and
+proposed method, respectively. Each camera is individually
+adjusted without exposure balancing.
+in consideration of the balance between individual image
+quality and brightness constancy. Given the desired exposure
+of cameras obtained by Eq. (4), our optimization function
+considers the desired exposure as a unary term and brightness
+similarity in overlapped regions as a pairwise term, and it is
+defined as
+Ei?t+1 = arg min
+X
+?i · Eu(i, t) +
+1? ?i
+N
+?
+j?G(i)
+Ep(i, j, t),
+s.t. Eu(i, t) = ?X ? Eit+1?2,
+Ep(i, j, t) = ?X ? rij · Ei?t ?2,
+rij = median
+(
+mean(pj)
+mean(pi) + 
+)
+s.t. p ? P,
+(5)
+where i denotes a target camera to update the exposure level,
+j denotes a neighboring camera which has an overlapping
+region with camera i, N is the number of neighboring cameras,
+and t denotes the time sequence. Here, Ei?t+1 indicates an
+estimated optimal exposure of camera i for t+ 1 frame (next
+frame), Eit+1 is the estimated exposure value of camera i in
+Eq. (4), P represents a set of overlapped patches between two
+cameras, mean(p) is the average intensity of a patch, and
+rij is the median value of relative brightness ratios between
+corresponding patches of camera i and j. We use the median
+ratio of average patches to make our solution robust to image
+noise and misalignment of overlapped regions.
+In this optimization, Eu(·) and Ep(·) denote unary and
+pairwise terms respectively, and two terms are balanced by
+?. Therefore, a large ? encourages more gradient information
+of a scene while a small ? enforces brightness similarity
+between cameras. Eq. (4) has a closed-form solution. For each
+frame, we solve Eq. (4) and Eq. (5) only one time for each
+camera i since it will converge through our feedback system
+eventually. This procedure allows for the exposure parameters
+to progressively adapt to a scene.
+V. EXPERIMENTAL RESULTS
+To validate the performance of the proposed methods, we
+conduct experiments on five image processing applications.
+We demonstrate surveillance and automotive visual odome-
+try experiments using the proposed single camera exposure
+control method (Ours-single, henceforth), and also conduct
+experiments on surround-view, panoramic imaging, and stereo
+matching using the proposed multi-camera exposure control
+method (Ours-multi, henceforth). We compare our method to
+two conventional methods, a camera built-in auto-exposure
+(AE, henceforth) and a manually tuned fixed exposure setting
+(ME, henceforth). We perform all experiments with machine
+vision cameras which have a linear camera response function,
+and set up the initial exposures of the cameras by the AE
+method. All the results of our experiments can be found in the
+supplementary material7. All times used in this experiments
+refer to Korean standard time.
+A. Single camera experiments
+1) Implementation: Figure 7 shows that the camera system
+to evaluate the single camera exposure control. For compara-
+tive evaluation, we use three Flea3 cameras, and each camera
+is equipped with a Sony ICX424 CCD 1/3?? sensor with
+a 640 × 480 resolution and 58.72 dB dynamic range. The
+three cameras are placed in parallel and are synchronized by
+using an internal software trigger. Each camera determines its
+exposure parameters by AE, ME, and Ours-single.
+We use two camera parameters, shutter speed (exposure
+time) and gain, because controlling shutter speed affects to
+frame rate that is often critical according to application.
+We described both parameters as the exposure level E in
+Eq. (3). In our implementation, if we need to increase the
+exposure level E, first control the shutter speed according
+to the exposure level E until the shutter speed reached the
+pre-defined maximum value (we set it to 25.51ms for the
+following two applications, surveillance and automotive visual
+odometry). After the shutter speed reach the maximum value,
+we increase the gain. In the opposite case, the shutter speed
+is also adjusted when it is less than the maximum value.
+2) Surveillance application: To validate Ours-single in a
+surveillance application, we recorded image sequences every
+two hours from 8:00 to 18:00 in a day. We collected two types
+of datasets.
+Dataset. One dataset was collected from the three cameras
+after the cameras reached steady-state (SURVEILLANCE-A).
+Sequences were recorded for around 10 minutes for every
+time step. This dataset was used to compare the performance
+of pedestrian detection as a surveillance application, and
+7https://sites.google.com/site/iwshimcv/home/multicamera
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 7
+Auto Ours Manual 
+Fig. 7: Camera system for experimental validations. Three
+cameras has the same hardware specifications and those are
+synchronized by using an internal software trigger. Each
+camera determines exposure parameters by AE, Ours-single,
+and ME, respectively.
+approximately 2500 pedestrians appeared in total. For the ME
+method, we used the same parameter in the dataset, and the
+parameter was initially determined at 8:00 by manual tuning.
+The other dataset was taken by sweeping the full
+range of possible exposure levels to validate our algorithm
+(SURVEILLANCE-B). We sampled 210 exposure parameters
+that covered the full exposure range; therefore, the dataset
+consisted of 1260 (= 210× 6 time steps) images.
+Comparison of steady-state exposures. Figure 8 shows
+thumbnail images of the SURVEILLANCE-B dataset. In the
+figure, we indicate images with rectangle markers if the image
+has the nearest exposure levels with one of the steady-state
+images of the three methods at each time step. From the
+thumbnails, we could easily see that the ME method suffers
+from illumination changes, and the AE method wipes image
+details out due to high luminance sky regions. On the other
+hand, Ours-single adjusts camera parameters to capture better
+exposed images with much more detail than the other methods.
+Validation of our feedback system. In Figure 9, we show
+the progress of our feedback system, which is explained
+in Section III-B. To simulate extreme cases in which the
+illumination condition rapidly varies, we applied Ours-single
+to SURVEILLANCE-B. In the figure, output images of our
+feedback system are presented from left to right. We first put
+both an under-exposed image (the leftmost image on the top
+row) and an over-exposed image (the leftmost image on the
+bottom row) into our feedback system. From each image, our
+algorithm estimated the ?? and updated the camera exposure
+according to Eq. (3). Using an updated camera exposure, we
+took an image that matched the exposure parameter in the
+dataset, and we iteratively applied our feedback system until
+it converged. Our system converged to the rightmost image,
+and it demonstrates that our method can reliably adjust camera
+exposure even in extreme cases. The numbers in the figure
+indicate ?? estimated by Ours-single, and we can observe that
+?? converged to one as output images converged to the proper
+exposure level in the rightmost image.
+It is also noteworthy that the scene has a much wider
+dynamic range than the dynamic range of our camera. In the
+same situation, the AE method wiped out important details in
+a low radiance area to prevent saturation in the sky region,
+as shown in Figure 10. Our method naturally adjusts camera
+exposure to emphasize important details by evaluating camera
+exposure in the gradient domain.
+Pedestrian detection. We compared the performance of
+pedestrian detection with other exposure methods. Pedestrian
+detection is one of the most important tasks for surveillance.
+In this experiment, we performed pedestrian detection on the
+SURVEILLANCE-A dataset and we used a pedestrian detector
+in [39, 40].
+Figure 10 shows example results of pedestrian detection.
+Images obtained by the AE method are under-exposed due to
+the sky region, and images obtained by the ME method are
+over-/under-exposed due to illumination changes. According to
+image quality, the pedestrian detector failed to detect humans
+in badly exposed images.
+We use HOGgles [33] to visualize images from a per-
+spective of image processing, so that we can qualitatively
+evaluate exposure control algorithm. HOGgles inverts HOG
+feature spaces back to a natural image; therefore, it is useful to
+understand how a computer sees visual images. In Figure 10,
+HOGgles visualizations of our method show detailed features
+consistently in spite of large illumination changes, while the
+AE and ME methods could not preserve visual information
+in low radiance regions due to wrong exposures. The visual-
+ization using HOGgles clearly demonstrate that our method is
+much more suitable than the conventional AE and ME methods
+for outdoor computer vision tasks.
+Figure 11 shows the quantitative evaluation result of
+the pedestrian detection experiment. For the evaluation, the
+ground-truth was manually labeled for all the data. We depict
+the miss rate against false positives per image (FPPI) as an
+evaluation metric according to [41]. The evaluation metric
+indicates better performance as results get close to the bottom
+left; therefore, the figure shows that our method outperforms
+the other two methods.
+3) Automotive visual odometry application: We performed
+visual odometry with the automotive driving dataset. Visual
+odometry is the process of incrementally estimating the pose of
+a vehicle by analyzing images captured by a camera mounted
+on the vehicle. It is an essential technique for autonomous
+navigation of vehicles and robots.
+Dataset. For automotive visual odometry, we collected images
+taken from a vehicle driving through a campus. To validate the
+performance under various illumination conditions, we tried to
+drive almost the same path three times at 14:00, 16:00, and
+18:00. We chose a path that was a closed-loop in order to
+easily measure the translation error between the starting point
+and the ending point of the path. The exposure parameter for
+the ME method was initialized at 14:00.
+Visual odometry. For conducting visual odometry, we cali-
+brated the camera intrinsic parameters by [42]’s method, and
+we also calibrated the pitch angle and height from the ground
+using the vanishing points of an image. We use the monocular
+slam algorithm in [38] for this experiment.
+Figure 12 depicts the trajectories of the vehicle for a
+qualitative comparison. Since the vehicle drove a closed-loop
+path, the ground-truth of the starting points and ending points
+of all trajectories co-existed at (0, 0) in the figure. We can
+observe that the results of our method have more similar
+trajectories among different time results and smaller distance
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 8
+ 
+ 
+ 
+ 
+ 
+AE
+ME
+Ours
+Exposures Min. Max. 
+08:00 
+10:00 
+12:00 
+14:00 
+16:00 
+18:00 
+Fig. 8: Thumbnail images of the SURVEILLANCE-B dataset. Each row images are captured at every two hours from 8:00 to
+18:00. In every row, we display 21 images sampled from 210 images at every time step. Images with red, green, and blue
+markers indicate that the images have the nearest exposure levels with steady-state exposure parameters of three methods. We
+recommend the readers to zoom-in to see the details clearly.
+0.74 0.79 0.84
+1.90 1.87 1.09
+0.53 0.68
+1.90 1.90
+0.95
+1.06
+Fig. 9: Progress of our feedback system. We first put the
+leftmost images into our feedback system, and the system
+iteratively converges into the rightmost image. The numbers
+indicate ?? that Ours-single estimates.
+errors between the starting points and ending points than the
+other methods.
+Images captured at two locations along the path are shown
+in Figure 13. In the figure, we can observe that illumination
+conditions varied greatly according to space and time, and both
+the AE and ME methods failed to successfully perform feature
+tracking due to under-exposure, while our method captured
+well-exposed images and successfully tracked image features.
+In Figure 14, we present the quantitative evaluation results.
+The statistics of the number of inlier features are presented
+in (a), and the distance error ratios of each trajectory are pre-
+sented in (b). Distance error ratio is computed by dividing the
+distance error between a starting point and an ending point of a
+closed-loop trajectory by the length of an estimated trajectory.
+Distance error ratio is used as an evaluation metric since an
+estimated trajectory has a scale ambiguity in monocular visual
+odometry. In the figure, the results of our method consistently
+extracted a larger number of inlier features and had smaller
+errors than the AE and ME methods. For robust estimation,
+larger number of inlier features are preferred and it is the main
+reason that our method shows better results than the others.
+B. Multi-camera experiments
+For evaluating Ours-multi, we performed experiments on
+three applications: surround-view imaging, panoramic imag-
+ing, stereo matching.
+1) Implementation: Figure 15-(a) shows our multi-camera
+experiment system with a mobile platform, Clearpath Husky-
+A200. The multi-camera system has four cameras which are
+synchronized by a hardware trigger. The hardware trigger is
+set to generate synchronization signals with a frequency of
+20Hz. For each camera, we used a Sony ICX445 CCD 1/3??
+sensor with a fixed focal length of 1.4mm, so each camera had
+a 1288×964 resolution with a 58.44 dB dynamic range and a
+185? × 144? field-of-view (FoV). The multi-camera system
+was fully calibrated including both intrinsic and extrinsic
+parameters. To achieve the desired exposure level, we adjusted
+the shutter speed first until it reached the pre-defined maximum
+value. Then, we started adjusting the gain, same to the previous
+single camera experiments.
+In the experiments hereafter, the maximum shutter speed
+was set to 49ms, and both the shutter speed and gain param-
+eters of each camera were adjusted by the proposed nonlinear
+update function Eq. (4). The exposure values among cameras
+were balanced by our exposure balancing method in Eq. (5).
+The control parameter ? in Eq. (5) adjust the weights of the
+unary and pairwise terms. To account for varying illumination
+conditions well, we updated ? as
+?i =
+{
+(1?Ri) + 0.5 if Ri < 1.0,
+Ri/2 if Ri ? 1.0,
+s.t. Ri =
+Eit+1
+Eit
+? [0.5, 2.0],
+(6)
+where i is the camera index, and R is the exposure ratio
+between the current and estimated exposure values of our
+update function. Therefore, we give a large weight to the
+unary term for fast scene adaptation when the exposure levels
+are largely varying, while we increase the influence of the
+pairwise term for quick convergence to an exposure balancing
+point when exposure levels are stationary.
+2) Surround-view imaging application: The surround-
+view imaging application is one of the most popular vision
+techniques in the automobile industry. A surround-view im-
+age is usually generated by stitching images from multiple
+cameras, and it is used to assist drivers in parking.
+In this experiment, we generated a surround-view image
+with four partially overlapped input images as shown in
+Figure 16. We pre-calibrated relative poses between cameras
+with an assumption of flat ground, and applied a simple linear
+blending method [6] as a post-processing step, so that seams
+around view transition regions would be minimized, while
+the influence of post-processing would be isolated as much
+as possible. Figure 15-(b) depicts the fields of views (FoVs)
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 9
+Auto Auto 
+Auto Auto 
+Auto Auto 
+Auto Auto 
+(a) AE
+Manual Manual 
+Manual Manual 
+Manual Manual 
+Manual Manual 
+(b) ME
+Ours Ours 
+Ours Ours 
+Ours Ours 
+Ours Ours 
+(c) Ours-single
+Fig. 10: The images show example results of pedestrian detection and visualizations of feature spaces using HOGgles [33].
+All the input images are contained in the SURVEILLANCE-A dataset, and images in each row are captured at a same time.
+From the top to the bottom, images are captured around 8:00, 14:00, 16:00, and 18:00.
+10-1 100 101 102
+0.1
+0.2
+0.5
+1
+false positive per image (fppi)
+m
+is
+s 
+ra
+te
+ 
+ 
+AE
+ME
+Ours
+Fig. 11: Quantitative evaluation results of the pedestrian de-
+tection experiment. In the figure, it means better performance
+as results get closed to the bottom left.
+of each camera, and (c) depicts overlapping regions between
+neighboring cameras from the viewpoint of a surround-view
+image. These overlapped regions are used to compute the rel-
+ative brightness ratio rij in Eq. (5) for the exposure balancing.
+In this application, we are interested in the ground region of
+images; therefore, rij is computed only using the ground parts
+of input images.
+Figure 16 shows the comparison result of surround-view
+images with different exposure control algorithms. In the
+figure, we show intensity changes at the boundary regions
+between cameras in the close-up views and also visualize the
+effect of exposure balancing by plotting the intensity profiles
+along the boundary of the rectangle (orange colored line) in the
+surround-view images. The colors of boundaries in the close-
+up views correspond to the pixel locations on the same color
+points in the surround-view images, respectively. As shown in
+(a) and (b), the surround-view images processed by the AE and
+Ours-single methods have noticeably large intensity transitions
+at the boundary regions of two neighboring images, which is
+caused by the independent exposure control of each camera.
+In this condition, it is hard to achieve brightness constancy
+across all the cameras. Unlike those two methods, Ours-multi
+method shows relatively small intensity transitions by virtue
+of our exposure balancing method.
+In Figure 16-(c), the un-warped images of Ours-multi are
+over-saturated except in the ground regions. Note that we
+adjust camera exposure levels only considering around the
+ground regions since surround-view imaging is only interested
+in the ground parts of the images as shown in the surround-
+view images.
+For quantitative evaluation, we captured image sequences
+using a mobile robot with a multi-camera system under various
+illumination conditions (sunlight, cloudy, parking lot, and
+night scene). We drove almost the same path three times using
+different methods (AE, Ours-single, and Ours-multi) to obtain
+images for each dataset. In Figure 17, the histograms of the
+intensity similarity of all overlapped regions are presented.
+These normalized histograms were computed by the inten-
+sity ratios between images from neighboring cameras in the
+overlapped region for all candidates (See Figure 15 (c)). The
+histograms also plot an estimate of the probability density
+function for intensity ratio. The result obtained by Ours-multi
+had the smallest mean value and standard deviation of the
+intensity ratio, which means cameras controlled by Ours-
+multi take the most similar images in intensity space. This
+helps generate more natural surround-view images without
+post-processing steps, such as color transfer [43]. The movie
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 10
+-40 -30 -20 -10 0 10
+-20
+-10
+0
+10
+20
+30
+40
+50
+ 
+ 
+14:00
+16:00
+18:00
+P1 
+P2 
+(a) AE
+-40 -30 -20 -10 0 10
+-20
+-10
+0
+10
+20
+30
+40
+50
+P1 
+P2 
+(b) ME
+-40 -30 -20 -10 0 10
+-20
+-10
+0
+10
+20
+30
+40
+50
+P1 
+P2 
+(c) Ours-single
+Fig. 12: Trajectories estimated by the visual odometry [38]. Since the vehicle droves a closed-loop path, the ground-truth of
+start points and end points of all trajectories are laid on (0, 0). The results of our method have smaller estimation errors than
+the results of the other methods.
+ P1  P2 
+ P1  P2 
+(a) AE
+ P1  P2 
+ P1  P2 
+(b) ME
+ P1  P2 
+ P1  P2 
+(c) Ours-single
+Fig. 13: Images at two locations in the path are shown. The locations are indicated in Figure 12. The top row shows images at
+14:00 and the bottom row shows images at 18:00. In the images, green lines indicate tracked image features between adjacent
+frames.
+14:00 16:00 18:000
+50
+100
+150
+Dataset
+Th
+e 
+av
+er
+ag
+e 
+nu
+m
+be
+r o
+f i
+nl
+ie
+rs
+ 
+ 
+AE
+ME
+Ours
+(a) The number of inliers
+14:00 16:00 18:000
+2
+4
+6
+8
+10
+12
+14
+16
+18
+Dataset
+D
+is
+ta
+nc
+e 
+er
+ro
+r r
+at
+io
+ (%
+)
+ 
+ 
+AE
+ME
+Ours
+(b) Distance error ratio
+Fig. 14: Quantitative evaluation results of the visual odometry
+experiment. (a) mean and standard deviation of the number of
+inlier features, (b) relative distance errors.
+clips of image sequences can be found in the supplementary
+material7.
+Figure 18 shows additional qualitative comparison results
+of surround-view images obtained at various locations under
+various illumination conditions.
+3) Panoramic imaging application: Panoramic imaging
+application is another good example to demonstrate the effec-
+tiveness of our method for multi-camera exposure control. This
+application is similar to the previous surround-view imaging
+application. In this application, however, we should take into
+account the entire region of images, so it is also important to
+capture informative image features from a scene having a very
+wide dynamic range.
+In this experiment, we used a cylindrical panorama
+model [44] with simple alpha and linear blending methods [6].
+Additionally, for accurate matching between each pair of im-
+ages, we initialized camera poses using pre-calibrated extrinsic
+parameters. Then, we optimized the initial camera poses by
+minimizing the re-projection error of matched feature points
+in an overlapped region of each image pair. We used the
+feature matching framework in [45] with the Harris corner
+detector [46] and BRIEF feature descriptor [47]. Then, the
+patches of corresponding feature points were used to compute
+the relative brightness ratios rij in Eq. (5).
+Figure 19 shows the results of panoramic image stitching.
+The panoramic images with simple alpha blending clearly
+show differences between those produced by Ours-multi and
+those produced by the conventional AE method. The strong
+sunlight behind the building makes the dynamic range of the
+scene wide; therefore, the images obtained by the AE method
+have large brightness differences, and many informative parts
+of the foreground region are also under-saturated. This may
+lead to the failure of the following computer vision algorithms,
+which mainly operate for foreground objects. On the other
+hand, the results produced by Ours-multi show small intensity
+gaps in overlapped regions and also preserve important infor-
+mation in the foreground regions well. The linear blending
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 11
+(a) (b) (c)
+Fig. 15: (a) shows Multi-camera system with a mobile
+robot (Clearpath HUSKY A200). Four cameras have the same
+hardware specifications and those are synchronized by a hard-
+ware trigger. (b) shows valid regions for generating surround-
+view image. From top to bottom, the images represent FoVs
+for front, right, rear, and left cameras, respectively. (c) rep-
+resents respective overlapping regions between neighboring
+cameras. For example, the top image shows overlapped FoVs
+between front and right cameras.
+makes both results visually comfortable by smoothing the
+brightness difference of overlapped regions, but it could not
+recover information already lost in the foreground region as
+shown in the close-up views of (a).
+4) Stereo matching application: In the previous two ex-
+periments, we compared differences among exposure control
+methods by showing the results in the color image domain.
+In this experiment, we applied stereo matching algorithms to
+verify the effectiveness of the Ours-multi method in the gradi-
+ent domain. Following the panoramic imaging experiment, we
+used the feature matching framework in [45] and computed the
+relative brightness ratios rij in Eq. (5) using corresponding
+patches. For this experiment, we apply two representative
+stereo matching methods: area-correction stereo (Block, [48])
+and semi-global matching (SGM, [49]).
+Figure 20 shows the results of stereo matching. The block
+matching method computes disparity by comparing the sum
+of absolute differences (SAD) in a local area without any pre-
+/post-processing and regularization. This allows us to directly
+compare the quality of images that affects the patch matching
+performance. In images obtained by the AE method, lots of
+visual information in the foreground regions is washed away,
+because of strong lighting conditions behind the foreground.
+In particular, regarding the pedestrian in (b) and the bush in
+(c), it is especially hard to recognize what/where they are
+in the block matching results. On the contrary, Ours-multi
+captures important image features in the foreground regions,
+so it achieves better quality of disparity maps than the AE
+method.
+SGM improves the quality of disparity maps of both the AE
+Front camera Right camera Rear camera Left camera
+0 200 400 600 800 1000 1200 1400 1600
+50
+100
+150
+200
+250
+Surround-view Close-ups Intensity profile
+(a) AE
+Front camera Right camera Rear camera Left camera
+0 200 400 600 800 1000 1200 1400 1600
+50
+100
+150
+200
+250
+Surround-view Close-ups Intensity profile
+(b) Ours-single
+Front camera Right camera Rear camera Left camera
+0 200 400 600 800 1000 1200 1400 1600
+50
+100
+150
+200
+250
+Surround-view Close-ups Intensity profile
+(c) Ours-multi
+Fig. 16: Qualitative comparison of surround-view application
+according to exposure methods: (a) AE, (b) Ours-single, and
+(c) Ours-multi. The first rows of (a), (b), and (c) show the
+original images, and surround-view images are shown in the
+second rows first columns. In each second row, the image
+patches of second column indicate vicinity regions at green,
+red, purple, and gray points in the surround-view images. The
+last column shows 1D signals of pixel values on the orange
+lines of the surround-view images. We recommend readers
+zoom-in to see the details clearly.
+and Ours-multi methods by virtue of its spatial regularization.
+However, there is still a visible gap between the AE and Ours-
+multi methods even after optimization. Ours-multi presents
+denser and clearer disparity maps than the AE method. This
+reveals the importance of image quality at the image captur-
+ing stage, which may cause difficulties that the subsequent
+algorithms can not deal with.
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 12
+? = 1.31,
+? = 0.23
+? = 1.27,
+? = 0.26
+? = 1.15,
+? = 0.07
+Auto Ours-single Ours-multi
+Fig. 17: Histogram of intensity ratio for all overlapped region
+(a)
+(b)
+(c)
+Fig. 18: Additional qualitative comparisons of surround-view
+imaging application at different locations.
+VI. CONCLUSIONS
+In this paper, we presented a novel auto-exposure method
+that is designed in particular for gradient-based vision systems
+of outdoor mobile platforms. In outdoor environments, scene
+radiance often has a much wider dynamic range than the
+possible range of cameras, and conventional camera exposure
+methods fail to capture well-exposed images, which results in
+performance degradation of subsequent computer vision-based
+algorithms. To solve this problem, we adjust camera exposure
+to maximize gradient information of a scene; therefore, our
+method is able to determine a proper exposure that is robust to
+severe illumination changes. Moreover, the exposure balancing
+method is also proposed for multi-camera systems.
+We evaluated our methods through extensive outdoor exper-
+iments with off-the-shelf machine vision cameras using image
+processing and computer vision applications. We believe that
+our method is a good alternative/additional solution to conven-
+tional auto-exposure methods especially for outdoor computer
+vision systems such as surveillance monitoring system and
+autonomous mobile platforms.
+Discussion and Limitation If a scene has mild light con-
+ditions, conventional auto-exposure methods could be a good
+choice to take images. Over the conventional auto-exposure
+methods, the proposed method is especially beneficial for
+capturing a scene where dark foreground regions with strong
+back-lighting are involved, i.e., wide dynamic range.
+Some images obtained by our method appear brighter than
+Alpha blending
+Linear blending
+Original images
+(a) AE
+Original images
+Alpha blending
+Linear blending
+(b) Ours-multi
+Fig. 19: Examples of panoramic images with alpha and linear
+blending. The top images of (a) and (b) are generated by alpha
+blending (? = 0.5), and the bottom images are generated by
+linear blending.
+the images obtained by AE in several figures. Unlike AE,
+which adjusts camera exposure by directly measuring bright-
+ness values, our method adjusts it for maximizing gradient
+information. Since gradient is invariant to offset of bright-
+ness, absolute brightness does not directly affect the propose
+exposure control. However, this is not an issue from the
+perspective of computer vision applications, as long as the
+dynamic range of the foregrounds is well captured or the
+brightness consistency between images is preserved.
+In the case of multi-camera systems, a requirement of
+Ours-multi is that FoVs of cameras should be overlapped for
+matching corresponding patches in captured images. Also, our
+method depends on the performance of the patch matching
+algorithms. Therefore, we relax the sensitivity of mis-matching
+patches by a median filter as in Eq. (5). For applications
+where we cannot directly select the corresponding patches,
+e.g., panoramic imaging and stereo matching, we have to
+consider these limitations in applying our exposure balancing
+method.
+REFERENCES
+[1] M. Muramatsu, “Photometry device for a camera,” Jan. 7 1997, uS Patent
+5,592,256.
+[2] B. K. Johnson, “Photographic exposure control system and method,”
+Jan. 3 1984, uS Patent 4,423,936.
+[3] N. Sampat, S. Venkataraman, T. Yeh, and R. L. Kremens, “System im-
+plications of implementing auto-exposure on consumer digital cameras,”
+in Proceedings of the SPIE Electronics Imaging Conference, 1999, pp.
+100–107.
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 13
+A
+E
+O
+ur
+s-
+m
+ul
+ti
+(a) Scene1
+A
+E
+O
+ur
+s-
+m
+ul
+ti
+(b) Scene2
+A
+E
+O
+ur
+s-
+m
+ul
+ti
+(c) Scene3
+Rectified left Rectified right Block [48] SGM [49]
+Fig. 20: Qualitative comparison of estimated disparity maps
+according to exposure methods: AE and Ours-multi. The
+images of first two columns are rectified stereo image pairs,
+and the third and fourth columns show the estimated disparity
+maps using Block [48] and SGM [49], respectively.
+[4] C. Poynton, Digital video and HD: Algorithms and Interfaces. Elsevier,
+2012.
+[5] I. Shim, J.-Y. Lee, and I. S. Kweon, “Auto-adjusting camera exposure for
+outdoor robotics using gradient information,” in IEEE/RSJ International
+Conference on Intelligent Robots and Systems (IROS), 2014.
+[6] R. Szeliski, Computer vision: algorithms and applications. Springer
+Science & Business Media, 2010.
+[7] M. D. Tocci, C. Kiser, N. Tocci, and P. Sen, “A versatile hdr video
+production system,” ACM Transactions on Graphics (TOG), vol. 30,
+no. 4, p. 41, 2011.
+[8] M. Schoberl, A. Belz, J. Seiler, S. Foessel, and A. Kaup, “High
+dynamic range video by spatially non-regular optical filtering,” in IEEE
+International Conference on Image Processing (ICIP), 2012.
+[9] S. K. Nayar and T. Mitsunaga, “High dynamic range imaging: Spatially
+varying pixel exposures,” in IEEE Conference on Computer Vision and
+Pattern Recognition (CVPR), vol. 1, 2000, pp. 472–479.
+[10] C. Zhou and S. K. Nayar, “Computational cameras: Convergence of
+optics and processing,” IEEE Transactions on Image Processing (TIP),
+vol. 20, no. 12, pp. 3322–3340, 2011.
+[11] T. Kuno, H. Sugiura, and N. Matoba, “A new automatic exposure system
+for digital still cameras,” IEEE Transactions on Consumer Electronics,
+vol. 44, no. 1, pp. 192–199, 1998.
+[12] H. Lu, H. Zhang, S. Yang, and Z. Zheng, “Camera parameters auto-
+adjusting technique for robust robot vision,” in IEEE International
+Conference on Robotics and Automation (ICRA), 2010, pp. 1518–1523.
+[13] N. Nourani-Vatani and J. Roberts, “Automatic camera exposure control,”
+in Australasian Conference on Robotics and Automation, Brisbane,
+Australia, 2007.
+[14] M. Montalvo, J. M. Guerrero, J. Romeo, M. Guijarro, M. Jesu?s, and
+G. Pajares, “Acquisition of agronomic images with sufficient quality by
+automatic exposure time control and histogram matching,” in Advanced
+Concepts for Intelligent Vision Systems, 2013, pp. 37–48.
+[15] M. Murakami and N. Honda, “An exposure control system of video
+cameras based on fuzzy logic using color information,” in IEEE the Fifth
+International Conference on Fuzzy Systems, vol. 3, 1996, pp. 2181–2187.
+[16] J.-S. Lee, Y.-Y. Jung, B.-S. Kim, and S.-J. Ko, “An advanced video
+camera system with robust af, ae, and awb control,” IEEE Transactions
+on Consumer Electronics, vol. 47, no. 3, pp. 694–699, 2001.
+[17] W.-C. Kao, “Real-time image fusion and adaptive exposure control for
+smart surveillance systems,” Electronics Letters, vol. 43, no. 18, pp.
+975–976, 2007.
+[18] A. J. Neves, B. Cunha, A. J. Pinho, and I. Pinheiro, “Autonomous
+configuration of parameters in robotic digital cameras,” in Pattern
+Recognition and Image Analysis, 2009, pp. 80–87.
+[19] P. E. Debevec and J. Malik, “Recovering high dynamic range radiance
+maps from photograph,” in ACM Computer Graphics, Proceedings
+Annual Conference Series, vol. 1997, 1997, pp. 369–378.
+[20] C. Lee and E. Lam, “Computationally efficient truncated nuclear norm
+minimization for high dynamic range imaging,” IEEE Transactions on
+Image Processing (TIP), vol. 25, no. 9, pp. 4145–4157, 2015.
+[21] S. Nuske, J. Roberts, and G. Wyeth, “Extending the dynamic range
+of robotic vision,” in IEEE International Conference on Robotics and
+Automation (ICRA), 2006, pp. 162–167.
+[22] N. Barakat, A. N. Hone, and T. E. Darcie, “Minimal-bracketing sets
+for high-dynamic-range image capture,” IEEE Transactions on Image
+Processing (TIP), vol. 17, no. 10, pp. 1864–1875, 2008.
+[23] P. Sen, N. K. Kalantari, M. Yaesoubi, S. Darabi, D. B. Goldman,
+and E. Shechtman, “Robust patch-based hdr reconstruction of dynamic
+scenes,” ACM Transactions on Graphics (SIGGRAPH Asia), vol. 31,
+no. 6, p. 203, 2012.
+[24] J. Hu, O. Gallo, K. Pulli, and X. Sun, “Hdr deghosting: How to deal
+with saturation?” in IEEE Conference on Computer Vision and Pattern
+Recognition (CVPR), 2013, pp. 1163–1170.
+[25] T.-H. Oh, Y.-W. Tai, J.-C. Bazin, H. Kim, and I. S. Kweon, “Partial
+sum minimization of singular values in Robust PCA: Algorithm and
+applications,” IEEE Transactions on Pattern Analysis and Machine
+Intelligence (TPAMI), 2015.
+[26] S. Hrabar, P. Corke, and M. Bosse, “High dynamic range stereo vision
+for outdoor mobile robotics,” in IEEE International Conference on
+Robotics and Automation (ICRA), 2009, pp. 430–435.
+[27] Y. S. Heo, K. M. Lee, and S. U. Lee, “Robust stereo matching using
+adaptive normalized cross-correlation,” IEEE Transactions on Pattern
+Analysis and Machine Intelligence (TPAMI), vol. 33, no. 4, pp. 807–
+822, 2011.
+[28] S. J. Kim and M. Pollefeys, “Robust radiometric calibration and
+vignetting correction,” IEEE Transactions on Pattern Analysis and
+Machine Intelligence (TPAMI), vol. 30, no. 4, pp. 562–576, 2008.
+[29] S. J. Kim, J.-M. Frahm, and M. Pollefeys, “Joint feature tracking and
+radiometric calibration from auto-exposure video,” in IEEE International
+Conference on Computer Vision (ICCV), 2007.
+[30] M. Pollefeys, D. Niste?r, J.-M. Frahm, A. Akbarzadeh, P. Mordohai,
+B. Clipp, C. Engels, D. Gallup, S.-J. Kim, P. Merrell, C. Salmi, S. N.
+Sinha, B. Talton, L. Wang, Q. Yang, H. Stewnius, R. Yang, G. Welch,
+and H. Towles, “Detailed real-time urban 3d reconstruction from video,”
+International Journal of Computer Vision (IJCV), vol. 78, no. 2-3, pp.
+143–167, 2008.
+[31] D. G. Lowe, “Object recognition from local scale-invariant features,”
+in IEEE International Conference on Computer Vision (ICCV), vol. 2,
+1999, pp. 1150–1157.
+[32] N. Dalal and B. Triggs, “Histograms of oriented gradients for human
+detection,” in IEEE Conference on Computer Vision and Pattern Recog-
+nition (CVPR), vol. 1, 2005, pp. 886–893.
+[33] C. Vondrick, A. Khosla, T. Malisiewicz, and A. Torralba, “HOGgles:
+Visualizing Object Detection Features,” IEEE International Conference
+on Computer Vision (ICCV), 2013.
+[34] D. Krishnan and R. Fergus, “Fast image deconvolution using hyper-
+laplacian priors,” in Advances in Neural Information Processing Systems
+(NIPS), 2009, pp. 1033–1041.
+[35] A. Hyva?rinen, J. Hurri, and P. O. Hoyer, Natural image statistics: a
+probabilistic approach to early computational vision. Springer.
+[36] I. Sobel and G. Feldman, “A 3x3 isotropic gradient operator for image
+processing,” a talk at the Stanford Artificial Project in, pp. 271–272,
+1968.
+[37] S. J. Kim, H. T. Lin, Z. Lu, S. Susstrunk, S. Lin, and M. S. BrownHai,
+“A new in-camera imaging model for color computer vision and its
+application,” in IEEE Transactions on Pattern Analysis and Machine
+Intelligence (TPAMI), 2012.
+[38] A. Geiger, J. Ziegler, and C. Stiller, “Stereoscan: Dense 3d reconstruc-
+tion in real-time,” in Intelligent Vehicles Symposium, 2011.
+[39] P. Felzenszwalb, D. McAllester, and D. Ramanan, “A discriminatively
+trained, multiscale, deformable part model,” in IEEE Conference on
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 14
+Computer Vision and Pattern Recognition (CVPR), 2008, pp. 1–8.
+[40] P. F. Felzenszwalb, R. B. Girshick, D. McAllester, and D. Ramanan,
+“Object detection with discriminatively trained part-based models,”
+IEEE Transactions on Pattern Analysis and Machine Intelligence
+(TPAMI), vol. 32, no. 9, pp. 1627–1645, 2010.
+[41] P. Dollar, C. Wojek, B. Schiele, and P. Perona, “Pedestrian detection: An
+evaluation of the state of the art,” IEEE Transactions on Pattern Analysis
+and Machine Intelligence (TPAMI), vol. 34, no. 4, pp. 743–761, 2012.
+[42] Z. Zhang, “Flexible camera calibration by viewing a plane from un-
+known orientations,” in IEEE International Conference on Computer
+Vision (ICCV), vol. 1, 1999, pp. 666–673.
+[43] J.-Y. Lee, K. Sunkavalli, Z. Lin, X. Shenand, and I. S. Kweon, “Auto-
+matic content-aware color and tone stylization,” in IEEE Conference on
+Computer Vision and Pattern Recognition (CVPR), 2016.
+[44] R. Szeliski and H.-Y. Shum, “Creating full view panoramic image
+mosaics and environment maps,” in In Proceedings of SIGGRAPH 97,
+Annual Conference Series, 1997, pp. 251–258.
+[45] M. Muja and D. G. Lowe, “Fast matching of binary features,” in IEEE
+International Conference on Computer and Robot Vision (CRV), 2012,
+pp. 404–410.
+[46] C. Harris and M. Stephens, “A combined corner and edge detector.” in
+Alvey vision conference, vol. 15, 1988, p. 50.
+[47] M. Calonder, V. Lepetit, C. Strecha, and P. Fua, “Brief: Binary robust
+independent elementary features,” European Conference on Computer
+Vision (ECCV), pp. 778–792, 2010.
+[48] K. Konolige, “Small vision systems: Hardware and implementation,” in
+Robotics Research. Springer, 1998, pp. 203–212.
+[49] H. Hirschmu?ller, “Accurate and efficient stereo processing by semi-
+global matching and mutual information,” in IEEE Conference on
+Computer Vision and Pattern Recognition (CVPR), vol. 2, 2005, pp.
+807–814.

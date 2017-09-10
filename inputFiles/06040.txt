@@ -1,0 +1,882 @@
+Neural Block Sampling
+Tongzhou Wang
+EECS, UC Berkeley
+simon.l@berkeley.edu
+Yi Wu
+EECS, UC Berkeley
+jxwuyi@gmail.com
+David A. Moore
+EECS, UC Berkeley
+davmre@gmail.com
+Stuart J. Russell
+EECS, UC Berkeley
+russell@berkeley.edu
+Abstract
+Efficient Monte Carlo inference often requires
+manual construction of model-specific propos-
+als. We propose an approach to automated pro-
+posal construction by training neural networks
+to provide fast approximations to block Gibbs
+conditionals. The learned proposals general-
+ize to occurrences of common structural mo-
+tifs both within a given model and across mod-
+els, allowing for the construction of a library
+of learned inference primitives that can ac-
+celerate inference on unseen models with no
+model-specific training required. We explore
+several applications including open-universe
+Gaussian mixture models, in which our learned
+proposals outperform a hand-tuned sampler,
+and a real-world named entity recognition task,
+in which our sampler’s ability to escape lo-
+cal modes yields higher final F1 scores than
+single-site Gibbs.
+1 Introduction
+Model-based probabilistic inference is a highly success-
+ful paradigm for machine learning, with applications to
+tasks as diverse as movie recommendation [25], visual
+scene perception [14], music transcription [3], and mon-
+itoring nuclear tests [19], among many others. People
+learn and plan using mental models, and indeed the en-
+tire enterprise of modern science can be viewed as con-
+structing a sophisticated hierarchy of models of physi-
+cal, mental, and social phenomena. Probabilistic pro-
+gramming provides a formal representation of models as
+sample-generating programs, promising the ability to ex-
+plore a rich range of models. This requires us to perform
+efficient inference in novel models, motivating the devel-
+opment of black-box inference techniques.
+Unfortunately, generic inference methods such as single-
+site Gibbs sampling [24] often perform poorly, suf-
+fering from slow mixing and becoming stuck in local
+optima. Effective real-world inference often requires
+block proposals that update multiple variables together
+to overcome near-deterministic and long-range depen-
+dence structures. However, computing exact Gibbs pro-
+posals for large blocks quickly becomes intractable (ap-
+proaching the difficulty of posterior inference), and in
+practice it is common to invest significant effort in hand-
+engineering proposals specific to a particular model.
+In this work, we propose to learn tractable block sam-
+plers, in the form of approximate Gibbs proposals, that
+can then be reused both within a given model and across
+models containing similar structural motifs. Recent work
+has recognized that a wide range of models can be
+represented as compositions of simple components [7],
+and that domain-specific models may still reuse general
+structural motifs such as chains, grids, rings, or trees
+[11]. By learning flexible samplers, we can improve
+inference not only within a specific model but even on
+previously unseen models containing similar structures,
+with no additional training required. In contrast to tech-
+niques that compile inference procedures specific to a
+given model [26, 15], learning inference artifacts that
+generalize to novel models is valuable in allowing model
+builders to quickly explore a wide range of possible mod-
+els.
+We explore the application of our approach to a wide
+range of models. On grid-structured models from a
+UAI inference competition, our learned proposals sig-
+nificantly outperform Gibbs sampling even given no
+model-specific training. For open-universe Gaussian
+mixture models, we show that a simple learned block
+proposal yields performance comparable to a model-
+specific hand-tuned sampler, and generalizes to models
+more than those it was trained on. We additionally ap-
+ply our method to a named entity recognition (NER)
+task, showing that not only do our learned block pro-
+ar
+X
+iv
+:1
+70
+8.
+06
+04
+0v
+1 
+ [
+cs
+.A
+I]
+  2
+1 
+A
+ug
+ 2
+01
+7
+posals mix effectively, the ability to escape local modes
+yields higher-quality solutions than the standard Gibbs
+sampling approach.
+2 Related Work
+There has been a great deal of interest in using learned,
+feedforward inference networks to generate approximate
+posteriors. Variational autoencoders [12] train an infer-
+ence network jointly with the parameters of the forward
+model to maximize a variational lower bound. Within the
+VAE framework, [5, 8] utilize another neural network as
+an adaptive proposal distribution to improve the conver-
+gence of variational inference. However, the use of a
+parametric variational distribution means they typically
+have limited capacity to represent complex, potentially
+multimodal posteriors, such as those incorporating dis-
+crete variables or structural uncertainty.
+A related line of work has developed data-driven pro-
+posals for importance samplers [21, 15, 22], training an
+inference network from prior samples which is then used
+as a proposal given observed evidence. In particular, [15]
+generalize the framework to probabilistic programming,
+and is able to automatically generate and train a neu-
+ral proposal network given an arbitrary model described
+in a probabilistic program. Our approach differs in that
+we focus on MCMC inference, allowing modular pro-
+posals for subsets of model variables that may depend
+on latent quantities, and exploit recurring substructure,
+and that generalize to new models containing analogous
+structures with no additional training.
+Several approaches have been proposed for adaptive
+block sampling, in which sets of variables exhibiting
+strong correlations are identified dynamically during in-
+ference, so that costly joint sampling is used only for
+blocks where it is likely to be beneficial [28, 27]. This
+is largely complementary to our current approach, which
+assumes the set of blocks (structural motifs) is given and
+attempts to learn fast approximate proposals.
+Perhaps most closely related to our current work is the
+idea of learning Gibbs-like proposals from stochastic in-
+verses of graphical models [26]. Because these proposals
+are trained online during inference, they will in princi-
+ple converge to the true Gibbs conditional, whereas our
+proposals are always approximate. However, our ap-
+proach is simpler, requiring no model-specific training,
+and generates proposals that may be reused both within
+and across different models. Section 4.1.2 explores this
+comparison empirically.
+Taking a much broader view, the approach in this work of
+learning an approximate local update scheme can be seen
+as related to approximate message passing [23, 9], and to
+recent advances in learning gradient-based optimizers for
+continuous objectives [2, 16].
+3 Neural Block MCMC
+We train neural networks to approximate the Gibbs pro-
+posal for a block of variables. Each learned proposal is
+specific to a particular block structure and a condition-
+ing set corresponding to an approximate Markov blan-
+ket. Together we refer to these components as a struc-
+tural motif. Crucially our proposals do not fix the model
+parameters, which are instead provided as input to the
+network, so that the same trained network may be reused
+to perform inference on novel models with parameteriza-
+tions not previously observed.
+Our inference networks are parameterized as mixture
+density networks [4], and trained to minimize the KL
+divergence between the true posterior conditional and
+the approximate proposal, given prior samples generated
+from the model. The approximate proposals are then
+accepted or rejected following the Metropolis-Hastings
+(MH) rule [1], so that we maintain the correct stationary
+distribution even though the proposals are approximate.
+The following sections describe our approach in more
+detail.
+3.1 Background
+Although our approach generalizes to arbitrary proba-
+bilistic programs, for simplicity we focus on models
+represented as factor graphs. A model consists of a
+set of variables V represented as the nodes of a graph
+G = (V,E), along with a set of factors specifying a joint
+probability distribution p?(V ), generically described by
+parameters ?. In particular, this paper focuses primarily
+on discrete directed models, in which the factors ? are
+the conditional probability tables (CPTs) describing the
+distribution of each variable given its parents. In undi-
+rected models, such as the CRFs in Section 4.3, the fac-
+tors are arbitrary functions associated with cliques in the
+graph [13].
+Given observations of a set of evidence variables, infer-
+ence attempts to compute (by way of drawing samples)
+the conditional distribution on the remaining variables.
+A standard approach is Gibbs sampling [24, 1], in which
+each variable vi is successively resampled from its con-
+ditional distribution p(vi|V¬i) given all other variables
+V¬i in the graph. In most cases this conditional in fact
+depends only on a subset of V¬i, known as the Markov
+blanket, MB(vi) ? V¬i. Each Gibbs update can be
+viewed as a MH proposal that is accepted by construc-
+tion, thus inheriting the MH guarantee that the limiting
+distribution of the sampling process is the desired poste-
+Figure 1: Two instantiations of a structural motif in a
+directed chain of length 7. The motif consists of two
+consecutive variables and their Markov blanket of four
+neighboring variables. Each instantiation is separated
+into block proposing variables Bi (white) and condition-
+ing variables Ci (shaded).
+rior conditional distribution [1].
+In models with tight coupling between adjacent vari-
+ables, proposals that only resample a single variable at
+a time will tend to mix very slowly. In many cases it is
+necessary to resample multiple variables simultaneously,
+i.e., a block proposal. Block proposals can yield much
+faster mixing per step, but each step is much slower; the
+cost of computing and storing the block conditional dis-
+tribution is generally exponential in the size of the block,
+becoming intractable for large blocks. This motivates the
+approach in this paper, in which we train fast, feedfor-
+ward neural networks to approximate block proposals at
+much lower computational cost.
+3.2 Structural Motifs in Graphical Models
+We identify each learned proposal with a structural motif
+that determines the shape of the network inputs and out-
+puts. In general, structural motifs can be arbitrary sub-
+graphs, but we are more interested in motifs that repre-
+sent interesting conditional structure between two sets of
+variables, the block proposed variables B and the con-
+ditioning variables C. A given motif can have multi-
+ple instantiations with a model, or across models. As
+a concrete example, Figure 1 shows two instantiations of
+a structural motif of six consecutive variables in a chain
+model. In each instantiation, we want to approximate
+the conditional distribution of two middle variables given
+neighboring four.
+With intuition built, we now formalize the notion of a
+structural motif.
+Definition. A structural motif (or motif in short) is an
+(abstract) graph with nodes partitioned into two compo-
+nents, B and C, and a parameterized joint distribution
+p(B,C) whose factorization is consistent with the graph
+structure. This specifies the functional form of the con-
+ditional p(B|C), but not the specific parameters.
+A motif may have many instantiations within a particular
+graphical model.
+Definition. Within a graphical model (G,?), G =
+(V,E), an instantiation of a structural motif is a sub-
+set of the model variables (Bi, Ci) ? V such that the
+induced subgraph on (Bi, Ci) is isomorphic to the motif
+(B,C), with the partition preserved by the isomorphism
+(so nodes in B are mapped to Bi, and C to Ci). An
+instantiation also includes the subset of model parame-
+ters ?i ? ? required to specify the joint distribution
+p?i(B,C) on the motif variables.
+We would typically define a structural motif by first pick-
+ing out a block of variables B to jointly sample, and
+then selecting a conditioning set C. Intuitively, the nat-
+ural choice for a conditioning set is the Markov blanket,
+C = MB(B). However, this is not a fixed requirement,
+and C could be either a subset or superset of the Markov
+blanket (or neither). We might deliberately choose to use
+some alternate conditioning set C, e.g., a subset of the
+Markov blanket to gain a faster proposal, or a superset
+with the idea of learning longer-range structure. More
+fundamentally, however, Markov blankets depend on the
+larger graph structure and might not be consistent across
+instantiations of a given motif (e.g., if one instantiation
+has additional edges connecting Bi to other model vari-
+ables not in Ci). Allowing C to represent a generic con-
+ditioning set therefore leaves us with greater flexibility in
+instantiating a motif.
+Formally, our goal is to learn a Gibbs-like block proposal
+q(Bi|Ci; ?i) for all instantiations of a structural motif
+{(Bi, Ci,?i)}i that is close to the true conditional in the
+sense that ?i, ?ci ? supp(Ci)
+q(Bi; ci,?i) ? p?(Bi|Ci = ci) (1)
+This provides another view of this approximation prob-
+lem. If we choose the motif to have complex structures
+in each instantiation, the conditionals p?(Bi|Ci = ci)
+can often be quite different for different i, and thus diffi-
+cult to approximate. Therefore, choosing what is a struc-
+tural motif represents a trade-off between generality of
+the proposal and easiness to approximate. While our ap-
+proach works for any structural motif complying with the
+above definition, we suggest using common structures as
+motifs, such as chain of certain length as in Figure 1. In
+principle, one could automatically detect recurring mo-
+tifs, but in this work, we focus on hand-identified com-
+mons structures.
+3.3 Parameterizing Neural Block Proposals
+We choose mixture density networks (MDN) [4] as our
+proposal parametrization. An MDN is a form of neu-
+ral network whose outputs parametrize a mixture distri-
+bution, where in each mixture component the variables
+are uncorrelated. Given a sufficiently large network and
+number of mixture components, MDNs can represent ar-
+bitrary joint distributions.
+In our case, a neural block proposal is a function
+q? parametrized by a MDN with weights ?. The
+function q? represents proposals for a structural motif
+{(Bi, Ci,?i)}i by taking in current values of Ci and lo-
+cal parameters ?i and outputting a distribution over Bi.
+Then, the goal becomes to optimize ? so q? is close to
+the true conditional.
+In the network output, mixture weights are represented
+explicitly. Within each mixture component, distributions
+of bounded discrete variables are directly represented as
+probability tables, and distributions of continuous vari-
+ables are represented as isotropic Gaussians with mean
+and variance. To avoid degenerate proposals, we thresh-
+old the variance of each Gaussian component to be at
+least 0.00001.
+3.4 Training Neural Block Proposals
+To optimize the MDN, we use the Kullback-Leibler di-
+vergence D(p?(Bi|Ci) ? q?(Bi;Ci,?i)) as the mea-
+sure of closeness to the true conditional in Equation (1).
+We would like to minimize this divergence across all set-
+tings of Ci. For simplicity, let us first focus on one par-
+ticular instantiation of the motif (Bi, Ci,?i). To account
+for all Ci values, we choose to minimize the expected di-
+vergence over prior of Ci:
+ECi [D(p?(Bi|Ci) ? q?(Bi;Ci,?i))] (2)
+= ECi [EBi|Ci [log
+p?(Bi|Ci)
+q?(Bi;Ci,?i)
+]] (3)
+= ?EBi,Ci [log q?(Bi;Ci,?i)] + constant (4)
+Since the second term is a constant independent of ?, we
+define the loss for (Bi, Ci,?i) as:
+Li(?) = ?EBi,Ci [log q?(Bi;Ci,?i)] (5)
+To account for multiple instantiations of the motif, we
+could train using any positive linear combination of the
+losses from each instantiation. In this work, given N
+instantiations, we use the average loss as the overall loss:
+L(?) =
+1
+N
+N?
+i=1
+Li(?) (6)
+= ? 1
+N
+N?
+i=1
+EBi,Ci [log q?(Bi;Ci,?i)] (7)
+Algorithm 1 Neural Block MCMC
+Input: Graphical model (G,?), observations y, in-
+stantiations of motifs {{(B(j)i , C
+(j)
+i ,?
+(j)
+i )}i}j in
+(G,?).
+1: for motif with instantiation {(B(j)i , C
+(j)
+i ,?
+(j)
+i )}i do
+2: if exists proposal trained for this motif then
+3: q(j) ?? trained neural block proposal
+4: else
+5: Initialize neural block proposal q(j)?
+6: Train q(j)? using prior samples from (G,?)
+7: end if
+8: end for
+9: x?? initialize state
+10: for t in 1 . . .M do
+11: Propose x? ?? q(j)? on some B
+(j)
+i , C
+(j)
+i ,?
+(j)
+i
+12: Accept or reject according to MH rule
+13: end for
+Because the loss L is an average of expectations over the
+prior, we instead work with the unbiased Monte Carlo
+estimator that selects a random instance of the motif, and
+generates Bi and Ci by sampling from the model prior:
+i(j) ? Unif{1, . . . , N} (8)
+B
+(j)
+i(j)
+, C
+(j)
+i(j)
+? p?(Bi(j) , Ci(j)) (9)
+L?(?) = ? 1
+K
+K?
+j=1
+log q?(B
+(j)
+i(j)
+;C
+(j)
+i(j)
+; ?i(j)) (10)
+We train our neural block proposal using minibatch SGD,
+where K in Equation (10) is the batch size.
+3.5 Neural Block MCMC
+The neural block MCMC procedure is outlined in algo-
+rithm 1. It is worth pointing our framework allows a
+great amount of flexibility. One may be only interested
+in a good proposal for a particular part of a particular
+model. Then a neural block proposal can be trained with
+the underlying motif occurring in that specific part. In
+other cases, one may want to learn a general proposal,
+say for all grid models. Then we can work with a grid-
+shaped motif that have instantiations in every possible
+grid model, and extend the training procedure described
+in Section 3.4 by modifying Equation (8) to match ar-
+bitrary distribution over all instantiations. In experiment
+Section 4.1, we train a neural block proposal for arbitrary
+binary-valued grid models using this approach. There-
+fore, it is potentially possible to store a library of neural
+block proposals trained on common motifs to speed up
+inference on previously unseen models.
+Figure 2: Motif in general grid models. Proposing vari-
+ables are white, and conditioning variables are shaded,
+which form the Markov blanket. The dashed gray arrows
+represent dependencies that may exist but are irrelevant
+to the conditional we are interested in.
+4 Experiments
+In this section, we evaluate our method of learning neural
+block proposals against single-site Gibbs sampler as well
+as several model-specific MCMC methods.
+4.1 Grid Models
+We start with a common structural motif in graphical
+models, grids. In this section, we focus on binary-
+valued grid models of all sorts for their relative easi-
+ness to directly compute posteriors. Specifically, to test
+the performance of MCMC algorithms, we compare the
+estimated posterior marginals P? against true posterior
+marginals P computed using IJGP [18]. Then, for each
+inference task with N variables, we calculated the error
+1
+N
+?N
+i=1
+???P? (Xi = 1)? P (Xi = 1)??? as the mean abso-
+lute deviation of marginal probabilities.
+4.1.1 General Binary-Valued Grid Models
+Neural block proposals have the potential to achieve
+good performance on models with shared structural mo-
+tifs without extra training. In our first experiment, we
+consider the motif shown in Figure 2, which occurs in ar-
+bitrary binary-valued grid Bayesian networks (BN). The
+neural block proposal takes in CPTs of all 9 + 14 = 23
+variables as well as the current assignments of 14 con-
+ditioning variables in Markov blanket. The underlying
+MDN has 106-480-480-120 network structure and out-
+puts the proposal distribution as a mixture of 12 compo-
+nents.
+In order for the proposal to be general, we need to con-
+Figure 3: Performance difference between single-site
+Gibbs and our method on 180 grid models from UAI
+2008 inference competition. Each mark represents inte-
+grated errors for both methods in a single run over 1200s
+inference.
+sider motif instantiations in all possible binary-valued
+grid models, as mentioned in Section 3.5. Therefore,
+we train the proposal on random grid BNs generated by
+sampling each CPT entry i.i.d. from the following mixed
+distribution:?????
+[0, 1] w.p. 140
+[1, 0] w.p. 140
+Dirichlet([0.5, 0.5]) w.p. 1920
+(11)
+After training, the proposal is completely fixed. No
+model specific optimization is done in inference time.
+We then evaluate the performance of the trained neural
+block proposal on all 180 grid BNs up to 500 nodes
+from UAI 20081 inference competition. In each epoch
+of MCMC, for each latent variable, we try to identify
+and propose the block as in Figure 6 with the variable
+at center. If this is not possible, e.g., the variable is at
+boundaries or close to evidence, we do single-site Gibbs
+resampling instead.
+Figure 3 shows the performance of both neural block
+MCMC and singles-site Gibbs in terms of error inte-
+grated over time for all 180 models. The models are di-
+vided into three classes, grid-50, grid-75 and grid-90, ac-
+cording to the percentage of deterministic relations. Our
+neural block MCMC significantly outperforms Gibbs
+sampler in almost every model. We notice that the im-
+provement becomes less significant as the percentage of
+deterministic relations increases. This is largely due to
+1http://graphmod.ics.uci.edu/uai08
+the fact that the above proposal structure in Figure 2 can
+only easily handle dependency among the 9 proposed
+nodes. We would expect an increased block size to yield
+stronger performance on models with many determinis-
+tic relations.
+To investigate the behavior of neural block MCMC in
+detail, we compare it against single-site Gibbs, and ex-
+act block Gibbs with the same proposal block, on 3 grid
+models with various percentage of deterministic rela-
+tions. Figure 4 shows the performance of three algo-
+rithms w.r.t. both time and epochs. Single-site Gibbs per-
+forms worst on all three models since it gets stuck very
+quickly in local modes. Between the two block proposal
+MCMC methods, neural block MCMC is more perform-
+ing in terms of error w.r.t. time due to shorter computa-
+tional time. However, because the neural block proposal
+is only an approximate of the true block Gibbs proposal,
+it is worse in terms of error w.r.t. epochs, as expected.
+In summary, our experiment results show that neural
+block proposals can achieve significantly faster and bet-
+ter mixing with much less computation overhead than
+calculating the exact Gibbs block proposal.
+4.1.2 Comparison with Stochastic Inverse MCMC
+Neural block proposals can also be used model-
+specifically by training only a particular model. In
+this subsection, we demonstrate that our method can
+achieve comparable performance with a more com-
+plex task-specific MCMC method, the stochastic inverse
+MCMC [26].
+Figure 5 illustrates the triangle grid network we use in
+this experiment, which is the same as what Stuhlmu?ller
+et al. used in [26]. For our method, we chose the mo-
+tif shown in Figure 6. The underlying MDN, with 161-
+1120-1120-224 network structure, takes in assignments
+of conditioning variables and all relevant CPTs, then out-
+puts a block proposal represented as a mixture of 16 com-
+ponents. The proposal is trained on all instantiations in
+this triangle model using prior samples.
+Stochastic inverse MCMC is an algorithm that builds
+auxiliary data structures offline to speed up inference.
+Given an inference task, it computes and trains an inverse
+graph for each latent variable where the latent variable is
+at the bottom and evidence variables are at top. These
+inverse graphs are then used in MCMC procedures. In
+this experiment, we run stochastic inverse MCMC with
+frequency density estimator trained with posterior sam-
+ples, proposal block size up to 20 and Gibbs proposals
+precomputed following the original approach in [26].
+It is difficult to compare these two methods w.r.t. time.
+While both methods require offline training, stochas-
+Figure 4: Sample runs on three models using single-site
+Gibbs, neural block MCMC, and block Gibbs with true
+conditional. MCMC performance on this task is quite
+sensitive to initialization. For each model, we compute
+10 random initializations and run three algorithms for
+1500s on each initialization. Plots show average error
+across 10 runs of each algorithm. The epochs plots are
+cut off at 500 epochs to better show the comparison be-
+cause true block Gibbs finishes far less epochs than other
+two within given time.
+Figure 5: Small version of the triangle grid model used
+in experiment 4.1.2, with evidence represented as shaded
+nodes at bottom layer. The actual network has 15 layers
+and 120 nodes.
+Figure 6: Motif for the triangle grid model in Figure 5.
+Proposed variables are white, and conditioning variables
+are shaded, which form the Markov blanket. Dashed
+gray arrows show possible but irrelevant dependencies.
+Figure 7: Performance of MCMC algorithms on the tri-
+angle grid model w.r.t. epochs. Each semitransparent line
+represents a single MCMC run. Opaque lines show aver-
+ages over 10 MCMC runs for each algorithm. Numbers
+in parentheses denote the amount of training data.
+tic inverse MCMC needs to train inverse graphs from
+scratch if the set of evidence nodes changes, yet neu-
+ral block MCMC only needs one-time training for dif-
+ferent inference tasks on this model. In this experiment
+setting, for each inference epoch, both methods propose
+about 10.5 values on average per latent variable. Fig-
+ure 7 shows a more meaningful comparison of error w.r.t.
+epochs among single-site Gibbs, neural block MCMC,
+and stochastic inverse MCMC with different amount of
+training data. The learned neural block proposal, trained
+using 104 samples, is able to achieve comparable perfor-
+mance with stochastic inverse MCMC, which is trained
+using 105 samples and builds model-specific data struc-
+ture (inverse graphs).
+M
+v
+µj
+zi
+xi
+. . .
+j = 1, . . . ,m
+i = 1, . . . , n
+. . .
+Figure 8: A Gaussian mixture model with unknown num-
+ber of components M , component means µ, and N ob-
+served points xi with cluster labels zi. We represent the
+open-universe model in truncated form, where each vj
+determines whether the jth cluster is active in the model,
+so that
+?
+j vj = M deterministically.
+4.2 Gaussian Mixture Model with Unknown
+Number of Components
+We next consider open-universe Gaussian mixture mod-
+els (GMMs), in which the number of mixture com-
+ponents is unknown, subject to a prior. Similarly to
+Dirichlet process GMMs, these are typically treated with
+hand-designed, model-specific split-merge MCMC algo-
+rithms.
+Specifically, we study the performance of neural block
+MCMC and split-merge Gibbs on a Gaussian mixture
+model shown in Figure 8. In this setting, n points x =
+{xi}i=1,...,n are observed from the GMM with unknown
+number of active mixtures M ? Unif{1, 2, . . . ,m}.
+Each point comes uniformly randomly from one of the
+M active mixtures. Our task is to infer the posterior
+of mixture means µ = {µj}j=1,...,M , their indicators
+showing whether active or not v = {vj}j=1,...,M , and
+the labels z = {zi}i=1,...,n, where zi is the mixture in-
+dex xi comes from. Formally, the model can be written
+as:
+M ? Unif{1, 2, . . . ,m}
+µj ? N (0, ?2µI) j = 1, . . . ,m
+v|M ? Unif{a ? {0, 1}m :
+?
+j
+aj = M}
+zi|v ? Unif{j : vj = 1} i = 1, . . . , n
+xi|zi,µ ? N (µzi , ?2I) i = 1, . . . , n,
+wherem, n, ?2µ and ?
+2 are model parameters. Notice that
+M is completely dependent of v, so in this experiment,
+we always calculateM =
+?
+j aj instead of samplingM .
+The GMM has many nearly-deterministic relations. For
+example, relations like p(vj = 0, zi = j) = 0 cause
+vanilla single-site Gibbs often stuck in local optima and
+unable to jump across different M values and efficiently
+explore the state space. To solve such issues, split-merge
+MCMC algorithms, such as Restricted Gibbs split-merge
+(RGSM) [10] and Smart-Dumb/Dumb-Smart (SDDS)
+[29], use hand-designed model-specific MCMC moves
+that split and merge mixture components.
+For neural block MCMC framework, it is possible to deal
+with such nearly-deterministic relations with a proposal
+block including all of z, µ and v. However, doing so
+would require a large MDN and a long training time. In-
+stead, we train a proposal q? for two arbitrary mixtures
+(µi, vi) and (µj , vj) conditioned on all other variables
+except z. With z taken out of the input, the proposal is
+able propose values outside local modes. However, we
+still need account for z to be accepted by MH rule. We
+first experiment with the intuitive approach which adds
+a resampling step for z in the proposal. At each pro-
+posal, q? is first used to propose new mixtures µ? and v?,
+and then z is proposed from p(z|µ?,v?,x). While this
+approach gives good performance, it suffers greatly from
+low acceptance ratio as size of z, i.e., number of observed
+points n, grows large.
+Our second attempt involves considering the model with
+z variables collapsed. By ignoring z, the proposal is
+essentially working with this collapsed model. More-
+over, we can think of the inference task as first sam-
+pling µ,v from the collapsed model p(µ,v|x) and then
+sampling z from p(z|µ,v,x). Because the likelihood
+of this particular collapsed model is fairly simple to cal-
+culate, we modify the algorithm such that the proposal
+from q? is accepted or rejected by the MH rule on the
+collapsed model. Afterwards, z is then resampled from
+p(z|µ,v,x). We adopt this approach because that it gen-
+erally leads to better performance, especial with large n.
+In training, we notice that such mixture models have
+symmetries that must be broken before used as input
+to the neural network [20]. In particular, the mixtures
+{(vj , µj)}j can be permuted in m! ways and the points
+{(zi, xi)}i in n! ways. Following a similar procedure as
+in [15], we sort these values according the first principal
+component of x, and also feed the first principal compo-
+nent vector into the MDN. Using prior samples, we train
+a neural block proposal for the mentioned structural mo-
+tif with a MDN of 156-624-624-36 structure and 4 mix-
+ture components in output distribution. In inference, we
+randomly choose two clusters to propose at each time.
+Although our proposal is trained on a GMM with a spe-
+cific number of mixtures m = 8 and number of points
+n = 60, we also experiment applying on GMMs with
+larger m and n by randomly selecting 8 mixtures and 60
+Figure 9: Average log likelihoods of algorithms run on
+200 inference tasks for a total of 600s in various GMMs.
+Figure 10: Trace plots of M over 12 runs from initia-
+tions with different M values on a GMM with m = 12,
+n = 90. Neural block MCMC explores the sample space
+significantly faster than Gibbs with SDDS.
+points for each proposal. Figure 9 shows how the neu-
+ral block MCMC performs on GMM of various sizes,
+comparing against split-merge Gibbs with SDDS. In par-
+ticular, we notice that as model gets larger, Gibbs with
+SDDS mixes more slowly, while neural block MCMC
+still mixes fairly fast and outperforms Gibbs with SDDS.
+Figure 10 shows a trace plot of M for both algorithms
+over multiple runs on the same observation. Gibbs with
+SDDS takes a long time to find a high likelihood expla-
+nation and fails to explore other possible ones efficiently.
+Neural block MCMC, on the other hand, mixes quickly
+among the possible explanations.
+4.3 NER Tagging
+Named entity recognition (NER) is the task of inferring
+named entity tags for words in natural language sen-
+tences. One way to tackle NER is to train a conditional
+random field (CRF) model representing the joint distri-
+bution of tags and word features [17]. In particular, the
+model contains weights between word features and tags
+and high order factors between/among consecutive tags.
+For each test sentence, we can build a chain Markov
+random field (MRF) containing only the tags variables
+using extracted word features and learned CRF model,
+and then apply MCMC methods like single-site Gibbs
+to sample the NER tags. For this experiment, we use
+a dataset of 17494 sentences taken from CoNLL-2003
+Shared Task2. The CRF model is trained with AdaGrad
+[6] through 10 sweeps over the training dataset.
+Our goal is to train good neural block proposals for the
+chain MRFs built for test sentences. In order to experi-
+ment with different block sizes, we train three proposals,
+each for a motif of two, three, or four consecutive pro-
+posed tag variables and their Markov blanket. With each
+proposal, the MDN takes in both the local MRF param-
+eters and assignments of Markov blanket variables, then
+outputs the proposal as a mixture of 4 components. Due
+to the difficulty in generating natural language sentences,
+we reuse the training dataset for CRF model to train neu-
+ral block proposals.
+We then evaluate the learned neural block proposals on
+the previously unseen test dataset of 3453 sentences. Fig-
+ure 11 plots the performance of neural block MCMC and
+single-site Gibbs w.r.t. both time and epochs on the entire
+test dataset. As block size grows larger, learned proposal
+takes more time to mix. But eventually, block propos-
+als generally achieve better performance than single-site
+Gibbs in terms of both F1 scores and log likelihoods.
+Therefore, as shown in the figure, a mixed proposal of
+single-site Gibbs and neural block proposals can achieve
+2http://www.cnts.ua.ac.be/conll2003/
+ner/
+Figure 11: Average F1 score and average log likelihood
+of the MCMC algorithms over entire test dataset. In
+each epoch, all variables in every test MRF is proposed
+roughly once for all algorithms. F1 scores are measured
+using states with highest likelihood seen over Markov
+chain traces. To better show comparison, epoch plots
+are cut off at 500 epochs and time plots at 12850s. Log
+likelihoods shown don’t include normalization constant.
+better mixing without slowing down much. As an in-
+teresting observation, neural block MCMC sometimes
+achieves higher F1 scores even before passing single-site
+Gibbs in log likelihood, implying that log likelihood is at
+best an imperfect proxy for performance on this task.
+5 Conclusion
+This paper proposes and explores the (to our knowl-
+edge) novel idea of training neural nets to approximate
+block Gibbs proposals. Our proposals are trained offline
+and can be applied directly to novel models given only
+a common set of structural motifs. Experiments show
+that the neural block sampling approach can help over-
+come bad local modes comparing with single-site Gibbs
+sampling and achieve comparable performance against
+model-specialized methods.
+In the current stage, our framework requires the user to
+manually detect common structural motifs and choose
+where and how to apply the pretrained block sampler.
+It will be a very interesting direction to investigate, when
+given a library of trained block proposals, how an infer-
+ence system can automatically detect the common struc-
+tural motifs and (adaptively) apply appropriate samplers
+to help convergence for real-world applications.
+References
+[1] Christophe Andrieu, Nando De Freitas, Arnaud Doucet,
+and Michael I Jordan. An introduction to MCMC for ma-
+chine learning. Machine learning, 50(1):5–43, 2003.
+[2] Marcin Andrychowicz, Misha Denil, Sergio Go?mez,
+Matthew W Hoffman, David Pfau, Tom Schaul, and
+Nando de Freitas. Learning to learn by gradient descent
+by gradient descent. In D. D. Lee, M. Sugiyama, U. V.
+Luxburg, I. Guyon, and R. Garnett, editors, Advances in
+Neural Information Processing Systems 29, pages 3981–
+3989. Curran Associates, Inc., 2016.
+[3] Taylor Berg-Kirkpatrick, Jacob Andreas, and Dan Klein.
+Unsupervised transcription of piano music. In Advances
+in neural information processing systems, pages 1538–
+1546, 2014.
+[4] Christopher M Bishop. Mixture density networks. 1994.
+[5] Yuri Burda, Roger Grosse, and Ruslan Salakhutdi-
+nov. Importance weighted autoencoders. arXiv preprint
+arXiv:1509.00519, 2015.
+[6] John Duchi, Elad Hazan, and Yoram Singer. Adaptive
+subgradient methods for online learning and stochastic
+optimization. Journal of Machine Learning Research, 12
+(Jul):2121–2159, 2011.
+[7] Roger Grosse, Ruslan R Salakhutdinov, William T Free-
+man, and Joshua B Tenenbaum. Exploiting composition-
+ality to explore a large space of model structures. In
+28th Conference on Uncertainly in Artificial Intelligence,
+pages 15–17. AUAI Press, 2012.
+[8] Shixiang Gu, Zoubin Ghahramani, and Richard E Turner.
+Neural adaptive sequential Monte Carlo. In Advances
+in Neural Information Processing Systems, pages 2629–
+2637, 2015.
+[9] Nicolas Heess, Daniel Tarlow, and John Winn. Learning
+to pass expectation propagation messages. In Advances
+in Neural Information Processing Systems, pages 3219–
+3227, 2013.
+[10] Sonia Jain and Radford M Neal. A split-merge Markov
+chain Monte Carlo procedure for the Dirichlet process
+mixture model. Journal of Computational and Graphi-
+cal Statistics, 13(1):158–182, 2004.
+[11] Charles Kemp and Joshua B Tenenbaum. The discovery
+of structural form. Proceedings of the National Academy
+of Sciences, 105(31):10687–10692, 2008.
+[12] Diederik P Kingma and Max Welling. Auto-encoding
+variational Bayes. arXiv preprint arXiv:1312.6114, 2013.
+[13] Daphne Koller and Nir Friedman. Probabilistic graphical
+models: principles and techniques. MIT press, 2009.
+[14] Tejas D Kulkarni, Pushmeet Kohli, Joshua B Tenenbaum,
+and Vikash Mansinghka. Picture: A probabilistic pro-
+gramming language for scene perception. In Proceed-
+ings of the ieee conference on computer vision and pat-
+tern recognition, pages 4390–4399, 2015.
+[15] Tuan Anh Le, Atlm Gne Baydin, and Frank Wood. Infer-
+ence Compilation and Universal Probabilistic Program-
+ming. In 20th International Conference on Artificial Intel-
+ligence and Statistics, Fort Lauderdale, FL, USA, 2017.
+[16] Ke Li and Jitendra Malik. Learning to optimize neural
+nets. arXiv preprint arXiv:1703.00441, 2017.
+[17] Percy Liang, Hal Daume? III, and Dan Klein. Struc-
+ture compilation: trading structure for features. In Pro-
+ceedings of the 25th international conference on Machine
+learning, pages 592–599. ACM, 2008.
+[18] Robert Mateescu, Kalev Kask, Vibhav Gogate, and Rina
+Dechter. Join-graph propagation algorithms. Journal of
+Artificial Intelligence Research, 37(1):279–328, 2010.
+[19] David A. Moore and Stuart J. Russell. Signal-based
+Bayesian seismic monitoring. Artificial Intelligence and
+Statistics (AISTATS), April 2017.
+[20] Robert Nishihara, Thomas Minka, and Daniel Tarlow.
+Detecting parameter symmetries in probabilistic models.
+arXiv preprint arXiv:1312.5386, 2013.
+[21] B. Paige and F. Wood. Inference networks for sequen-
+tial Monte Carlo in graphical models. In Proceedings of
+the 33rd International Conference on Machine Learning,
+volume 48 of JMLR, 2016.
+[22] Daniel Ritchie, Anna Thomas, Pat Hanrahan, and Noah
+Goodman. Neurally-guided procedural models: Amor-
+tized inference for procedural graphics programs using
+neural networks. In D. D. Lee, M. Sugiyama, U. V.
+Luxburg, I. Guyon, and R. Garnett, editors, Advances in
+Neural Information Processing Systems 29, pages 622–
+630. Curran Associates, Inc., 2016.
+[23] Stephane Ross, Daniel Munoz, Martial Hebert, and J An-
+drew Bagnell. Learning message-passing inference ma-
+chines for structured prediction. In Computer Vision and
+Pattern Recognition (CVPR), 2011 IEEE Conference on,
+pages 2737–2744. IEEE, 2011.
+[24] David J Spiegelhalter, Andrew Thomas, Nicky G Best,
+Wally Gilks, and D Lunn. BUGS: Bayesian inference us-
+ing Gibbs sampling. Version 0.5,(version ii) http://www.
+mrc-bsu. cam. ac. uk/bugs, 19, 1996.
+[25] David H Stern, Ralf Herbrich, and Thore Graepel. Match-
+box: large scale online Bayesian recommendations. In
+Proceedings of the 18th international conference on
+World wide web, pages 111–120. ACM, 2009.
+[26] Andreas Stuhlmu?ller, Jacob Taylor, and Noah Goodman.
+Learning stochastic inverses. In Neural Information Pro-
+cessing Systems, 2013.
+[27] Daniel Turek, Perry de Valpine, Christopher J Paciorek,
+Clifford Anderson-Bergman, et al. Automated parame-
+ter blocking for efficient Markov chain Monte Carlo sam-
+pling. Bayesian Analysis, 2016.
+[28] Deepak Venugopal and Vibhav Gogate. Dynamic block-
+ing and collapsing for Gibbs sampling. In Uncertainty in
+Artificial Intelligence, page 664. Citeseer, 2013.
+[29] Wei Wang and Stuart J Russell. A smart-dumb/dumb-
+smart algorithm for efficient split-merge MCMC. In UAI,
+pages 902–911, 2015.

@@ -1,0 +1,294 @@
+JMLR: Workshop and Conference Proceedings 1:1–8, 2017 ICML 2017 AutoML Workshop
+Dynamic Input Structure and Network Assembly
+for Few-Shot Learning
+Nathan Hilliard nathan.hilliard@pnnl.gov
+Seattle, WA. 98109.
+Nathan O. Hodas nathan.hodas@pnnl.gov
+Courtney D. Corley court@pnnl.gov
+Richland, WA. 99352.
+Abstract
+The ability to learn from a small number of examples has been a difficult problem in machine
+learning since its inception. While methods have succeeded with large amounts of training
+data, research has been underway in how to accomplish similar performance with fewer
+examples, known as one-shot or more generally few-shot learning. This technique has been
+shown to have promising performance, but in practice requires fixed-size inputs making
+it impractical for production systems where class sizes can vary. This impedes training
+and the final utility of few-shot learning systems. This paper describes an approach to
+constructing and training a network that can handle arbitrary example sizes dynamically
+as the system is used.
+Keywords: dynamic input sizing, few-shot learning, deep learning
+1. Introduction
+Few-shot learning aims to alleviate the difficulty of learning a classifier from few examples
+– or even a single example. Traditional classification learns from hundreds or thousands of
+examples of per class. Instead of hoping to learn a classifier that can look at an input and
+classify it directly, a more robust technique is to provide the network with examples of each
+class and have it explicitly compare the input to each of the reference objects in each class.
+This typically takes the form of learning representations for both the reference examples you
+show the network as well as the query input that you are ultimately classifying. Something
+of a similarity metric between the representations is then either learned as described by
+Triantafillou et al. (2017) or an out-of-the-box technique is used more explicitly, as in
+Vinyals et al. (2016). The reference class with the highest similarity metric to the query
+image would be the label.
+However, a practical concern is that the networks generally require all inputs to have
+the same number of examples per reference class. This is largely unrealistic and unworkable
+for production systems. Each reference class could have a different number of images (for
+example, a dynamic number of images for each family member in a facial recognition sys-
+tem.) Dynamic input sizing remains a challenging problem for high performance techniques
+that utilize statically compiled graphs, such as Tensorflow and Caffe. Clever workarounds
+have thusly been developed for different learning tasks, such as masking in sequence-based
+learning where sequences of varied length are padded to a fixed length. The network learns
+c© 2017 N. Hilliard, N.O. Hodas & C.D. Corley.
+ar
+X
+iv
+:1
+70
+8.
+06
+81
+9v
+1 
+ [
+cs
+.L
+G
+] 
+ 2
+2 
+A
+ug
+ 2
+01
+7
+Dynamic Input Structure and Network Assembly for Few-Shot Learning
+to monitor for the padding, and it can act accordingly, allowing for variable length sequences
+to utilize the same network inputs. However, it must explicitly learn to ignore the padding,
+placing an extra burden on the training process.
+Our contribution in this paper is a novel technique for a system that leverages dynamic
+network assembly using shared weights to provide batch-wise size agnosticism in a static
+graph, meaning the example size changes from batch to batch. We additionally describe a
+training regimen that can be used to train the network to generalize and maintain similar
+performance across example sizes. We demonstrate the architecture’s effectiveness on a
+1-way classification benchmark and compare against fixed-size networks. We show that
+our contribution produces significantly higher performance on test tasks than a traditional
+static class-size approach.
+2. Related Work
+Since its inception, few-shot learning techniques have been implemented with a variety of
+architectures and components. For example, Vinyals et al. (2016) implemented one such
+network using memory augmentation with attention. This builds on advances made by other
+few-shot systems such as the one developed by Koch (2015) which used a siamese network
+with two convolutional tails achieving good performance on the omniglot dataset by Lake
+et al. (2015). Other architectures such as pairwise networks demonstrated by Mehrotra and
+Dukkipati (2017) have been used successfully as well. Additionally, researchers have also
+looked at meta-learning regimes for training few-shot learning networks such as in Ravi
+and Larochelle (2016). The goal being to train an LSTM that can provide updates to the
+network weights to a network during a few-shot training regimen.
+Other tools for developing neural networks such as Chainer1 and PyTorch2, which both
+use dynamic graph construction can also be used to address this problem. However, these
+tools are primarily for research and not production (although not impossible). Our ap-
+proach differs in that we define a straightforward and useful way to reuse the weights in
+statically compiled graphs with a more production-ready library such as TensorFlow (Abadi
+et al. (2015)), giving us boosts in predictive accuracy as well as utility in production-grade
+applications.
+3. Methods
+3.1. Architecture
+We have a siamese two-stage network architecture where the first stage is based on work
+done by Koch (2015) that leverages pairwise relational style networks most similar to work
+done by Santoro et al. (2017) but also similar to Mehrotra and Dukkipati (2017). The
+second stage of the network focuses on learning an internal distance metric, similar to
+metric learning as in Bellet et al. (2013).
+To reduce dimensionality of our inputs and bootstrap our network, we use transfer
+learning described by Bengio et al. (2011). Specifically, we extract features from the layer
+prior to the final classification layer from the residual network described in He et al. (2015),
+1. https://github.com/chainer/chainer
+2. https://github.com/pytorch/pytorch
+2
+Dynamic Input Structure and Network Assembly for Few-Shot Learning
+Figure 1: Our architecture, where g? and f? are both siamese networks. For simplicity, we
+represent cn and q as images and omit the feature extraction step.
+this yields a vector of size 2048 in place of each image. This also has several added benefits,
+namely we offload much of the feature learning to pre-trained networks. Consequently, we
+then are able to instead focus each stage of our network on separate tasks. Our architecture
+is similar to the work done by Koch (2015) except our image features are extracted rather
+than learned. A diagram visually describing our network can be seen in Figure 1.
+3.1.1. Relational Stage
+First and foremost, we have a pairwise relational network R that takes in a class c with n
+examples cn. R outputs a class embedding representing the set of examples {ci}N .
+Ultimately, R can be described as a function of the unique pairs (or combinations) in
+cn:
+R(cn) =
+1(
+n
+2
+) (cn2 )?
+ci,cj
+g?(ci, cj) (1)
+Where g is a neural network parameterized by ?, and ci, cj are the embeddings of i-th and
+j-th members of class c where i 6= j. The c-embeddings could be provided by a pre-trained
+network or learned end-to-end. It’s important to note that while we use a similar pairwise
+comparison such as that used by Santoro et al. (2017), we crucially take the average vector
+from the resulting comparisons g?(ci, cj) instead of the sum of the comparisons. Averaging
+helps to enforce that the characteristic embedding of the class should not be explicitly
+related to the class size. As such, we can use Equation 1 to learn an embedding describing
+that the class be explicitly considering the relationships between members of the class.
+3
+Dynamic Input Structure and Network Assembly for Few-Shot Learning
+3.1.2. Metric Stage
+The second stage network focuses on learning a distance metric between the query image q
+and the given class described by the output of R(cn). Because the second stage and first
+stage are connected, we can learn better class embeddings via backpropogation. In essence,
+this stage learns the probability that q ? cn.
+We describe the second stage network as P , defined as:
+P (q,R(cn)) = f?(q,R(cn)). (2)
+Where f is another neural network parameterized by ?.
+3.2. Dynamic Assembly
+Algorithm 1: Dynamic Assembly for Training & Inferring on New Example Sizes
+Given an input number of examples n, a feature vector size sv
+1. initialize a list v
+2. initialize an input tensor inputc of size [n, sv]
+3. initialize an input tensor inputq of size [sv]
+4. for each unique combination of indices i, j ?
+(
+n
+2
+)
+, i 6= j:
+5. Create a new instance of g with shared weights ? i.e. g?(inputc[i], inputc[j]),
+store the resulting output tensor in v.
+6. store the concatenation of v in an intermediary tensor concatv.
+7. store the element-wise average of concatv in an intermediary tensor avgv.
+8. connect avgv and inputq to a new instance of f reusing weights ? i.e. f?(inputq, avgv)
+9. return inputc, inputq, and f?(inputq, avgv)
+Because the reduction step in Equation 1 gives us a fixed sized vector, regardless of class
+size, we can use an arbitrary class size in the first stage. We recreate g? for as many unique
+pairs that exist in c dynamically, this is exemplified in Step 5 of Algorithm 1. The result
+is that we ultimately only need to create intermediary operations between learned weights
+to accommodate new example sizes. These operations along with an input for q are then
+finally wired to f? in Equation 2 to complete the model creation.
+Though we ultimately incur an overhead cost for creating these operations, it outweighs
+deployment cost of training separate networks for each example size and either storing them
+in memory simultaneously or swapping models every time class sizes change. By storing the
+resulting input and output tensors from the creation, we can create an in-memory lookup
+table indexed by example size for each model based on the result of Step 9 in Algorithm 1.
+This can then be easily incorporated in the batching step where the batcher is fed multiple
+4
+Dynamic Input Structure and Network Assembly for Few-Shot Learning
+Training Class size: 2 3 4 5
+2-shot Network 62.3% 62.5% 62.7% 62.7%
+3-shot Network 66.9% 67.1% 67.1% 67.2%
+4-shot Network 71.9% 72.2% 72.3% 72.3%
+5-shot Network 74.3% 74.4% 74.5% 74.7%
+Dynamic Input 89.7% 90% 90.1% 90.3%
+Table 1: 1-way Classification Results on the Caltech-UCSD Birds Dataset. Our experiments
+show fixed-size model performance on other example sizes in order to demonstrate
+how well they generalize. We create separate class sizes reusing the networks
+g? and f? that were trained on the fixed examples to evaluate the models on
+larger/smaller example sizes.
+classes each with varying example counts and returns that information in each batch so the
+appropriate inputs are used.
+4. Experiments
+4.1. Experimental Design
+Our experiments were carried out by training the models end-to-end. The baseline models
+are simply the same network trained on a fixed example size of training data whereas the
+dynamic input model was trained on varied example counts batch-to-batch.
+For both cases, we trained via stochastic gradient descent with momentum with a learn-
+ing rate of ? = 0.001 and momentum µ = 0.9 with a batch size of 128. We used a final
+output layer with two units prior to a softmax activation function to determine whether
+q ? cn for a straightforward 1-way problem.
+4.2. Caltech-UCSD Birds
+Each model was trained on the same task using a dataset consisting of portions of the
+Caltech 256 and Visual Genome datasets developed by Griffin et al. (2007); Krishna et al.
+(2016). Similarly as mentioned earlier, for the feature extraction step for this experiment, we
+used the residual network built by He et al. (2015). We evaluate the models on a fine-grained
+unrelated classification task, the Caltech-UCSD Birds dataset described by Welinder et al.
+(2010). In order to train the dynamic model to better generalize across class sizes, we feed
+it random example sizes each batch. More concisely, the first batch could contain 2-shot
+data with the next batch containing 5-shot data, and so on. An indirect, yet important,
+contribution of this work is the observation that randomly changing class sizes significantly
+reduces overfitting.
+In our experiments we consider baselines using the same architecture which are trained
+on a fixed example size. Each model in Table 1 was trained with the same number of training
+steps. As is shown by the table, our technique far out-performs networks trained on fixed
+example sizes. The results show that even when trained on small example counts, when
+5
+Dynamic Input Structure and Network Assembly for Few-Shot Learning
+Training Class size: 2 3 4 5
+2-shot Network 52.2% 52.4% 52.5% 52.5%
+3-shot Network 80.5% 81.4% 81.6% 81.8%
+4-shot Network 82.3% 84% 84.5% 84.8%
+5-shot Network 82.8% 84.4% 85.2% 85.7%
+Dynamic Input 83.1% 84.9% 85.8% 86.2%
+Table 2: 1-way Classification Results on the Omniglot dataset.
+evaluating on higher example counts performance improves. This is largely unsurprising,
+the more examples you show the network the better it should perform in general. Networks
+trained on higher example counts outperforming networks trained on lower example counts
+is also an unsurprising result. This is likely due in large part to the element-wise mean
+operation we use. As example counts get higher the resulting class vector should get sharper,
+making it easier for the network to make a distinction between it and the query image.
+4.3. Omniglot
+For the Omniglot dataset (Lake et al. (2015)), we use a very simple network trained on
+MNIST digits as our feature extractor as opposed to ResNet. All other experimental pa-
+rameters are kept the same as that of the Caltech-Birds experiment except that we use
+Nesterov momentum instead of classic momentum as described by Sutskever et al. (2013).
+Our model performs better than the baselines on this task by a narrower margin as can be
+seen in Table 2.
+5. Conclusion
+In this paper we presented a technique for bringing few-shot learning into the dynamic
+setting necessary for production applications. By generalizing a network to multiple example
+sizes, a single network can perform few-shot classification on varied example sizes at runtime
+with a comparatively minimal overhead incurred. We demonstrate that our dynamic model
+can perform much better than its fixed-size counterparts on a fine-grained task unseen
+during training time.
+6
+Dynamic Input Structure and Network Assembly for Few-Shot Learning
+References
+Mart??n Abadi, Ashish Agarwal, Paul Barham, Eugene Brevdo, Zhifeng Chen, Craig Citro,
+Greg S. Corrado, Andy Davis, Jeffrey Dean, Matthieu Devin, Sanjay Ghemawat, Ian
+Goodfellow, Andrew Harp, Geoffrey Irving, Michael Isard, Yangqing Jia, Rafal Jozefow-
+icz, Lukasz Kaiser, Manjunath Kudlur, Josh Levenberg, Dan Mane?, Rajat Monga, Sherry
+Moore, Derek Murray, Chris Olah, Mike Schuster, Jonathon Shlens, Benoit Steiner, Ilya
+Sutskever, Kunal Talwar, Paul Tucker, Vincent Vanhoucke, Vijay Vasudevan, Fernanda
+Vie?gas, Oriol Vinyals, Pete Warden, Martin Wattenberg, Martin Wicke, Yuan Yu, and
+Xiaoqiang Zheng. TensorFlow: Large-scale machine learning on heterogeneous systems,
+2015. URL http://tensorflow.org/. Software available from tensorflow.org.
+Aure?lien Bellet, Amaury Habrard, and Marc Sebban. A survey on metric learning for
+feature vectors and structured data. CoRR, abs/1306.6709, 2013. URL http://arxiv.
+org/abs/1306.6709.
+Yoshua Bengio et al. Deep learning of representations for unsupervised and transfer learning.
+JMLR W&CP: Proc. Unsupervised and Transfer Learning, 2011.
+G. Griffin, A. Holub, and P. Perona. Caltech-256 object category dataset. Technical Report
+7694, California Institute of Technology, 2007. URL http://authors.library.caltech.
+edu/7694.
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image
+recognition. CoRR, abs/1512.03385, 2015. URL http://arxiv.org/abs/1512.03385.
+Gregory Koch. Siamese neural networks for one-shot image recognition. PhD thesis, Uni-
+versity of Toronto, 2015.
+Ranjay Krishna, Yuke Zhu, Oliver Groth, Justin Johnson, Kenji Hata, Joshua Kravitz,
+Stephanie Chen, Yannis Kalanditis, Li-Jia Li, David A Shamma, Michael Bernstein, and
+Li Fei-Fei. Visual genome: Connecting language and vision using crowdsourced dense
+image annotations. 2016.
+Brenden M. Lake, Ruslan Salakhutdinov, and Joshua B. Tenenbaum. Human-level concept
+learning through probabilistic program induction. Science, 350(6266):1332–1338, 2015.
+ISSN 0036-8075. doi: 10.1126/science.aab3050. URL http://science.sciencemag.
+org/content/350/6266/1332.
+Akshay Mehrotra and Ambedkar Dukkipati. Generative adversarial residual pairwise net-
+works for one shot learning. CoRR, abs/1703.08033, 2017. URL http://arxiv.org/
+abs/1703.08033.
+Sachin Ravi and Hugo Larochelle. Optimization as a model for few-shot learning. 2016.
+A. Santoro, D. Raposo, D. G. T. Barrett, M. Malinowski, R. Pascanu, P. Battaglia, and
+T. Lillicrap. A simple neural network module for relational reasoning. ArXiv pre-prints
+arXiv:1706.01427, June 2017.
+7
+Dynamic Input Structure and Network Assembly for Few-Shot Learning
+Ilya Sutskever, James Martens, George Dahl, and Geoffrey Hinton. On the importance of
+initialization and momentum in deep learning. In International conference on machine
+learning, pages 1139–1147, 2013.
+E. Triantafillou, R. Zemel, and R. Urtasun. Few-Shot Learning Through an Information
+Retrieval Lens. ArXiv e-prints, July 2017.
+Oriol Vinyals, Charles Blundell, Timothy P. Lillicrap, Koray Kavukcuoglu, and Daan Wier-
+stra. Matching networks for one shot learning. CoRR, abs/1606.04080, 2016. URL
+http://arxiv.org/abs/1606.04080.
+P. Welinder, S. Branson, T. Mita, C. Wah, F. Schroff, S. Belongie, and P. Perona. Caltech-
+UCSD Birds 200. Technical Report CNS-TR-2010-001, California Institute of Technology,
+2010.
+8

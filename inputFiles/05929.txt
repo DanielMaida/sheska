@@ -1,0 +1,1310 @@
+X-PACS: eXPlaining Anomalies by Characterizing Subspaces
+Meghanath Macha
+Carnegie Mellon University
+H. John Heinz III College
+meghanam@andrew.cmu.edu
+Leman Akoglu
+Carnegie Mellon University
+H. John Heinz III College
+lakoglu@cs.cmu.edu
+Abstract—Anomaly detection has numerous critical applica-
+tions in finance, security, etc. and has been vastly studied. In
+this paper, we tap into a gap in the literature and consider
+a complementary problem: anomaly description. Interpretation
+of anomalies has important implications for decision makers,
+from being able to troubleshoot and prioritize their actions to
+making policy changes for prevention. We present a new method
+called X-PACS which “reverse-engineers” the known anomalies
+in a dataset by identifying a few anomalous patterns that they
+form along with the characterizing subspace of features that
+separates them from normal instances. From a descriptive data
+mining perspective, our solution has five key desired properties.
+It can unearth anomalous patterns (i) of multiple different types,
+(ii) hidden in arbitrary subspaces of a high dimensional space,
+(iii) interpretable by the end-users, (iv) succinct, providing the
+shortest data description, and finally (v) different from normal
+patterns of the data. There is no existing work on anomaly
+description that satisfy all of these desiderata simultaneously.
+While not our primary goal, anomalous patterns X-PACS finds
+can further be seen as multiple, interpretable ‘signatures’ and
+can be used for detection. We show the effectiveness of X-PACS in
+explanation as well as detection tasks on 9 real-world datasets.
+I. INTRODUCTION
+Given a large dataset containing both normal as well
+as labeled anomalous points, how can we characterize the
+anomalies? What combination of features and feature values
+make the anomalies stand out from the rest? Are there anoma-
+lous patterns, that is, do anomalies form groups? How many
+different types or patterns of anomalies are there, and how can
+we succinctly describe them?
+Anomaly mining is important for numerous applications,
+in finance, cybersecurity, surveillance, etc., for which many
+detection methods exist [1]. In this paper, we consider a
+complementary problem to this vast body of work—the prob-
+lem of anomaly description. Simply put, we aim to find
+human-interpretable descriptions or explanations to already
+identified anomalies. Our goal is “reverse-engineering” the
+known anomalies by unearthing their characteristics.
+Our problem setting arises in a variety of scenarios. At
+a high-level, these scenarios are ones in which we obtain a
+dataset with labeled anomalies, albeit no description of the
+anomalies that could facilitate their interpretation by the end-
+users. Some concrete examples are: (i) when the detection
+algorithm is a ‘black-box’ and only provides labels, due to
+intellectual property or security reasons (e.g., Yelp’s review
+filter [2]), (ii) when the detection algorithm does not pro-
+duce an interpretable output and/or cannot explicitly identify
+anomalous patterns (e.g., ensemble detectors [3], [4]), and
+finally (iii) when the anomalies are identified via external
+mechanisms (e.g., when software crash, some loan customers
+default, some credit card transactions are reported by card
+owners as fraudulent, etc.). The third setting also arises when
+security experts set up ‘honeypots’ to attract malicious users,
+and later study their operating mechanisms (often manually).
+Example anomalies identified this way include fake followers
+of honeypot Twitter accounts [5] and fraudulent bot-accounts
+that click honeypot ads [6].
+Providing explanations for anomalies is extremely useful in
+practice as the end-users are most often humans. Interpretation
+of the anomalies could help the data analyst in troubleshooting
+or treating the anomalies, in decision making (e.g., prioritizing
+their actions), and help them build better prevention mecha-
+nisms (e.g., policy changes).
+In this work, we tap into the gap between anomaly detection
+and its end usage by practitioners, and propose X-PACS for
+characterizing the anomalies in high-dimensional datasets. We
+think of anomalies to be composed of various patterns (i.e.,
+sets of similar anomalies) as well as outliers (i.e., anomalies
+different from the rest). For example in fraud, malicious agents
+that follow similar strategies, or those who work together
+in ‘coalition’, exhibit similar properties and form anomalous
+patterns. At the same time, there may be multiple groups of
+fraudsters with different strategies or indiviuals who are each
+different in their own way.
+To lay out the challenges from a data mining perspective,
+we first introduce a list of desired properties (Desiderata 1–5)
+that an approach to the problem of characterizing anomalies
+in a dataset should satisfy.
+A. Desiderata for explaining anomalies
+D1 identifying Different types of anomalies: Anomalies
+are generated by mechanisms other than the normal. Since
+such mechanisms can vary (e.g., different fraud schemes), it is
+likely for the anomalies to form multiple patterns in potentially
+different feature subspaces. An algorithm should be able to
+identify all types of patterns.
+D2 handling high-Dimensionality: Typically data in-
+stances may have tens or even hundreds of features. It is more
+meaningful to assume that the anomalies that form a pattern to
+exhibit only a (small) fraction of features in common. In other
+words, anomalies are likely to “hide” in sparse subspaces of
+the full space.
+D3 interpretable Descriptions: It is critical that the ex-
+planation of the anomalies can be easily understood by end-
+ar
+X
+iv
+:1
+70
+8.
+05
+92
+9v
+1 
+ [
+cs
+.L
+G
+] 
+ 2
+0 
+A
+ug
+ 2
+01
+7
+0
+950
+1900
+2000
+0 1 5
+Number of anomaly patterns
+D
+es
+cr
+ip
+tio
+n 
+of
+ co
+st 
+(in
+ b
+its
+)
+4000
+8000
+12000
+16000
+Cost
+475
+1425
+20000
+2 3 4
+88.53%
+reduction
+(a) anomalies [1–9] + typical normal [10] (b) X-PACS packing (2 patterns) (c) description cost vs. # packs
+Fig. 1. (best in color) Example X-PACS input–output. (a) A face images dataset (pixels are dimensions/features), which contains 9 labeled ‘anomalies’:
+[images 1–8] of 2 types (people w/ sunglasses or people w/ white t-shirt or both) + [image 9] an outlier (one person w/ beard). We also show [image 10],
+which is representative of 82 normal samples (people w/ black t-shirt w/out beard or sunglasses). (b) Anomalous patterns found by X-PACS (characterizing
+subspaces are 1-d, range of values shown in bottom–the lower the darker the pixel) together explain anomalies 1–8 succinctly; 1-d pack (left) encloses 1–6,
+1-d pack (right) encloses {1,2,5,7,8}. Corresponding features/pixels highlighted on enclosed images (best in color). (c) Description length (in bits, see §IV-C1)
+of anomalies individually (0 packs), vs. w/ 1–4 packs. X-PACS automatically finds the number of anomalous patterns (=2) and reveals the (unpacked) outlier.
+users. In other words, descriptions should convey what makes
+an instance anomalous in a human-interpretable way.
+D4 succinct Descriptions: It is particularly important to
+have simple and concise representations, for ease of visualiza-
+tion and avoiding information overload.
+D5 Discriminative power: Explanations for the anomalies
+should not be also valid for the normal points. Anomalous
+patterns should be discriminative and separate the anomalies
+from the normal points sufficiently well.
+B. Overview and summary of contributions
+Providing interpretable explanations for anomalies is a new
+area of study relative to anomaly detection. As we discuss
+in the next section, there are no existing work that provide a
+principled and general approach to this problem and that meet
+all of the above goals adequately.
+Our work sets out to fill the gap. In a nutshell, our
+goal is to identify a few, small micro-clusters of anomalies
+hidden in arbitrary feature subspaces that collectively and yet
+succinctly represent the anomalies and separate them from
+the rest. Specifically, our proposed algorithm X-PACS finds
+a small set of low-dimensional hyper-ellipsoids (i.e., micro-
+clusters corresponding to anomalous patterns each enclosing
+a subset of the anomalies), and reveals individual anomalies
+(i.e., outliers not contained in any ellipsoid). Features that are
+part of the subspace in which a hyper-ellipsoid lies constitute
+its characterizing subspace. Ranges of values these features
+take are further characterized by the location (center and radii)
+of a hyper-ellipsoid within the subspace. We think of each
+hyper-ellipsoid as a “pack of anomalies”; hence the name X-
+PACS.1 In text, we use ‘hyper-ellipsoid’, ‘anomalous pattern’,
+and ‘pack’ interchangeably.
+X-PACS consists of three main steps, each aiming to meet
+various criteria in our desiderata.
+1) First step is data partitioning via subspace clustering,
+where we automatically identify multiple clusters of
+anomalies (#D1) embedded in various feature subspaces.
+1X- in the name refers to the (automatically-identified) number of packs.
+We use this naming convention after X-MEANS [7], which also automatically
+finds the number of clusters in an information theoretic way.
+Advantages of subspaces are two-fold: handling “curse
+of dimensionality” (#D2) and explaining each pattern
+with only a few features (#D4).
+2) In the second step, we represent anomalies in each
+subspace cluster by an axis-aligned hyper-ellipsoid. El-
+lipsoids, in contrast to hyperballs, allow for varying
+spread of anomalies in each dimension. Axis-alignment
+ensures interpretable explanation with original features,
+which typically have real meaning to a user (#D3).
+Moreover, we introduce a convex formulation to ensure
+that the ellipsoids are “pure” and enclose very few non-
+anomalous points, if at all, such that the characterization
+is discriminative (#D5).
+3) Final step is summarization, where we strive to generate
+minimal descriptions for ease of comprehension (#D4).
+To decide which patterns describe the anomalies most
+succinctly, we introduce an encoding scheme based on
+the Minimum Description Length (MDL) principle [8].
+Our encoding-based objective lends itself to nonnegative
+submodular function maximization. Using algorithms
+with approximation guarantees we identify a short list
+of patterns (hyper-ellipsoids) that are (i) compact with
+small radii, i.e., range of values that anomalies take
+per feature in the characterizing subspace is narrow;
+(ii) non-redundant, which “pack” (i.e., enclose) mostly
+different anomalies in various subspaces, and (iii) pure,
+which enclose either no or only a few non-anomalous
+points. Importantly, the necessary number of packs is
+automatically identified based on the MDL criterion.
+As an example, consider Fig. 1 where we show a dataset
+of face images, in which X-PACS identifies a minimum-
+description packing with two anomalous patterns and an
+outlier (see caption for details).
+Finally, we note that while X-PACS aims to identify de-
+scriptive patterns of the anomalies, it can also be used for
+detection. Each pattern, along with its characterizing features
+and its enclosing boundary within that subspace can be seen
+as a signature (or rule), and can be used to label future
+instances—a new instance that falls within any of the packs is
+labeled as anomalous. Instead of a single signature or an ab-
+stract classifier function or model, however, X-PACS identifies
+multiple, interpretable signatures.
+We briefly describe related work in §II followed by the
+formal definition of the problem in §III. §IV is the heart of
+the paper where we present X-PACS. We show effectiveness
+in both explanation and detection in §V and conclude in §VI.
+II. RELATED WORK
+Related areas of study include outlier explanation, subspace
+clustering, data description and rare class discovery.
+There is a long list of work on subspace clustering [9],
+[10], [11], [12], [13] (see [14], [15] for a review) that aim
+to find high-density clusters in feature subspaces. However,
+they do not work with labeled data nor focus on minimal
+clustering or description. Some methods are projection based
+that work in transformed feature spaces [16], [17]. As such,
+all subspace clustering methods lack discrimination and some
+also interpretability.
+There is also related work on data description [18], [19]
+and rare class characterization [20], [21]. These are designed
+for labeled data, but they assume all points cluster in a single
+hyperball, and with the exception of [21], work in the full
+space. As such, they cannot handle curse-of-dimensionality
+nor multiple clusters embedded in different subspaces.
+Most related to ours is work on outlier explanation. The
+seminal work [22] aims to identify, per outlier, the minimal
+subspaces in which it deviates. To find the optimal subset of
+features that differentiate the outliers from normal points, [23]
+formulates a constraint programming problem and [24] takes a
+subspace search route. Similarly, [25], [26], [27] aim to explain
+one outlier at a time by features that participate in projection
+directions that maximally separate them from normal points.
+All existing work in this area assume the outliers are scattered.
+Therefore, their focus is on explaining outliers individually
+rather than in groups, as such, they cannot identify anomalous
+patterns. Moreover, most of them do not explicitly focus on
+shortest description, let alone in a principled, information-
+theoretic way as in this work.
+All in all, no existing related method provides all of 1)
+multiple data descriptions, 2) in characterizing subspaces, 3)
+using interpretable features, 4) yielding shortest description,
+that 5) discriminates anomalies from normal points.
+III. PROBLEM STATEMENT
+We next introduce notation and the new definitions more
+formally and then give the formal problem statement.
+Simply put, given a dataset D with m points in d-
+dimensions, each represented with F features, and a subset
+A ? D of which are labeled as ‘anomalous’, we aim to find
+“enclosing shapes”, called packs, that collectively contain as
+many of the anomalies as possible. While arbitrary shapes
+would allow for higher flexibility, we restrict these shapes
+to the hyper-ellipsoids family for ease of interpretation. This
+is not a strong limitation, however, since anomalous patterns
+are expected to form compact micro-clusters in some feature
+subspaces, rather than lie on arbitrarily shaped manifolds. A
+pack is formally defined as follows.
+Definition 1 (pack): A pack pk is a hyper-ellipsoid in a
+feature subspace Fk ? F , |Fk| = dk, characterized by its
+center ck ? Rdk and matrix Mk ? Rdk×dk where
+p(ck,Mk) = {x| (x? ck)TM?1k (x? ck) ? 1} .
+We denote the anomalies that pk encloses by Ak ? A, and
+the normal points it encloses by Nk ? N .
+A packing P is then a collection of packs as defined above;
+P = {p1(c1,M1), . . . , pK(cK ,MK)}.
+Based on the above, our problem is formally stated as:
+Problem 1: Given a dataset D ? Rm×d with set of features
+F , |F | = d, which consists of a anomalous points A and n
+non-anomalous or normal points N , a n, m = a+ n, and
+A ?N = D;
+Find a set of anomalous patterns (packs) P =
+{p1, p2, . . . , pK}, each containing/enclosing a subset of the
+anomalies Ak, where
+?
+1?k?K Ak ? A,
+such that P provides the minimum description length
+L(P,A|D) (in bits) for the anomalies in the data. (We in-
+troduce our MDL-based encoding scheme and cost function
+L(·) later in §IV-C.)
+Note that while packs enclose different subsets of anoma-
+lies in general, any two packs can have some anomalous
+points in common (since an anomaly can be explained in
+different ways), i.e., Ak ? Al 6= ? ?k, l. Packs can also
+share common features in their subspaces (as different types
+of anomalies may share some common characteristics), i.e.,
+Fk ? Fl 6= ? ?k, l. Moreover, the enclosing boundary of a
+pack may also contain non-anomalous points. These issues
+related to the redundancy and purity of the packs would play
+a key role in the “description cost” of the anomalies. When
+it comes to identifying a small set out of a list of candidate
+packs, we formulate an encoding scheme as a guiding principle
+to selecting the smallest, least redundant, and the purest
+collection of packs that would yield the shortest description
+of all the anomalies.
+IV. PROPOSED METHOD X-PACS
+Our anomaly description approach X-PACS consists of the
+following steps:
+§A. Data Partitioning by Subspace Clustering: Identifying
+clusters of anomalies in various subspaces
+§B. Refinement: Transforming box-shaped subspace clusters
+to pure and compact hyper-ellipsoids (or packs)
+§C. Summarization: Selecting subset of packs that yields the
+minimum description length for the anomalies
+We present our algorithms for each of these steps next.
+A. Subspace Clustering: Finding Hyper-rectangles
+In our formulation, we allow for anomalies to form multiple
+patterns, intuitively each containing anomalies of a different
+kind. We think of anomalous patterns as compact “micro-
+clusters” in various feature subspaces.
+In the first step, we use a subspace clustering algorithm,
+similar to CLIQUE [9] and ENCLUS [10] that discover
+subspaces with high-density clusters in a bottom-up, Apriori
+fashion. There are two main differences that we introduce.
+First, while those techniques focus on a density (minimum
+count or mass) criterion, we use two criteria: (i) mass and
+(ii) purity, in order to find clusters that respectively contain
+many anomalous points, but also a low number of normal
+points. Second, we do not enforce a strict grid over the features
+but find varying-length high-density intervals through density
+estimation in a data-driven way.
+Simply put, the search algorithm starts with identifying 1-
+dimensional intervals in each feature that meets a certain mass
+threshold. These intervals are then combined to generate can-
+didates of 2-dimensional rectangles. In general, k-dimensional
+hyper-rectangles are generated by merging (k?1)-dimensional
+ones that meet the mass criterion in a hierarchical fashion.
+Thanks to the monotonicity property of the mass criterion, the
+search space can be pruned effectively. Hyper-rectangles that
+are generated during the course of the algorithm that meet both
+the mass and purity criteria are reported as candidate clusters.
+Definition 2 (hyper-rectangle): Let F = f1×f2×. . .×fd be
+our original d-dimensional numerical feature space. A hyper-
+rectangle r = (s1, s2, . . . , sd?), d? ? d, resides in a space
+ft1 × ft2 × . . . × ftd? where ti < tj if i < j, and has d
+?
+sides, si = [li, ui], that correspond to individual intervals in
+each dimension. We say that a point v = ?v1, v2, . . . , vd? is
+contained or enclosed in hyper-rectangle r = (s1, s2, . . . , sd?),
+if li ? vi ? ri ?i = {t1, . . . , td?}.
+The outline of our subspace clustering step is given in
+Algorithm 1. It takes as input the dataset D with anomalous
+and normal points, a mass threshold ms equal to the minimum
+number of required anomalous points and a purity threshold
+µ equal to the maximum number of allowed normal points to
+be contained inside, and returns hyper-rectangles that meet the
+desired criteria.
+To begin (line 1), we find 1-dimensional candidate hyper-
+rectangles, equivalent to intervals in individual features. To
+create promising candidate intervals initially, we aim to find
+dense intervals with many anomalous points. To this end, we
+perform kernel density estimation (KDE) on the anomalous
+points and extract the intervals of significant peaks. This
+is achieved by extracting the contiguous intervals in each
+dimension with density larger than the q-th percentile of all
+estimated densities. q is varied in [80, 95] to obtain candidate
+intervals of varying length. An illustration is given in Fig. 2.
+Notice that mutiple peaks, and hence multiple intervals per
+dimension, can be generated depending on q.
+At any given level (or iteration) of the Apriori-like SUB-
+CLUS algorithm, we scan all the candidates at that level (line
+2–6) and filter out the ones that meet the mass criterion
+(line 3). Those that pass the filter are later merged to form
+candidates for the next level. Others with mass less than
+required are discarded, with no implications on accuracy.
+The correctness of the pruning procedure follows from the
+Algorithm 1 SUBCLUS (D,ms, µ)
+Input: dataset D = A ? N ? Rm×d with labeled anomalous and
+normal points, mass threshold ms ? Z, purity threshold µ ? Z
+Output: set of hyper-rectangles S = {r1, r2, . . .} each containing
+min. ms anomalous & max. µ normal points
+1: Let R(k) denote k-dimensional hyper-rectangles. Initialize R(1)
+by kernel density estimation with varying quantile cut-off thresh-
+olds in q = {80, 85, 90, 95}, set k = 1
+2: for each hyper-rectangle r ? R(k) do
+3: if mass(r) ? ms then
+4: if impurity(r) ? µ then P (k) = P (k) ? r
+else NP (k) = NP (k) ? r
+5: end if
+6: end for
+7: S = S ? P (k)
+8: R(k+1) := generateCandidates(P (k) ?NP (k))
+9: if R(k+1) = ? then return S
+10: k = k + 1, go to step 2
+?0.2 0.0 0.2 0.4 0.6 0.8 1.0 1.2
+0.
+0
+0.
+5
+1.
+5
+2.
+0
+Feature Values
+80
+85
+90
+95
+q
+1.
+0De
+ns
+ity
+Fig. 2. Identifying candidate hyper-rectangles in 1-d (equivalent to intervals)
+by KDE for varying quantile thresholds q.
+downward closure property of the mass criterion—for any k-
+dimensional hyper-rectangle with mass ? ms, its projections
+in any one of (k? 1)-dimensions must also have mass ? ms.
+At any given level, we also keep track of the hyper-
+rectangles that meet both the mass and the purity criteria
+(line 4). Purity exhibits the upward closure property—for any
+(k? 1)-dimensional hyper-rectangle that is pure (i.e. contains
+? µ normal points), any k-dimensional hyper-rectangle that
+subsumes it is also pure. This property could help us stop
+growing pure candidates by excluding them from the candidate
+generation step and speeding up the termination. While cor-
+rect, however, such early-termination would prevent us from
+finding even purer hyper-rectangles later up in the hierarchy.
+To obtain as many candidate packs as possible, we continue
+our search for all hyper-rectangles that meet the mass criterion,
+and use the purity criterion for selecting the ones to be output
+(line 7).
+The algorithm proceeds level by level. Having identified
+k-dimensional hyper-rectangles that have satisfied the mass
+criterion, denoted H = P (k)?NP (k) (for those pure and not-
+pure), (k+1)-dimensional candidates are generated (line 8), in
+two steps: join and prune. Join step combines hyper-rectangles
+having first (k ? 1) dimensions and sides in common. That
+is, if (su1 , su2 , . . . , suk) and (sv1 , sv2 , . . . , svk) are two k-
+dimensional hyper-rectangles in H , we would require ui = vi
+and sui = svi ?i ? {1, . . . , (k ? 1)} and uk 6= vk to
+form candidate (k + 1)-dimensional hyper-rectangles of the
+form (su1 , su2 , . . . , suk , svk). In the prune step, we discard all
+(k+1)-dimensional hyper-rectangles that have a k-dimensional
+projection outside H . Again, the correctness of this procedure
+follows from the downward closure property of mass.
+For the same reason as we vary KDE quantile threshold q
+to generate various 1-dimensional intervals, we run Algorithm
+1 multiple times with different (ms, µ) parameters, that is to
+obtain hyper-rectangles of varying size and quality, packing
+potentially different anomalies (and non-anomalies).2 As we
+will describe later in §IV-C, all these candidate packs are
+forwarded to a subset selection algorithm, which carefully
+selects the subset that enables the shortest description of all the
+anomalies. As such, even though there are parameters input to
+Algorithm 1, we do not expect them from the user, rather we
+vary and set those to create various candidate packs. Having
+more candidates is likely to increase our chance of finding a
+combination that explains the anomalies the best.
+B. Refining Hyper-rectangles into Hyper-ellipsoids
+Grid or interval-based subspace clustering algorithms are
+limited to finding block-shaped rectangular clusters, and they
+may miss clusters inadequately oriented or shaped. To allow
+more flexibility, we refine each hyper-rectangle found by
+SUBCLUS into a hyper-ellipsoid (which we call a pack, see
+Def. 1). Recall that an ellipsoid with center c is written as
+p(c,M) = {x| (x? c)TM?1(x? c) ? 1}
+for positive semi-definite matrix M  0.
+Given a hyper-rectangle r, let us denote the anomalous
+points it contains by xi ? A for i = 1, . . . , ar and anomalous
+points outside r by xj ? A for j = ar+1, . . . , a. The normal
+points are denoted by xl ? N for l = 1, . . . , n.
+When we convert a given r to an ellipsoid, we would like
+all xi’s (anomalous points) it contains to reside inside the
+ellipsoid. In contrast, we would like all xl’s (normal points)
+to remain outside the ellipsoid. The refinement is achieved by
+enclosing as many as the other anomalous points xj’s that are
+in the vicinity of r inside the ellipsoid as well. Those would be
+the points that were left out due to axis-aligned interval-based
+block shapes that hyper-rectangles are restricted to capture.
+An illustration is given in Fig. 3.
+?0.5 0.0 0.5 1.0 1.5
+?0
+.5
+0.
+0
+0.
+5
+1.
+0
+1.
+5
+Diagonalization varying Rewards
+total.data$x
+to
+ta
+l.d
+at
+a$
+y
+1
+2
+3
+4
+5
+ID?1;L?0.512; R?1e?05
+ID?2;L?244.14; R?1e?05
+ID?3;L?0.32; R?1e?04
+ID?4;L?0.005; R?5e?05
+ID?5;L?1.6; R?5e?04
+Fig. 3. Example illustration for refining hyper-rectangles to hyper-ellipsoids in
+2-d. Anomalous points (black) captured by SUBCLUS (Alg. 1) in a rectangle
+(green), other anomalous points (blue), normal points (red).
+We describe our approach first based on xi’s and xl’s,
+the positive and negative points that we respectively want
+to include and exclude. The goal is to find a discriminating
+2(ms, µ) are varied in a data-driven way, as shown in Alg. 2 in §IV-D.
+function h(·) where h(xi) > 0 and h(xl) < 0. To this end,
+we use the quadratic function h(x) = xTPx + qTx + b,
+with parameters ? = {P, q, b}. We solve for ? by setting
+up an optimization problem based on a semi-definite program
+(SDP), that satisfies xTi Pxi + q
+Txi + b > 0 for all i and
+xTl Pxl + q
+Txl + b < 0 for all l. Since most SDP solvers
+do not work well with strict inequalities, we modify the
+strict inequality problem to a non-strict feasibility problem by
+adding a margin. That is, we solve for hyper-rectangle r:
+min
+P,q,b
+?
+i + ?
+?
+l
+s.t. xTi Pxi + q
+Txi + b ? 1? i, i = 1, . . . , ar
+xTl Pxl + q
+Txl + b ? ?1 + l, l = 1, . . . , n
+P  ?I, i ? 0, l ? 0
+where P is constrained to be a negative semi-definite matrix.
+We can show that P, q, b define an ellipsoidal enclosing
+boundary, wrapping xi’s inside and leaving xl’s outside, for
+both of which we allow some slack . ? is introduced to
+account for the imbalance between the number of positive and
+negative samples that we have. Importantly, our optimization
+problem is convex, which we solve using an efficient convex
+solver. Furthermore, we can refine each hyper-rectangle output
+by SUBCLUS independently in parallel.
+We refine a hyper-rectangle r = (s1, s2, . . . , sd?) into an el-
+lipsoid within the same subspace, in other words, P ? Rd?×d?
+and q ? Rd? . For interpretability, we further constrain P to be
+diagonal, to obtain an axis-aligned ellipsoid as shown in Fig.
+3, since the original features often has a meaning to the user.
+If the anomalous patterns are to be used for detection, on the
+other hand, we estimate a full P matrix and obtain a possibly
+rotated ellipsoid.
+Having set up our refinement step as a convex quadratic
+discrimination problem, we next describe how we incorporate
+xj’s (anomalous points outside r) into the optimization. Intu-
+itively, we would like to include as many other anomalies as
+possible inside the ellipsoid, but only those that are nearby the
+xi’s and not necessarily those that might be far away, possibly
+forming distinct other clusters. In other words, we only want
+to “recover” the xj’s surrounding a given r and not grow the
+ellipsoid to include far away xj’s to the extent that it would
+end up including many normal points as well.
+To this end, we treat xj’s similar to xi’s but incur a weaker
+penalty of excluding an xj that is relatively much lower than
+excluding an xi or including an xl. That is, the optimization
+is re-written as
+min
+P,q,b
+?
+i + C
+?
+j + ?
+?
+l
+s.t. xTi Pxi + q
+Txi + b ? 1? i, i = 1, . . . , ar
+xTj Pxj + q
+Txj + b ? 1? j , j = ar+1, . . . , a
+xTl Pxl + q
+Txl + b ? ?1 + l, l = 1, . . . , n
+P  ?I, i ? 0, j ? 0, l ? 0
+While setting C (penalty constant for xj’s) smaller than 1
+and ? is likely a good choice, we do not know which (C, ?)
+pair would provide a good trade-off in general. Therefore, we
+sweep over a grid of possible values3 and generate various
+ellipsoids, as shown for the example case in Fig. 3. A final
+but important step is to sweep over the collection to discard
+the dominated packs. In other words, we output only the set of
+p’s in the Pareto frontier w.r.t. mass versus purity. In this set
+there are no two packs where one strictly dominates the other;
+by enclosing both higher number of anomalous points (higher
+mass) and lower number of normal points (higher purity).
+C. Summarization: Pack Selection for Shortest Description
+Our ultimate goal is to find anomalous patterns that explain
+or summarize the given anomalies in the dataset as succinctly
+as possible. Intuitively, “good” patterns enclose similar groups
+of points and hence help compress the data. To this end,
+we formulate our “summarization” objective by an encoding
+scheme and then devise an algorithm that carefully chooses
+a few patterns, in our case packs produced in §IV-B, that
+yield the minimum encoding length. In the following, we
+describe our encoding scheme, followed by the proposed
+subset selection algorithm.
+1) MDL formulation for encoding a given packing:
+Our encoding scheme involves a Sender (us) and a Receiver
+(remote). We assume both of them have access to dataset
+D ? Rm×d but only the Sender knows the set of anomalous
+points A. The goal of the Sender is to transmit (over a channel)
+to the Receiver the information about which points are the
+anomalies using as few bits as possible. Na??vely encoding all
+feature values of every anomalous point individually would
+cost |A|d log2 f bits.4 The idea is that by encoding the
+enclosing boundary of packs (ellipsoids) found in §IV-B, we
+(the Sender) could have the Receiver identify the anomalies
+in groups, which could save bits.
+Obviously we would want to avoid “noisy” packs that
+include many normal points—that would necessitate spend-
+ing extra bits for encoding those exceptions (i.e. “telling”
+the Receiver which points in a pack are not anomalies).
+Moreover, we would want to avoid using packs that encode
+largely overlapping group of anomalies, as bits would be
+wasted to redundancy. While identifying the packing that
+yields the fewest bits is the main problem, we first lay out
+our description length objective, for a given packing P =
+{p1(c1,M1), . . . , pK(cK ,MK)}:
+• Transmit number of packs = log?K5
+• For each pack pk ? P ,
+– Transmit number of dimensions = log? dk, dk ? d
+– Transmit identity of dimensions = log2
+(
+d
+dk
+)
+– Transmit the center ck = dk log2 f
+– Transmit Mk = d2k log2 f (dk log2 f if diagonal)
+3We use C = {10?6, 10?5, . . . , 101} × ? = {10?3, 10?2, . . . , 103}.
+4Value of f is chosen according to the precision that we want in the
+normalized feature space Rd.
+5The cost for encoding an integer K is LN(K) = log?(K)+ log(c), with
+c ? 2.865064, and log?(K) = log(K) + log log(K) + . . . sums over all
+positive terms. We drop log(c) as it is constant for all packings.
+– Transmit the exceptions (i.e., non-anomalies in pk):
+? number of normal points in pk = log? nk
+? identity of normal points; by forming all possible
+subsets of size nk from mk (total number of
+points in pk) = log2
+(
+mk
+nk
+)
+(assuming a canonical
+ordering of the subsets) 6
+Total encoding cost of the packing P is then
+L(P |D,A) = log?K +
+K?
+k=1
+L(pk), where (1)
+L(pk) = log
+? dk + log2
+(
+d
+dk
+)
++ dk(dk + 1) log2 f
++ log? nk + log2
+(
+mk
+nk
+)
+Overall, our goal is to find a packing, that is to identify a
+subset of packs, that provides the minimum encoding length.
+However, we do not assume that all anomalies would be
+covered by a packing, i.e.,
+?
+k Ak ? A, as there could be
+anomalous points (outliers) that do not belong in any pattern
+but lie away from the others. As such, our objective is restated
+as selecting the packs that reduce the na??ve encoding cost of
+|A|d log2 f bits the most, where outliers A\{
+?
+k Ak} are yet
+to be encoded individually.
+Given a set S of packs, the description length would be
+`(S) =
+(
+|A| ? |
+?
+p?S
+Ap|
+)
+d log2 f +
+[
+log? |S|+
+?
+p?S
+L(p)
+]
+where the second term is the cost of transmitting S as in Equ.
+(1) and the first term is the cost of individually encoding the
+remaining anomalies that are not contained by S.
+Our objective is to find a subset S that minimizes the
+description length, or equivalently reduces it the most, i.e.:
+max
+S
+R`(S) = |
+?
+p?S
+Ap|c? log? |S| ?
+?
+p?S
+L(p)
++
+[
+log? |E|+
+?
+p??E
+L(p?)
+]
+where c = d log2 f is a constant and set E denotes all the
+ellipsoids returned from the second part (refinement), as such,
+S ? E. First three terms of the objective capture the overall
+reduction in encoding cost due to the packing with ellipsoids
+in S, and the last (constant) term in brackets is added to ensure
+that R`(S) is a non-negative function.
+2) Subset selection algorithm for MDL packing: To
+devise a subset selection algorithm, we start by studying the
+properties of our objective function R`, such as submodularity
+and monotonicity that could enable us using fast heuristics
+with approximation guarantees. Unfortunately, R` is not sub-
+modular as it is given above. However, with a slight modi-
+fication where we fix the solution size (number of required
+6Another way to identify the normal points in a pack: sort points by their
+distance to center and send the index of normal points in this list of length
+mk . This costs more for nk ? 2: nk log2mk > log2
+m
+nk
+k
+nk!
+> log2
+(mk
+nk
+)
+.
+output packs) to e.g. K, such that the second term becomes
+log?K, a constant, the function becomes submodular, as we
+show below.
+Theorem 1: Our modified objective set function R?`(S) is
+submodular. That is, for all subsets S ? T ? E and packs p ?
+E\T , it holds that
+R?`(S ? {p})?R?`(S) ? R?`(T ? {p})?R?`(T )
+Proof 1: Let Cover(S) = |
+?
+p?S Ap| return the number of
+anomalies contained by the union of packs in S. Canceling the
+equivalent terms and constants on either side, we are left with
+Cover(S?{p})?Cover(S) ? Cover(T ?{p})?Cover(T ).
+The inequality follows from the submodularity property of the
+Cover function. 
+It is also easy to see that R?` is not monotonic.
+Theorem 2: Our modified objective set function R?`(S) is
+non-monotonic. That is, ?S ? T where R?`(S) > R?`(T ).
+Proof 2: For S ? T , Cover(T ) ? Cover(S) due to
+the monotonicity of the Cover function. On the other hand,
+description cost of packs in T is equal to
+?
+p?T L(p) =?
+p??S L(p
+?) +
+?
+p???T\S L(p
+??) and hence is strictly greater
+than those of S. As such, for a pair S ? T with the same
+coverage, we would have R?`(S) > R
+?
+`(T ). 
+Maximizing a submodular function is NP-hard as it captures
+problems such as Max-Cut and Max k-cover [28]. Nevertheless
+the structure of submodular functions makes it possible to
+achieve non-trivial results. In particular, there exist approx-
+imation algorithms for non-monotone submodular functions
+that are non-negative, like our objective function R?`. In
+particular, one can achieve an approximation factor of 0.41
+for the maximization of any non-negative submodular function
+without constraints [28].
+In our case, we need to solve our objective under the
+cardinality (i.e., subset size) constraint, where |S| is fixed to
+some K (since only then R` is submodular). To this end,
+we use the RANDOM-GREEDY algorithm by Buchbinder et
+al. [29], which provides the best known guarantee for the
+cardinality-constrained setting, with approximation factors in
+[0.356, 12 ? o(1)]. The algorithm is quite simple; at each step
+of K iterations, it computes the incremental score of adding a
+single pack p ? E \S to S and selects one at random among
+the top K highest-scoring packs.
+We identify K automatically, best of which is unknown
+apriori. We solve to obtain S?K each time for a fixed K =
+|S?K | = 1, 2, . . . , |A|, and return the solution with the largest
+R?`(S
+?
+K)? log
+?K. This is analogous to model selection with
+regularization for increasing model size.
+D. Overall Algorithm X-PACS
+In Algorithm 2, we put together all three parts as described
+in §IV-A–§IV-C, and wrap up with complexity analysis.
+Time complexity: We analyze the complexity of each part
+separately. The main computation of part A is the SUBCLUS
+algorithm. It proceeds level-by-level and makes as many
+Algorithm 2 Explaining Anomalies with X-PACS
+Input: dataset D = A ?N with labeled anomalies
+Output: set of anomalous patterns (represented as hyper-ellipsoids)
+P = {p1(c1,M1), . . . , pK(cK ,MK)}
+1: Set of hyper-rectangles R = ?
+2: Obtain R(1) rectangles (1-d intervals) by kernel density estima-
+tion, varying cut-off threshold in q = {80, 85, 90, 95}
+3: f?a := distribution of number of anomalies across R(1)
+4: f?n := distr.n of number of normal points across R(1)
+5: for ms = f?n.quantiles(50, 60, . . . , 90) do
+6: for µ = f?a.quantiles(50, 40, . . . , 10) do
+7: R := R ? SUBCLUS(D,ms, µ) by Alg. 1 in §IV-A
+8: end for
+9: end for
+10: Set of hyper-ellipsoids E = ?
+11: for r ? R do
+12: Er = ?
+13: for C = {10?6, 10?5, . . . , 101} do
+14: for ? = {10?3, 10?2, . . . , 103} do
+15: Er := Er ? solve the optimization problem in §IV-B
+for (r, C, ?)
+16: end for
+17: end for
+18: E := E ? ParetoFrontier(Er)
+19: end for
+20: for K = 1, . . . , |A|: select a subset S?K ? E of K packs us-
+ing the cardinality-constrained RANDOM-GREEDY algorithm by
+Buchbinder et al. [29] to optimize the description length reduc-
+tion objective in §IV-C.
+21: return P := argmaxS?
+K
+R?`(S
+?
+K)? log?K
+passes over the data as the number of levels. For a d?
+dimensional hyper-rectangle that meets the mass and purity
+criteria, all its 2d
+?
+projections in any subset of the dimensions
+also meet the mass criterion (although may not be pure). As
+such, running time of SUBCLUS is exponential in the highest
+dimensionality hyper-rectangle that meets both criteria. Over-
+all running time of part A is O(cdmax +mdmax) for a constant
+c that accounts for possibly multiple dmax dimensional hyper-
+rectangles and other lower dimensional ones. The second term
+captures the passes over the data.
+The main computation of part B is solving the SDP opti-
+mization problem, for which we use the popular cvx SDPT3
+solver that takes O([dmax+m]3) for an axis-aligned ellipsoid
+(or diagonal P ) per iteration.7 To speed up, we filter a
+bulk of the points beyond a certain distance of the given
+hyper-rectangle, since its refined hyper-ellipsoid would often
+include/exclude points inside and nearby it. Filtering takes
+O(m) per hyper-rectangle, after which we solve the SDP
+for a near-constant number of points. We refine each hyper-
+rectangle independently in parallel.
+The main computation in the last part is the RANDOM-
+GREEDY algorithm, which makes K iterations for a given
+number of packs K. In each iteration, it makes a pass over all
+the not-yet-selected hyper-ellipsoids, computes the marginal
+reduction in bits by selecting each, and picks randomly among
+the top K with the highest reduction. We maintain a max-
+heap to obtain the top K as we make a pass over the packs.
+7In practice, the solver converges in 20-100, i.e. constant iterations.
+The worst case would cost O(|E| logK), multiplied by K
+iterations. We run RANDOM-GREEDY for K = 1, . . . , |A| =
+a, each of which is parallelized. As such time complexity of
+part C is O(a log a|E|).
+Number of ellipsoids |E| is in the same order of hyper-
+rectangles from part A, i.e., O(cdmax). Thus, overall complex-
+ity is O(mdmax + a log acdmax); linear in m, near-linear in a,
+and exponential in the largest pack dimension dmax.
+V. EXPERIMENTS
+The primary focus of our work is anomaly description
+where we “reverse-engineer” interpretable characteristics for
+known anomalies. As proof of concept, we construct 6 differ-
+ent case studies to show the effectiveness of X-PACS on this
+task. While not designed for detection, the packs found by
+X-PACS can be used as signatures to detect future anomalies.
+To this end, we also perform detection experiments and
+compare X-PACS to 7 different supervised and unsupervised
+techniques. A quick reference to the UCI datasets used in our
+experiments is in Table I. Last column gives % savings (in
+bits) in describing/encoding the anomalies by X-PACS.
+A. Case Studies: Explaining Anomalies
+We perform three case studies on a dataset of face images,
+two on handwriting digits, and one study on breast cancer.
+The Image dataset contains gray-scale face images of
+various people. We designate the majority who are wearing
+dark-color t-shirts as the normal samples. We create three
+versions containing different number of anomalous patterns,
+as we describe below. As such, the ground truth is known to
+which we compare X-PACS’s findings.
+1) ImageI: As shown below, we label 8 images of people
+all wearing sunglasses as anomalies (a), and combine them
+with the normal samples none of which has sunglasses. In this
+simple scenario X-PACS successfully identifies a single, 1-d
+pattern (b), which packs all the 8 anomalies but no normal
+samples. Also shown at the bottom of (b) is the interval of
+values for the corresponding dim./pixel, that is the 3 standard
+deviation (std) range around the pack’s center.
+(a) anomalies (b) X-PACS packing
+2) ImageII: Next, we construct the 9 anomalies as shown
+earlier in Fig. 1, 6 wearing sunglasses and 4 white t-shirt (2
+wearing both), plus one person with a beard (normal samples
+has no beard). As discussed earlier in §I, X-PACS finds 2
+pure packs, each 1-d, that collectively describe the 8 anomalies
+and none of the normal samples. The bearded image does not
+belong to any pack and is left out as an outlier.
+TABLE I
+DATASETS USED IN EXPERIMENTS.
+Name size m dim. d a (%) %-bits saved
+ImageI 88 120 8 (9.09) 99.75
+ImageII 91 180 9 (9.89) 88.53
+ImageIII 110 180 12 (10.90) 99.51
+DigitI 1371 16 228 (16.66) 99.83
+DigitII 1266 16 211 (16.67) 99.72
+BrCancer 683 9 239 (34.99) 93.74
+Arrythmia 332 172 87 (26.20) 92.92
+Wine 95 13 24 (25.26) 97.04
+Yeast 592 8 129 (21.79) 98.04
+3) ImageIII: We construct the third dataset to contain
+12 anomalies, the same 9 from ImageII plus 3 more
+images (10–12) with beard as shown below. In this case, X-
+PACS finds that characterizing the beard images as a separate
+pattern is best to reduce the description cost, and outputs the
+3 pure, 1-d packs shown in (b).
+(a) +3 anomalies (b) X-PACS packing
+In all these scenarios, X-PACS is able to unearth simple
+(low-dimensional) and pure (discriminating) characteristics of
+the anomalies. Also, it automatically identifies the correct
+number of anomalous patterns, which yield the shortest data
+description as shown in Fig. 4.
+100
+1000
+10000
+1 2 3 4 5
+K
+D
+es
+cr
+ip
+tio
+n 
+Co
+st 
+(in
+ b
+its
+)
+ 99.75%
+reduction
+99.51%
+reduction
+Dataset
+Images I 
+Images II 
+Images III
+88.53%
+reduction
+Fig. 4. Description cost of anomalies in image datasets w/ X-PACS for
+K = 1, . . . , 5. Na??ve/base cost (K = 0) is shown w/ a horizontal line for
+each dataset. X-PACS correctly identifies the appropriate number of patterns
+automatically and yields significant reduction in description cost.
+The Digit dataset contains instances of digit hand-drawings,
+particularly, the x and y coordinates of the hand in 8 consec-
+utive time ticks during which a human draws each digit on
+paper. As such, each drawing has 16 features.
+4) DigitI: We designate all drawings of digit ‘0’ as
+normal and a subsample of digit ‘7’ as ‘anomalous’ to study
+the key distinction and characteristics of drawing a ‘7’ as
+compared to a ‘0’. The 8 different positions of the hand in
+time averaged over all corresponding samples of these two
+digits is shown below (a–b).
+0.0 0.2 0.4 0.6 0.8 1.0
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+unlist(x)
+un
+lis
+t(
+y)
+3
+6
+(a) avg. ‘0’-drawing (b) avg. ‘7’-drawing (c) X-PACS packing
+X-PACS identifies a single, 2-d pack containing all 228
+instances of ‘7’s and no ‘0’s, as given in Table II, where
+we list the ellipsoid center, and the interval (±3 std) of the
+range the hand is positioned for the characterizing features.
+The anomalous pattern suggests right & bottom positioning of
+the hand respectively at times t3 & t6, which follows human
+intuition—in contrast, typical hand positions for ‘0’ at those
+ticks are opposite; at the left & top. Corresponding avg. hand
+positions in 2-d is shown in (c) above.
+TABLE II
+X-PACS FINDS A SINGLE 2-D pack ON DigitI: ‘0’ VS. ‘7’.
+packID feature center interval |Ak| |Nk|
+k = 1 x@t3 0.8249 (0.21, 1.00) 228 0
+k = 1 y@t6 0.1702 (0.00, 0.69) 228 0
+5) DigitII: We perform a second case study where we
+designate digit ‘8’ drawings as normal and ‘2’ and ‘3’ as the
+anomalies. Avg. drawings are illustrated in (a–b) below. X-
+PACS is able to describe 210 of the 211 anomalies in a single,
+4-d pack listed in Table III and illustrated in (c). The single
+unpacked drawing is shown in (d) and looks like an odd ‘3’.
+0.0 0.2 0.4 0.6 0.8 1.0
+0.
+0
+0.
+2
+0.
+4
+0.
+6
+0.
+8
+1.
+0
+Pack visualization
+X-coordinate
+Y-
+co
+or
+di
+na
+te
+3
+4
+7 8
+(a) avg. ‘8’ (b) avg. ‘2,3’ (c) a pack (d) outlier
+TABLE III
+X-PACS FINDS A SINGLE 4-D pack ON DigitII: ‘8’ VS. ‘2’,‘3’.
+packID feature center interval |Ak| |Nk|
+k = 1 y@t3 0.8321 (0.48, 1.00) 210 0
+k = 1 y@t4 0.5406 (0.08, 1.00) 210 0
+k = 1 y@t7 0.0422 (0.00, 0.22) 210 0
+k = 1 y@t8 0.0497 (0.00, 0.24) 210 0
+Looking at the avg. ‘8’ vs. avg. ‘2’ or ‘3’ drawings above,
+it appears like a single feature like y@t8, i.e., vertical hand
+position at the end, should be discriminative enough alone
+as ‘8’ appears to end at the top vs. others at the bottom.
+Interestingly, the 1-d y@t8 pack is not pure
+like the 4-d one output. A non-anomalous
+sample it contains is shown to the right,
+which is an ‘8’ that starts and ends at the
+bottom just like most ‘2’ and ‘3’s.
+6) BrCancer: Breast cancer dataset contains 239
+malign (anomalous) and 444 benign cancer instances. X-
+PACS finds 5 packs listed in Table IV, covering a total of 226
+anomalies while also including 17 unique normal points in the
+packing. Pack 1 with majority of the anomalies characterizes
+162 cases with high ‘chromatin’. The second 2-d pack suggests
+large ‘clumpthickness’ and ‘mitoses’ (related to cell division
+and tissue growth) for 145 cases. Other 1-d packs, 4 and 5,
+indicate large ‘cellsize’ and large ‘nucleoili’. These findings
+are intuitive even to non-experts like us (although we lack the
+domain expertise to interpret pack 3).
+TABLE IV
+X-PACS FINDS 5 1-D OR 2-D packs ON BrCancer: MALIGN VS. BENIGN.
+packID feature center interval |Ak| |Nk|
+k = 1 chromatin 0.76 (0.35, 1.00) 162 11
+k = 2 clumpthickness 0.94 (0.61, 1.00) 145 5
+k = 2 mitoses 0.28 (0.00, 0.78) 145 5
+k = 3 epicellsize 0.33 (0.05,0.63) 97 2
+k = 3 barenuclei 0.11 (0.11,0.11) 97 2
+k = 4 nucleoili 0.98 (0.89, 1.00) 75 0
+k = 5 cellsize 1.00 (1.00, 1.00) 67 0
+B. Quantitative Results: Detecting Anomalies
+While not the primary focus of our work, X-PACS can
+also be used to detect anomalies. Specifically, given the
+packs identified from historical/training data, a future test
+instance that falls in any one of these packs (i.e., enclosed
+within any hyper-ellipsoid boundary in the packing) can be
+flagged as an anomaly.8
+To this end, we compare X-PACS to the following 7
+baselines on all 9 datasets on the anomaly detection task.
+1) Mixture of K-GAUSSIANS on the anomalous points.
+K ? {1, 2, . . . , 9} chosen at the “knee” of likelihood.
+Anomaly score of test instance: maximum of the prob-
+abilities of being generated from each cluster.
+2) KDE (kernel density estimate) on the normal points.
+Gaussian kernel bandwidth chosen by cross-validation.
+Anomaly score: negative of the density at test point.
+3) NN method. Anomaly score: distance of test instance
+to its nearest neighbor (nn) normal point in training set,
+divided by the distance of that nn point to its own nearest
+normal point in training set.
+4) PCA+SVDD on all points [18]. A single hyperball that
+aims to enclose anomalous points in the PCA-reduced
+space9, dimensionality chosen at the “knee” of the scree
+plot. Anomaly score: distance of test instance from the
+hyperball’s center.
+5) DT on all points. Decision Tree, after undersampling the
+majority class until balanced. Regularized by tree-depth
+? {1, 2, . . . , 30} by cross-validation. Anomaly score:
+number of anomalous samples in the leaf the test sample
+falls into divided by leaf size.
+6-7) SVM-LIN & SVM-RBF on all points. Hyperparameters
+set by cross-validation. Anomaly score: SVM “confi-
+dence”, i.e., distance from decision boundary.
+We create 3-folds of each dataset, and in turn use 2/3 for
+training and 1/3 for testing, except the Image datasets with the
+fewest anomalies for which we do leave-one-out testing. All
+points receive an anomaly score by each method as described
+8Note that, like any supervised method, X-PACS could only detect future
+instances of anomalies of known types.
+9SVDD optimization diverged for some datasets with high dimensionality,
+therefore, we performed PCA as a preprocessing step.
+TABLE V
+AREA UNDER PRECISION-RECALL CURVE (AUPRC) PERFORMANCE ON ANOMALY DETECTION TASK OF TECHNIQUES ACROSS DATASETS.
+Method Name ImageI ImageII ImageIII DigitI DigitII BrCancer Arrythmia Wine Yeast AVG
+K-GAUSSIANS 0.182 0.239 0.184 0.162 0.333 0.613 0.227 0.258 0.265 0.273
+KDE 0.952 0.978 0.987 0.989 0.997 0.981 0.571 0.667 0.681 0.867
+NN 0.491 0.472 0.659 0.967 0.821 0.520 0.546 0.562 0.348 0.598
+PCA+SVDD 0.286 0.217 0.212 0.331 0.529 0.861 0.295 0.566 0.606 0.433
+DT 0.802 0.764 0.812 0.831 0.961 0.884 0.516 0.637 0.673 0.764
+SVM-LIN 1.000 1.000 1.000 0.999 0.999 0.984 0.755 0.994 0.823 0.950
+SVM-RBF 1.000 1.000 1.000 1.000 1.000 0.964 0.810 0.984 0.861 0.957
+X-PACS 1.000 0.921 0.990 0.993 0.976 0.951 0.564 0.799 0.701 0.877
+above. X-PACS’s anomaly score for a test instance x is the
+maximum hk(x) = xTPkx + qTk x + bk among all pk’s in
+the packing resulting from training data. We rank points in
+decreasing order of their score, and report the area under the
+precision-recall curves in Table V.
+We find that SVM classifiers achieve the highest detection
+rate, as we initially expected. SVMs, however, has two key
+shortcomings in our context: their output is not easy to inter-
+pret, and they do not identify any patterns or rules explicitly.
+Notably, X-PACS outperforms all other baselines considerably
+across datasets, including decision trees, which produce the
+most interpretable output among the baselines.
+To conclude, Fig. 5 shows the running time w.r.t. data size m
+(on DigitI) and dimensionality d (on Arrythmia), which
+empirically confirms near-linear scalability.
+1000
+2000
+3000
+4000
+5000
+20 40 80 10060
+R
+un
+ni
+ng
+ ti
+m
+e 
+(i
+n 
+se
+co
+nd
+s)
+m (% of full data)
+3000
+3500
+4000
+4500
+5000
+20 40 80 10060
+R
+un
+ni
+ng
+ ti
+m
+e 
+(i
+n 
+se
+co
+nd
+s)
+d (% of full data)
+Fig. 5. X-PACSscalability: (a) runtime by size m, (b) runtime by dim. d
+VI. CONCLUSION
+We considered the problem of describing known anomalies
+in high-dimensional datasets. Our key idea is to describe the
+data by the patterns it contains. Specifically, we proposed
+X-PACS for identifying a small number of low-dimensional
+anomalous patterns that “pack” similar anomalies and “com-
+press” the data most succinctly. In designing X-PACS, we
+combined ideas from data mining (bottom-up algorithms with
+pruning), optimization (nonlinear quadratic discrimination),
+information theory (encoding data with bits), and theory of
+algorithms (submodular function maximization).
+Our notable contributions are as follows:
+(i) a data partitioning scheme, based on mass and purity
+criteria, for finding pure subspace clusters of anomalies;
+(ii) a packing refinement scheme, based on a convex nonlin-
+ear quadratic discrimination objective, transforming sub-
+space clusters to hyper-ellipsoids for recovering nearby
+anomalies while excluding as many non-anomalies as
+possible; and lastly
+(iii) a summarization scheme, based on the encoding of
+anomalies and the minimum description length principle,
+selecting a subset of anomalous patterns that reduce data
+description (and hence “compress” it) the most.
+Through experiments on real-world datasets, we showed the
+effectiveness of X-PACS both in sense-making and detection.
+All code and data will be publicly released upon publication.
+REFERENCES
+[1] C. C. Aggarwal, Outlier Analysis. Springer, 2013.
+[2] A. Mukherjee, V. Venkataraman, B. Liu, and N. S. Glance, “What yelp fake review
+filter might be doing?” in ICWSM, 2013.
+[3] F. T. Liu, K. M. Ting, and Z.-H. Zhou, “Isolation forest.” in ICDM, 2008.
+[4] A. Lazarevic and V. Kumar, “Feature bagging for outlier detection.” in KDD, 2005,
+pp. 157–166.
+[5] K. Lee, B. D. Eoff, and J. Caverlee, “Seven months with the devils: A long-term
+study of content polluters on twitter.” in ICWSM, 2011.
+[6] V. Dave, S. Guha, and Y. Zhang, “Measuring and fingerprinting click-spam in ad
+networks.” in SIGCOMM. ACM, 2012, pp. 175–186.
+[7] D. Pelleg and A. Moore, “X-means: Extending K-means with efficient estimation
+of the number of clusters,” in ICML, 2000, pp. 727–734.
+[8] J. Rissanen, “Modeling by shortest data description,” Automatica, vol. 14, pp. 465–
+471, 1978.
+[9] R. Agrawal, J. Gehrke, D. Gunopulos, and P. Raghavan, “Automatic subspace
+clustering of high dimensional data for data mining applications.” in SIGMOD,
+1998, pp. 94–105.
+[10] C. H. Cheng, A. W.-C. Fu, and Y. Zhang, “Entropy-based subspace clustering for
+mining numerical data.” in KDD, 1999, pp. 84–93.
+[11] K. Sequeira and M. J. Zaki, “Schism: A new approach for interesting subspace
+mining.” in ICDM, 2004, pp. 186–193.
+[12] H.-P. Kriegel, P. Kro?ger, M. Renz, and S. H. R. Wurst, “A generic framework for
+efficient subspace clustering of high-dimensional data.” in ICDM, 2005.
+[13] E. Mu?ller, I. Assent, S. Gu?nnemann, R. Krieger, and T. Seidl, “Relevant subspace
+clustering: Mining the most interesting non-redundant concepts in high dimensional
+data.” in ICDM. IEEE, 2009, pp. 377–386.
+[14] L. Parsons, E. Haque, and H. Liu, “Subspace clustering for high dimensional data:
+a review,” vol. 6, no. 1, pp. 90–105, 2004.
+[15] H.-P. Kriegel, P. Kro?ger, and A. Zimek, “Clustering high-dimensional data: A
+survey on subspace clustering, pattern-based clustering, and correlation clustering,”
+ACM Trans. Knowl. Discov. Data, vol. 3, no. 1, pp. 1–58, 2009.
+[16] G. Moise, J. Sander, and M. Ester, “P3c: A robust projected clustering algorithm.”
+in ICDM, 2006, pp. 414–425.
+[17] C. C. Aggarwal, C. M. Procopiuc, J. L. Wolf, P. S. Yu, and J. S. Park, “Fast
+algorithms for projected clustering.” in SIGMOD, 1999, pp. 61–72.
+[18] D. M. J. Tax and R. P. W. Duin, “Support vector data description.” Machine
+Learning, vol. 54, no. 1, pp. 45–66, 2004.
+[19] N. Go?rnitz, M. Kloft, and U. Brefeld, “Active and semi-supervised data domain
+description.” in ECML/PKDD, 2009, pp. 407–422.
+[20] J. He, H. Tong, and J. G. Carbonell, “Rare category characterization.” in ICDM,
+2010, pp. 226–235.
+[21] J. He and J. G. Carbonell, “Co-selection of features and instances for unsupervised
+rare category analysis.” in SDM, 2010, pp. 525–536.
+[22] E. M. Knorr and R. T. Ng, “Finding intensional knowledge of distance-based
+outliers.” in VLDB, 1999, pp. 211–222.
+[23] C.-T. Kuo and I. Davidson, “A framework for outlier description using constraint
+programming.” in AAAI, 2016, pp. 1237–1243.
+[24] F. Keller, E. Mu?ller, A. Wixler, and K. Bo?hm, “Flexible and adaptive subspace
+search for outlier analysis.” in CIKM. ACM, 2013, pp. 1381–1390.
+[25] X. H. Dang, B. Micenkov, I. Assent, and R. T. Ng, “Local outlier detection with
+interpretation.” in ECML/PKDD, 2013, pp. 304–320.
+[26] B. Micenkova?, R. T. Ng, X. H. Dang, and I. Assent, “Explaining outliers by
+subspace separability.” in ICDM, 2013, pp. 518–527.
+[27] X. H. Dang, I. Assent, R. T. Ng, A. Zimek, and E. Schubert, “Discriminative
+features for identifying and interpreting outliers.” in ICDE, 2014, pp. 88–99.
+[28] S. O. Gharan and J. Vondrak, “Submodular maximization by simulated annealing.”
+in SODA, D. Randall, Ed. SIAM, 2011, pp. 1098–1116.
+[29] N. Buchbinder, M. Feldman, J. Naor, and R. Schwartz, “Submodular maximization
+with cardinality constraints.” in SODA, 2014, pp. 1433–1452.

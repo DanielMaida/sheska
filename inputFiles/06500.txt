@@ -1,0 +1,1556 @@
+Sparsity Invariant CNNs
+Jonas Uhrig?,1,2 Nick Schneider?,1,3 Lukas Schneider1,4
+Uwe Franke1 Thomas Brox2 Andreas Geiger4,5
+? The first two authors contributed equally to this work
+1Daimler R&D Sindelfingen 2University of Freiburg
+4ETH Zu?rich 5MPI Tu?bingen
+{jonas.uhrig,nick.schneider}@daimler.com
+August 23, 2017
+Abstract
+In this paper, we consider convolutional neural networks
+operating on sparse inputs with an application to depth up-
+sampling from sparse laser scan data. First, we show that
+traditional convolutional networks perform poorly when
+applied to sparse data even when the location of missing
+data is provided to the network. To overcome this problem,
+we propose a simple yet effective sparse convolution layer
+which explicitly considers the location of missing data dur-
+ing the convolution operation. We demonstrate the benefits
+of the proposed network architecture in synthetic and real
+experiments with respect to various baseline approaches.
+Compared to dense baselines, the proposed sparse convo-
+lution network generalizes well to novel datasets and is in-
+variant to the level of sparsity in the data. For our evalua-
+tion, we derive a novel dataset from the KITTI benchmark,
+comprising 93k depth annotated RGB images. Our dataset
+allows for training and evaluating depth upsampling and
+depth prediction techniques in challenging real-world set-
+tings and will be made available upon publication.
+1. Introduction
+Over the last few years, convolutional neural networks
+(CNNs) have impacted nearly all areas of computer vi-
+sion. In most cases, the input to the CNN is an image or
+video, represented by a densely populated matrix or tensor.
+By combining convolutional layers with non-linearites and
+pooling layers, CNNs are able to learn distributed represen-
+tations, extracting low-level features in the first layers, fol-
+lowed by successively higher-level features in subsequent
+layers. However, when the input to the network is sparse
+and irregular (e.g., when only 10% of the pixels carry infor-
+mation), it becomes less clear how the convolution opera-
+tion should be defined as for each filter location the number
+and placement of the inputs varies.
+(a) Input (visually enhanced) (b) Ground truth
+(c) Standard ConvNet (d) Our Method
+Figure 1: Depth Map Completion. Using sparse, irregu-
+lar depth measurements (a) as inputs leads to noisy results
+when processed with standard CNNs (c). In contrast, our
+method (d) predicts smooth and accurate depth maps by ex-
+plicitly considering sparsity during convolution.
+The na??ve approach to this problem is to assign a default
+value to all non-informative sites [3,39]. Unfortunately, this
+approach leads to suboptimal results as the learned filters
+must be invariant to all possible patterns of activation whose
+number grows exponentially with the filter size. In this pa-
+per, we investigate a simple yet effective solution to this
+problem which outperforms the na??ve approach and several
+other baselines. In particular, we introduce a novel sparse
+convolutional layer which weighs the elements of the con-
+volution kernel according to the validity of the input pix-
+els. Additionally, a second stream stream carries informa-
+tion about the validity of pixels to subsequent layers of the
+network. This enables our approach to handle large levels
+of sparsity without significantly compromising accuracy.
+Importantly, our representation is invariant to the level
+1
+ar
+X
+iv
+:1
+70
+8.
+06
+50
+0v
+1 
+ [
+cs
+.C
+V
+] 
+ 2
+2 
+A
+ug
+ 2
+01
+7
+of sparsity in the input. As evidenced by our experiments,
+training our network at a sparsity level different from the
+sparsity level at test time does not significantly deteriorate
+the results. This has important applications, e.g., in the con-
+text of robotics where algorithms must be robust to changes
+in sensor configuration.
+One important area of application for the proposed tech-
+nique is enhancement of 3D laser scan data, see Fig. 1 for
+an illustration. While laser scanners provide valuable in-
+formation about depth and reflectance, the resulting point
+clouds are typically very sparse, in particular when consid-
+ering mobile scanners like the Velodyne HDL-64e1 used in
+autonomous driving [16]. Learning models which are able
+to increase the density of such scans is thus highly desirable.
+Unfortunately, processing high-resolution data directly in
+3D is challenging without compromising accuracy [53]. An
+alternative, which we follow in this paper, is to project the
+laser scan onto a virtual or real 2D image plane resulting
+in a 2.5D representation. Besides modeling depth predic-
+tion as a 2D regression problem, this representation has the
+advantage that additional dense information (e.g., RGB val-
+ues from a color camera) can be easily integrated. How-
+ever, projected laser scans are typically very sparse and not
+guaranteed to align with a regular pixel grid, hence lead-
+ing to poor results when processed with standard CNNs. In
+contrast, the proposed method produces compelling results
+even when the input is sparse and irregularly distributed.
+We evaluate our method in ablation studies and against
+several state-of-the-art baselines. For our evaluation, we
+leverage the synthetic Synthia dataset [54] as well as a
+newly proposed real-world dataset with 93k depth anno-
+tated images derived from the KITTI raw dataset [15]. Our
+dataset is the first to provide a significant number of high-
+quality depth annotations for this scenario. Besides attain-
+ing higher accuracy in terms of depth and semantics we
+demonstrate our method’s ability to generalize across vary-
+ing datasets and levels of sparsity. Our code and dataset will
+be released upon publication.
+2. Related Work
+In this section, we discuss methods which operate on
+sparse inputs followed by techniques that consider sparsity
+within the CNN. We briefly discuss the state-of-the-art in in-
+variant representation learning and conclude with a review
+on related depth upsampling techniques.
+CNNs with Sparse Inputs: The na??ve approach to han-
+dling sparse inputs is to either zero the invalid values or to
+create an additional input channel for the network which
+encodes the validity of each pixel. For detecting objects
+in laser scans, Chen et al. [3] and Li et al. [39] project the
+3D point clouds from the laser scanner onto a low resolu-
+1http://velodynelidar.com/hdl-64e.html
+tion image, zero the missing values and run a standard CNN
+on this input. For optical flow interpolation and inpainting,
+Zweig et al. [70] and Ko?hler et al. [33] pass an additional
+binary validity mask to the network. As evidenced by our
+experiments, both strategies are suboptimal compared to ex-
+plicitly considering sparsity inside the convolution layers.
+Jampani et al. [30] use bilateral filters as layers inside
+a CNN and learn the parameters of the corresponding per-
+mutohedral convolution kernel. While their layer handles
+sparse irregular inputs, it requires guidance information to
+construct an effective permutohedral representation and is
+computationally expensive for large grids. Compared to
+their approach our sparse convolutional networks yield sig-
+nificantly better results for depth upsampling while being as
+efficient as regular CNNs.
+Graham [18, 19] and Riegler et al. [53] consider sparse
+3D inputs. In contrast to our work, their focus is on im-
+proving computational efficiency and memory demands by
+partitioning the space according to the input. However, reg-
+ular convolution layers are employed which suffer from the
+same drawbacks as the na??ve approach described above.
+Sparsity in CNNs: A number of works [13, 21, 40, 50, 65]
+also consider sparsity within convolutional neural networks.
+Liu et al. [40] show how to reduce the redundancy in the
+parameters using a sparse decomposition. Their approach
+eliminates more than 90% of parameters, with a drop of ac-
+curacy of less than 1% on ILSVRC2012. Wen et al. [65]
+propose to regularize the structures (i.e., filters, channels
+and layer depth) of deep neural networks to obtain a hard-
+ware friendly representation. They report speed-up factors
+of 3 to 5 with respect to regular CNNs. While these works
+focus on improving efficiency of neural networks by ex-
+ploiting sparsity within the network, we consider the prob-
+lem of sparse inputs and do not tackle efficiency. A combi-
+nation of the two lines of work will be an interesting direc-
+tion for future research.
+Invariant Representations: Learning models robust to
+variations of the input is a long standing goal of computer
+vision. The most commonly used solution to ensure ro-
+bustness is data augmentation [35, 36, 59]. More recently,
+geometric invariances (e.g., rotation, perspective transfor-
+mation) have been incorporated directly into the filters of
+CNNs [4, 25, 29, 66, 69]. In this paper, we consider the
+problem of learning representations invariant to the level of
+sparsity in the input. As evidenced by our experiments, our
+model performs well even when the sparsity level differs
+significantly between the training and the test set. This has
+important implications as it allows for replacing the sensor
+(e.g., laser scanner) without retraining the network.
+Depth Upsampling: We evaluate the effectiveness of our
+approach for the task of depth upsampling, which is an ac-
+tive area of research with applications in, e.g., stereo vision,
+optical flow and 3D reconstruction from laser scan data.
+While some methods operate directly on the depth input,
+others require guidance, e.g., from a high resolution image.
+Methods for non-guided depth upsampling are closely
+related to those for single image superresolution. Early
+approaches have leveraged repetitive structures to identify
+similar patches across different scales in 2D [17, 45] and
+3D [27]. More recently, deep learning based methods for
+depth [52] and image superresolution [8,9,32,67] have sur-
+passed traditional upsampling techniques in terms of accu-
+racy and efficiency. However, all aforementioned methods
+assume that the data is located on a regular grid and there-
+fore cannot be applied for upsampling sparse and irregularly
+distributed 3D laser scan data as considered in this paper.
+Guided upsampling, on the other hand, uses the under-
+lying assumption that the target domain shares common-
+alities with a high-resolution guidance image, e.g., that
+image edges align with depth discontinuities. A popular
+choice for guided upsampling is guided bilateral filtering
+[2, 7, 34, 42, 68]. More advanced approaches are based on
+global energy minimization [1, 6, 12, 49, 51], compressive
+sensing [22], or incorporate semantics for improved per-
+formance [58]. Several approaches also exploit end-to-end
+models for guided depth upsampling of regular data [28,61].
+While some of the aforementioned techniques are able to
+handle sparse inputs, they heavily rely on the guidance sig-
+nal. In contrast, here we propose a learning based solution
+to the problem, yielding compelling results even without
+image guidance. Unlike existing CNN-based approaches
+for depth upsampling [28, 61], the proposed convolution
+layer handles sparse irregular inputs which occur, e.g., in
+3D laser scan data.
+3. Method
+Let f denote a mapping from input domain X (e.g., in-
+tensity, depth) to output domain Y (e.g., depth, semantics),
+implemented via a convolutional neural network. In this pa-
+per, we consider the case, where the inputs x = {xu,v} ?
+X are only partially observed. Let o = {ou,v} denote corre-
+sponding binary variables indicating if an input is observed
+(ou,v = 1) or not (ou,v = 0). The output of a standard
+convolutional layer in a CNN is computed via
+fu,v(x) =
+k?
+i,j=?k
+xu+i,v+j wi,j + b (1)
+with kernel size 2k + 1, weight w and bias b. If the input
+comprises multiple features, xu,v and wi,j represent vectors
+whose length depends on the number of input channels.
+3.1. Na??ve Approach
+There are two na??ve ways to deal with unobserved inputs.
+First, invalid inputs xu,v can be encoded using a default
+value, e.g., zero. The problem with this approach is that the
+network must learn to distinguish between observed inputs
+and those being invalid. This is a difficult task as the num-
+ber of possible binary patterns grows exponentially with the
+kernel size. Alternatively, o can be used as an additional in-
+put to the network in the hope that the network learns the
+correspondence between the observation mask and the in-
+puts. Unfortunately, both variants struggle to learn robust
+representations from sparse inputs (see Section 5).
+3.2. Sparse Convolutions
+To tackle this problem, we propose a convolution opera-
+tion which explicitly considers sparsity by evaluating only
+observed pixels and normalizing the output appropriately:
+fu,v(x,o) =
+?k
+i,j=?k ou+i,v+j xu+i,v+j wi,j?k
+i,j=?k ou+i,v+j + 
++ b (2)
+Here, a small  is added to the denominator to avoid division
+by zero at filter locations where none of the input pixels
+xu+i,v+j are observed. Note that Equation 2 evaluates to a
+(scaled) standard convolution when the input is dense.
+The primary motivation behind the proposed sparse con-
+volution operation is to render the filter output invariant to
+the actual number of observed inputs which varies signif-
+icantly between filter locations due to the sparse and ir-
+regular input. Note that in contrast to other techniques
+[12, 52] which artificially upsample the input (e.g., via in-
+terpolation), our approach operates directly on the input and
+doesn’t introduce additional distractors.
+When propagating information to subsequent layers, it is
+important to keep track of the visibility state and make it
+available to the next layers of the network. In particular, we
+like to mark output locations as “unobserved” when none
+of the filter’s inputs has been observed. We thus determine
+subsequent observation masks in the network fou,v(o) via
+the max pooling operation
+fou,v(o) = max
+i,j=?k,..,k
+ou+i,v+j (3)
+which evaluates to 1 if at least one observed variable is vis-
+ible to the filter and 0 otherwise. In combination with the
+output of the convolution this serves as input for the next
+sparse convolution layer. The complete architecture of our
+network is illustrated in Fig. 2.
+3.2.1 Skip Connections
+So far we have only considered the convolution operation.
+However, state-of-the-art CNNs comprise many different
+types of layers implementing different mathematical opera-
+tions. Many of those can be easily generalized to consider
+observation masks. Layers that take the outputs of multi-
+ple preceding layers and combine them to a single output,
+1
+h
+w
+16
+h
+w
+1
+1
+mask
+16
+h
+w
+1
+3
+max pool: 3
+16
+h
+w
+1
+3
+max pool: 3
+16
+h
+w
+1
+5
+max pool: 5
+16
+h
+w
+1
+7
+max pool: 7
+1
+h
+w
+1
+11
+max pool: 11
+(a) Network Architecture
+111
+111
+111
+-201
+2-12
+321
+max pool
+bias
+normalization
+weights
+feature
+mask
+feature
+mask
+(b) Sparse Convolution
+Figure 2: Sparse Convolutional Network. (a) The input to our network is a sparse depth map (yellow) and a binary
+observation mask (red). It passes through several sparse convolution layers (dashed) with decreasing kernel sizes from 11×11
+to 3× 3. (b) Schematic of our sparse convolution operation. Here,  denotes elementwise multiplication, ? convolution, 1/x
+inversion and “max pool” the max pooling operation. The input feature can be single channel or multi-channel.
+e.g., by summation, are used frequently in many different
+network architectures, e.g., summation in inception mod-
+ules [62] or skip connections in ResNets [24] as well as
+fully convolutional networks [43]. With additional obser-
+vation indicators, the summation of input layers for each
+channel c and location (u, v) can be redefined as a normal-
+ized sum over the observed inputs xl
+f+(x,o) =
+?n
+l=1 o
+lxl?n
+l=1 o
+l
+(4)
+where n denotes the number of input layers. If all pixels are
+observed, this expression simplifies to the standard opera-
+tion
+?n
+l=1 x
+l.
+4. Large-Scale Dataset
+Training and evaluating the proposed depth upsampling
+approach requires access to a large annotated dataset. While
+evaluation on synthetic datasets [14, 48, 54] is possible, it
+remains an open question if the level of realism attained by
+such datasets is sufficient to conclude about an algorithm’s
+performance in challenging real-world situations.
+Unfortunately, all existing real-world datasets with san-
+itized depth ground truth are small in scale. The Middle-
+bury benchmark [56, 57] provides depth estimates only for
+a dozen images and only in controlled laboratory condi-
+tions. While the Make3D dataset [55] considers more re-
+alistic scenarios, only 500 images of small resolution are
+provided. Besides, KITTI [16, 46] provides 400 images of
+street scenes with associated depth ground truth. However,
+none of these datasets is large enough for end-to-end train-
+ing of high-capacity deep neural networks.
+For our evaluation, we therefore created a new large-
+scale dataset based on the KITTI raw datasets [15] which
+comprises 93k frames with semi-dense depth ground truth.
+While the KITTI raw datasets provide depth information in
+the form of raw Velodyne scans, significant manual effort
+is typically required to remove noise in the laser scans, arti-
+facts due to occlusions (e.g., due to the different centers of
+projection of the laser scanner and the camera) or reflect-
+ing/transparent surfaces in the scene [16]. It is therefore
+highly desirable to automate this task.
+In this paper, we propose to remove outliers in the laser
+scans by comparing the scanned depth to results from a
+stereo reconstruction approach using semi-global matching
+[26]. While stereo reconstructions typically lead to depth
+bleeding artifacts at object boundaries, LiDaR sensors cre-
+ate streaking artifacts along their direction of motion. To
+remove both types of outliers, we enforce consistency be-
+tween laser scans and stereo reconstruction and remove all
+LiDaR points exhibiting large relative errors. For compar-
+ing both measurements, we transform the SGM disparity
+maps to depth values using KITTI’s provided calibration
+files. We further follow [16] and accumulate 11 laser scans
+to increase the density of the generated depth maps. While
+the environment is mostly static, some of the KITTI se-
+quences comprise dynamic objects, where a laser scan accu-
+mulation causes many outliers on dynamic objects. There-
+fore, we use the SGM depth maps only once to clean the
+accumulated laser scan projection (instead of cleaning each
+laser scan separately) in order to remove all outliers in one
+step: Occlusions, dynamic motion and measurement arti-
+facts. We also observed that most errors due to reflecting
+and transparent surfaces can be removed with this simple
+technique as SGM and LiDaR rarely agree in those regions.
+4.1. Dataset Evaluation
+Before using the proposed dataset for evaluation in Sec-
+tion 5, we verify its quality. Towards this goal, we ex-
+ploit the manually cleaned training set of the KITTI 2015
+stereo benchmark as reference data. We compute several
+error measures for our generated depth maps using the pro-
+vided depth ground truth and compare ourself to the raw
+and accumulated LiDaR scans as well as the SGM depth
+maps in Table 9. The SGM reconstruction is very dense
+but also rather inaccurate compared to the raw laser scans.
+In terms of mean absolute error (MAE) our dataset reaches
+approximately the same accuracy level as the raw LiDaR
+KITTI 2015 [46] Our Dataset Raw LiDaR Acc. LiDaR SGM [26]
+RGB Image Error Maps wrt. KITTI 2015 [46]
+Figure 3: Large-scale Dataset. Qualitative results of our depth annotated dataset. From left to right we compare: depth
+maps of the manually curated KITTI 2015 dataset, our automatically generated data, raw and accumulated LiDaR scans, and
+SGM [26] results. Differences to the KITTI 2015 depth maps are shown in the last row from 0 (green) to 2 (red) meters.
+scans. However, for the metrics “root mean squared er-
+ror (RMSE)”, “KITTI outliers” (disparity error ? 3px and
+? 5%), as well as the ? inlier ratios (maximal mean relative
+error of ?i = 1.25i for i ? {1, 2, 3}), our dataset outper-
+forms all baseline results. At the same time, we achieve
+four times denser depth maps than raw LiDaR scans. A
+qualitative comparison is presented in Fig. 3.
+After manually separating the foreground and back-
+ground regions on the benchmark depth maps, we evaluate
+the errors present on dynamic objects and background in Ta-
+ble 10. The result indicates that our proposed accumulation
+and clean-up pipeline is able to remove outliers in the raw
+LiDaR scans and at the same time significantly increases the
+density of the data. Qualitatively, we find only little errors
+in our dataset. Most of the remaining errors are located on
+dynamic objects or at high distances, cf. Fig. 3 (bottom). In
+comparison, SGM results are inaccurate at large distances
+and LiDaR scans result in occlusion errors due to the differ-
+ent placement of the LiDaR sensor and the virtual camera
+used for projection (we use the image plane of the KITTI
+reference camera for all our experiments). Note that dy-
+namic objects (e.g., car on the left) lead to significant errors
+in the accumulated LiDaR scans which are largely reduced
+with our technique.
+For our experimental evaluation in the next section, we
+split our dataset into 85k images for training, 3k images
+for testing and 4k images for validation. For all splits we
+ensure a similar distribution over KITTI scene categories
+(city, road, residential and campus) while keeping the se-
+quence IDs unique for each split to avoid overfitting to
+nearby frames. On acceptance of this paper, we will setup
+an online evaluation server for evaluating the performance
+of depth upsampling and depth estimation algorithms.
+In the following section, we leverage this dataset for our
+depth upsampling experiments using the proposed sparse
+CNN, which is the main focus of this paper.
+Table 1: Evaluation of reference depth maps using the man-
+ually curated ground truth depth maps of the KITTI 2015
+training set [46]. Note that our dataset is generated fully au-
+tomatically and achieves highest accuracy while providing
+high density. All metrics are computed in disparity space.
+Density MAE RMSE KITTI ?i inlier rates[px] [px] outliers ?1 ?2 ?3
+SGM 82.4% 1.07 2.80 4.52 97.00 98.67 99.19
+Raw LiDaR 4.0% 0.35 2.62 1.62 98.64 99.00 99.27
+Acc. LiDaR 30.2% 1.66 5.80 9.07 93.16 95.88 97.41
+Our Dataset 16.1% 0.35 0.84 0.31 99.79 99.92 99.95
+Table 2: Evaluation of Table 9 split according to foreground
+(car) / background (non-car) regions.
+Depth Map MAE RMSE KITTI ?i inlier rates[px] [px] outliers ?1 ?2 ?3
+SGM 1.2/1.1 3.0/2.8 5.9/4.4 97.6 /96.9 98.2 /98.7 98.5/99.3
+Raw LiDaR 3.7/0.2 10.0/1.9 17.4/0.9 84.3 /99.3 86.1 /99.6 88.6/99.7
+Acc. LiDaR 7.7/1.1 12.0/4.8 59.7/4.3 55.7 /96.7 73.7 /98.0 83.0/98.8
+Our Dataset 0.9/0.3 2.2/0.8 3.0/0.2 98.6/99.8 99.0/99.9 99.3/99.9
+5. Experiments
+5.1. Depth Upsampling
+We investigate the task of depth map completion to eval-
+uate the effect of sparse input data for our Sparse Convolu-
+tion Modules. For this task, a sparse, irregularly populated
+depth map from a projected laser scan is completed to full
+image resolution without any RGB guidance.
+We first evaluate the performance of our method with
+varying degrees of sparsity in the input. Towards this goal,
+we leverage the Synthia dataset of Ros et al. [54] which
+gives us full control over the sparsity level. To artificially
+adjust the sparsity of the input, we apply random dropout to
+the provided dense depth maps during training. The proba-
+5% 10
+%
+20
+%
+30
+%
+40
+%
+50
+%
+60
+%
+70
+%
+80
+%
+90
+%
+10
+0%
+5% 3.6 6.1 9.3 10.7 11.5 12.1 12.4 12.7 13.0 13.2 13.4
+10% 7.1 2.4 5.4 7.2 8.3 8.9 9.3 9.5 9.5 9.4 9.1
+20% 18.0 7.4 2.6 3.8 4.9 5.8 6.2 6.5 6.6 6.4 6.2
+30% 23.6 11.9 4.1 1.9 2.6 3.4 3.9 4.0 4.1 3.7 3.7
+40% 30.1 16.3 7.1 3.4 2.2 2.7 3.7 4.3 4.5 4.7 5.1
+50% 46.5 24.9 26.7 5.8 2.8 1.8 4.3 3.2 3.8 4.3 4.9
+60% 41.6 24.3 12.2 6.9 4.1 2.4 1.8 2.3 2.9 3.4 4.1
+70% 64.9 38.4 19.5 11.8 7.1 4.2 2.5 1.7 2.2 2.9 3.8
+80% 61.2 38.3 20.9 13.1 8.7 5.7 3.6 2.2 1.5 2.1 2.8
+90% 159.6 84.4 41.1 25.2 16.5 11.0 7.2 4.4 2.4 1.4 2.4
+100% 1288.5 886.9 506.6 318.9 202.9 128.0 76.6 37.7 14.8 6.1 1.2
+5% 10
+%
+40
+%
+50
+%
+60
+%
+70
+%
+80
+%
+90
+%
+10
+0%
+5% 10.0 5.2 6.7 7.3 7.4 8.0 8.6 10.2 12.4 11.5 12.6
+10% 16.6 13.3 5.7 8.7 10.3 11.2 13.0 12.0 12.5 12.5 14.2
+20% 7.7 16.6 8.4 4.5 5.1 7.0 7.5 8.5 9.6 10.4 11.1
+30% 8.5 6.4 5.8 6.3 4.3 7.1 14.2 33.4 46.4 35.1 23.6
+40% 9.9 7.2 5.3 4.7 4.6 3.7 3.8 4.6 5.2 6.3 8.0
+50% 12.1 8.3 5.5 3.9 4.8 5.1 4.5 5.1 6.6 17.4 166.5
+60% 10.4 8.9 7.1 5.7 4.4 3.6 3.6 3.4 3.3 5.1 6.6
+70% 14.7 9.9 7.8 6.9 5.8 4.4 3.3 3.5 3.9 6.1 8.0
+80% 15.8 10.6 8.8 7.9 7.1 6.0 4.7 4.1 3.4 3.2 4.9
+90% 13.4 10.0 7.9 6.7 5.7 5.3 4.7 3.7 3.0 6.4 17.4
+100% 16.6 16.0 17.4 18.4 18.6 17.0 14.2 12.5 10.0 6.6 2.9
+20
+%
+30
+%
+5% 10
+%
+20
+%
+30
+%
+40
+%
+50
+%
+60
+%
+70
+%
+80
+%
+90
+%
+10
+0%
+5% 0.99 0.99 0.99 0.99 0.99 0.99 0.99 0.99 0.99 0.99 0.99
+10% 0.98 0.98 0.97 0.98 0.97 0.97 0.97 0.97 0.97 0.97 0.97
+20% 0.98 0.97 0.97 0.97 0.97 0.97 0.97 0.97 0.97 0.97 0.97
+30% 0.98 0.97 0.97 0.97 0.97 0.97 0.97 0.97 0.97 0.97 0.98
+40% 0.99 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98
+50% 0.99 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98
+60% 0.99 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98
+70% 0.99 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98
+80% 0.99 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98
+90% 0.99 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98
+100% 0.99 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98 0.98
+(a) ConvNet (b) ConvNet + mask (c) SparseConvNet
+Figure 4: Comparison of three different networks on the Synthia dataset [54] while varying the sparsity level of the training
+split (left) and the sparsity of the test split (top). From left-to-right: ConvNet, ConvNet with concatenated validity mask and
+the proposed SparseConvNet. All numbers represent mean average errors (MAE).
+(a) Input (visually enhanced) (b) ConvNet (c) ConvNet + mask (d) SparseConvNet (ours) (e) Groundtruth
+Figure 5: Qualitative comparison of our sparse convolutional network to standard ConvNets on Synthia [54], trained and
+evaluated at 5% sparsity. (b) Standard ConvNets suffer from large invalid regions in the input leading to noisy results. (c)
+Using a valid mask as input reduces noise slightly. (d) In contrast, our approach predicts smooth and accurate outputs.
+(a) ConvNet (b) ConvNet + mask (c) SparseConvNet
+Figure 6: Network predictions for scenes in Figs. 1 and 5,
+with all networks trained at 5% sparsity and evaluated at
+20% sparsity. While ConvNets with and without visibility
+mask produce substantially worse results, the results of the
+proposed sparsity invariant CNN do not degrade.
+bility of a pixel to be dropped is set to different levels rang-
+ing from 0% to 95%.
+We train three different variants of a Fully Convolutional
+Network (FCN) with five convolutional layers of kernel size
+11, 7, 5, 3, and 3. Each convolution has a stride of one, 16
+output channels, and is followed by a ReLU as nonlinear
+activation function. The three variants we consider are: i)
+plain convolutions with only sparse depth as input, ii) plain
+convolutions with sparse depth and concatenated valid pixel
+map as input, and iii) the proposed Sparse Convolution Lay-
+ers, cf. Fig. 2. We train separate networks for various levels
+of sparsity using the Synthia Summer sequences, whereas
+evaluation is performed on the Synthia Cityscapes dataset.
+To compare the performance of the different approaches
+we first evaluate them on the sparsity level they have been
+trained on. To test the generalization ability of the different
+models we further apply them to sparsity levels which they
+have not seen during training.
+Fig. 4 shows our results. We observe that plain convo-
+lutions perform poorly with very sparse inputs as all pixels
+(valid and invalid) are considered in the convolution. This
+introduces a large degree of randomness during training and
+testing and results in strong variations in performance. Con-
+volutions on sparse depth maps with the concatenated valid
+mask perform slightly better than using only the depth in-
+put. However, in contrast to our Sparse Convolutions they
+perform poorly, especially on very sparse input.
+Invariance to the level of sparsity is an important prop-
+erty for depth upsampling methods as it increases robust-
+ness towards random perturbations in the data. Besides, this
+property allows to generalize to different depth sensors such
+as structured light sensors, PMD cameras or LiDaR scan-
+ners. As evidenced by Fig. 4, all methods perform reason-
+ably well at the performance level they have been trained
+on (diagonal entries) with the sparse convolution variant
+Table 3: Performance comparison (MAE) of different
+methods trained on different sparsity levels on Synthia and
+evaluated on our newly proposed KITTI depth dataset.
+Sparsity at train: 5% 10% 20% 30% 40% 50% 60% 70%
+ConvNet 16.03 13.48 10.97 8.437 10.02 9.73 9.57 9.90
+ConvNet+mask 16.18 16.44 16.54 16.16 15.64 15.27 14.62 14.11
+SparseConvNet 0.722 0.723 0.732 0.734 0.733 0.731 0.731 0.730
+performing best. However, both baselines fail completely
+in predicting depth estimates on more sparse and, surpris-
+ingly, also on more dense inputs. In contrast, our proposed
+Sparse Convolution Network performs equally well across
+all levels of sparsity no matter which sparsity level has been
+observed during training. This highlights the generalization
+ability of our approach. Fig. 5 shows a qualitative compari-
+son of the generated dense depth maps for the two baselines
+and our approach using 5% sparsity during training and test-
+ing. Note that the input in Fig. 5 (a) has been visually
+enhanced using dilation to improve readability. It thus ap-
+pears more dense than the actual input to the networks. For
+the same examples, Fig. 6 shows the drastic drop in perfor-
+mance when training standard CNNs on 5% and evaluating
+on 20%, while our approach performs equally well. While
+ConvNets with input masks lead to noisy results, standard
+ConvNets even result in a systematic bias as they are un-
+aware of the level of sparsity in the input.
+5.1.1 Synthetic-to-Real Domain Adaptation
+To evaluate the domain adaption capabilities of our method,
+we conduct an experiment where we train on the Synthia
+dataset and evaluate on our proposed KITTI validation set.
+Table 3 shows the performance of our network (SparseC-
+onv) as well as the two regular CNN baselines using the
+same number of parameters. Our experiments demonstrate
+that sparse convolutions perform as well on KITTI as on
+Synthia, while the dense baselines are not able to adapt to
+the new input modality and fail completely. We show qual-
+itative results of this experiment in Fig. 7.
+5.2. Comparison to Guided Upsampling
+As discussed in the related work section, several ap-
+proaches in the literature leverage a high resolution image to
+guide the depth map completion task which significantly fa-
+cilitates the problem. Dense color information can be very
+useful to control the interpolation of sparse depth points,
+e.g., to distinguish between object boundaries and smooth
+surfaces. However, relying on camera information in multi-
+modal sensor setups, such as used in e.g. autonomous cars,
+is not always recommended. Bad weather and night scenes
+can diminish the benefit of image data or even worsen the
+result. Therefore, we target an approach which leverages
+Table 4: Performance comparison of different methods on
+our KITTI depth dataset. Our method performs compara-
+ble to state-of-the-art methods that incorporate RGB (top),
+while outperforming all depth-only variants (bottom).
+Method MAE [m] RMSE [m]val test val test
+Bilateral NN [30] 1.09 1.09 4.19 5.233
+SGDU [58] 0.72 0.57 2.5 2.02
+Fast Bilateral Solver [1] 0.65 0.52 1.98 1.75
+TGVL [12] 0.59 0.46 4.85 4.08
+Closest Depth Pooling 0.94 0.68 2.77 2.30
+Nadaraya Watson [47, 64] 0.74 0.66 2.99 2.86
+ConvNet 0.78 0.62 2.97 2.69
+ConvNet + mask 0.79 0.62 2.24 1.94
+SparseConvNet (ours) 0.68 0.54 2.01 1.81
+depth as the only input in this paper.
+In this section, we show that despite not relying on guid-
+ance information, our approach performs on par with the
+state-of-the-art in guided upsampling and even outperforms
+several methods which use image guidance. Table 4 (top)
+shows a comparison of several state-of-the-art methods for
+guided filtering. In particular, we evaluated the methods of
+Barron et al. [1], Schneider et al. [58], Ferstl et al. [12], and
+Jampani et al. [30] which all require a non-sparse RGB im-
+age as guidance. For a fair comparison we added the same
+amount of convolutional layers as we use in our sparse con-
+volutional network for Jampani et al. [31]. For the other
+baseline methods we optimized the hyper parameters via
+grid search on the validation split.
+In addition, we compare our method to several depth-
+only algorithms in Table 4 (bottom). We first evaluate a
+simple pooling approach that takes the closest (distance to
+sensor) valid point to fill in unseen regions within a given
+window. Second, we apply the Nadaraya-Watson regres-
+sor [47, 64] using a Gaussian kernel on the sparse depth in-
+put. We optimized the hyperparameters of both approaches
+on the training data. While the first two baselines do not
+require large amounts of training data, we also compare our
+method to high-capacity baselines. In particular, we con-
+sider a standard ConvNet with and without visibility mask
+as additional feature channel.
+It is notable that our approach performs comparable to
+state-of-the-art guided upsampling techniques despite not
+using any RGB information. In particular, it performs sec-
+ond in terms of RMSE on both validation and test split
+which we attribute to the Euclidean loss used for training.
+5.2.1 Sparsity Evaluation on KITTI
+In the KITTI dataset, a 64-layer laser scanner with a rota-
+tional frequency of 10 Hz was used to acquire ground truth
+for various tasks such as stereo vision and flow estimation.
+If projected to the image, the depth measurements cover ap-
+(a) ConvNet (b) ConvNet + mask (c) SparseConvNet
+Figure 7: Qualitative comparison of the best network variants from Table 3 trained on synthetic Synthia [54] and evaluated
+on the proposed real-world KITTI depth dataset. While our SparseConvNet adapts well to the novel domain, standard
+convolutional neural networks fail completely in recovering sensible depth information.
+0.2 0.4 0.6 0.8 1
+0.5
+1
+1.5
+2
+Density [%]
+M
+A
+E
+[m
+et
+er
+s]
+[1] [44]
+[22]
+Simple CNN[8]
+Simple CNN
+ours + mask
+Figure 8: Quantitative results in MAE (meters) on our depth
+annotated KITTI subset for varying levels of input density.
+We compare our unguided approach to several baselines [1,
+12, 30, 58] which leverage RGB guidance for upsampling
+and two standard convolutional neural networks with and
+without valid mask concatenated to the input.
+proximately 5 % of the image. For industrial applications
+such as autonomous driving, often scanners with only 32 or
+16 layers and higher frequencies are used. This results in
+very sparse depth projections. To analyze the impact of ex-
+tremely sparse information, we evaluate the Sparse Convo-
+lutional Network and several baselines with respect to dif-
+ferent levels of sparsity on our newly annotated KITTI sub-
+set. In particular, we train all networks using all laser mea-
+surements and evaluate the performance when varying the
+density of the input using random dropout. Our results in
+Fig. 8 demonstrate the generalization ability of our network
+for different levels of sparsity. Regular convolutions as well
+as several state-of-the-art approaches perform poorly in the
+presence of sparse inputs. Note that both Barron et al. [1]
+and Ferstl et al. [12] perform slightly better than our method
+on very sparse data but require a dense high-resolution RGB
+image for guidance.
+5.3. Semantic Labeling from Sparse Depth
+To demonstrate an output modality different from depth,
+we also trained the well-known VGG16 architecture [43]
+for the task of semantic labeling from sparse depth in-
+Table 5: IoU performance of different network variants on
+the Synthia Cityscapes subset after training on all Synthia
+sequences (mean over all 15 known classes).
+Network IoU [%]
+VGG - Depth Only 6.4
+VGG - Depth + Mask 4.9
+VGG - Sparse Convolutions 31.1
+puts. We modify VGG16 by replacing the regular convolu-
+tions using our sparse convolution modules. Additionally,
+we apply the weighted skip connections presented in Sec-
+tion 3.2.1 to generate high-resolution predictions from the
+small, spatially downsampled FC7 layer, while incorporat-
+ing visibility masks of the respective network stages.
+Table 5 shows the mean performance after training on all
+Synthia “Sequence” frames (left camera to all directions,
+summer only) and evaluating on the Synthia “Cityscapes”
+subset2. Again, we observe that the proposed sparse convo-
+lution module outperforms the two baselines. The compara-
+bly small numbers can be explained by the different nature
+of the validation set which contains more people and also
+very different viewpoints (bird’s eye vs. street-level).
+6. Conclusion
+We have proposed a novel sparse convolution module
+for handling sparse inputs which can replace regular convo-
+lution modules and results in improved performance while
+generalizing well to novel domains or sparsity levels. Fur-
+thermore, we provide a newly annotated dataset with 93k
+depth annotated images for training and evaluating depth
+prediction and depth upsampling techniques.
+In future work, we plan to combine the proposed sparse
+convolution networks with network compression techniques
+to handle sparse inputs while at the same time being more
+efficient. We further plan to investigate the effect of sparse
+irregular inputs for 3D CNNs [53].
+2We map all unknown classes in the validation set to corresponding
+classes in the training set and ignore all other unknown classes.
+References
+[1] J. T. Barron and B. Poole. The fast bilateral solver. In Proc.
+of the European Conf. on Computer Vision (ECCV), pages
+617–632. Springer, 2016. 3, 7, 8
+[2] D. Chan, H. Buisman, C. Theobalt, and S. Thrun. A Noise-
+Aware Filter for Real-Time Depth Upsampling. In ECCV
+Workshops, 2008. 3
+[3] X. Chen, H. Ma, J. Wan, B. Li, and T. Xia. Multi-view 3d
+object detection network for autonomous driving. arXiv.org,
+1611.07759, 2016. 1, 2
+[4] T. S. Cohen and M. Welling. Group equivariant convolu-
+tional networks. In Proc. of the International Conf. on Ma-
+chine learning (ICML), 2016. 2
+[5] M. Cordts, M. Omran, S. Ramos, T. Rehfeld, M. Enzweiler,
+R. Benenson, U. Franke, S. Roth, and B. Schiele. The
+cityscapes dataset for semantic urban scene understanding.
+In Proc. IEEE Conf. on Computer Vision and Pattern Recog-
+nition (CVPR), 2016. 12
+[6] J. Diebel and S. Thrun. An application of markov random
+fields to range sensing. In Advances in Neural Information
+Processing Systems (NIPS), 2005. 3
+[7] J. Dolson, J. Baek, C. Plagemann, and S. Thrun. Upsampling
+Range Data in Dynamic Environments. In Proc. IEEE Conf.
+on Computer Vision and Pattern Recognition (CVPR), 2010.
+3
+[8] C. Dong, C. C. Loy, K. He, and X. Tang. Learning a deep
+convolutional network for image super-resolution. In Proc.
+of the European Conf. on Computer Vision (ECCV), pages
+184–199. Springer, 2014. 3
+[9] C. Dong, C. C. Loy, K. He, and X. Tang. Image
+super-resolution using deep convolutional networks. IEEE
+Trans. on Pattern Analysis and Machine Intelligence (PAMI),
+38(2):295–307, 2016. 3
+[10] D. Eigen and R. Fergus. Predicting depth, surface normals
+and semantic labels with a common multi-scale convolu-
+tional architecture. arXiv.org, 1411.4734, 2014. 14
+[11] D. Eigen, C. Puhrsch, and R. Fergus. Depth map prediction
+from a single image using a multi-scale deep network. In
+Advances in Neural Information Processing Systems (NIPS),
+2014. 14
+[12] D. Ferstl, C. Reinbacher, R. Ranftl, M. Ruether, and
+H. Bischof. Image Guided Depth Upsampling Using
+Anisotropic Total Generalized Variation. In Proc. of the
+IEEE International Conf. on Computer Vision (ICCV), 2013.
+3, 7, 8
+[13] M. Figurnov, A. Ibraimova, D. P. Vetrov, and P. Kohli. Per-
+foratedcnns: Acceleration through elimination of redundant
+convolutions. In Advances in Neural Information Processing
+Systems (NIPS), 2016. 2
+[14] A. Gaidon, Q. Wang, Y. Cabon, and E. Vig. Virtual worlds
+as proxy for multi-object tracking analysis. In Proc. IEEE
+Conf. on Computer Vision and Pattern Recognition (CVPR),
+2016. 4
+[15] A. Geiger, P. Lenz, C. Stiller, and R. Urtasun. Vision
+meets robotics: The KITTI dataset. International Journal
+of Robotics Research (IJRR), 32(11):1231–1237, 2013. 2, 4
+[16] A. Geiger, P. Lenz, and R. Urtasun. Are we ready for au-
+tonomous driving? The KITTI vision benchmark suite. In
+Proc. IEEE Conf. on Computer Vision and Pattern Recogni-
+tion (CVPR), 2012. 2, 4
+[17] D. Glasner, S. Bagon, and M. Irani. Super-Resolution from
+a Single Image. In Proc. of the IEEE International Conf. on
+Computer Vision (ICCV), 2009. 3
+[18] B. Graham. Spatially-sparse convolutional neural networks.
+arXiv preprint arXiv:1409.6070, 2014. 2
+[19] B. Graham. Sparse 3D convolutional neural networks. Proc.
+of the British Machine Vision Conf. (BMVC), 2015. 2
+[20] B. Graham. Sparse 3d convolutional neural networks. In
+Proc. of the British Machine Vision Conf. (BMVC), 2015. 13
+[21] S. Han, J. Pool, J. Tran, and W. J. Dally. Learning both
+weights and connections for efficient neural network. In
+Advances in Neural Information Processing Systems (NIPS),
+2015. 2
+[22] S. Hawe, M. Kleinsteuber, and K. Diepold. Dense disparity
+maps from sparse disparity measurements. In Proc. of the
+IEEE International Conf. on Computer Vision (ICCV), 2011.
+3
+[23] C. Hazirbas, L. Ma, C. Domokos, and D. Cremers. Fusenet:
+Incorporating depth into semantic segmentation via fusion-
+based cnn architecture. In Proc. of the Asian Conf. on Com-
+puter Vision (ACCV), 2016. 12, 14
+[24] K. He, X. Zhang, S. Ren, and J. Sun. Deep residual learning
+for image recognition. In Proc. IEEE Conf. on Computer
+Vision and Pattern Recognition (CVPR), 2016. 4, 12
+[25] J. F. Henriques and A. Vedaldi. Warped convolutions:
+Efficient invariance to spatial transformations. arXiv.org,
+1609.04382, 2016. 2
+[26] H. Hirschmu?ller. Stereo processing by semiglobal matching
+and mutual information. IEEE Trans. on Pattern Analysis
+and Machine Intelligence (PAMI), 30(2):328–341, 2008. 4,
+5, 15
+[27] M. Hornacek, C. Rhemann, M. Gelautz, and C. Rother.
+Depth super resolution by rigid body self-similarity in 3d.
+In Proc. IEEE Conf. on Computer Vision and Pattern Recog-
+nition (CVPR), 2013. 3
+[28] T. Hui, C. C. Loy, and X. Tang. Depth map super-resolution
+by deep multi-scale guidance. In Proc. of the European Conf.
+on Computer Vision (ECCV), 2016. 3
+[29] M. Jaderberg, K. Simonyan, A. Zisserman, and
+K. Kavukcuoglu. Spatial transformer networks. In
+Advances in Neural Information Processing Systems (NIPS),
+2015. 2
+[30] V. Jampani, M. Kiefel, and P. V. Gehler. Learning sparse high
+dimensional filters: Image filtering, dense crfs and bilateral
+neural networks. In Proc. IEEE Conf. on Computer Vision
+and Pattern Recognition (CVPR), 2016. 2, 7, 8
+[31] V. Jampani, M. Kiefel, and P. V. Gehler. Learning sparse
+high dimensional filters: Image filtering, dense CRFs and
+bilateral neural networks. In Proc. IEEE Conf. on Computer
+Vision and Pattern Recognition (CVPR), pages 4452–4461,
+2016. 7
+[32] J. Kim, J. K. Lee, and K. M. Lee. Accurate image super-
+resolution using very deep convolutional networks. In Proc.
+IEEE Conf. on Computer Vision and Pattern Recognition
+(CVPR), 2016. 3
+[33] R. Ko?hler, C. J. Schuler, B. Scho?lkopf, and S. Harmeling.
+Mask-specific inpainting with deep neural networks. In Proc.
+of the German Conference on Pattern Recognition (GCPR),
+2014. 2
+[34] J. Kopf, M. F. Cohen, D. Lischinski, and M. Uyttendaele.
+Joint Bilateral Upsampling. ACM Trans. on Graphics (SIG-
+GRAPH), 26(3), 2007. 3
+[35] A. Krizhevsky, I. Sutskever, and G. E. Hinton. Imagenet
+classification with deep convolutional neural networks. In
+Advances in Neural Information Processing Systems (NIPS),
+2012. 2, 14
+[36] D. Laptev, N. Savinov, J. M. Buhmann, and M. Pollefeys.
+TI-POOLING: transformation-invariant pooling for feature
+learning in convolutional neural networks. In Proc. IEEE
+Conf. on Computer Vision and Pattern Recognition (CVPR),
+2016. 2
+[37] Y. LeCun, L. Bottou, Y. Bengio, and P. Haffner. Gradient-
+based learning applied to document recognition. Proceed-
+ings of the IEEE, 86(11):2278–2324, 1998. 13
+[38] Y. LeCun and C. Cortes. MNIST handwritten digit database.
+2010. 12
+[39] B. Li, T. Zhang, and T. Xia. Vehicle detection from 3d lidar
+using fully convolutional network. In Proc. Robotics: Sci-
+ence and Systems (RSS), 2016. 1, 2
+[40] B. Liu, M. Wang, H. Foroosh, M. Tappen, and M. Pensky.
+Sparse convolutional neural networks. In Proc. IEEE Conf.
+on Computer Vision and Pattern Recognition (CVPR), June
+2015. 2
+[41] F. Liu, C. Shen, G. Lin, and I. Reid. Learning depth from sin-
+gle monocular images using deep convolutional neural fields.
+IEEE Trans. on Pattern Analysis and Machine Intelligence
+(PAMI), 38(10):2024–2039, 2016. 14, 15
+[42] M. Liu, O. Tuzel, and Y. Taguchi. Joint geodesic upsampling
+of depth images. In Proc. IEEE Conf. on Computer Vision
+and Pattern Recognition (CVPR), 2013. 3
+[43] J. Long, E. Shelhamer, and T. Darrell. Fully convolutional
+networks for semantic segmentation. In Proc. IEEE Conf. on
+Computer Vision and Pattern Recognition (CVPR), 2015. 4,
+8
+[44] J. Long, E. Shelhamer, and T. Darrell. Fully convolutional
+networks for semantic segmentation. In Proc. IEEE Conf.
+on Computer Vision and Pattern Recognition (CVPR), 2015.
+12, 14
+[45] O. Mac Aodha, N. D. Campbell, A. Nair, and G. J. Bros-
+tow. Patch based synthesis for single depth image super-
+resolution. In Proc. of the European Conf. on Computer Vi-
+sion (ECCV), pages 71–84. Springer, 2012. 3
+[46] M. Menze and A. Geiger. Object scene flow for autonomous
+vehicles. In Proc. IEEE Conf. on Computer Vision and Pat-
+tern Recognition (CVPR), 2015. 4, 5, 14, 15, 16
+[47] E. Nadaraya. On estimating regression. In Theory of Proba-
+bility and its Applications, 1964. 7
+[48] N.Mayer, E.Ilg, P.Ha?usser, P.Fischer, D.Cremers,
+A.Dosovitskiy, and T.Brox. A large dataset to train
+convolutional networks for disparity, optical flow, and scene
+flow estimation. In Proc. IEEE Conf. on Computer Vision
+and Pattern Recognition (CVPR), 2016. 4
+[49] J. Park, H. Kim, Y. Tai, M. S. Brown, and I. Kweon. High
+quality depth map upsampling for 3d-tof cameras. In Proc.
+of the IEEE International Conf. on Computer Vision (ICCV),
+2011. 3
+[50] J. Park, S. R. Li, W. Wen, H. Li, Y. Chen, and P. Dubey.
+Holistic sparsecnn: Forging the trident of accuracy, speed,
+and size. arXiv.org, 1608.01409, 2016. 2
+[51] G. Riegler, D. Ferstl, M. Ru?ther, and H. Bischof. A
+deep primal-dual network for guided depth super-resolution.
+arXiv preprint arXiv:1607.08569, 2016. 3
+[52] G. Riegler, M. Ru?ther, and H. Bischof. ATGV-net: Accurate
+depth super-resolution. In Proc. of the European Conf. on
+Computer Vision (ECCV), pages 268–284. Springer, 2016. 3
+[53] G. Riegler, A. O. Ulusoy, and A. Geiger. Octnet: Learning
+deep 3d representations at high resolutions. In Proc. IEEE
+Conf. on Computer Vision and Pattern Recognition (CVPR),
+2017. 2, 8
+[54] G. Ros, L. Sellart, J. Materzynska, D. Vazquez, and
+A. Lopez. The synthia dataset: A large collection of syn-
+thetic images for semantic segmentation of urban scenes. In
+Proc. IEEE Conf. on Computer Vision and Pattern Recogni-
+tion (CVPR), 2016. 2, 4, 5, 6, 8
+[55] A. Saxena, M. Sun, and A. Y. Ng. Make3D: learning 3D
+scene structure from a single still image. IEEE Trans. on
+Pattern Analysis and Machine Intelligence (PAMI), 31:824–
+840, 2009. 4
+[56] D. Scharstein, H. Hirschmu?ller, Y. Kitajima, G. Krathwohl,
+N. Nesic, X. Wang, and P. Westling. High-resolution stereo
+datasets with subpixel-accurate ground truth. In Proc. of the
+German Conference on Pattern Recognition (GCPR), 2014.
+4
+[57] D. Scharstein and R. Szeliski. A taxonomy and evaluation
+of dense two-frame stereo correspondence algorithms. Inter-
+national Journal of Computer Vision (IJCV), 47:7–42, 2002.
+4
+[58] N. Schneider, L. Schneider, P. Pinggera, U. Franke, M. Polle-
+feys, and C. Stiller. Semantically guided depth upsampling.
+In Proc. of the German Conference on Pattern Recognition
+(GCPR), pages 37–48. Springer, 2016. 3, 7, 8
+[59] P. Y. Simard, D. Steinkraus, and J. C. Platt. Best practices for
+convolutional neural networks applied to visual document
+analysis. 2003. 2
+[60] S. Song, S. Lichtenberg, and J. Xiao. Sun rgb-d: A rgb-d
+scene understanding benchmark suite. In Proc. IEEE Conf.
+on Computer Vision and Pattern Recognition (CVPR), 2015.
+12, 14
+[61] X. Song, Y. Dai, and X. Qin. Deep depth super-resolution:
+Learning depth super-resolution using deep convolutional
+neural network. In Proc. of the Asian Conf. on Computer
+Vision (ACCV), 2016. 3
+[62] C. Szegedy, W. Liu, Y. Jia, P. Sermanet, S. E. Reed,
+D. Anguelov, D. Erhan, V. Vanhoucke, and A. Rabinovich.
+Going deeper with convolutions. In Proc. IEEE Conf. on
+Computer Vision and Pattern Recognition (CVPR), 2015. 4
+[63] B. Ummenhofer, H. Zhou, J. Uhrig, N. Mayer, E. Ilg,
+A. Dosovitskiy, and T. Brox. Demon: Depth and motion
+network for learning monocular stereo. In Proc. IEEE Conf.
+on Computer Vision and Pattern Recognition (CVPR), 2017.
+15
+[64] G. Watson. Smooth regression analysis. In Sankhya?: The
+Indian Journal of Statistics, 1964. 7
+[65] W. Wen, C. Wu, Y. Wang, Y. Chen, and H. Li. Learning
+structured sparsity in deep neural networks. In Advances in
+Neural Information Processing Systems (NIPS), 2016. 2
+[66] D. E. Worrall, S. J. Garbin, D. Turmukhambetov, and G. J.
+Brostow. Harmonic networks: Deep translation and rotation
+equivariance. In Proc. IEEE Conf. on Computer Vision and
+Pattern Recognition (CVPR), 2017. 2
+[67] J. Yang, J. Wright, T. S. Huang, and Y. Ma. Image super-
+resolution via sparse representation. IEEE transactions on
+image processing, 19(11):2861–2873, 2010. 3
+[68] Q. Yang, R. Yang, J. Davis, and D. Nister. Spatial-Depth
+Super Resolution for Range Images. In Proc. IEEE Conf. on
+Computer Vision and Pattern Recognition (CVPR), 2007. 3
+[69] Y. Zhou, Q. Ye, Q. Qiu, and J. Jiao. Oriented response net-
+works. In Proc. IEEE Conf. on Computer Vision and Pattern
+Recognition (CVPR), 2017. 2
+[70] S. Zweig and L. Wolf. Interponet, A brain inspired neu-
+ral network for optical flow dense interpolation. arXiv.org,
+1611.09803, 2016. 2
+Supplementary Material for
+Sparsity Invariant CNNs
+August 23, 2017
+Convergence Analysis
+We find that Sparse Convolutions converge much
+faster than standard convolutions for most input-output-
+combinations, especially for those on Synthia with irregu-
+larly sparse depth input, as considered in Section 5.1 of the
+main paper. In Figure 9, we show the mean average error in
+meters on our validation subset of Synthia over the process
+of training with identical solver settings (Adam with mo-
+mentum terms of ?1 = 0.9, ?2 = 0.999 and delta 1e?8).
+We chose for each variant the maximal learning rate which
+still causes the network to converge (which turned out to be
+1e?3 for all three variants). We find that Sparse Convo-
+lutions indeed train much faster and much smoother com-
+pared to both ConvNet variants, most likely caused by the
+explicit ignoring of invalid regions in the update step. In-
+terestingly, the ConvNet variant with concatenated visibil-
+ity mask in the input converges smoother than the variant
+with only sparse depth in the input, however, additionally
+incorporating visibility masks seems to reduce overall per-
+formance for the task of depth upsampling.
+Semantic Segmentation
+Detailed Results on Synthia
+Relating to Section 5.3 of the main paper, we show in Ta-
+ble 6 the class-wise IoU for semantic labeling on 5% sparse
+input data and compare the three proposed VGG-like vari-
+ants: Convolutions on depth only, convolutions on depth
+with concatenated visibility mask, and sparse convolutions
+using depth and visibility mask. We find that sparse convo-
+lutions learn to predict also less likely classes, while stan-
+dard convolutions on such sparse data even struggle to get
+the most likely classes correct.
+Semantic Segmentation on Real Depth Maps
+Many recent datasets provide RGB and aligned depth
+information along with densely annotated semantic labels,
+such as Cityscapes [5] and SUN-RGBD [60]. Many state-
+of-the-art approaches incorporate depth as well as RGB in-
+formation in order to achieve highest performance for the
+task of semantic segmentation [23]. As the provided depth
+maps are often not completely dense, we propose to use
+sparse convolutions on the depth channel instead of filling
+depth maps artificially and applying dense convolutions af-
+terwards.
+We conduct experiments on SUN-RGBD with only
+depth maps as input to show the benefit of using sparse con-
+volutions over traditional convolutions. As seen in Section
+5.3 of the main paper, sparse convolutions help to incorpo-
+rate missing depth information in the input for very sparse
+(5%) depth maps. In Table 7 we show the performance
+of a VGG16 (with half the amount of channels than usual)
+trained from scratch for the task of semantic labeling from
+(sparse) depth maps. We apply skip connections as used
+throughout literature [24,44] up to half the input resolution.
+We compare performance on the provided raw sparse depth
+maps (raw, cf. Figure 11) as well as a dense depth map
+version obtained from a special inpainting approach using
+neighboring frames (filled) on the SUN-RGBD test dataset,
+as well as the used convolution type (sparse or standard).
+We find that sparse convolutions perform better than stan-
+dard convolutions, on both raw and filled depth maps, no
+matter if a visibility map is concatenated to the input depth
+map or not. Like reported in [23], standard convolutions
+on the raw depth maps do perform very bad, however, we
+find that concatenating the visibility map to the input al-
+ready doubles the achieved performance. A detailed class-
+wise performance analysis can be found in Table 8. Note
+that missing information in the input, like missing depth
+measurements in the SUN-RGBD dataset, does not always
+cause less information, which we discuss in the following
+section. This phenomenon boosts methods that explicitly
+learn convolutions on a visibility mask, such as the two
+standard convolution networks with concatenated visibility
+masks. Although we do not explicitly extract features of
+the visibility masks we still outperform the other convolu-
+tion variants.
+Discussion: Missing data is not always missing in-
+formation
+In our experiments we recognized that missing data
+might sometimes be helpful for certain tasks. Let’s con-
+sider e.g. digit classification [38] or shape recognition from
+3D CAD models as depicted in Figure 10. For both cases
+12
+0 100 200 300 400 500 600 700 800 900 1000
+Iterations
+0
+5
+10
+15
+M
+AE
+ [m
+] o
+n 
+va
+lid
+at
+io
+n 
+sp
+lit
+SparseConvNet
+ConvNet
+ConvNet+Mask
+Figure 9: Convergence of the three considered network baselines from Section 5.1 of the main paper
+for the task of sparse depth upsampling on 5% dense input depth maps from our Synthia train subset.
+Table 6: Evaluation of the class-level performance for pixel-level semantic la-
+beling on our Synthia validation split subset (‘Cityscapes‘) after training on all
+Synthia ‘Sequence‘ subsets using the Intersection over Union (IoU) metric. All
+numbers are in percent and larger is better.
+sk
+y
+bu
+ild
+in
+g
+ro
+ad
+si
+de
+w
+al
+k
+fe
+nc
+e
+ve
+ge
+ta
+tio
+n
+po
+le
+ca
+r
+tr
+af
+fic
+si
+gn
+pe
+de
+st
+ri
+an
+bi
+cy
+cl
+e
+la
+ne
+m
+ar
+ki
+ng
+tr
+af
+fic
+lig
+ht
+m
+ea
+n
+Io
+U
+VGG - Depth Only 27.1 30.3 25.6 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 6.4
+VGG - Depth + Mask 20.9 27.8 14.5 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 4.9
+VGG - Sparse Convolutions 95.3 59.0 33.0 17.2 1.0 60.5 28.7 33.0 12.5 35.6 6.1 0.5 22.4 31.1
+the relation between invalid (background) and valid pix-
+els/voxels is indispensable information for the classifica-
+tion. We want to stress that our approach does not tackle
+such cases. Instead it handles cases where unobserved data
+is irregularly distributed and does not contain additional in-
+formation. Therefore, the missing data harms the results of
+the convolution.
+Data from active sensors, such as Time-of-Flight (ToF)
+cameras used in the SUN-RGBD dataset, is often sparse
+as shown in Figure 11. However, the missing data might
+contain a pattern if e.g. only certain materials do reflect the
+emitted light. This might be the reason why the results in
+Table 7 show a significant improvement for standard con-
+volutions if the visibility mask is concatenated. Our Sparse
+Convolution Network does not consider any missing data.
+Figure 10: Missing data sometimes contains useful infor-
+mation as in the example of handwritten digit classification
+or 3D CAD model classification. Examples are taken from
+LeCun et al. [37] and Graham [20].
+Therefore, it might miss information encoded in the visibil-
+Table 7: Performance comparison of different input
+and convolution variants for the task of semantic la-
+beling on (sparse or filled) depth maps from the SUN-
+RGBD dataset [60]. All networks are trained from
+scratch on the training split using 37 classes, per-
+formance is evaluated on the test split as mean IoU,
+cf. [23].
+Convolution
+Type
+Input Depth Visibility Mask? IoU [%]
+StandardRaw Depth No 7.697
+StandardFilled Depth No 10.442
+StandardRaw Depth Concatenated 18.971
+StandardFilled Depth Concatenated 18.636
+SparseRaw Depth Yes 19.640
+Figure 11: Active sensors such as ToF cameras might con-
+tain missing values because of strongly reflecting surfaces.
+However, the missing data clearly outlines the shape of cer-
+tain objects and therefore gives a hint for semantic seg-
+mentation. This example is taken from the SUN-RGBD
+dataset [60].
+ity mask. Although, the proposed method outperforms the
+na??ve approaches, considering the valid mask explicitly will
+likely further improve the performance of our method.
+Detailed Dataset Evaluation
+Relating to Section 4.1 of the main paper, we manu-
+ally extract regions in the image containing dynamic ob-
+jects in order to compare our dataset’s depth map accuracy
+for foreground and background separately. Various error
+metrics for the 142 KITTI images with corresponding raw
+sequences, where we differentiate between the overall av-
+erage, cf. Table 9, as well as foreground and background
+pixels, cf. Tables 10 and 11.
+We find that our generated depth maps have a higher ac-
+curacy than all other investigated depth maps. Compared
+to raw LiDaR, our generated depth maps are four times
+denser and contain five times less outliers in average. Even
+though we lose almost 50% of the density of the LiDaR
+accumulation through our cleaning procedure, we achieve
+almost 20 times less outliers on dynamic objects and even
+a similar boost also on the static environment. This might
+be explained through the different noise characteristics in
+critical regions, e.g. where LiDaR typically blurs in lateral
+direction on depth edges, SGM usually blurs in longitudi-
+nal direction. In comparison to the currently best published
+stereo algorithm on the KITTI 2015 stereo benchmark web-
+site [46], which achieves 2.48, 3.59, 2.67 KITTI outlier
+rates for background, foreground and all pixels (anonymous
+submission, checked on April 18th, 2017), the quality of our
+depth maps is in the range of 0.23, 2.99, 0.84. Therefore,
+besides boosting depth estimation from single images (as
+shown in Section 6), we hope to also boost learned stereo
+estimation approaches.
+Table 10: Evaluation as in Table 9 but only for Fore-
+ground pixels.
+Depth Map MAE RMSE KITTI ?i inlier ratesoutliers ?1 ?2 ?3
+SGM 1.23 2.98 5.91 97.6 98.2 98.5
+Raw LiDaR 3.72 10.02 17.36 84.29 86.11 88.56
+Acc. LiDaR 7.73 12.01 59.73 55.67 73.73 83.04
+Cleaned Acc. 0.88 2.15 2.99 98.55 98.96 99.17
+Table 11: Evaluation as in Table 9 but only for Back-
+ground pixels.
+Depth Map MAE RMSE KITTI ?i inlier ratesoutliers ?1 ?2 ?3
+SGM 1.05 2.77 4.36 96.93 98.72 99.27
+Raw LiDaR 0.22 1.90 0.94 99.25 99.56 99.73
+Acc. LiDaR 1.09 4.81 4.25 96.74 97.99 98.78
+Cleaned Acc. 0.34 0.77 0.23 99.83 99.94 99.97
+Further Depth Upsampling Results
+We show more results of our depth upsampling approach
+in Figure 12. The input data of the Velodyne HDL64 is
+sparse and randomly distributed when projected to the im-
+age. Our approach can handle fine structures while being
+smooth on flat surfaces. Sparse convolutions internally in-
+corporate sparsity in the input and apply the learned convo-
+lutions only to those input pixels with valid depth measure-
+ments.
+Boosting Single-Image Depth Prediction
+As promised in Section 4 of the main paper, we con-
+ducted several experiments for a deep network predicting
+depth maps from a single RGB image, e.g. as done by
+[10, 11, 41] and many more. Due to the lack of training
+code and to keep this study independent of current research
+in loss and architecture design, we chose the well-known
+VGG16 architecture [44] with weights initialized on the Im-
+ageNet dataset [35] and vary only the used ground truth. For
+a fair comparison, we use the same amount of images and
+Table 8: Evaluation of the class-level performance for pixel-level semantic labeling on Synthia Cityscapes subset
+after training on all Synthia Sequence subsets using the Intersection over Union (IoU) metric. All numbers are
+in percent and larger is better. Our sparse convolutions outperform the other variants on 18 classes, standard
+convolutions on filled depth with concatenated visibility mask outperform the others on 11 classes, and on 8
+classes standard convolutions on raw depth with concatenated mask perform best.
+w
+al
+l
+flo
+or
+ca
+bi
+ne
+t
+be
+d
+ch
+ai
+r
+so
+fa
+ta
+bl
+e
+do
+or
+w
+in
+do
+w
+bo
+ok
+sh
+el
+f
+pi
+ct
+ur
+e
+co
+un
+te
+r
+bl
+in
+ds
+de
+sk
+sh
+el
+ve
+s
+cu
+rt
+ai
+n
+dr
+es
+se
+r
+pi
+llo
+w
+m
+ir
+ro
+r
+flo
+or
+m
+at
+cl
+ot
+he
+s
+ce
+ili
+ng
+bo
+ok
+s
+fr
+id
+ge
+tv pa
+pe
+r
+to
+w
+el
+sh
+ow
+er
+cu
+rt
+ai
+n
+bo
+x
+w
+hi
+te
+bo
+ar
+d
+pe
+rs
+on
+ni
+gh
+ts
+ta
+nd
+to
+ile
+t
+si
+nk
+la
+m
+p
+ba
+th
+tu
+b
+ba
+g
+m
+ea
+n
+Io
+U
+Conv. Raw Depth 49.5 72.3 0.2 9.4 26.5 5.5 29.3 0.2 17.9 2.6 0.0 6.3 0.0 0.0 0.3 9.0 0.0 7.4 0.0 0.0 0.2 45.3 0.1 0.0 0.0 0.6 0.1 0.0 0.0 0.0 0.0 0.0 0.0 1.5 0.4 0.0 0.0 7.7
+Conv. Filled Depth 53.1 76.1 8.7 19.6 34.5 8.5 34.5 0.3 9.1 10.4 0.5 12.3 0.0 0.0 0.0 27.6 0.0 14.0 0.1 0.0 1.3 48.9 5.1 0.0 0.0 0.1 0.8 0.0 0.0 0.0 0.0 0.0 2.1 8.4 7.6 2.9 0.1 10.4
+Conv. Raw Depth, Mask concat. 59.4 80.2 28.7 53.3 49.0 37.3 42.9 2.7 21.7 17.7 7.3 22.3 0.0 5.2 0.9 35.6 11.4 21.4 14.0 0.0 6.3 34.8 10.0 6.4 4.6 0.1 8.6 0.0 4.7 12.1 2.7 0.1 35.0 30.2 9.2 23.3 2.7 19.0
+Conv. Filled Depth, Mask concat. 59.9 81.6 29.2 52.5 50.7 38.6 42.6 0.6 15.3 16.9 11.1 17.0 0.1 0.5 0.2 20.5 12.5 11.3 16.2 0.0 4.0 38.0 18.9 4.3 5.4 0.0 5.5 0.0 3.6 15.7 0.0 9.3 32.9 27.4 17.0 29.9 0.6 18.6
+Sparse Conv. Raw Depth 60.1 80.7 26.9 54.2 50.3 34.7 40.5 9.3 22.0 11.0 10.0 16.6 4.0 8.5 3.0 20.7 10.7 23.2 17.9 0.0 3.8 44.5 10.2 6.2 6.9 2.5 5.2 4.6 5.0 15.3 1.2 2.8 42.9 31.6 11.2 26.4 3.0 19.6
+Sparse Input Sparse Conv. Results Our Dataset
+Figure 12: Further qualitative results of our depth upsampling approach on the KITTI dataset with corresponding sparse
+depth input and our generated dense depth map dataset.
+Table 9: Evaluation of differently generated depth map vari-
+ants using the manually annotated ground truth disparity maps
+of 142 corresponding KITTI benchmark training images [46].
+Best values per metric are highlighted. Cleaned Accumulation
+describes the output of our automated dataset generation with-
+out manual quality assurance, the extension ‘+ SGM‘ describes
+an additional cleaning step of our depth maps with SGM depth
+maps, applied mainly to remove outliers on dynamic objects.
+All metrics are computed in the disparity space.
+Density MAE RMSE KITTI ?i inlier ratesoutliers ?1 ?2 ?3
+SGM 82.4% 1.07 2.80 4.52 97.00 98.67 99.19
+Raw LiDaR 4.0% 0.35 2.62 1.62 98.64 99.00 99.27
+Acc. LiDaR 30.2% 1.66 5.80 9.07 93.16 95.88 97.41
+Cleaned Acc. 16.1% 0.35 0.84 0.31 99.79 99.92 99.95
+the same sequence frames for all experiments but adapt the
+depth maps: Our generated dataset (denser than raw LiDaR
+and even more accurate), sparse LiDaR scans (as used by
+most approaches for depth prediction on KITTI scenes), as
+well as depth maps from semi-global matching (SGM) [26],
+a common real-time stereo estimation approach, cf. Table
+12 (bottom). We evaluate the effect of training with the
+standard L1 and L2 losses, but do not find large perfor-
+mance differences, cf. Table 12 (top). Also, we compare
+the difference between an inverse depth representation, as
+suggested in the literature [41, 63], as well as an absolute
+metric representation, cf. Table 12 (top). Surprisingly, we
+find that absolute depth values as ground truth representa-
+tion outperform inverse depth values. We use the best setup
+(absolute depth with L2 loss due to faster convergence) to
+evaluate the performance on our test split, where our dataset
+outperforms the other most promising depth maps from raw
+LiDaR, cf. Table 12 (bottom).
+We find that our generated dataset produces visually
+more pleasant results and especially much less outliers in
+occluded regions, cf. the car on the left for the second and
+last row of Figure 13. Also, our dense depth maps seem to
+help the networks to generalize better to unseen areas, such
+as the upper half of the image. We hope that our dataset will
+be used in the future to further boost performance for this
+challenging task.
+Raw Lidar Our Dataset
+Groundtruth Output Groundtruth Output
+Figure 13: Raw Lidar vs our dataset as training data for depth from mono: Qualitative examples of the depth-from-
+mono CNN trained on our generated dense and outlier-cleaned dataset in contrast to the sparse raw LiDaR data. It becomes
+apparent that denser training data leads to improved results e.g. in the upper half of the image and at object boundaries (where
+most LiDaR outliers occur).
+Table 12: Evaluation of different depth ground truth and loss variants (top) used for training a VGG16 on single-
+image depth prediction. L1 and L2 loss achieve comparable performance, while absolute depth representation
+for training instead of inverse depth performs significantly better. We compare performance on our generated
+validation and test split, as well as 142 ground truth depth maps from KITTI 2015 [46] for the best performing
+setup with L2 loss on absolute depth (bottom).
+Depth Maps Loss Inverse MAE RMSEDepth? val test KITTI‘15 val test KITTI‘15
+Our Dataset L2 yes 2.980 6.748
+Our Dataset L1 yes 2.146 4.743
+Our Dataset L2 no 2.094 3.634
+Our Dataset L1 no 2.069 3.670
+Our Dataset L2 no 2.094 1.913 1.655 3.634 3.266 3.275
+Raw LiDaR Scans L2 no 2.184 1.940 1.790 3.942 3.297 3.610
+SGM L2 no 3.278 2.973 3.652 5.826 4.811 8.927

@@ -1,0 +1,724 @@
+Deep Convolutional Neural Networks for Massive
+MIMO Fingerprint-Based Positioning
+Joao Vieira, Erik Leitinger, Muris Sarajlic, Xuhong Li, Fredrik Tufvesson
+Dept. of Electrical and Information Technology, Lund University, Sweden
+Joao.Vieira@eit.lth.se
+Abstract—This paper provides an initial investigation on
+the application of convolutional neural networks (CNNs) for
+fingerprint-based positioning using measured massive MIMO
+channels. When represented in appropriate domains, massive
+MIMO channels have a sparse structure which can be effi-
+ciently learned by CNNs for positioning purposes. We evaluate
+the positioning accuracy of state-of-the-art CNNs with channel
+fingerprints generated from a channel model with a rich clustered
+structure: the COST 2100 channel model. We find that moder-
+ately deep CNNs can achieve fractional-wavelength positioning
+accuracies, provided that an enough representative data set is
+available for training.
+Index Terms—Deep Learning, Convolutional Neural Networks,
+Massive MIMO, Fingerprint, Positioning, Localization.
+I. INTRODUCTION
+Massive MIMO is a candidate technology to integrate next
+generation cellular systems, such as 5G systems, and deliver
+manifold enhancements in the communications link [1]. In its
+conceived form [2], massive MIMO uses a large number of
+base station (BS) antennas together with measured channel
+state information (CSI) to multiplex user terminals spatially.
+Measured CSI is essential to yield spectrally efficient commu-
+nications, but it can also be a key enabler to achieve highly-
+accurate terminal positioning, where down to centimeter order
+accuracy may be required in some 5G applications, e.g.,
+autonomous driving [3]. Explained briefly, since positioning
+is a spatial inference problem, it makes sense to use large
+antenna arrays that oversample the spatial dimension of a
+wireless channel (thus benefiting from, e.g., increased angular
+resolution, resilience to small-scale fading, and array gain
+effects) to aid the positioning task.
+Several approaches that make use of measured massive
+MIMO channels for positioning exist. For example, the ap-
+proach proposed in [4] detects a terminal’s position (from a
+grid of candidate positions) using line-of-sight (LOS) based
+triangulation from a terminal to several distributed massive
+MIMO BSs. In [5], positioning is performed using the phases
+of multipath components estimated from massive MIMO chan-
+nels. Another positioning approach was proposed in [6], where
+received signal strength (RSS) based fingerprinting from one
+single-antenna terminal to NBS M -antenna BSs is employed.
+Here, the challenge was to learn the inverse map
+f?1RSS : {|Yi|
+2} ? {xi} (1)
+from a set of training observations, i.e. the training set
+{Yi,xi}NTraini=1 . Here the label xi ? R2x1 is the 2-
+dimensional terminal coordinate of training observation i, and
+Yi ? CMxNBS is its associated channel fingerprint. Gaussian
+Process-based Regression was used to learn f?1RSS(·).
+What the previous two mentioned positioning proposals and
+other proposals have in common (e.g., [7] and [8]), is that
+the structure of their solutions is typically composed by 2
+distinct steps. In the first step, empirical feature extraction
+(from the measured channel snapshots) is performed (e.g.,
+RSS), and in the second step, positioning of the terminal is
+done using the extracted features and a suitable algorithm-the
+algorithm typically being is the main contribution of the work.
+Although such 2 step solutions simplify the entire positioning
+task, they are inherently sub-optimal since they are constrained
+to use only partial–and typically not statistically sufficient [9]–
+channel statistics to solve the problem at hand. Thus, is it of
+interest to explore positioning frameworks that jointly extract
+and process channel features from measurements–under some
+joint optimality criterion.
+In this work, fingerprinting-based positioning is performed
+using a framework that jointly extracts and processes channel
+features for positioning. More specifically, we are interested
+to learn
+f?1 : {s (Yi)} ? {xi}, (2)
+i.e., the inverse of the underlying function f(·) that maps
+a set of single-antenna terminal coordinate vectors {xi} to
+their respective measured but transformed channel snapshots
+s (Yi) ? Cd1x...xdD ?i, where D is the dimensionality of
+the transformed snapshot. We note that the main point of the
+transformation s(·) is to obtain a sparse representation for
+s (Yi). This is motivated in detail in Sec. II-B. For now, we
+remark that the sparse transformations considered in this work
+are bijective, and thus yield no information loss.1
+Our proposal to learn (2) is by means of deep convolutional
+neural networks (CNNs). Deep neural networks provide state-
+of-the-art learning machines that yield the most learning
+capacity from all machine learning approaches [10], and lately
+1We remark that this positioning approach is inherently designed for the
+single-user case. This fits well within a massive MIMO context since mutually
+orthogonal pilot sequences, which are seen as sounding sequences in the
+context of this work, are typically used by different users during uplink
+training [2]. The extention of this approach to a multi-user case is thus
+straightforward.
+ar
+X
+iv
+:1
+70
+8.
+06
+23
+5v
+1 
+ [
+st
+at
+.M
+L
+] 
+ 2
+1 
+A
+ug
+ 2
+01
+7
+have been very successful in image classification tasks. Just
+like most relevant information for an image classification task
+is sparsely distributed at some locations of the image [10],
+measured channel snapshots Yi have, when represented in
+appropriate domains, a sparse structure which–from a learning
+perspective–resemble that of images. This sparse channel
+structure can be learned by CNNs and therefore used for
+positioning purposes. To the best of the authors’ knowledge
+there is no prior work on this matter.
+The main contributions of this paper are summarized below.
+• We investigate the feasibility of deep CNNs for
+fingerprint-based positioning with massive MIMO chan-
+nels, and provide insights on how to design such networks
+based on machine learning and wireless propagation
+theory.
+• As a proof-of-concept, we demonstrate the accuracy of
+our approach by performing fractional-wavelength po-
+sitioning using channel realizations generated from a
+widely accepted cellular channel model: the COST 2100
+MIMO channel model [11].
+II. CHANNEL FINGERPRINTING AND PRE-PROCESSING
+In this section, we explain the fingerprinting scenario ad-
+dressed in this work, and motivate why CNNs are learning
+machines suitable to perform positioning under such scenarios.
+To maximize insights, we focus most motivational remarks on
+the current case-study, but also provide several generalization
+remarks at the end of the section.
+A. Channel Fingerprinting
+In this work, we assume a BS equipped with a linear M -
+antenna array made of omnidirectional ?/2-spaced elements,
+and that narrowband channels sampled at NF equidistant
+frequency points are used for positioning. With that, the
+dimensionality of each channel fingerprint Yi (and, as it will
+be seen later, of each transformed fingerprint s(Yi)) is D = 3
+and
+d1 =M, d2 = NF , and d3 = 2.
+Given a terminal position, its associated fingerprint is gen-
+erated through f(·), i.e. the inverse of the function we wish
+to learn. We implement f(·) using the COST 2100 channel
+model, the structure of which is illustrated by Fig. 1, under
+the parametrization proposed in [12]. This parametrization was
+performed for outdoor environments and is further detailed in
+Sec. IV. However, we note that our method is not restricted
+to work only in outdoor channels–we remark on the required
+channel properties in Sec. II-B. It is important to note that,
+in this work, f(·) is implemented as a bijective deterministic
+map, i.e., there is only one unique fingerprint per position.2
+B. Motivation for CNNs and Sparse Input Structures
+Applying standard feed-forward neural networks to learn
+the structure of {Yi} may be computationally intractable,
+specially when M grows very large. However, the structure of
+neural networks can be enhanced, both from a computational
+complexity and a learning point-of-view, if designed with
+sparse interaction and parameter sharing properties [10]. This
+is a widely used architecture for CNNs, suitable to process
+inputs with grid-like structures (e.g., an image can be thought
+as a two-dimensional grid of pixels) with minimal amounts of
+pre-processing.
+CNNs are efficient learning machines given that their inputs
+meet the following two structural assumptions:
+1) most relevant information features are sparsely distributed
+in the input space;
+2) the shape of most relevant information features is in-
+variant to their location in the input space, and are well
+captured by a finite number of kernels.
+From a wireless channel point-of-view, these assumptions
+apply well when channels snapshots (i.e., the CNN inputs)
+are represented in domains that yield a sparse structure [13].
+For example, in the current case study, sparsity is achieved by
+representing Yi in its, so-called, angular-delay domains, see
+Fig. 1. Trivially, s(·) can take the form of a two-dimensional
+discrete Fourier transform, i.e.,
+s(Yi) = FYi F
+H . (3)
+If specular components of the channel, which are typically
+modeled by Dirac delta functions [13], are seen as the informa-
+tion basis for positioning, then the two structural assumptions
+of the CNNs inputs listed above are met. The same applies,
+if instead, clusters of multipath components are seen as the
+information features for positioning.
+C. Generalizing the Current Case Study
+The current case study can be extended to more
+generic/higher-dimensionality fingerprints. For example, if
+{Yi} is comprised by snapshots measured from a multi-
+antenna terminal to a BS array, both with arbitrary array
+structures and non-omnidirectional antenna elements, the ef-
+fective aperture distribution function (EADF) [14] may be
+accounted in s(·) in order to obtain a sparse fingerprint
+2Bijectiveness of f(·) applies in most practical propagation scenarios with
+high probability (the probability typically approaches one as M increases).
+This is an important aspect to consider as it addresses the conditions needed
+to be able to use CNNs (or more generally, to solve the inverse problem). On
+a different note, regarding the deterministic structure for f(·), this is done
+by generating both training and test sets from the same given realization
+of the COST 2100 channel model stochastic parameters. This makes each
+fingerprint to be completely determined solely by the geometry of the
+propagation channel itself. Stochastic effects in the fingerprinting process,
+such as measurement and labeling noise, or even time-variant channel fading
+are interesting impairments to be considered in the design of CNN in future
+work. For now, we focus on the case of having unique fingerprints per position,
+due to simplicity.
+   
+Lin
+ea
+r A
+nt
+en
+na
+ A
+rra
+y
+25
+ ?
+Magnitude of a (Sparse) Channel Snapshot
+D
+e
+la
+y
+ [
+µ
+s
+]
+0.5
+1
+1.5
+2
+2.5
+3
+Angle [ °]
+25 50 75 100 125 150 175
+×10
+-4
+0
+0.2
+0.4
+0.6
+0.8
+1
+Fig. 1. Left–Link setup considered in this work: an M -linear BS array positioning one single-antenna terminal in a confined square area. Channel realizations
+are generated through the COST 2100 MIMO channel model. This geometry-based stochastic channel model is composed by different types of clusters of
+multipath components (MPCs) that illuminate certain visibility regions (VRs) of an area. Right–Example of the magnitude of a channel snapshot represented
+in a sparse domain. Such channel channel has a rich structure that can be learned by a CNN for positioning purposes.
+representation. However, we emphasize that, in contrast to
+most propagation studies, one does not need to necessarily de-
+embed the measurement system from the propagation channel
+in order to obtain valid fingerprints for positioning. Also,
+multi-antenna channels yielding phenomena such as violation
+of the plane wave assumption, or even the existence of cluster
+visibility regions [15], can be made sparse by means of proper
+transformations, e.g., generalized Fourier transforms. In any
+case, the key is the ability to obtain a sparse representation
+for s (Yi).
+III. DEEP CNN ARCHITECTURE
+In this section, we describe the network architecture used
+for learning f?1(·), and discuss some design aspects.
+For notation convenience, we drop the dependence of the
+training sample index i, and write Y , Yi and x , xi until
+explicitly stated otherwise.
+A. Convolutional-Activation-Pooling Layers
+After the input layer, which takes the transformed snap-
+shots, a typical structure of CNNs employs a cascade of
+L convolutional-activation-pooling (CAP) layers. Each CAP
+layer is composed by: i) a convolutional operation of its input
+with K convolutional Kernels, ii) a non-linear transformation,
+i.e., activation function, and iii) a pooling layer, respectively.
+A detailed description of the CAP layer structure used in this
+work follows below.
+Let the tensor H`?1 ? RMxNF xS3 be the input of the `th
+CAP layer, with 1 ? ` ? L. Also, let the jth convolutional
+Kernel of the `th layer be denoted by w`j ? RS1xS2xS3 , with
+1 ? j ? K, and S1 and S2 denoting the sizes of the Kernels
+(which are CNN hyper-parameters). With h`?1r,c ? RS1xS2xS3
+being a sub-tensor of a zero-padded version3 of H`?1, an
+3The zero-padded version of H`?1 is obtained by padding the borders of
+the volume of H`?1 with zeros, such that, when convolved with any Kernel
+w`j , the input and output volumes are the same [10].
+output entry of the `th convolutional layer can be written as
+c`r,c,j = b
+`
+j + 1
+T
+(
+w`j ? h`?1r,c
+)
+1. (4)
+Here ? denotes the Hadamard product, b`j is a bias term, 1
+denotes the all-ones column vector, and r and c are indices in
+the convolution output volume which are implicitly defined.
+In the first CAP layer, the input H0 is a tensor made out of
+the complex-valued entries of (3), and thus we have S3 = 2
+(real dimensions). This is because, although channel snapshots
+are inherently complex-valued, we pursue an implementation
+of a real-valued CNN with real-value inputs (thus we have
+S3 = 2 in the first CAP layer). We motivate why we do so in
+Sec. III-D. In the remaining CAP layers, we have S3 = K.
+Each convolutional output entry (4) is fed to an activation
+function. We use the current default choice for activation
+functions in CNNs, namely, the rectified linear unit (RELU)
+[10], where the output can be written as
+g`r,c,j = max
+(
+c`r,c,j , 0
+)
+. (5)
+Finally, after each activation function follows a pooling op-
+eration which down samples the outputs of the activation
+functions. A standard option, also used here, is to forward
+propagate the maximum value within group of N1 × N2
+activation functions outputs. The pooling result can be written
+as
+h`r,c,j =
+N1
+max
+m=1
+N2
+max
+n=1
+(
+g`(r?1)N1+m, (c?1)N2+n, j
+)
+. (6)
+B. Fully-Connected Layer
+A fully-connected layer, following the L CAP layers, final-
+izes the CNN. With that, the position estimate of the network,
+t ? R2x1, is given by
+t = W vec
+{
+HL
+}
++ bL, (7)
+where vec {·} vectorizes its argument, bL = [bL1 bL2 ]T is a
+vector of biases, and W is a weight matrix whose structure is
+implicitly defined.
+C. Network Optimization
+The CNN network learns the weights W and
+{
+w`j
+}
+,
+and biases
+{
+b`j
+}
+, in order to make t the best approxi-
+mation of x. Since we address positioning as a regres-
+sion problem, we use the squared residuals averaged over
+the training set as the optimizing metric. Re-introducing
+the dependence on the sample index i, and defining the
+column vector ? by stacking all network parameters as
+? =
+[
+vec
+{
+[w11 . . .w
+K
+L ]
+}T
+vec {W}T [b11 . . . bL2 ]
+]T
+, the opti-
+mum parameters are given by
+?? = argmin
+?
+J(?), (8)
+with
+J(?) =
+?
+2
+?T? +
+1
+Ntrain
+Ntrain?
+i=1
+(xi ? ti(?))2. (9)
+A Tikhonov penalty term is added to harvest the benefits of
+regularization in CNNs–? is its associate hyper-parameter. On
+a practical note, we minimize (9) using stochastic gradient-
+descent and back propagation [10].
+D. Network Design Considerations
+We now motivate our choice for the implementation of
+real-valued CNNs. From our experience, the main challenge
+of generalizing CNNs to the complex-valued case appears to
+be in finding a suitable generalization of (5), the RELU, in
+order to ”activate” complex inputs. For example, the complex-
+valued CNN generalizations presented in [16] apply (5) to
+both real and imaginary parts separately, which from our
+experience appears not to perform well from a network op-
+timization point-of-view. Explained briefly, such RELUs are
+non-continuous functions in C, as opposed to only being non-
+differentiable in R as in real-valued network. This makes the
+network’s optimization unstable with the current optimization
+method (i.e. gradient descent). Therefore, as real-valued CNNs
+have been very successful in image classification tasks, we
+conservatively choose to pursue this design option, and let the
+extension to the complex-valued case to be a matter of future
+work.
+A practical remark regarding the choice of the number of
+CAP Kernels, K, follows. In practice, information features,
+addressed in Sec. II-B, are subject to a number of variability
+factors. For example, the shape of a ”measured Dirac delta
+function” can vary with its location due to discretization. Also,
+it is clear that, there is a higher variability in the informational
+features if they are seen as clusters of MPCs, rather than single
+MPCs themselves. In both cases, a practical approach to deal
+with such variability factors is to set a high number for K,
+and let the CNNs learn a set of kernels that span most possible
+variations.
+To finalize, if the information features are seen as the
+clusters of MPCs, the sizes of the Kernels, S1 and S2,
+should cover their range in the angular and delay channel
+representations. This is because MPCs within a cluster may
+be statistically dependent, but different clusters are typically
+not.
+E. Complexity Aspects
+The most computationally challenging aspect of the entire
+approach is the optimization stage of the network. This is due
+to the large size of the training sets, network dimensionality,
+non-convexity of J(?), etc. However, once the optimization
+stage is finalized, real-time positioning can easily be achieved
+due to the feed-forward structure of the network. This can
+be easily observed (in the current case-study) by looking
+at the overall complexity order of a CNN point-estimate:
+O(K2MLNFS1S2). The fact that the complexity does not
+depend on the training set size Ntrain is one main advantage
+of using CNNs for positioning.
+IV. POSITIONING RESULTS
+Next, we address the positioning capabilities of CNNs by
+means of numerical results. We omit showing optimization
+aspects of the network (e.g., convergence across epochs) as
+the main point of the paper is to analyse the positioning
+capabilities of an optimized CNN.
+A. Simulation Setup
+The setup used in our experiments is illustrated by Fig. 1:
+the terminal is constrained to be in a square area A of 25×25
+wavelengths. Channel fingerprints are obtained in this area
+through the COST 2100 channel model under the 300MHz
+parameterization (e.g., for path-loss and cluster-based param-
+eters) established in [12]. The remaining parameters are shown
+in Table I, and the other CNNs hyper-parameters, i.e. L and
+K, are varied during the simulations.
+TABLE I
+CHANNEL AND CNNS PARAMETERS
+Parameter Variable Value
+Carrier frequency fc 300 MHz
+Bandwidth W 20 MHz
+# Frequency points NF 128
+# BS antennas M 128
+First BS antenna coordinate B1 [?200? ? 200?]T
+Last BS antenna coordinate BM [?200? ? 200?+ (M?1)?2 ]
+T
+Tikhonov hyper-parameter ? 10?3
+Kernel angular length [ ?] S1 9.8
+Kernel delay length [µs] S2 0.175
+Pooling windows length N1 andN2 2
+The closest and furthest coordinate points of A with respect
+to the first BS antenna are:
+uc = [?12.5? ? 12.5?]T and uf = [12.5? 12.5?]T ,
+respectively (i.e., the user is at least ||uc?B1||/? wavelengths
+away from the first BS antenna). The coordinates of these
+two spatial points implicitly define the relative orientation of
+the linear array with the area A. Similarly, the upcoming
+performance analysis is done by means of the normalized root
+mean-squared error (NRMSE) where the mean is calculated as
+the average over the test sets samples. Thus, we have
+NRMSE =
+1
+?
+???? 1
+Ntest
+Ntest?
+i=1
+(xi ? ti(?))2.
+This error metric has an understandable physical intuition as
+it shows how the error distance relates to the wavelength.
+The CNN training and testing is described as follow:
+1) First, the training set is obtained by fingerprinting a 2-
+dimensional uniformly-spaced (thus, deterministic) grid
+of positions spanning the totality of A. The impact of
+the sampling density is discussed in Sec. IV-C.
+2) For the test set, each fingerprint’s position is obtained by
+sampling a random variable with a uniform distribution
+with support A.
+Note that, if the CNN cannot use the available fingerprints
+for training, then the position estimator is E{x} = 0, see (9).
+Its NRMSE, for the current case study, is given by
+NRMSEref(A) = 1
+?
+?
+1?
+A ?d
+?
+A
+(d? E{x})2 ?d ? 10.2.
+(10)
+Obviously, this reference value increases when A is larger.
+Since an optimized CNN with a non-zero number of finger-
+prints should be able to do better or equal than (10), we use
+(10) as a reference level in the analysis.
+For benchmarking purposes, we also contrast our CNN
+results against a standard non-parametric fingerprinting ap-
+proach [17]. Seeing a training fingerprint as a function of its
+position, i.e. Yi(xi), this approach computes the position from
+a new fingerprint Ynew through a grid-search over normalized
+correlations as
+x?i = argmax
+xi?{xi}
+Ntrain
+i=1
+|Tr{Yi(xi)HYnew}|?
+|Tr{Yi(xi)HYi(xi)}Tr{YHnewYnew}|
+.
+(11)
+The following remarks can be made about this non-parametric
+approach:
+1) Compared to the use of CNNs, a main drawback is its
+computational complexity order, O(MN2FNtrain), as it
+depends on the size of the training set;
+2) it has no inherent interpolation abilities, and thus its error
+can be lower bounded given the spatial density of the
+training set;
+B. Proof-of-Concept and Accuracy for Different CNN
+Parametrizations
+Here, we report the positioning results when the spacing
+between neighbor training fingerprints is ?/4. We consider
+this extreme case for now, in order to mitigate the impact of
+spatial undersampling from the results-here the focus is solely
+on the positioning capabilities of the network. The impact of
+the training fingerprints spacing is addressed later in Sec. IV-C.
+Fig. 2 (left) illustrates the positioning accuracy for different
+cases of CNN parameterizations. First, and as a sanity check,
+we see that for the same parameterizations, a network fed
+with untransformed inputs (i.e., s (Yi) = Yi) cannot effec-
+tively learn the channel structure for positioning purposes–
+the order of magnitude of the positioning error is similar to
+(10). However, with transformed inputs, fractional-wavelength
+positioning can be achieved in both network settings, with the
+lowest achieved test NRMSE being of about ?6dB ? 1/2
+of a wavelength. This showcases the capabilities of CNNs to
+learn the structure of the channel for positioning purposes. We
+remind that such positioning accuracies are attained with only
+20 MHz of signaling bandwidth, see Table I, which suggests
+that CNNs can efficiently trade-off signal bandwidth by BS
+antennas and still achieve very good practical performance.
+Decreasing the error further than fractional-wavelength ranges
+becomes increasingly harder due to the increased similarities
+of nearby fingerprints–such range approaches the coherence
+distance of the channel. Also, as an illustrative example of the
+positioning accuracy, Fig. 2 (right) shows the point-estimates
+of the CNN under the parameterization that attained the lowest
+test NRMSE.
+C. Accuracy for Different Training Grids
+To finalize, we analyze the impact of spatial sampling during
+training. For benchmarking, we contrast the CNN performance
+with the performance of the correlation-based classifier (11).
+We use the CNN hyper-parameters that attained the lowest
+MSE in Fig. 2, namely, the model with L = 4 and K = 20.4
+Fig. 3 contrasts the NRMSEs obtained from a CNN and the
+correlation-based classifier (11), against spatial sampling in
+the training set. Overall, both approaches are able to attain
+fractional-wavelength accuracies at smaller training densities.
+Noticeably, the CNN tend to behave better than (11) for
+less dense training sampling. Given that (11) does not have
+interpolation abilities, this result is closely connected with the
+inherent interpolation abilities of the CNNs. The fact that the
+CNNs achieve similar, or even superior performance compared
+to standard non-parametric approaches while having attractive
+implementation complexity further corroborates their use in
+fingerprint-based localization systems.
+V. TAKEAWAYS AND FURTHER WORK
+We have investigated a novel approach for massive MIMO
+fingerprint-based positioning by means of CNNs and measured
+channel snapshots. CNNs have a feedforward structure that is
+able to compactly summarize relevant positioning information
+in large channel data sets. The positioning capabilities of
+CNNs tend to generalize well, e.g. in highly-clustered propa-
+gation scenarios with or without LOS, thanks to their inherent
+feature learning abilities. Proper design allows fractional-
+wavelength positioning to be obtained under real-time require-
+ments, and with low signal bandwidths.
+The current investigation showcased some of the potentials
+of CNNs for positioning using channels with a complex
+4Ideally, the CNN hyper-parameters should be tuned according to the
+current training set. However, we keep the same hyper-parameterization
+throughout this analysis, for simplicity.
+Number of CAP layers L
+3 4 5 6 7 8
+2
+0
+lo
+g
+1
+0
+N
+R
+M
+S
+E
+-10
+-5
+0
+5
+10
+15
+Untransformed
+Transformed
+eq. (10) K=20 K=10
+X coordinate [?]
+200 205 210 215 220 225
+Y
+ c
+o
+o
+rd
+in
+a
+te
+ [
+?
+]
+200
+205
+210
+215
+220
+225
+True Positions
+CNN Estimates
+RMSE = 0.6 [?]
+Fig. 2. Left–NRMSE obtained by CNNs under different parameterizations. The upper horizontal line corresponds to the reference level (10). Here we only
+report the test error, since a similar error value was obtained during training (i.e., no overfitting exists). Right–An illustrative example of the point-estimates
+from a pre-defined set of positions by the optimized CNN (from the left figure) with K = 20 and L = 4.
+Spacing between Training Samples [?]
+0 1 2 3 4 5
+N
+R
+M
+S
+E
+0
+1
+2
+3
+4
+5
+CNN
+Correlation-based
+Fig. 3. NRMSE obtained by different positioning approaches for different
+spacings between samples of the uniform training grid.
+structure. However, the design of CNNs in this contexts should
+be a matter of further investigation, in order to be able to deal
+with real-world impairments during the fingerprinting process.
+In this vein, some questions raised during this study are, for
+example, i) how to achieve a robust CNN design that is able
+to deal with impairments such as measurement and labeling
+noise, or channel variations that are not represented in the
+training set, or ii) how to design complex-valued CNNs that
+perform well and are robust during optimization.
+REFERENCES
+[1] E. G. Larsson, O. Edfors, F. Tufvesson, and T. L. Marzetta, “Massive
+MIMO for next generation wireless systems,” IEEE Communications
+Magazine, vol. 52, no. 2, pp. 186–195, 2014.
+[2] T. L. Marzetta, “Noncooperative cellular wireless with unlimited num-
+bers of base station antennas,” IEEE Transactions on Wireless Commu-
+nications, vol. 9, no. 11, pp. 3590–3600, Nov. 2010.
+[3] Z. Chaloupka, “Technology and Standardization Gaps for High Accuracy
+Positioning in 5G,” IEEE Communications Standards Magazine, vol. 1,
+no. 1, pp. 59–65, March 2017.
+[4] N. Garcia, H. Wymeersch, E. G. Larsson, A. M. Haimovich, and
+M. Coulon, “Direct Localization for Massive MIMO,” IEEE Transac-
+tions on Signal Processing, vol. 65, no. 10, pp. 2475–2487, May 2017.
+[5] X. Li et al., “Robust Phase-Based Positioning Using Massive MIMO
+with Limited Bandwidth,” in 2017 IEEE International Symposium on
+Personal, Indoor and Mobile Radio Communications (PIMRC), Oct
+2017.
+[6] V. Savic and E. G. Larsson, “Fingerprinting-Based Positioning in
+Distributed Massive MIMO Systems,” in 2015 IEEE 82nd Vehicular
+Technology Conference (VTC2015-Fall), Sept 2015, pp. 1–5.
+[7] S. A. Shaikh and A. M. Tonello, “Localization based on angle of arrival
+in EM lens-focusing massive MIMO,” in 2016 IEEE 6th International
+Conference on Consumer Electronics - Berlin (ICCE-Berlin), Sept 2016,
+pp. 124–128.
+[8] M. Zhu, J. Vieira, Y. Kuang, K.Astrom, A. F. Molisch, and F. Tufvesson,
+“Tracking and positioning using phase information from estimated
+multi-path components,” in 2015 IEEE International Conference on
+Communication Workshop (ICCW), June 2015, pp. 712–717.
+[9] S. M. Kay, Fundamentals of Statistical Signal Processing: Estimation
+Theory. Prentice-Hall, Inc., 1993.
+[10] I. Goodfellow, Y. Bengio, and A. Courville, Deep Learning. MIT Press,
+2016.
+[11] L. Liu et al., “The COST 2100 MIMO channel model,” IEEE Wireless
+Communications, vol. 19, no. 6, pp. 92–99, December 2012.
+[12] M. Zhu, G. Eriksson, and F. Tufvesson, “The COST 2100 Channel
+Model: Parameterization and Validation Based on Outdoor MIMO
+Measurements at 300 MHz,” IEEE Transactions on Wireless Communi-
+cations, vol. 12, no. 2, pp. 888–897, February 2013.
+[13] A. Molisch, Wireless Communications, ser. Wiley - IEEE. Wiley, 2010.
+[14] T. Kaiser, H. B. Andre Bourdoux, J. B. A. Javier Rodriguez Fonollosa,
+and W. Utschick, Smart Antennas - State of the Art. Hindawi Publishing
+Corporation, 2005.
+[15] X. Gao, F. Tufvesson, and O. Edfors, “Massive MIMO channels -
+Measurements and models,” in 2013 Asilomar Conference on Signals,
+Systems and Computers, Nov 2013, pp. 280–284.
+[16] N. Guberman, “On complex valued convolutional neural networks,”
+CoRR, vol. abs/1602.09046, 2016. [Online]. Available: http://arxiv.org/
+abs/1602.09046
+[17] Z. H. Wu, Y. Han, Y. Chen, and K. J. R. Liu, “A time-reversal paradigm
+for indoor positioning system,” IEEE Transactions on Vehicular Tech-
+nology, vol. 64, no. 4, pp. 1331–1339, April 2015.
