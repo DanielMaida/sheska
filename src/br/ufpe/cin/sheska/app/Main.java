@@ -28,7 +28,7 @@ public class Main
 				indexer.doIndexing(docDir);
 			}
 			
-			int mode = 4;
+			int mode = 2;
 			QueryMaker qm = new QueryMaker();
 			LuceneReturn lr = qm.makeQuery("computer", getAnalyzer(mode), mode);
 			System.out.println(lr.getTotalMatches());
