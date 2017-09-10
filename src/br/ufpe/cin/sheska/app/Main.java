@@ -68,6 +68,11 @@ public class Main {
 							System.out.println("Resultados da busca por " + query + ":");
 							QueryMaker qm = new QueryMaker();
 							LuceneReturn lr = qm.makeQuery(query, getAnalyzer(opt2), opt2);
+							
+							System.out.println("Docs: ");
+							for(String doc : lr.getPaths()){
+								System.out.println(doc);
+							}
 
 							System.out.println("Deseja fazer outra busca? Y or N");
 							String anotherSearch = in.nextLine();

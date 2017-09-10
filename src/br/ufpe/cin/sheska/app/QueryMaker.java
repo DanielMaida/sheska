@@ -29,11 +29,13 @@ public class QueryMaker {
         
         System.out.println("Total Matches :: " + foundDocs.totalHits);
         System.out.println("Total Files :: " + foundDocs.scoreDocs.length);
+       
         
         for (ScoreDoc sd : foundDocs.scoreDocs) 
         {
             Document d = searcher.doc(sd.doc);
             pathList.add(d.get("path"));
+            
         }
         LuceneReturn lr = new LuceneReturn(foundDocs.totalHits,foundDocs.scoreDocs.length,pathList);
         return lr;
