@@ -54,14 +54,14 @@ public class Main {
 
 					while (!isValid) {
 						System.out.println("Em qual base você deseja fazer a consulta?");
-						System.out.println(" 1 - Sem stopwords, Sem Stemming");
-						System.out.println(" 2 - Com stopwords, Sem Stemmings");
-						System.out.println(" 3 - Sem stopwrods, Com Stemming");
-						System.out.println(" 4 - Com Stopwords, Com Stemming");
+						System.out.println(" 1 - Sem remoçao de stopwords, Sem Stemming");
+						System.out.println(" 2 - Com remocao de stopwords, Sem Stemming");
+						System.out.println(" 3 - Sem remocao de stopwords, Com Stemming");
+						System.out.println(" 4 - Com remocao de stopwords, Com Stemming");
 
 						int opt2 = in2.nextInt();
-
-						if (opt2 > 0 && opt2 < 5) {
+						
+						if (opt2 > 0 && opt2 < 5 ) {
 							System.out.println("Digite sua busca");
 							String query = in.nextLine();
 
@@ -71,8 +71,10 @@ public class Main {
 							
 							System.out.println("Docs: ");
 							for(String doc : lr.getPaths()){
-								System.out.println(doc);
+								System.out.println(System.getProperty("user.dir") + "/" + doc);
 							}
+							
+							System.out.println("Total Matches :: " + lr.getTotalFiles());
 
 							System.out.println("Deseja fazer outra busca? Y or N");
 							String anotherSearch = in.nextLine();
@@ -81,12 +83,13 @@ public class Main {
 								isValid = true;
 							}
 						} else {
-							System.out.println("Digite algo valido por favor");
+							break;
 						}
+						
 					}
 				}
 			} catch (Exception e) {
-				e.printStackTrace();
+				System.out.println("Valor invalido digitado, por favor digite um número");
 			}
 
 		}
@@ -99,8 +102,7 @@ public class Main {
 		case 2:
 			return new StandardAnalyzer(); // com stop sem stem
 		case 3:
-			return new EnglishAnalyzer(new CharArraySet(0, true)); // sem stop,
-		// com stem
+			return new EnglishAnalyzer(new CharArraySet(0, true)); // sem stop com stem
 		case 4:
 			return new EnglishAnalyzer(); // com stop e com stemming
 		default:

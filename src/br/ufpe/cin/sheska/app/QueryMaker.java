@@ -25,12 +25,7 @@ public class QueryMaker {
         IndexSearcher searcher = createSearcher(mode);
         ArrayList<String> pathList = new ArrayList<String>();
         TopDocs foundDocs = searchInContent(query, searcher, analyzer);
-         
-        
-        System.out.println("Total Matches :: " + foundDocs.totalHits);
-        System.out.println("Total Files :: " + foundDocs.scoreDocs.length);
        
-        
         for (ScoreDoc sd : foundDocs.scoreDocs) 
         {
             Document d = searcher.doc(sd.doc);
